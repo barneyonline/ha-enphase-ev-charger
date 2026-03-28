@@ -399,7 +399,7 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
         return (
             _type_available(self._coord, "encharge")
             and _battery_write_access_confirmed(self._coord)
-            and self._coord.charge_from_grid_schedule_available
+            and self._coord.charge_from_grid_force_schedule_available
         )
 
     @property

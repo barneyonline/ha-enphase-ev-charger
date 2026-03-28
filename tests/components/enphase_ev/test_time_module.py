@@ -429,6 +429,35 @@ async def test_charge_from_grid_time_entity_availability_and_values(
     assert end.available is False
 
 
+@pytest.mark.asyncio
+async def test_charge_from_grid_time_entity_available_from_capability_without_times(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = None  # noqa: SLF001
+    coord._battery_charge_end_time = None  # noqa: SLF001
+    coord._battery_cfg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            }
+        )
+    )
+
+    start = ChargeFromGridStartTimeEntity(coord)
+    end = ChargeFromGridEndTimeEntity(coord)
+
+    assert start.available is True
+    assert end.available is True
+    assert start.native_value is None
+    assert end.native_value is None
+
+
 def test_charge_from_grid_time_entity_unavailable_when_coordinator_down(
     coordinator_factory,
 ) -> None:

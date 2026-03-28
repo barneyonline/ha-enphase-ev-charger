@@ -1353,6 +1353,13 @@ def test_system_profile_status_sensor_states():
         battery_cfg_control_enabled=True,
         battery_cfg_control_schedule_supported=True,
         battery_cfg_control_force_schedule_supported=False,
+        battery_cfg_control_locked=False,
+        battery_cfg_control_show_day_schedule=True,
+        battery_cfg_control_force_schedule_opted=True,
+        battery_dtg_control={"show": True, "locked": False},
+        battery_cfg_control={"show": True, "locked": False},
+        battery_rbd_control={"show": True, "locked": False},
+        battery_system_task=False,
         battery_show_production=True,
         battery_show_consumption=True,
         battery_show_storm_guard=True,
@@ -1393,6 +1400,12 @@ def test_system_profile_status_sensor_states():
     assert attrs["requested_profile_label"] == "AI Optimisation"
     assert attrs["supports_mqtt"] is True
     assert attrs["cfg_control_show"] is True
+    assert attrs["cfg_control_locked"] is False
+    assert attrs["cfg_control_show_day_schedule"] is True
+    assert attrs["cfg_control_force_schedule_opted"] is True
+    assert attrs["cfg_control"]["locked"] is False
+    assert attrs["rbd_control"]["show"] is True
+    assert attrs["battery_system_task"] is False
     assert attrs["site_country_code"] == "US"
     assert attrs["feature_details"] == {"HEMS_EV_Custom_Schedule": True}
     assert attrs["evse_profile"]["uuid"] == "evse-1"

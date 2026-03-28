@@ -165,13 +165,21 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
+        if not _type_available(self._coord, "envoy"):
+            return False
+        available = getattr(self._coord, "battery_profile_selection_available", None)
+        if available is None:
+            if not getattr(self._coord, "battery_controls_available", False):
+                return False
+            owner = getattr(self._coord, "battery_user_is_owner", None)
+            installer = getattr(self._coord, "battery_user_is_installer", None)
+            if owner is False and installer is False:
+                return False
+        elif not available:
+            return False
         if not _battery_write_access_confirmed(self._coord):
             return False
-        return (
-            _type_available(self._coord, "envoy")
-            and self._coord.battery_controls_available
-            and bool(self.options)
-        )
+        return bool(self.options)
 
     @property
     def current_option(self) -> str | None:

@@ -1365,6 +1365,31 @@ def test_charge_from_grid_schedule_switch_availability(coordinator_factory) -> N
     assert sw.is_on is True
 
 
+def test_charge_from_grid_schedule_switch_unavailable_without_force_support(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_cfg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            }
+        )
+    )
+
+    assert ChargeFromGridScheduleSwitch(coord).available is False
+
+
 def test_charge_from_grid_schedule_switch_suggested_object_id(
     coordinator_factory,
 ) -> None:

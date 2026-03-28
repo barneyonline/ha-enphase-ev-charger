@@ -569,6 +569,29 @@ def test_battery_cfg_schedule_limit_number_unavailable_without_schedule(
     assert number.native_value is None
 
 
+def test_battery_cfg_schedule_limit_number_unavailable_without_force_support(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_cfg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            }
+        )
+    )
+
+    assert BatteryCfgScheduleLimitNumber(coord).available is False
+
+
 def test_battery_cfg_schedule_limit_number_super_unavailable_and_device_info_fallback(
     hass, config_entry
 ) -> None:
