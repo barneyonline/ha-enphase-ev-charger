@@ -312,6 +312,96 @@ def test_type_device_envoy_prefers_system_controller_metadata(
     )  # noqa: SLF001
 
 
+def test_type_device_envoy_falls_back_to_gateway_member_metadata(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 3,
+                "devices": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-123",
+                        "sku_id": "SC100G-M230ROW",
+                        "envoy_sw_version": "D8.3.5167",
+                    },
+                    {
+                        "name": "Consumption Meter",
+                        "channel_type": "consumption_meter",
+                        "serial_number": "CM-123",
+                    },
+                    {
+                        "name": "Production Meter",
+                        "channel_type": "production_meter",
+                        "serial_number": "PM-123",
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    assert coord.type_device_name("envoy") == "IQ Gateway"
+    assert coord.type_device_model("envoy") == "IQ Gateway"
+    assert coord.type_device_serial_number("envoy") == "GW-123"
+    assert coord.type_device_model_id("envoy") == "SC100G-M230ROW"
+    assert coord.type_device_sw_version("envoy") == "D8.3.5167"
+
+    info = coord.type_device_info("envoy")
+    assert info is not None
+    assert info["name"] == "IQ Gateway"
+    assert info["model"] == "IQ Gateway"
+    assert info["serial_number"] == "GW-123"
+    assert info["model_id"] == "SC100G-M230ROW"
+    assert info["sw_version"] == "D8.3.5167"
+
+
+def test_type_device_envoy_does_not_promote_localized_meters_to_gateway(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "IQ Envoy",
+                        "serial_number": "GW-EIM1",
+                        "channel_type": "Compteur de production integre Enphase",
+                    },
+                    {
+                        "name": "IQ Envoy",
+                        "serial_number": "GW-EIM2",
+                        "channel_type": "Compteur de consommation integre Enphase",
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    assert coord.type_device_name("envoy") == "IQ Gateway"
+    assert coord.type_device_model("envoy") == "IQ Gateway"
+    assert coord.type_device_serial_number("envoy") is None
+    assert coord.type_device_model_id("envoy") is None
+    assert coord.type_device_sw_version("envoy") is None
+
+    info = coord.type_device_info("envoy")
+    assert info is not None
+    assert info["name"] == "IQ Gateway"
+    assert info["model"] == "IQ Gateway"
+    assert "serial_number" not in info
+    assert "model_id" not in info
+    assert "sw_version" not in info
+
+
 def test_type_device_summary_helpers_for_battery_and_microinverter(
     hass, monkeypatch
 ) -> None:
