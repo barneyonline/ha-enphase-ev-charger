@@ -321,6 +321,16 @@ GET /service/evse_management/fwDetails/<site_id>
 Returns site-scoped EV charger firmware rollout details as an array keyed by `serialNumber`.
 Unlike summary v2, the path variable is the site identifier, not the charger serial number.
 
+Observed request fields:
+- Method: `GET`.
+- Path parameter `site_id`: numeric Enlighten site identifier in the URL path.
+- Query/body: none observed.
+- `Accept: */*`.
+- `Content-Type: application/json`.
+- `X-Requested-With: XMLHttpRequest`.
+- `Referer`: `/web/<site_id>/today/graph/hours?v=3.4.0?osv=1`.
+- Browser capture authenticated with the normal Enlighten session cookie jar; the observed `e-auth-token` header value was the literal string `null`.
+
 Example response (anonymized capture):
 ```json
 [
@@ -338,6 +348,11 @@ Example response (anonymized capture):
 ]
 ```
 
+Observed structure:
+- The response is a bare JSON array with no top-level `meta`, `data`, or `error` envelope.
+- Each array item represents one charger at the site and can be joined to runtime/summary payloads via `serialNumber`.
+- Timestamp fields use extended ISO-8601 strings with fractional seconds plus a bracketed zone suffix such as `Z[UTC]`.
+
 Observed fields:
 - `serialNumber`: charger serial number used to join the record to summary/runtime data.
 - `siteId`: numeric site identifier echoed by the service.
@@ -348,6 +363,10 @@ Observed fields:
 - `lastUpdatedAt`: service timestamp for the current firmware-details record.
 - `statusDetail`: optional additional upgrade-state detail; often `null`.
 - `isAutoOta`: whether automatic OTA behavior is enabled for the charger.
+
+Notes:
+- The captured browser request succeeded with session cookies even though `e-auth-token` was `null`. Whether non-browser clients can omit `e-auth-token` for this endpoint remains unverified, so preserve standard session headers when scripting against it.
+- The original trace contained live cookies, XSRF tokens, JWT-bearing cookie values with account identifiers, a real site ID, a real charger serial number, and a client-facing proxy address. Those values are intentionally replaced with placeholders here.
 
 ### 2.2.3 EV Feature Flags
 ```
