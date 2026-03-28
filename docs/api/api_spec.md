@@ -107,6 +107,7 @@ Example response (anonymized):
 | HEMS live vitals toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/vitals` | Enlighten session cookies | No (monitoring stream only) |
 | Start charging | `POST` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/start_charging` | `e-auth-token` + cookies | Yes |
 | Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
+| EV charger config read/write | `POST/PUT` | `/service/evse_controller/api/v1/<site_id>/ev_chargers/<sn>/ev_charger_config` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
 | Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
 | BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | `e-auth-token` + cookies + `Username` | Yes |
 | BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | `e-auth-token` + cookies + `Username` | No |
@@ -572,6 +573,7 @@ Headers:
   X-Requested-With: XMLHttpRequest
 ```
 Fetches the current authentication requirements for charging sessions.
+The same endpoint also returns other charger configuration keys when requested in the body array.
 Observed from the Enlighten web UI as an `XMLHttpRequest` `POST`, with the requested config keys supplied in the JSON body rather than query parameters.
 
 Example response:
@@ -588,6 +590,36 @@ Example response:
     {
       "key": "sessionAuthentication",
       "value": null,
+      "reqValue": null,
+      "status": 1
+    }
+  ],
+  "error": {}
+}
+```
+
+Observed phase/default-charge read request:
+```json
+[
+  { "key": "DefaultChargeLevel" },
+  { "key": "phase_switch_config" }
+]
+```
+
+Observed response (anonymized):
+```json
+{
+  "meta": { "serverTimeStamp": 1760000000000, "rowCount": 2 },
+  "data": [
+    {
+      "key": "DefaultChargeLevel",
+      "value": null,
+      "reqValue": null,
+      "status": 1
+    },
+    {
+      "key": "phase_switch_config",
+      "value": "auto",
       "reqValue": null,
       "status": 1
     }
@@ -627,6 +659,8 @@ Disable request payload:
 
 Notes:
 - `sessionAuthentication` controls "Auth via App"; `rfidSessionAuthentication` controls RFID auth.
+- `phase_switch_config` appears to expose the charger's automatic phase-switching mode; the observed read value was `"auto"`.
+- `DefaultChargeLevel` was observed as `null`; the exact semantics remain unconfirmed and may indicate unset/disabled state.
 - When either setting is enabled, charging sessions require user authentication before starting.
 - Observed: read responses use `status=1`; update responses use `status=2`, with `value` reflecting the prior state and `reqValue` the desired state.
 - Observed: both `sessionAuthentication` and `rfidSessionAuthentication` can return `null` for both `value` and `reqValue`, which appears to represent a disabled or unset state.
