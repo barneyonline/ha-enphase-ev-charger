@@ -4544,6 +4544,37 @@ async def test_async_set_storm_guard_enabled_forbidden_generic_message(
 
 
 @pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_forbidden_after_role_change_not_permitted(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={"data": {"stormGuardState": "disabled", "evseStormEnabled": True}}
+    )
+
+    async def _forbidden_after_role_change(**_kwargs):
+        coord._battery_user_is_owner = False  # noqa: SLF001
+        coord._battery_user_is_installer = False  # noqa: SLF001
+        raise aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+
+    coord.client.set_storm_guard = AsyncMock(side_effect=_forbidden_after_role_change)
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard updates are not permitted for this account.",
+    ):
+        await coord.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
 async def test_async_set_storm_guard_enabled_unauthorized_message(
     coordinator_factory,
 ) -> None:
@@ -4677,6 +4708,37 @@ async def test_async_set_storm_evse_enabled_forbidden_not_permitted(
             message="forbidden",
         )
     )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard updates are not permitted for this account.",
+    ):
+        await coord.async_set_storm_evse_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_evse_enabled_forbidden_after_role_change_not_permitted(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={"data": {"stormGuardState": "enabled", "evseStormEnabled": False}}
+    )
+
+    async def _forbidden_after_role_change(**_kwargs):
+        coord._battery_user_is_owner = False  # noqa: SLF001
+        coord._battery_user_is_installer = False  # noqa: SLF001
+        raise aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+
+    coord.client.set_storm_guard = AsyncMock(side_effect=_forbidden_after_role_change)
 
     with pytest.raises(
         ServiceValidationError,
