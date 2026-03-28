@@ -1,90 +1,55 @@
 {
-  "checked_at": "2026-03-28T22:19:05.905149Z",
+  "checked_at": "2026-03-28T23:21:34.866590Z",
   "checks": [
     {
       "affects": true,
+      "category": "auth",
       "endpoints": [
-        "auth_login"
-      ],
-      "group": "other",
-      "name": "auth_login",
-      "ok": true
-    },
-    {
-      "affects": true,
-      "endpoints": [
+        "auth_login",
         "auth_token"
       ],
       "group": "other",
-      "name": "auth_token",
+      "name": "auth",
       "ok": true
     },
     {
       "affects": true,
+      "category": "discovery",
       "endpoints": [
-        "site_discovery_1"
-      ],
-      "group": "other",
-      "name": "site_discovery_1",
-      "ok": true
-    },
-    {
-      "affects": true,
-      "endpoints": [
+        "site_discovery_1",
         "charger_summary_v2"
       ],
       "group": "other",
-      "name": "charger_summary_v2",
+      "name": "discovery",
       "ok": true
     },
     {
       "affects": true,
+      "category": "evse_runtime",
       "endpoints": [
         "charger_status"
       ],
       "group": "main",
-      "name": "charger_status",
+      "name": "evse_runtime",
       "ok": true
     },
     {
       "affects": true,
+      "category": "evse_scheduler",
       "endpoints": [
-        "scheduler_charge_mode"
-      ],
-      "group": "degraded",
-      "name": "scheduler_charge_mode",
-      "ok": true
-    },
-    {
-      "affects": true,
-      "endpoints": [
-        "scheduler_green_settings"
-      ],
-      "group": "degraded",
-      "name": "scheduler_green_settings",
-      "ok": true
-    },
-    {
-      "affects": true,
-      "endpoints": [
+        "scheduler_charge_mode",
+        "scheduler_green_settings",
         "scheduler_schedules"
       ],
       "group": "degraded",
-      "name": "scheduler_schedules",
+      "name": "evse_scheduler",
       "ok": true
     },
     {
       "affects": true,
+      "category": "session_history",
       "endpoints": [
-        "session_history_criteria"
-      ],
-      "group": "degraded",
-      "name": "session_history_criteria",
-      "ok": true
-    },
-    {
-      "affects": true,
-      "endpoints": [
+        "session_history_criteria",
         "session_history"
       ],
       "group": "degraded",
@@ -93,6 +58,7 @@
     },
     {
       "affects": true,
+      "category": "site_energy",
       "endpoints": [
         "site_energy"
       ],
@@ -102,117 +68,135 @@
     },
     {
       "affects": false,
+      "category": "site_live",
       "endpoints": [
-        "battery_site_settings"
+        "site_latest_power",
+        "site_show_livestream"
       ],
       "group": "degraded",
-      "name": "battery_site_settings",
+      "name": "site_live",
       "ok": true
     },
     {
       "affects": false,
+      "category": "evse_timeseries",
       "endpoints": [
-        "battery_profile"
+        "evse_timeseries_daily_energy",
+        "evse_timeseries_lifetime_energy"
       ],
       "group": "degraded",
-      "name": "battery_profile",
+      "name": "evse_timeseries",
       "ok": true
     },
     {
       "affects": false,
+      "category": "evse_management",
       "endpoints": [
-        "battery_settings"
+        "evse_fw_details",
+        "evse_feature_flags"
       ],
       "group": "degraded",
-      "name": "battery_settings",
+      "name": "evse_management",
       "ok": true
     },
     {
       "affects": false,
+      "category": "battery_config",
       "endpoints": [
-        "battery_storm_guard_alert"
+        "battery_site_settings",
+        "battery_profile",
+        "battery_settings",
+        "battery_storm_guard_alert",
+        "battery_schedules",
+        "battery_schedule_validation"
       ],
       "group": "degraded",
-      "name": "battery_storm_guard_alert",
-      "ok": true
+      "name": "battery_config",
+      "ok": false
     },
     {
       "affects": false,
+      "category": "inventory",
       "endpoints": [
         "devices_inventory"
       ],
       "group": "degraded",
-      "name": "devices_inventory",
+      "name": "inventory",
       "ok": true
     },
     {
       "affects": false,
+      "category": "system_dashboard",
       "endpoints": [
-        "grid_control_check"
+        "system_dashboard_summary"
       ],
       "group": "degraded",
-      "name": "grid_control_check",
+      "name": "system_dashboard",
       "ok": true
     },
     {
       "affects": false,
+      "category": "system_dashboard",
       "endpoints": [
-        "battery_backup_history"
+        "devices_tree_modern",
+        "devices_tree_legacy"
       ],
       "group": "degraded",
-      "name": "battery_backup_history",
+      "name": "system_dashboard_tree",
       "ok": true
     },
     {
       "affects": false,
+      "category": "system_dashboard",
       "endpoints": [
-        "battery_status"
+        "devices_details_modern",
+        "devices_details_legacy"
       ],
       "group": "degraded",
-      "name": "battery_status",
+      "name": "system_dashboard_details",
       "ok": true
     },
     {
       "affects": false,
+      "category": "battery_runtime",
       "endpoints": [
-        "inverters_inventory"
+        "grid_control_check",
+        "battery_backup_history",
+        "battery_status",
+        "dry_contacts"
       ],
       "group": "degraded",
-      "name": "inverters_inventory",
+      "name": "battery_runtime",
       "ok": true
     },
     {
       "affects": false,
+      "category": "microinverters",
       "endpoints": [
-        "inverter_status"
-      ],
-      "group": "degraded",
-      "name": "inverter_status",
-      "ok": true
-    },
-    {
-      "affects": false,
-      "endpoints": [
+        "inverters_inventory",
+        "inverter_status",
         "inverter_production"
       ],
       "group": "degraded",
-      "name": "inverter_production",
+      "name": "microinverters",
       "ok": true
     },
     {
       "affects": true,
+      "category": "evse_control",
       "endpoints": [
         "auth_settings"
       ],
       "group": "degraded",
-      "name": "auth_settings",
+      "name": "evse_control",
       "ok": true
     }
   ],
   "endpoints": [
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "auth",
+      "check_group": "auth",
       "check_mode": "all",
       "error": null,
       "group": "other",
@@ -224,7 +208,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "auth",
+      "check_group": "auth",
       "check_mode": "all",
       "error": null,
       "group": "other",
@@ -236,7 +221,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "discovery",
+      "check_group": "discovery",
       "check_mode": "all",
       "error": null,
       "group": "other",
@@ -248,7 +234,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "discovery",
+      "check_group": "discovery",
       "check_mode": "all",
       "error": null,
       "group": "other",
@@ -260,7 +247,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "evse_runtime",
+      "check_group": "evse_runtime",
       "check_mode": "all",
       "error": null,
       "group": "main",
@@ -272,7 +260,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "evse_scheduler",
+      "check_group": "evse_scheduler",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -284,7 +273,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "evse_scheduler",
+      "check_group": "evse_scheduler",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -296,7 +286,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "evse_scheduler",
+      "check_group": "evse_scheduler",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -308,7 +299,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "session_history",
+      "check_group": "session_history",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -316,11 +308,12 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=f81a2097-adf4-44e9-a321-103139ad0156&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=84074934-a213-4a7e-b6b6-ec5141248a5a&username=2999024"
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "session_history",
+      "check_group": "session_history",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -332,7 +325,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "site_energy",
+      "check_group": "site_energy",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -344,7 +338,86 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "site_live",
+      "check_group": "site_live",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "site_latest_power",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/{site_id}/get_latest_power"
+    },
+    {
+      "affects_status": false,
+      "category": "site_live",
+      "check_group": "site_live",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "site_show_livestream",
+      "ok": true,
+      "status": 200,
+      "url": "/app-api/{site_id}/show_livestream"
+    },
+    {
+      "affects_status": false,
+      "category": "evse_timeseries",
+      "check_group": "evse_timeseries",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "evse_timeseries_daily_energy",
+      "ok": true,
+      "status": 200,
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=84074934-a213-4a7e-b6b6-ec5141248a5a&start_date=2026-03-28&username=2999024"
+    },
+    {
+      "affects_status": false,
+      "category": "evse_timeseries",
+      "check_group": "evse_timeseries",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "evse_timeseries_lifetime_energy",
+      "ok": true,
+      "status": 200,
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=84074934-a213-4a7e-b6b6-ec5141248a5a&username=2999024"
+    },
+    {
+      "affects_status": false,
+      "category": "evse_management",
+      "check_group": "evse_management",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "evse_fw_details",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_management/fwDetails/{site_id}"
+    },
+    {
+      "affects_status": false,
+      "category": "evse_management",
+      "check_group": "evse_management",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "evse_feature_flags",
+      "ok": true,
+      "status": 200,
+      "url": "/service/evse_management/api/v1/config/feature-flags?site_id={site_id}"
+    },
+    {
+      "affects_status": false,
+      "category": "battery_config",
+      "check_group": "battery_config",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -356,7 +429,8 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "battery_config",
+      "check_group": "battery_config",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -368,7 +442,8 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "battery_config",
+      "check_group": "battery_config",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -380,7 +455,8 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "battery_config",
+      "check_group": "battery_config",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -392,7 +468,34 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "battery_config",
+      "check_group": "battery_config",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "battery_schedules",
+      "ok": true,
+      "status": 200,
+      "url": "/service/batteryConfig/api/v1/battery/sites/{site_id}/schedules"
+    },
+    {
+      "affects_status": false,
+      "category": "battery_config",
+      "check_group": "battery_config",
+      "check_mode": "all",
+      "error": "HTTP 403",
+      "group": "degraded",
+      "method": "POST",
+      "name": "battery_schedule_validation",
+      "ok": false,
+      "status": 403,
+      "url": "/service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/isValid"
+    },
+    {
+      "affects_status": false,
+      "category": "inventory",
+      "check_group": "inventory",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -404,7 +507,73 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "system_dashboard",
+      "check_group": "system_dashboard",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "system_dashboard_summary",
+      "ok": true,
+      "status": 200,
+      "url": "/service/system_dashboard/api_internal/cs/sites/{site_id}/summary"
+    },
+    {
+      "affects_status": false,
+      "category": "system_dashboard",
+      "check_group": "system_dashboard_tree",
+      "check_mode": "any",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "devices_tree_modern",
+      "ok": true,
+      "status": 200,
+      "url": "/service/system_dashboard/api_internal/dashboard/sites/{site_id}/devices-tree"
+    },
+    {
+      "affects_status": false,
+      "category": "system_dashboard",
+      "check_group": "system_dashboard_tree",
+      "check_mode": "any",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "devices_tree_legacy",
+      "ok": true,
+      "status": 200,
+      "url": "/pv/systems/{site_id}/system_dashboard/devices-tree"
+    },
+    {
+      "affects_status": false,
+      "category": "system_dashboard",
+      "check_group": "system_dashboard_details",
+      "check_mode": "any",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "devices_details_modern",
+      "ok": true,
+      "status": 200,
+      "url": "/service/system_dashboard/api_internal/dashboard/sites/{site_id}/devices_details?type=inverters"
+    },
+    {
+      "affects_status": false,
+      "category": "system_dashboard",
+      "check_group": "system_dashboard_details",
+      "check_mode": "any",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "devices_details_legacy",
+      "ok": true,
+      "status": 200,
+      "url": "/pv/systems/{site_id}/system_dashboard/devices_details?type=inverters"
+    },
+    {
+      "affects_status": false,
+      "category": "battery_runtime",
+      "check_group": "battery_runtime",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -416,7 +585,8 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "battery_runtime",
+      "check_group": "battery_runtime",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -428,7 +598,8 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "battery_runtime",
+      "check_group": "battery_runtime",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -440,7 +611,21 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "battery_runtime",
+      "check_group": "battery_runtime",
+      "check_mode": "all",
+      "error": null,
+      "group": "degraded",
+      "method": "GET",
+      "name": "dry_contacts",
+      "ok": true,
+      "status": 200,
+      "url": "/pv/settings/{site_id}/dry_contacts"
+    },
+    {
+      "affects_status": false,
+      "category": "microinverters",
+      "check_group": "microinverters",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -452,7 +637,8 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "microinverters",
+      "check_group": "microinverters",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -464,7 +650,8 @@
     },
     {
       "affects_status": false,
-      "check_group": null,
+      "category": "microinverters",
+      "check_group": "microinverters",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -476,7 +663,8 @@
     },
     {
       "affects_status": true,
-      "check_group": null,
+      "category": "evse_control",
+      "check_group": "evse_control",
       "check_mode": "all",
       "error": null,
       "group": "degraded",
@@ -489,11 +677,11 @@
   ],
   "status": "Fully Operational",
   "summary": {
-    "checks_failed": 0,
-    "checks_ok": 23,
-    "checks_total": 23,
-    "endpoints_failed": 0,
-    "endpoints_ok": 23,
-    "endpoints_total": 23
+    "checks_failed": 1,
+    "checks_ok": 16,
+    "checks_total": 17,
+    "endpoints_failed": 1,
+    "endpoints_ok": 36,
+    "endpoints_total": 37
   }
 }
