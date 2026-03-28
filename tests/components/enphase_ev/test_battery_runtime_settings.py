@@ -30,7 +30,15 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
                 "veryLowSocMax": 25,
                 "profile": "self-consumption",
                 "batteryBackupPercentage": 20,
+                "batteryBackupPercentageMin": 8,
+                "batteryBackupPercentageMax": 95,
                 "stormGuardState": "enabled",
+                "cfgControl": {
+                    "show": True,
+                    "enabled": True,
+                    "scheduleSupported": True,
+                    "forceScheduleSupported": True,
+                },
                 "devices": {
                     "iqEvse": {
                         "useBatteryFrSelfConsumption": True,
@@ -53,7 +61,13 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
     assert coord.battery_shutdown_level_available is True
     assert coord.battery_profile == "self-consumption"
     assert coord.battery_effective_backup_percentage == 20
+    assert coord.battery_reserve_min == 8
+    assert coord.battery_reserve_max == 95
     assert coord.storm_guard_state == "enabled"
+    assert coord.battery_cfg_control_show is True
+    assert coord.battery_cfg_control_enabled is True
+    assert coord.battery_cfg_control_schedule_supported is True
+    assert coord.battery_cfg_control_force_schedule_supported is True
     assert coord.battery_use_battery_for_self_consumption is True
 
 
@@ -110,6 +124,7 @@ def test_battery_soc_min_floor_applies_to_reserve_and_shutdown(
 
     coord._battery_profile = "backup_only"  # noqa: SLF001
     assert coord.battery_reserve_min == 100
+    assert coord.battery_reserve_max == 100
 
 
 def test_parse_battery_settings_unknown_grid_mode_uses_none_permissions(
@@ -411,6 +426,20 @@ def test_charge_from_grid_control_honors_cfg_control_false(
     coord._battery_cfg_control_enabled = False  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001
 
+    assert coord.charge_from_grid_control_available is True
+
+
+def test_charge_from_grid_control_honors_cfg_control_show_false(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_cfg_control_show = False  # noqa: SLF001
+    coord._battery_cfg_control_enabled = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+
     assert coord.charge_from_grid_control_available is False
 
 
@@ -443,6 +472,38 @@ def test_parse_battery_settings_payload_handles_non_dict_and_bad_disclaimer(
         {"data": {"acceptedItcDisclaimer": BadStr()}}
     )
     assert coord._battery_accepted_itc_disclaimer is None  # noqa: SLF001
+
+
+def test_parse_battery_settings_payload_clears_missing_reserve_bounds(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_backup_percentage_min = 8  # noqa: SLF001
+    coord._battery_backup_percentage_max = 95  # noqa: SLF001
+    coord._battery_very_low_soc_min = 10  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {"data": {"batteryBackupPercentage": 20}}
+    )
+
+    assert coord.battery_reserve_min == 10
+    assert coord.battery_reserve_max == 100
+
+
+def test_parse_battery_settings_payload_keeps_reserve_bounds_for_partial_update(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_backup_percentage_min = 8  # noqa: SLF001
+    coord._battery_backup_percentage_max = 95  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {"chargeFromGrid": True},
+        clear_missing_reserve_bounds=False,
+    )
+
+    assert coord.battery_reserve_min == 8
+    assert coord.battery_reserve_max == 95
 
 
 @pytest.mark.asyncio

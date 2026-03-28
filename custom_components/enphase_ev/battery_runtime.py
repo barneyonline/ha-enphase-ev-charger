@@ -726,8 +726,9 @@ class BatteryRuntime:
     def normalize_battery_reserve_for_profile(self, profile: str, reserve: int) -> int:
         if profile == "backup_only":
             return 100
-        min_reserve = self.battery_min_soc_floor()
-        bounded = max(min_reserve, min(100, int(reserve)))
+        min_reserve = self.battery_reserve_min_bound()
+        max_reserve = self.battery_reserve_max_bound()
+        bounded = max(min_reserve, min(max_reserve, int(reserve)))
         return bounded
 
     def battery_min_soc_floor(self) -> int:
@@ -738,6 +739,41 @@ class BatteryRuntime:
         if value is None:
             return BATTERY_MIN_SOC_FALLBACK
         return max(0, min(100, int(value)))
+
+    def battery_reserve_min_bound(self) -> int:
+        value = self._coerce_int(
+            getattr(self.battery_state, "_battery_backup_percentage_min", None),
+            default=None,
+        )
+        if value is None:
+            return self.battery_min_soc_floor()
+        return max(0, min(100, int(value)))
+
+    def battery_reserve_max_bound(self) -> int:
+        value = self._coerce_int(
+            getattr(self.battery_state, "_battery_backup_percentage_max", None),
+            default=None,
+        )
+        if value is None:
+            return 100
+        return max(0, min(100, int(value)))
+
+    def _apply_cfg_control_state(self, cfg_control: object) -> None:
+        state = self.battery_state
+        if not isinstance(cfg_control, dict):
+            return
+        state._battery_cfg_control_show = self._coerce_optional_bool(
+            cfg_control.get("show")
+        )
+        state._battery_cfg_control_enabled = self._coerce_optional_bool(
+            cfg_control.get("enabled")
+        )
+        state._battery_cfg_control_schedule_supported = self._coerce_optional_bool(
+            cfg_control.get("scheduleSupported")
+        )
+        state._battery_cfg_control_force_schedule_supported = (
+            self._coerce_optional_bool(cfg_control.get("forceScheduleSupported"))
+        )
 
     def assert_battery_profile_write_allowed(self) -> None:
         coord = self.coordinator
@@ -945,6 +981,7 @@ class BatteryRuntime:
         self.parse_battery_settings_payload(
             payload,
             clear_missing_schedule_times=False,
+            clear_missing_reserve_bounds=False,
         )
         state._battery_settings_cache_until = None
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
@@ -1027,20 +1064,7 @@ class BatteryRuntime:
         supports_mqtt = self._coerce_optional_bool(data.get("supportsMqtt"))
         evse_storm_enabled = self._coerce_optional_bool(data.get("evseStormEnabled"))
         storm_state = self.normalize_storm_guard_state(data.get("stormGuardState"))
-        cfg_control = data.get("cfgControl")
-        if isinstance(cfg_control, dict):
-            state._battery_cfg_control_show = self._coerce_optional_bool(
-                cfg_control.get("show")
-            )
-            state._battery_cfg_control_enabled = self._coerce_optional_bool(
-                cfg_control.get("enabled")
-            )
-            state._battery_cfg_control_schedule_supported = self._coerce_optional_bool(
-                cfg_control.get("scheduleSupported")
-            )
-            state._battery_cfg_control_force_schedule_supported = (
-                self._coerce_optional_bool(cfg_control.get("forceScheduleSupported"))
-            )
+        self._apply_cfg_control_state(data.get("cfgControl"))
         devices: list[dict[str, object]] = []
         profile_evse_device: dict[str, object] | None = None
         raw_devices = data.get("devices")
@@ -1370,6 +1394,7 @@ class BatteryRuntime:
         payload: object,
         *,
         clear_missing_schedule_times: bool = True,
+        clear_missing_reserve_bounds: bool = True,
     ) -> None:
         state = self.battery_state
         if not isinstance(payload, dict):
@@ -1426,6 +1451,24 @@ class BatteryRuntime:
         settings_reserve = self._coerce_optional_int(
             data.get("batteryBackupPercentage")
         )
+        settings_reserve_min = self._coerce_optional_int(
+            data.get("batteryBackupPercentageMin")
+        )
+        if settings_reserve_min is not None:
+            state._battery_backup_percentage_min = max(
+                0, min(100, int(settings_reserve_min))
+            )
+        elif clear_missing_reserve_bounds:
+            state._battery_backup_percentage_min = None
+        settings_reserve_max = self._coerce_optional_int(
+            data.get("batteryBackupPercentageMax")
+        )
+        if settings_reserve_max is not None:
+            state._battery_backup_percentage_max = max(
+                0, min(100, int(settings_reserve_max))
+            )
+        elif clear_missing_reserve_bounds:
+            state._battery_backup_percentage_max = None
         if settings_reserve is not None:
             state._battery_backup_percentage = (
                 self.normalize_battery_reserve_for_profile(
@@ -1451,6 +1494,7 @@ class BatteryRuntime:
         if storm_state is not None:
             state._storm_guard_state = storm_state
         self.sync_storm_guard_pending(storm_state)
+        self._apply_cfg_control_state(data.get("cfgControl"))
         raw_devices = data.get("devices")
         if isinstance(raw_devices, dict):
             iq_evse = raw_devices.get("iqEvse")

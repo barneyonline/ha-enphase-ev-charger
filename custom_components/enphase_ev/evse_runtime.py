@@ -1054,7 +1054,7 @@ class EvseRuntime:
 
         def _coerce(value: object) -> bool | None:
             if value is None:
-                return False
+                return None
             if isinstance(value, bool):
                 return value
             if isinstance(value, (int, float)):

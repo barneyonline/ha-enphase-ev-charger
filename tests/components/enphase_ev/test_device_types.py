@@ -23,6 +23,8 @@ def test_normalize_type_key_handles_aliases_and_unknown_tokens() -> None:
     assert normalize_type_key("meter") == "envoy"
     assert normalize_type_key("enpower") == "envoy"
     assert normalize_type_key("systemcontroller") == "envoy"
+    assert normalize_type_key("storage") == "encharge"
+    assert normalize_type_key("storages") == "encharge"
     assert normalize_type_key("heat-pump") == "heatpump"
     assert normalize_type_key("heat_pump") == "heatpump"
     assert normalize_type_key("Heat Pump") == "heatpump"
@@ -52,6 +54,7 @@ def test_type_display_label_uses_known_and_title_case_defaults() -> None:
 
 
 def test_is_dry_contact_type_key_handles_relay_aliases() -> None:
+    assert is_dry_contact_type_key(None) is False
     assert is_dry_contact_type_key("dry_contact") is True
     assert is_dry_contact_type_key("Dry Contact 1") is True
     assert is_dry_contact_type_key("Dry Contacts") is True
@@ -213,6 +216,12 @@ def test_active_type_keys_from_inventory_filters_and_orders() -> None:
     )
 
     assert keys == ["envoy", "generator", "wind_turbine"]
+
+
+def test_active_type_keys_from_inventory_maps_storage_to_encharge() -> None:
+    payload = {"result": [{"type": "storage", "devices": [{"serial_number": "BAT-1"}]}]}
+
+    assert active_type_keys_from_inventory(payload) == ["encharge"]
 
 
 def test_active_type_keys_from_inventory_detects_heatpump_in_hems_bucket() -> None:
