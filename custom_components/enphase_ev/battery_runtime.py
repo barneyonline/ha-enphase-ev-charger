@@ -801,7 +801,11 @@ class BatteryRuntime:
                 "Battery profile update requested too quickly. Please wait and try again."
             )
 
-    async def async_ensure_battery_write_access_confirmed(self) -> None:
+    async def async_ensure_battery_write_access_confirmed(
+        self,
+        *,
+        denied_message: str = "Battery updates are not permitted for this account.",
+    ) -> None:
         coord = self.coordinator
         state = self.battery_state
         if coord.battery_write_access_confirmed:
@@ -809,9 +813,7 @@ class BatteryRuntime:
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery updates are not permitted for this account."
-            )
+            raise ServiceValidationError(denied_message)
         fetcher = getattr(coord.client, "battery_site_settings", None)
         if callable(fetcher):
             try:
@@ -846,9 +848,7 @@ class BatteryRuntime:
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery updates are not permitted for this account."
-            )
+            raise ServiceValidationError(denied_message)
         raise ServiceValidationError(
             "Battery write access could not be confirmed. Refresh and try again."
         )
@@ -3060,7 +3060,9 @@ class BatteryRuntime:
 
     async def async_set_storm_guard_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
-        await self.async_ensure_battery_write_access_confirmed()
+        await self.async_ensure_battery_write_access_confirmed(
+            denied_message="Storm Guard updates are not permitted for this account."
+        )
         await coord.async_refresh_storm_guard_profile(force=True)
         if getattr(coord, "_storm_evse_enabled", None) is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")
@@ -3096,7 +3098,9 @@ class BatteryRuntime:
 
     async def async_set_storm_evse_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
-        await self.async_ensure_battery_write_access_confirmed()
+        await self.async_ensure_battery_write_access_confirmed(
+            denied_message="Storm Guard updates are not permitted for this account."
+        )
         await coord.async_refresh_storm_guard_profile(force=True)
         if getattr(coord, "_storm_guard_state", None) is None:
             raise ServiceValidationError("Storm Guard settings are unavailable.")
