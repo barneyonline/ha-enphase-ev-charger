@@ -3021,6 +3021,31 @@ async def test_charger_auth_settings_filters_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_charger_auth_settings_retries_without_authorization_on_401() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(
+                status=200,
+                json_body={"data": [{"key": AUTH_APP_SETTING, "value": None}]},
+            ),
+        ]
+    )
+    client = _make_client(session)
+
+    settings = await client.charger_auth_settings("SN")
+
+    assert settings == [{"key": AUTH_APP_SETTING, "value": None}]
+    assert len(session.calls) == 2
+    first_headers = session.calls[0][2]["headers"]
+    second_headers = session.calls[1][2]["headers"]
+    assert "Authorization" in first_headers
+    assert "e-auth-token" in first_headers
+    assert "Authorization" not in second_headers
+    assert "e-auth-token" not in second_headers
+
+
+@pytest.mark.asyncio
 async def test_charger_auth_settings_handles_non_dict_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value=["bad"])
@@ -5240,6 +5265,20 @@ async def test_auth_settings_reraise_non_service_errors(monkeypatch) -> None:
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
     with pytest.raises(aiohttp.ClientResponseError):
         await client.set_app_authentication("SN", enabled=False)
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_reraises_retry_error(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(side_effect=[api.Unauthorized(), _make_cre(400, "Bad")]),
+    )
+    with pytest.raises(aiohttp.ClientResponseError) as ctx:
+        await client.charger_auth_settings("SN")
+
+    assert ctx.value.status == 400
 
 
 @pytest.mark.asyncio

@@ -2709,7 +2709,7 @@ async def test_get_auth_settings_handles_missing_setting(coordinator_factory):
 async def test_get_auth_settings_coercion_paths(coordinator_factory):
     coord = coordinator_factory(serials=["EV1"])
     cases = [
-        (None, False),
+        (None, None),
         (True, True),
         (0, False),
         ("true", True),
@@ -2722,6 +2722,24 @@ async def test_get_auth_settings_coercion_paths(coordinator_factory):
         )
         result = await coord._get_auth_settings("EV1")
         assert result == (expected, None, True, False)
+
+
+@pytest.mark.asyncio
+async def test_get_auth_settings_treats_null_values_as_unknown_supported(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=["EV1"])
+    coord._auth_settings_cache.clear()
+    coord.client.charger_auth_settings = AsyncMock(
+        return_value=[
+            {"key": AUTH_APP_SETTING, "value": None, "reqValue": None},
+            {"key": AUTH_RFID_SETTING, "value": None, "reqValue": None},
+        ]
+    )
+
+    result = await coord._get_auth_settings("EV1")
+
+    assert result == (None, None, True, True)
 
 
 @pytest.mark.asyncio
@@ -2786,6 +2804,47 @@ async def test_async_update_data_includes_auth_settings(coordinator_factory):
     assert result[SERIAL_ONE]["app_auth_enabled"] is True
     assert result[SERIAL_ONE]["rfid_auth_enabled"] is False
     assert result[SERIAL_ONE]["auth_required"] is True
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_keeps_null_auth_settings_unknown(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._has_successful_refresh = True  # noqa: SLF001
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.charger_auth_settings = AsyncMock(
+        return_value=[
+            {"key": AUTH_APP_SETTING, "value": None, "reqValue": None},
+            {"key": AUTH_RFID_SETTING, "value": None, "reqValue": None},
+        ]
+    )
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+    await coord._async_refresh_evse_feature_flags(force=True)
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["app_auth_supported"] is True
+    assert result[SERIAL_ONE]["rfid_auth_supported"] is True
+    assert result[SERIAL_ONE]["app_auth_enabled"] is None
+    assert result[SERIAL_ONE]["rfid_auth_enabled"] is None
+    assert result[SERIAL_ONE]["auth_required"] is None
 
 
 @pytest.mark.asyncio
