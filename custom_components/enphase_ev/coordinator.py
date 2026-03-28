@@ -5102,6 +5102,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 charge_modes.get(sn)
             )
             if charge_mode_pref is None:
+                charge_mode_pref = self._schedule_type_charge_mode_preference(
+                    sch_info0.get("type")
+                )
+            if charge_mode_pref is None:
                 charge_mode_pref = self._cached_charge_mode_preference(sn)
             if charge_mode_pref is None:
                 charge_mode_pref = self._battery_profile_charge_mode_preference(sn)
@@ -7962,6 +7966,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self, sn: str, *, now: float | None = None
     ) -> str | None:
         return self.evse_runtime.cached_charge_mode_preference(sn, now=now)
+
+    @staticmethod
+    def _schedule_type_charge_mode_preference(schedule_type: object) -> str | None:
+        return EvseRuntime.schedule_type_charge_mode_preference(schedule_type)
 
     def _battery_profile_charge_mode_preference(self, sn: str) -> str | None:
         return self.evse_runtime.battery_profile_charge_mode_preference(sn)

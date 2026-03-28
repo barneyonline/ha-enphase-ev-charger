@@ -138,6 +138,28 @@ def test_evse_runtime_battery_profile_charge_mode_preference_error_paths() -> No
     assert runtime.battery_profile_charge_mode_preference("EV1") is None
 
 
+def test_evse_runtime_schedule_type_charge_mode_preference_paths(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory().evse_runtime
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    assert (
+        runtime.schedule_type_charge_mode_preference("greencharging")
+        == "GREEN_CHARGING"
+    )
+    assert (
+        runtime.schedule_type_charge_mode_preference("GREEN_CHARGING")
+        == "GREEN_CHARGING"
+    )
+    assert runtime.schedule_type_charge_mode_preference("   ") is None
+    assert runtime.schedule_type_charge_mode_preference("CUSTOM") is None
+    assert runtime.schedule_type_charge_mode_preference(BadStr()) is None
+
+
 @pytest.mark.asyncio
 async def test_evse_runtime_resolvers_use_runtime_methods(
     coordinator_factory,
