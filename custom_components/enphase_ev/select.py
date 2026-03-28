@@ -75,6 +75,15 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     return bool(has_type(type_key)) if callable(has_type) else True
 
 
+def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
+    confirmed = getattr(coord, "battery_write_access_confirmed", None)
+    if confirmed is not None:
+        return bool(confirmed)
+    owner = getattr(coord, "battery_user_is_owner", None)
+    installer = getattr(coord, "battery_user_is_installer", None)
+    return owner is True or installer is True
+
+
 def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
     if not message:
         return None, None
@@ -107,7 +116,7 @@ async def async_setup_entry(
         if (
             not site_entity_added
             and _site_has_battery(coord)
-            and coord.battery_write_access_confirmed
+            and _battery_write_access_confirmed(coord)
             and _type_available(coord, "envoy")
         ):
             async_add_entities([SystemProfileSelect(coord)], update_before_add=False)
@@ -156,7 +165,7 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
-        if not self._coord.battery_write_access_confirmed:
+        if not _battery_write_access_confirmed(self._coord):
             return False
         return (
             _type_available(self._coord, "envoy")

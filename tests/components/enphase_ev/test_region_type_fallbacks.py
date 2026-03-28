@@ -78,6 +78,8 @@ async def test_number_setup_adds_battery_entities_when_site_settings_confirm_bat
         ["envoy", "iqevse"],
     )
     coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord.async_add_listener = MagicMock(return_value=lambda: None)
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
