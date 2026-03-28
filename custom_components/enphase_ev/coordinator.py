@@ -6455,11 +6455,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         profile = self.battery_selected_profile
         if profile == "backup_only":
             return 100
-        return self._battery_min_soc_floor()
+        value = self._coerce_optional_int(
+            getattr(self, "_battery_backup_percentage_min", None)
+        )
+        if value is None:
+            return self._battery_min_soc_floor()
+        return max(0, min(100, int(value)))
 
     @property
     def battery_reserve_max(self) -> int:
-        return 100
+        profile = self.battery_selected_profile
+        if profile == "backup_only":
+            return 100
+        value = self._coerce_optional_int(
+            getattr(self, "_battery_backup_percentage_max", None)
+        )
+        if value is None:
+            return 100
+        return max(0, min(100, int(value)))
 
     @property
     def battery_grid_mode(self) -> str | None:
@@ -6489,14 +6502,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def charge_from_grid_control_available(self) -> bool:
         if getattr(self, "_battery_has_encharge", None) is False:
             return False
-        # Prefer cfgControl.show/enabled (used by Enlighten app) over
-        # the legacy hideChargeFromGrid flag which is unreliable on
-        # EMEA sites.  Use cfgControl whenever present; fall back to
-        # legacy only when both fields are absent.
+        # Prefer cfgControl.show (used by Enlighten app) over the
+        # legacy hideChargeFromGrid flag which is unreliable on EMEA
+        # sites. cfgControl.enabled appears to reflect current toggle
+        # state on some homeowner payloads, so it is not authoritative
+        # for control availability.
         cfg_show = getattr(self, "_battery_cfg_control_show", None)
-        cfg_enabled = getattr(self, "_battery_cfg_control_enabled", None)
-        if cfg_show is not None or cfg_enabled is not None:
-            if cfg_show is False or cfg_enabled is False:
+        if cfg_show is not None:
+            if cfg_show is False:
                 return False
         else:
             if getattr(self, "_battery_hide_charge_from_grid", None) is True:

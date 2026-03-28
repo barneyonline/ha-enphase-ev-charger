@@ -269,6 +269,8 @@ class BatteryState:
     _battery_site_status_severity: str | None = None
     _battery_profile: str | None = None
     _battery_backup_percentage: int | None = None
+    _battery_backup_percentage_min: int | None = None
+    _battery_backup_percentage_max: int | None = None
     _battery_operation_mode_sub_type: str | None = None
     _battery_supports_mqtt: bool | None = None
     _battery_polling_interval_s: int | None = None
