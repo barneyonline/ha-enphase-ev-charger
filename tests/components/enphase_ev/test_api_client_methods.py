@@ -5282,6 +5282,57 @@ async def test_charger_auth_settings_reraises_retry_error(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_charger_auth_settings_wraps_retry_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=[api.Unauthorized(), _make_cre(503, "Service Unavailable")]
+        ),
+    )
+    with pytest.raises(api.AuthSettingsUnavailable):
+        await client.charger_auth_settings("SN")
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_unauthorized_without_control_auth_reraises() -> (
+    None
+):
+    client = api.EnphaseEVClient(_DefaultSession(), "SITE", None, "COOKIE")
+    client._json = AsyncMock(side_effect=api.Unauthorized())
+
+    with pytest.raises(api.Unauthorized):
+        await client.charger_auth_settings("SN")
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_retries_without_auth_on_403(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=[
+                _make_cre(403, "Forbidden"),
+                {"data": [{"key": AUTH_APP_SETTING, "value": "enabled"}]},
+            ]
+        ),
+    )
+
+    settings = await client.charger_auth_settings("SN")
+
+    assert settings == [{"key": AUTH_APP_SETTING, "value": "enabled"}]
+    first_call = client._json.await_args_list[0]
+    second_call = client._json.await_args_list[1]
+    assert first_call.kwargs["headers"] == {"Authorization": "Bearer EAUTH"}
+    assert second_call.kwargs["headers"] == {
+        "Authorization": None,
+        "e-auth-token": None,
+    }
+
+
+@pytest.mark.asyncio
 async def test_lifetime_energy_reraises_non_service_error(monkeypatch) -> None:
     client = _make_client()
     err = _make_cre(400, "Bad Request")
