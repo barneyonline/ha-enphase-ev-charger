@@ -2289,6 +2289,9 @@ class EnphaseEVClient:
         Accepts optional ``headers`` in kwargs which will be merged with the
         default headers for this client, allowing call-sites to add/override
         fields (e.g. Authorization) without causing duplicate parameter errors.
+        Header values explicitly set to ``None`` are removed from the merged
+        request headers, which allows per-request suppression of defaults such
+        as ``e-auth-token``.
         ``headers`` may also be a zero-argument callable so retries can rebuild
         auth-sensitive headers after a successful reauthentication callback.
         """
@@ -2307,7 +2310,11 @@ class EnphaseEVClient:
             else:
                 attempt_headers = extra_headers
             if isinstance(attempt_headers, dict):
-                base_headers.update(attempt_headers)
+                for header_key, header_value in attempt_headers.items():
+                    if header_value is None:
+                        base_headers.pop(header_key, None)
+                    else:
+                        base_headers[header_key] = header_value
 
             async with asyncio.timeout(self._timeout):
                 async with self._s.request(
@@ -3257,18 +3264,67 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
             f"{sn}/ev_charger_config"
         )
-        headers = dict(self._h)
-        headers.update(self._control_headers())
-        payload = [
-            {"key": AUTH_RFID_SETTING},
-            {"key": AUTH_APP_SETTING},
-        ]
         try:
-            response = await self._json("POST", url, json=payload, headers=headers)
+            return await self.charger_config(
+                sn,
+                [AUTH_RFID_SETTING, AUTH_APP_SETTING],
+            )
         except aiohttp.ClientResponseError as err:
             if is_auth_settings_unavailable_error(err.message, err.status, url):
                 raise AuthSettingsUnavailable(str(err)) from err
             raise
+
+    async def charger_config(
+        self,
+        sn: str,
+        keys: Iterable[str],
+    ) -> list[dict[str, Any]]:
+        """Return raw charger config entries for the requested keys."""
+
+        normalized_keys: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            normalized_keys.append(key_text)
+        if not normalized_keys:
+            return []
+
+        url = (
+            f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
+            f"{sn}/ev_charger_config"
+        )
+        headers = dict(self._control_headers())
+        payload = [{"key": key} for key in normalized_keys]
+
+        async def _retry_without_control_auth() -> dict[str, Any]:
+            return await self._json(
+                "POST",
+                url,
+                json=payload,
+                headers={
+                    "Authorization": None,
+                    "e-auth-token": None,
+                },
+            )
+
+        try:
+            response = await self._json("POST", url, json=payload, headers=headers)
+        except Unauthorized:
+            if headers.get("Authorization"):
+                response = await _retry_without_control_auth()
+            else:
+                raise
+        except aiohttp.ClientResponseError as err:
+            if err.status == 403 and headers.get("Authorization"):
+                response = await _retry_without_control_auth()
+            else:
+                raise
         if not isinstance(response, dict):
             return []
         data = response.get("data")

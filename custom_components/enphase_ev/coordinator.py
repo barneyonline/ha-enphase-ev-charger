@@ -41,6 +41,7 @@ from .const import (
     BATTERY_MIN_SOC_FALLBACK,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
+    DEFAULT_CHARGE_LEVEL_SETTING,
     CONF_EAUTH,
     CONF_EMAIL,
     CONF_INCLUDE_INVERTERS,
@@ -63,6 +64,7 @@ from .const import (
     OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
     OPT_SESSION_HISTORY_INTERVAL,
+    PHASE_SWITCH_CONFIG_SETTING,
     SAVINGS_OPERATION_MODE_SUBTYPE,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
     SAFE_LIMIT_AMPS,
@@ -1292,6 +1294,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         charge_modes = await self._async_resolve_charge_modes(serials)
         green_settings = await self._async_resolve_green_battery_settings(serials)
         auth_settings = await self._async_resolve_auth_settings(serials)
+        charger_config = await self._async_resolve_charger_config(
+            serials,
+            keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
+        )
         merged = (
             target
             if working_data is not None
@@ -1326,6 +1332,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         if value is not None
                     ]
                     payload["auth_required"] = any(values) if values else None
+            config_values = charger_config.get(sn)
+            if isinstance(config_values, dict):
+                if PHASE_SWITCH_CONFIG_SETTING in config_values:
+                    payload["phase_switch_config"] = config_values[
+                        PHASE_SWITCH_CONFIG_SETTING
+                    ]
+                if DEFAULT_CHARGE_LEVEL_SETTING in config_values:
+                    payload["default_charge_level"] = config_values[
+                        DEFAULT_CHARGE_LEVEL_SETTING
+                    ]
         if working_data is None:
             self.async_set_updated_data(merged)
 
@@ -4858,6 +4874,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 auth_settings = await self._async_resolve_auth_settings(auth_serials)
             phase_timings["auth_settings_s"] = round(time.monotonic() - auth_start, 3)
 
+        charger_config: dict[str, dict[str, object]] = {}
+        if not first_refresh and records:
+            config_start = time.monotonic()
+            charger_config = await self._async_resolve_charger_config(
+                [sn for sn, _obj in records],
+                keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
+            )
+            phase_timings["charger_config_s"] = round(
+                time.monotonic() - config_start, 3
+            )
+
         def _as_bool(v):
             if isinstance(v, bool):
                 return v
@@ -5266,6 +5293,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if sess.get("auth_token") is not None
                 else sess.get("authToken")
             )
+            config_values = charger_config.get(sn) or {}
 
             entry = {
                 "sn": sn,
@@ -5340,6 +5368,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "plug_and_charge_supported": plug_and_charge_support,
                 "plug_and_charge_supported_source": plug_and_charge_support_source,
             }
+            if PHASE_SWITCH_CONFIG_SETTING in config_values:
+                entry["phase_switch_config"] = config_values[
+                    PHASE_SWITCH_CONFIG_SETTING
+                ]
+            if DEFAULT_CHARGE_LEVEL_SETTING in config_values:
+                entry["default_charge_level"] = config_values[
+                    DEFAULT_CHARGE_LEVEL_SETTING
+                ]
             if green_supported is not None:
                 entry["green_battery_supported"] = green_supported
                 if green_supported:
@@ -5550,12 +5586,37 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 if isinstance(gateway_connectivity, list):
                     cur["gateway_connection_count"] = len(gateway_connectivity)
                     connected_count = 0
+                    gateway_details: list[dict[str, int]] = []
+                    gateway_last_connection_at: int | None = None
                     for gateway in gateway_connectivity:
                         if not isinstance(gateway, dict):
                             continue
-                        if _as_int(gateway.get("gwConnStatus")) == 0:
+                        gateway_status = _as_int(gateway.get("gwConnStatus"))
+                        gateway_failure_reason = _as_int(
+                            gateway.get("gwConnFailureReason")
+                        )
+                        gateway_last_conn_time = _sec(gateway.get("lastConnTime"))
+                        if gateway_status == 0:
                             connected_count += 1
+                        detail: dict[str, int] = {}
+                        if gateway_status is not None:
+                            detail["status"] = gateway_status
+                        if gateway_failure_reason is not None:
+                            detail["failure_reason"] = gateway_failure_reason
+                        if gateway_last_conn_time is not None:
+                            detail["last_connection_at"] = gateway_last_conn_time
+                            if (
+                                gateway_last_connection_at is None
+                                or gateway_last_conn_time > gateway_last_connection_at
+                            ):
+                                gateway_last_connection_at = gateway_last_conn_time
+                        if detail:
+                            gateway_details.append(detail)
                     cur["gateway_connected_count"] = connected_count
+                    if gateway_details:
+                        cur["gateway_connectivity_details"] = gateway_details
+                    if gateway_last_connection_at is not None:
+                        cur["gateway_last_connection_at"] = gateway_last_connection_at
                 # Capture operating voltage for better power estimation
                 ov = item.get("operatingVoltage")
                 if ov is not None:
@@ -7768,6 +7829,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self, serials: Iterable[str]
     ) -> dict[str, tuple[bool | None, bool | None, bool, bool]]:
         return await self.evse_runtime.async_resolve_auth_settings(serials)
+
+    async def _async_resolve_charger_config(
+        self,
+        serials: Iterable[str],
+        *,
+        keys: Iterable[str],
+    ) -> dict[str, dict[str, object]]:
+        return await self.evse_runtime.async_resolve_charger_config(
+            serials,
+            keys=keys,
+        )
 
     def _resolve_charge_mode_pref(self, sn: str) -> str | None:
         return self.evse_runtime.resolve_charge_mode_pref(sn)

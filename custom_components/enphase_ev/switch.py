@@ -532,9 +532,7 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
             return False
         if not self._coord.auth_settings_available:
             return False
-        if self.data.get("app_auth_supported") is not True:
-            return False
-        return self.data.get("app_auth_enabled") is not None
+        return self.data.get("app_auth_supported") is True
 
     @property
     def is_on(self) -> bool:

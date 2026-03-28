@@ -18,7 +18,9 @@ from custom_components.enphase_ev import api
 from custom_components.enphase_ev.const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
+    DEFAULT_CHARGE_LEVEL_SETTING,
     GREEN_BATTERY_SETTING,
+    PHASE_SWITCH_CONFIG_SETTING,
 )
 
 TEST_EVSE_SERIAL = "EVSE-SERIAL-0001"
@@ -3021,6 +3023,31 @@ async def test_charger_auth_settings_filters_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_charger_auth_settings_retries_without_authorization_on_401() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(
+                status=200,
+                json_body={"data": [{"key": AUTH_APP_SETTING, "value": None}]},
+            ),
+        ]
+    )
+    client = _make_client(session)
+
+    settings = await client.charger_auth_settings("SN")
+
+    assert settings == [{"key": AUTH_APP_SETTING, "value": None}]
+    assert len(session.calls) == 2
+    first_headers = session.calls[0][2]["headers"]
+    second_headers = session.calls[1][2]["headers"]
+    assert "Authorization" in first_headers
+    assert "e-auth-token" in first_headers
+    assert "Authorization" not in second_headers
+    assert "e-auth-token" not in second_headers
+
+
+@pytest.mark.asyncio
 async def test_charger_auth_settings_handles_non_dict_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value=["bad"])
@@ -3032,6 +3059,68 @@ async def test_charger_auth_settings_handles_non_list_data() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": "nope"})
     assert await client.charger_auth_settings("SN") == []
+
+
+@pytest.mark.asyncio
+async def test_charger_config_filters_payload_and_passes_requested_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": [
+                {"key": DEFAULT_CHARGE_LEVEL_SETTING, "value": None},
+                {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+                "invalid",
+            ]
+        }
+    )
+
+    settings = await client.charger_config(
+        "SN",
+        [DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING],
+    )
+
+    assert settings == [
+        {"key": DEFAULT_CHARGE_LEVEL_SETTING, "value": None},
+        {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+    ]
+    args, kwargs = client._json.await_args
+    assert args[0] == "POST"
+    assert "ev_charger_config" in args[1]
+    assert kwargs["json"] == [
+        {"key": DEFAULT_CHARGE_LEVEL_SETTING},
+        {"key": PHASE_SWITCH_CONFIG_SETTING},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_charger_config_normalizes_requested_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": []})
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    await client.charger_config(
+        "SN",
+        ["", DEFAULT_CHARGE_LEVEL_SETTING, DEFAULT_CHARGE_LEVEL_SETTING, _BadKey()],
+    )
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["json"] == [{"key": DEFAULT_CHARGE_LEVEL_SETTING}]
+
+
+@pytest.mark.asyncio
+async def test_charger_config_returns_empty_when_no_valid_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": []})
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert await client.charger_config("SN", ["", _BadKey()]) == []
+    client._json.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -5240,6 +5329,71 @@ async def test_auth_settings_reraise_non_service_errors(monkeypatch) -> None:
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
     with pytest.raises(aiohttp.ClientResponseError):
         await client.set_app_authentication("SN", enabled=False)
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_reraises_retry_error(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(side_effect=[api.Unauthorized(), _make_cre(400, "Bad")]),
+    )
+    with pytest.raises(aiohttp.ClientResponseError) as ctx:
+        await client.charger_auth_settings("SN")
+
+    assert ctx.value.status == 400
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_wraps_retry_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=[api.Unauthorized(), _make_cre(503, "Service Unavailable")]
+        ),
+    )
+    with pytest.raises(api.AuthSettingsUnavailable):
+        await client.charger_auth_settings("SN")
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_unauthorized_without_control_auth_reraises() -> (
+    None
+):
+    client = api.EnphaseEVClient(_DefaultSession(), "SITE", None, "COOKIE")
+    client._json = AsyncMock(side_effect=api.Unauthorized())
+
+    with pytest.raises(api.Unauthorized):
+        await client.charger_auth_settings("SN")
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_retries_without_auth_on_403(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=[
+                _make_cre(403, "Forbidden"),
+                {"data": [{"key": AUTH_APP_SETTING, "value": "enabled"}]},
+            ]
+        ),
+    )
+
+    settings = await client.charger_auth_settings("SN")
+
+    assert settings == [{"key": AUTH_APP_SETTING, "value": "enabled"}]
+    first_call = client._json.await_args_list[0]
+    second_call = client._json.await_args_list[1]
+    assert first_call.kwargs["headers"] == {"Authorization": "Bearer EAUTH"}
+    assert second_call.kwargs["headers"] == {
+        "Authorization": None,
+        "e-auth-token": None,
+    }
 
 
 @pytest.mark.asyncio

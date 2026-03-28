@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🔄 Other changes
 - Expanded the API reference documentation for the EVSE feature-flags endpoint with a newer redacted capture and additional observed flag names.
+- Refreshed the API reference for the EV firmware-details endpoint with a redacted browser capture, observed request/auth notes, and the latest payload structure.
 
 ## v2.6.0 - 2026-03-28
 

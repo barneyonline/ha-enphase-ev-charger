@@ -37,6 +37,8 @@ _LOGGER = logging.getLogger(__name__)
 GREEN_BATTERY_CACHE_TTL = 300.0
 AUTH_SETTINGS_CACHE_TTL = 300.0
 CHARGE_MODE_CACHE_TTL = 300.0
+CHARGER_CONFIG_CACHE_TTL = 3600.0
+CHARGER_CONFIG_FAILURE_BACKOFF_S = 900.0
 CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
     "MANUAL": "MANUAL_CHARGING",
     "MANUAL_CHARGING": "MANUAL_CHARGING",
@@ -269,6 +271,8 @@ class EvseRuntime:
             "_operating_v",
             "_charge_mode_cache",
             "_green_battery_cache",
+            "_charger_config_cache",
+            "_charger_config_backoff_until",
             "_auth_settings_cache",
             "_evse_feature_flags_by_serial",
             "_last_charging",
@@ -1050,7 +1054,7 @@ class EvseRuntime:
 
         def _coerce(value: object) -> bool | None:
             if value is None:
-                return False
+                return None
             if isinstance(value, bool):
                 return value
             if isinstance(value, (int, float)):
@@ -1096,6 +1100,80 @@ class EvseRuntime:
             now,
         )
         return app_enabled, rfid_enabled, app_supported, rfid_supported
+
+    async def async_get_charger_config(
+        self,
+        sn: str,
+        *,
+        keys: Iterable[str],
+    ) -> dict[str, object] | None:
+        coord = self.coordinator
+        now = time.monotonic()
+        requested: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            requested.append(key_text)
+        if not requested:
+            return {}
+
+        cached = coord._charger_config_cache.get(sn)
+        cached_values: dict[str, object] = {}
+        cache_fresh = False
+        if cached and (now - cached[1] < CHARGER_CONFIG_CACHE_TTL):
+            cache_fresh = True
+            cached_values = dict(cached[0])
+            if all(key in cached_values for key in requested):
+                return {key: cached_values[key] for key in requested}
+        elif cached:
+            cached_values = dict(cached[0])
+
+        backoff_until = coord._charger_config_backoff_until.get(sn)
+        if backoff_until is not None and backoff_until > now:
+            if cache_fresh:
+                return {
+                    key: cached_values[key] for key in requested if key in cached_values
+                }
+            return None
+
+        try:
+            settings = await coord.client.charger_config(sn, requested)
+        except Exception:
+            coord._charger_config_backoff_until[sn] = (
+                time.monotonic() + CHARGER_CONFIG_FAILURE_BACKOFF_S
+            )
+            if cache_fresh:
+                return {
+                    key: cached_values[key] for key in requested if key in cached_values
+                }
+            return None
+
+        merged = dict(cached_values)
+        if isinstance(settings, list):
+            for item in settings:
+                if not isinstance(item, dict):
+                    continue
+                key = item.get("key")
+                try:
+                    key_text = str(key).strip()
+                except Exception:
+                    continue
+                if key_text not in seen:
+                    continue
+                if "value" in item:
+                    merged[key_text] = item.get("value")
+                elif "reqValue" in item:
+                    merged[key_text] = item.get("reqValue")
+
+        coord._charger_config_cache[sn] = (merged, now)
+        coord._charger_config_backoff_until.pop(sn, None)
+        return {key: merged[key] for key in requested if key in merged}
 
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
         normalized = self.normalize_charge_mode_preference(mode)
@@ -1231,6 +1309,74 @@ class EvseRuntime:
                         results[sn] = cached[0], cached[1], cached[2], cached[3]
                     continue
                 results[sn] = response
+        return results
+
+    async def async_resolve_charger_config(
+        self,
+        serials: Iterable[str],
+        *,
+        keys: Iterable[str],
+    ) -> dict[str, dict[str, object]]:
+        coord = self.coordinator
+        requested: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            requested.append(key_text)
+        if not requested:
+            return {}
+
+        results: dict[str, dict[str, object]] = {}
+        pending: dict[str, asyncio.Task[dict[str, object] | None]] = {}
+        now = time.monotonic()
+        for sn in dict.fromkeys(serials):
+            if not sn:
+                continue
+            cached = coord._charger_config_cache.get(sn)
+            if cached and (now - cached[1] < CHARGER_CONFIG_CACHE_TTL):
+                cached_values = dict(cached[0])
+                if all(key in cached_values for key in requested):
+                    results[sn] = {
+                        key: cached_values[key]
+                        for key in requested
+                        if key in cached_values
+                    }
+                    continue
+            pending[sn] = asyncio.create_task(
+                self.async_get_charger_config(sn, keys=requested)
+            )
+        if pending:
+            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
+            for sn, response in zip(pending.keys(), responses, strict=False):
+                if isinstance(response, Exception):
+                    _LOGGER.debug(
+                        "Charger config lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(coord.site_id,),
+                            identifiers=(sn,),
+                        ),
+                    )
+                    cached = coord._charger_config_cache.get(sn)
+                    if cached:
+                        cached_values = dict(cached[0])
+                        filtered = {
+                            key: cached_values[key]
+                            for key in requested
+                            if key in cached_values
+                        }
+                        if filtered:
+                            results[sn] = filtered
+                    continue
+                if response:
+                    results[sn] = response
         return results
 
     def resolve_charge_mode_pref(self, sn: str) -> str | None:
