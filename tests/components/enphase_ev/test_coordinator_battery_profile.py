@@ -608,6 +608,11 @@ def test_battery_profile_property_helpers_cover_branches(coordinator_factory) ->
     coord._battery_pending_profile = None  # noqa: SLF001
     coord._battery_profile = None  # noqa: SLF001
     assert coord.battery_reserve_editable is False
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    assert coord.savings_use_battery_switch_available is False
 
 
 def test_battery_reserve_editable_uses_cfg_control_when_present(
