@@ -53,6 +53,7 @@ Example response (anonymized):
 - `1. Overview`
 - `2. Core Site and Device Endpoints`
 - `2.F HEMS (IQ Energy Router / Heat Pump Monitoring)`
+- `2.G Mobile/Web Shared Constants`
 - `3. EV Charger Control Operations`
 - `4. EV Scheduler (Charge Mode) API`
 - `5. BatteryConfig APIs (System Profile and Battery Controls)`
@@ -69,6 +70,7 @@ Example response (anonymized):
 | Site discovery | `GET` | `/app-api/search_sites.json` | login session cookies | Yes |
 | JWT token bootstrap | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No |
 | JWT token fallback | `GET` | `/service/auth_ms_enho/api/v1/session/token` | session cookies + `_enlighten_4_session` echoed as `e-auth-token` | No |
+| Mobile/web shared constants | `GET` | `https://enlighten-mobile-38d22.firebaseio.com/enho_constants.json` | none observed | No (documented from web UI) |
 | EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
 | EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -2714,6 +2716,79 @@ Observed behavior:
 - This endpoint mirrors the same write payload as `/live-stream/status` but returns a small acknowledgement envelope.
 - A later capture also showed disable semantics: request body `{"livestream-enabled": false}` returned `"data": {"enable": false}`.
 - Treat the endpoint as transport control, not device actuation.
+
+### 2.G Mobile/Web Shared Constants
+
+### 2.22 Shared Constants Payload
+```
+GET https://enlighten-mobile-38d22.firebaseio.com/enho_constants.json
+```
+Returns a global JSON document consumed by the Enphase mobile/web clients for feature constants, localized support/store links,
+minimum supported app versions, SKU catalogs, and similar static configuration.
+
+Auth observations:
+- Captured request did not include cookies or a bearer token.
+- The observed `e-auth-token` header value was literal `null`, suggesting the endpoint is public or at least not session-bound.
+- Response was HTTP `200 OK` with `Content-Type: application/json; charset=utf-8`.
+
+Sanitization notes:
+- Request metadata that is user- or environment-specific (IP address, browser user-agent, language preferences, exact response date) is intentionally omitted here.
+- Internal company/account identifiers that do not affect integration behavior are redacted from examples.
+
+Example response excerpt (anonymized):
+```json
+{
+  "AI_SAVINGS_DATA": {
+    "AI_SAVINGS_METRICS_LOWER_LIMIT": 0.1,
+    "AI_SAVINGS_METRICS_UPPER_LIMIT": 0.1,
+    "NEGATIVE_SAVINGS_LEARN_MORE_LINK": {
+      "US": {
+        "en": "https://support.enphase.com/s/article/why-is-my-electricity-bill-in-ai-optimization-profile-higher-than-expected"
+      }
+    }
+  },
+  "CONNECTIVITY_DATA": {
+    "ENV_SPECIAL_CHARACTERS": ["#", "$", "&", "%", "£", "+", "=", "\"", "\\", "€"],
+    "MIN_ESW_FOR_ENCODING": "D8.3.5314"
+  },
+  "ENPHASE_STORE": {
+    "US": {
+      "en": "https://store.enphase.com/storefront/en-us"
+    }
+  },
+  "ENSTORE_CONSTANTS": {
+    "ENPHASE_CARE_MAINTAINER_ID": {
+      "production": [
+        {
+          "company_id": "<redacted>"
+        }
+      ]
+    },
+    "ENPHASE_CARE_SKUs": {
+      "ANNUAL_SUBSCRIPTION": ["ENPH-CARE-ANNUAL-SOLAR", "ENPH-CARE"],
+      "PLUS_SUBSCRIPTION": ["ENPH-CARE-TEN-SOLAR"]
+    },
+    "ONE_MIN_TELEMETRY_SKU": "ONE-MIN-TELEMETRY"
+  },
+  "IQCP_DATA": {
+    "APP_VERSION": "4.1.0",
+    "COMMAND_RETRIES": 3,
+    "FW_VERSION": "2.0.0",
+    "ITK_MIN_APP_VERSION_RED_COMMISSIONING": "4.8.4"
+  }
+}
+```
+
+Notable field groups observed:
+- `AI_SAVINGS_DATA`: thresholds plus country/language-specific support article links.
+- `CONNECTIVITY_DATA`: app-side validation constants for special characters and minimum software support.
+- `ENPHASE_STORE` and `ENSTORE_CONSTANTS`: localized storefront links, SKU lists, titles, media base URLs, and feature toggles.
+- `IQCP_DATA`: balcony solar / IQCP app and firmware compatibility values plus device naming strings.
+
+Integration relevance:
+- No charger telemetry, per-site configuration, or account-specific state was present in the captured payload.
+- The document appears useful as a reference for feature-gating and catalog discovery, but not for live EV charger control/state.
+- Because the payload is shared/global and not site-scoped, any future use in the integration should treat it as cacheable static metadata.
 
 ---
 
