@@ -29,7 +29,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
-from .const import DEFAULT_NOMINAL_VOLTAGE, DOMAIN, SAFE_LIMIT_AMPS
+from .const import (
+    DEFAULT_NOMINAL_VOLTAGE,
+    DOMAIN,
+    PHASE_SWITCH_CONFIG_SETTING,
+    SAFE_LIMIT_AMPS,
+)
 from .coordinator import EnphaseCoordinator
 from .device_types import is_dry_contact_type_key, member_is_retired
 from .device_info_helpers import _cloud_device_info
@@ -1050,6 +1055,7 @@ class EnphaseElectricalPhaseSensor(EnphaseBaseEntity, SensorEntity):
         _, phase_raw = self._friendly_phase_mode(self.data.get("phase_mode"))
         return {
             "phase_mode_raw": phase_raw,
+            PHASE_SWITCH_CONFIG_SETTING: self.data.get(PHASE_SWITCH_CONFIG_SETTING),
             "dlb_enabled": self._as_bool(self.data.get("dlb_enabled")),
             "dlb_active": self._as_bool(self.data.get("dlb_active")),
         }
@@ -2265,6 +2271,7 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
             "max_amp": max_amp,
             "max_current": max_current,
             "amp_granularity": amp_granularity,
+            "default_charge_level": self.data.get("default_charge_level"),
             "charging_amps_supported": self._optional_bool(
                 self.data.get("charging_amps_supported")
             ),
@@ -2393,6 +2400,8 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             "rated_current": _as_int(self.data.get("rated_current")),
             "grid_type": _as_int(self.data.get("grid_type")),
             "phase_count": _as_int(self.data.get("phase_count")),
+            "phase_switch_config": _clean_text(self.data.get("phase_switch_config")),
+            "default_charge_level": _clean_text(self.data.get("default_charge_level")),
             "commissioning_status": _as_int(self.data.get("commissioning_status")),
             "is_connected": _as_bool(self.data.get("is_connected")),
             "is_locally_connected": _as_bool(self.data.get("is_locally_connected")),
