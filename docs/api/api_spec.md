@@ -2306,11 +2306,12 @@ Observed structure:
 GET /pv/settings/<site_id>/battery_status.json
 Headers:
   Accept: */*
-  Cookie: ...; XSRF-TOKEN=<token>; ...   # authenticated Enlighten web session cookies
-  e-auth-token: <token>
+  Cookie: <authenticated Enlighten web session cookies>
+  e-auth-token: <session token>
   X-Requested-With: XMLHttpRequest
 ```
 Returns the battery card payload used in Enlighten web/app for site-level and per-battery SoC, power, and status details.
+The raw web capture also included live cookies, XSRF tokens, a request ID, and browser metadata; those are omitted here because they are account-specific and not required to describe the schema.
 
 Example response (anonymized):
 ```json
@@ -2353,8 +2354,8 @@ Example response (anonymized):
       "cycle_count": 115,
       "battery_mode": "Self-Consumption",
       "rated_power": 3840,
-      "battery_phase_count": 1,
-      "is_flex_phase": false,
+      "battery_phase_count": 3,
+      "is_flex_phase": true,
       "battery_soh": "100%"
     },
     {
@@ -2382,8 +2383,8 @@ Example response (anonymized):
       "cycle_count": 115,
       "battery_mode": "Self-Consumption",
       "rated_power": 3840,
-      "battery_phase_count": 1,
-      "is_flex_phase": false,
+      "battery_phase_count": 3,
+      "is_flex_phase": true,
       "battery_soh": "100%"
     }
   ]
@@ -2391,11 +2392,15 @@ Example response (anonymized):
 ```
 Observed structure:
 - Top-level metrics summarize combined battery behavior (`current_charge`, energy/power totals, microinverter counts).
+- `show_battery_banner` is a UI hint flag; observed value so far: `false`.
 - `storages[]` contains one object per battery with SoC, power, status, reporting timestamp, and event/error metadata.
-- `excluded=true` marks batteries excluded from active fleet calculations; included/excluded counters are exposed at the top level.
+- `excluded` has been observed as `false`; `true` is still the documented exclusion indicator when a battery is omitted from active fleet calculations.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
-- Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
+- Status appears as normalized code (`status`) plus a display label (`statusText`); observed pair so far: `normal` / `Normal`.
+- `battery_mode` is a display string; observed value so far: `Self-Consumption`.
+- `battery_phase_count` and `is_flex_phase` vary by hardware/site topology; observed combinations so far: `1` / `false` and `3` / `true`.
 - `led_status` is the raw battery LED/runtime status code. The integration currently interprets `12` as charging, `13` as discharging, `14` as idle, `15` as idle, and `17` as idle; any other value is treated as unknown runtime state.
+- `led_status` should be interpreted alongside `status`/`statusText`; observed values in captures so far: `12` and `17`.
 
 Observed battery LED legend:
 - Rapidly Flashing Yellow: Starting up / establishing communications
@@ -3352,20 +3357,62 @@ Example response (anonymized):
   "type": "battery-details",
   "timestamp": "<timestamp>",
   "data": {
+    "supportsMqtt": true,
+    "pollingInterval": 60,
+    "drEventActive": false,
+    "drEventMode": "",
     "profile": "self-consumption",
-    "batteryBackupPercentage": 20,
-    "stormGuardState": "disabled",
-    "hideChargeFromGrid": false,
+    "batteryBackupPercentage": 5,
+    "requestedConfigMqtt": {},
+    "requestedConfig": {},
+    "stormGuardState": "enabled",
+    "showStormGuardAlert": false,
+    "acceptedItcDisclaimer": "<timestamp>",
+    "hideChargeFromGrid": true,
     "envoySupportsVls": true,
     "chargeBeginTime": 120,
     "chargeEndTime": 300,
     "batteryGridMode": "ImportExport",
-    "veryLowSoc": 15,
-    "veryLowSocMin": 10,
+    "veryLowSoc": 5,
+    "veryLowSocMin": 5,
     "veryLowSocMax": 25,
-    "chargeFromGrid": true,
+    "chargeFromGrid": false,
     "chargeFromGridScheduleEnabled": true,
-    "acceptedItcDisclaimer": "<timestamp>",
+    "batteryBackupPercentageMax": 100,
+    "batteryBackupPercentageMin": 5,
+    "previousBatteryBackupPercentage": {
+      "self-consumption": 30,
+      "cost_savings": 30,
+      "backup_only": 100,
+      "expert": 30,
+      "ai_optimisation": 5
+    },
+    "systemTask": false,
+    "dtgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true,
+      "startTime": 960,
+      "endTime": 1140
+    },
+    "cfgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true,
+      "forceScheduleSupported": true,
+      "forceScheduleOpted": true
+    },
+    "rbdControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true
+    },
     "devices": {
       "iqEvse": { "useBatteryFrSelfConsumption": true }
     }
@@ -3404,12 +3451,26 @@ Response:
 ```
 
 Notes:
-- `batteryGridMode` matches the Battery Mode card ("ImportExport" renders as "Import and Export") and is controlled by interconnection settings.
+- The raw capture contained live cookies, JWTs, XSRF tokens, site IDs, and user IDs. Only the endpoint shape and sanitized field values are recorded here.
+- `supportsMqtt` and `pollingInterval` indicate whether the page can use the MQTT-backed battery settings flow and how often the UI expects state refreshes. Observed values so far: `supportsMqtt=true`, `pollingInterval=60`.
+- `requestedConfig` and `requestedConfigMqtt` were empty objects in the capture; they appear to be placeholders for pending configuration writes or async acknowledgements. Observed values so far: `{}` for both fields.
+- `drEventActive` / `drEventMode` look like demand-response state flags; observed values so far: `false` / `""`.
+- `profile` is the backend battery profile code. Observed values in this endpoint so far: `self-consumption`.
+- `stormGuardState` is the backend Storm Guard state. Observed values in captures so far: `enabled`, `disabled`.
+- `showStormGuardAlert` is a UI flag. Observed value so far: `false`.
+- `batteryGridMode` matches the Battery Mode card ("ImportExport" renders as "Import and Export") and is controlled by interconnection settings. Observed value so far: `ImportExport`.
+- `batteryBackupPercentage` is the active reserve percentage. Observed values in captures so far: `5`, `20`.
+- `batteryBackupPercentageMin` / `batteryBackupPercentageMax` expose the allowed reserve slider bounds, while `previousBatteryBackupPercentage` preserves the last reserve value used for each profile. Observed bounds so far: `5` and `100`.
 - `chargeFromGrid` backs the "Charge battery from the grid" toggle. Enabling it shows a disclaimer dialog; the confirmation sets `acceptedItcDisclaimer` and unlocks the schedule controls.
-- The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local).
+- Observed `chargeFromGrid` values so far: `true`, `false`.
+- The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local). Observed values so far: `chargeFromGridScheduleEnabled=true`, `chargeBeginTime=120`, `chargeEndTime=300`.
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
 - Captured writes used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
-- `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`.
+- `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`. Observed values so far: `veryLowSoc=5` and `15`, `veryLowSocMin=5` and `10`, `veryLowSocMax=25`.
+- `dtgControl`, `cfgControl`, and `rbdControl` are per-feature UI capability blocks. In the March 28, 2026 homeowner capture they each exposed `show`, `enabled`, `locked`, and schedule-support fields even though the corresponding toggles were off. Observed booleans so far: `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true`, plus `cfgControl.forceScheduleSupported=true` and `cfgControl.forceScheduleOpted=true`.
+- `hideChargeFromGrid` may be `true` even when charge-from-grid schedule fields are still present in the payload, so clients should not infer field absence from UI visibility. Observed values so far: `true`, `false`.
+- `systemTask` remained `false` in the capture and likely flags backend-owned operations that temporarily lock manual changes. Observed value so far: `false`.
+- `devices.iqEvse.useBatteryFrSelfConsumption` exposes whether an IQ EV charger can draw from battery during self-consumption mode. Observed value so far: `true`.
 - Two equivalent write variants were observed:
   - REST-only flows use `PUT /batterySettings/<site_id>?source=enho&userId=<user_id>`.
   - MQTT-backed RBD flows on `supportsMqtt=true` systems use `PUT /batterySettings/<site_id>?userId=<user_id>` after opening the MQTT response stream.
@@ -3862,13 +3923,26 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `current_charge` | Site battery state-of-charge percentage string (for example `"48%"`) |
 | `available_energy` / `max_capacity` | Site battery available/maximum capacity in kWh |
 | `available_power` / `max_power` | Site battery instantaneous/maximum power in kW |
+| `show_battery_banner` | Battery-card UI hint flag from `/pv/settings/<site_id>/battery_status.json`; observed value so far: `false` |
 | `storages[].serial_number` | Battery serial identifier |
-| `storages[].excluded` | Battery inclusion flag |
-| `storages[].led_status` | Raw battery LED/runtime status code |
-| `storages[].status` / `storages[].statusText` | Battery status code + display label |
+| `storages[].excluded` | Battery inclusion flag; observed value so far: `false` |
+| `storages[].led_status` | Raw battery LED/runtime status code; observed values so far: `12`, `17` |
+| `storages[].status` / `storages[].statusText` | Battery status code + display label; observed pair so far: `normal` / `Normal` |
 | `storages[].last_report` | Epoch seconds for latest battery telemetry |
+| `storages[].battery_mode` | Human-readable battery profile label for the individual storage unit; observed value so far: `Self-Consumption` |
+| `storages[].battery_phase_count` | Number of AC phases exposed for that battery/system view; observed values so far: `1`, `3` |
+| `storages[].is_flex_phase` | Flex-phase capability flag observed on three-phase systems; observed values so far: `false`, `true` |
 | `storages[].battery_soh` | Battery state-of-health percentage string |
 | `included_count` / `excluded_count` | Active vs excluded battery counts in the payload |
+| `supportsMqtt` | Battery settings capability flag indicating MQTT-backed config flows are available; observed value so far: `true` |
+| `pollingInterval` | Suggested BatteryConfig refresh cadence in seconds; observed value so far: `60` |
+| `requestedConfig` / `requestedConfigMqtt` | Pending or echoed config state objects in battery-settings responses; observed values so far: `{}` |
+| `drEventActive` / `drEventMode` | Demand-response event state fields in battery-settings responses; observed values so far: `false` / `""` |
+| `batteryBackupPercentageMin` / `batteryBackupPercentageMax` | Allowed reserve slider bounds from BatteryConfig; observed values so far: `5` / `100` |
+| `previousBatteryBackupPercentage` | Per-profile remembered reserve percentage values |
+| `dtgControl` / `cfgControl` / `rbdControl` | Battery UI feature-capability blocks with visibility, lock, and schedule support flags; observed booleans so far include `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true` |
+| `systemTask` | Backend task/activity flag that may indicate settings are being managed asynchronously; observed value so far: `false` |
+| `devices.iqEvse.useBatteryFrSelfConsumption` | Indicates IQ EV charger battery participation support in self-consumption mode; observed value so far: `true` |
 | `device-uid` | Stable HEMS device identifier |
 | `device-type` (HEMS) | HEMS device taxonomy values seen in captures: `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, `HEAT_PUMP` |
 | `pairing-status` (HEMS) | Pairing state label (for example `PAIRED`) for router-attached ecosystem devices |
