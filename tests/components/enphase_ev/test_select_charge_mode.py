@@ -246,6 +246,9 @@ def test_charge_mode_select_current_option_paths(coordinator_factory):
     coord._charge_mode_cache.clear()  # noqa: SLF001
     assert sel.current_option is None
 
+    coord.data[RANDOM_SERIAL]["schedule_type"] = "greencharging"
+    assert sel.current_option == "Green"
+
 
 def test_charge_mode_select_uses_smart_label_for_smart_mode(coordinator_factory):
     from custom_components.enphase_ev.select import ChargeModeSelect
