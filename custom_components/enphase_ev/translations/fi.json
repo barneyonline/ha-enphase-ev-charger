@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Lämpöpumpun SG-Ready-yhdyskäytävä"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Lämpöpumpun päivittäinen energia"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Lämpöpumpun päivittäinen verkkenergia"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Lämpöpumpun päivittäinen aurinkoenergia"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Lämpöpumpun päivittäinen akkuenergia"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Lämpöpumpun SG-Ready-yhdyskäytävän tila"
       }
     },
     "number": {

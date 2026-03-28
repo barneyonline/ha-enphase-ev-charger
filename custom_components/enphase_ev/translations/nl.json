@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "SG-Ready-gateway van de warmtepomp"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Dagelijkse energie van warmtepomp"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Dagelijkse netenergie van warmtepomp"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Dagelijkse zonne-energie van warmtepomp"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Dagelijkse batterij-energie van warmtepomp"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Status van SG-Ready-gateway van warmtepomp"
       }
     },
     "number": {

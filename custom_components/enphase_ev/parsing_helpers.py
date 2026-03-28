@@ -87,7 +87,81 @@ def heatpump_member_device_type(member: dict[str, object] | None) -> str | None:
     return text.upper() if text else None
 
 
-def heatpump_status_text(member: dict[str, object] | None) -> str | None:
+def heatpump_pairing_status(member: dict[str, object] | None) -> str | None:
+    if not isinstance(member, dict):
+        return None
+    return type_member_text(member, "pairing_status", "pairing-status")
+
+
+def heatpump_device_state(member: dict[str, object] | None) -> str | None:
+    if not isinstance(member, dict):
+        return None
+    raw = type_member_text(member, "device_state", "device-state")
+    return raw.upper() if raw else None
+
+
+def _friendly_heatpump_status(value: str | None) -> str | None:
+    if not value:
+        return None
+    return value.replace("_", " ").replace("-", " ").title()
+
+
+def heatpump_status_bucket(value: object) -> str:
+    text = coerce_optional_text(value)
+    if text is None:
+        return "unknown"
+    normalized = text.lower().replace("-", "_").replace(" ", "_")
+    if any(token in normalized for token in ("fault", "error", "critical")):
+        return "error"
+    if "warn" in normalized:
+        return "warning"
+    if any(
+        token in normalized for token in ("not_reporting", "offline", "disconnected")
+    ):
+        return "not_reporting"
+    if any(
+        token in normalized
+        for token in (
+            "inactive",
+            "unpaired",
+            "not_paired",
+            "notpaired",
+            "deactivated",
+            "decommissioned",
+            "retired",
+        )
+    ):
+        return "not_reporting"
+    if any(token in normalized for token in ("pairing", "pending")):
+        return "warning"
+    if any(token in normalized for token in ("normal", "online", "connected", "ok")):
+        return "normal"
+    return "unknown"
+
+
+def _heatpump_status_rank(value: object) -> int:
+    return {
+        "unknown": 0,
+        "normal": 1,
+        "warning": 2,
+        "not_reporting": 3,
+        "error": 4,
+    }.get(heatpump_status_bucket(value), 0)
+
+
+def heatpump_lifecycle_status_text(member: dict[str, object] | None) -> str | None:
+    if not isinstance(member, dict):
+        return None
+    pairing_status = heatpump_pairing_status(member)
+    if pairing_status and pairing_status.upper() != "PAIRED":
+        return _friendly_heatpump_status(pairing_status)
+    device_state = heatpump_device_state(member)
+    if device_state and device_state != "ACTIVE":
+        return _friendly_heatpump_status(device_state)
+    return None
+
+
+def heatpump_operational_status_text(member: dict[str, object] | None) -> str | None:
     if not isinstance(member, dict):
         return None
     status_text = (
@@ -101,7 +175,17 @@ def heatpump_status_text(member: dict[str, object] | None) -> str | None:
     raw = coerce_optional_text(member.get("status"))
     if not raw:
         return None
-    return raw.replace("_", " ").replace("-", " ").title()
+    return _friendly_heatpump_status(raw)
+
+
+def heatpump_status_text(member: dict[str, object] | None) -> str | None:
+    if not isinstance(member, dict):
+        return None
+    operational = heatpump_operational_status_text(member)
+    lifecycle = heatpump_lifecycle_status_text(member)
+    if _heatpump_status_rank(lifecycle) > _heatpump_status_rank(operational):
+        return lifecycle
+    return operational or lifecycle
 
 
 def parse_inverter_last_report(value: object) -> datetime | None:

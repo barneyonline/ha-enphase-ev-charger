@@ -1336,6 +1336,21 @@ class InventoryRuntime:
             return "not_reporting"
         if any(
             token in normalized
+            for token in (
+                "inactive",
+                "unpaired",
+                "not_paired",
+                "notpaired",
+                "deactivated",
+                "decommissioned",
+                "retired",
+            )
+        ):
+            return "not_reporting"
+        if any(token in normalized for token in ("pairing", "pending")):
+            return "warning"
+        if any(
+            token in normalized
             for token in ("normal", "online", "connected", "ok", "recommended")
         ):
             return "normal"

@@ -259,6 +259,10 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
         )
         return {
             "device_uid": snapshot.get("device_uid"),
+            "member_name": snapshot.get("member_name"),
+            "member_device_type": snapshot.get("member_device_type"),
+            "pairing_status": snapshot.get("pairing_status"),
+            "device_state": snapshot.get("device_state"),
             "heatpump_status_raw": snapshot.get("heatpump_status"),
             "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
             "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
@@ -266,6 +270,8 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
             "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
             "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
             "last_report_at": snapshot.get("last_report_at"),
+            "runtime_endpoint_type": snapshot.get("endpoint_type"),
+            "runtime_endpoint_timestamp": snapshot.get("endpoint_timestamp"),
             "source": snapshot.get("source"),
             "last_error": getattr(
                 self._coord, "heatpump_runtime_state_last_error", None

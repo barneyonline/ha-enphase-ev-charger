@@ -4741,6 +4741,14 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
         "daily_grid_wh": 200.0,
         "device_uid": "HP-1",
         "device_name": "Heat Pump",
+        "member_name": "Primary Heat Pump",
+        "member_device_type": "HEAT_PUMP",
+        "pairing_status": "PAIRED",
+        "device_state": "ACTIVE",
+        "endpoint_type": "hems-device-details",
+        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
+        "day_key": "2026-03-20",
+        "timezone": "Europe/Berlin",
         "source": "hems_energy_consumption:HP-1",
     }
     coord.energy.site_energy = {
@@ -4767,7 +4775,109 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     assert attrs["daily_grid_wh"] == pytest.approx(200.0)
     assert attrs["daily_device_uid"] == "HP-1"
     assert attrs["daily_device_name"] == "Heat Pump"
+    assert attrs["daily_member_name"] == "Primary Heat Pump"
+    assert attrs["daily_member_device_type"] == "HEAT_PUMP"
+    assert attrs["daily_pairing_status"] == "PAIRED"
+    assert attrs["daily_device_state"] == "ACTIVE"
+    assert attrs["daily_endpoint_type"] == "hems-device-details"
+    assert attrs["daily_endpoint_timestamp"] == "2026-03-20T07:53:00.739143826Z"
+    assert attrs["day_key"] == "2026-03-20"
+    assert attrs["timezone"] == "Europe/Berlin"
     assert attrs["daily_source"] == "hems_energy_consumption:HP-1"
+
+
+def test_heat_pump_daily_energy_and_sg_ready_gateway_sensors(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseHeatPumpDailyBatteryEnergySensor,
+        EnphaseHeatPumpDailyEnergySensor,
+        EnphaseHeatPumpDailyGridEnergySensor,
+        EnphaseHeatPumpDailySolarEnergySensor,
+        EnphaseHeatPumpSgReadyGatewaySensor,
+        _heatpump_daily_snapshot,
+    )
+    from homeassistant.components.sensor import SensorStateClass
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 2,
+                "devices": [
+                    {
+                        "device_uid": "HP-1",
+                        "device_type": "HEAT_PUMP",
+                        "name": "Heat Pump",
+                        "pairing_status": "PAIRED",
+                        "device_state": "ACTIVE",
+                    },
+                    {
+                        "device_uid": "HP-SG-1",
+                        "device_type": "SG_READY_GATEWAY",
+                        "name": "SG Ready Gateway",
+                        "statusText": "Normal",
+                    },
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_daily_consumption = {  # noqa: SLF001
+        "daily_energy_wh": 230.0,
+        "daily_solar_wh": 10.0,
+        "daily_battery_wh": 20.0,
+        "daily_grid_wh": 200.0,
+        "device_uid": "HP-1",
+        "device_name": "Heat Pump",
+        "member_name": "Heat Pump",
+        "member_device_type": "HEAT_PUMP",
+        "pairing_status": "PAIRED",
+        "device_state": "ACTIVE",
+        "endpoint_type": "hems-device-details",
+        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
+        "day_key": "2026-03-20",
+        "timezone": "Europe/Berlin",
+        "details": [230.0],
+        "source": "hems_energy_consumption:HP-1",
+    }
+
+    daily_sensor = EnphaseHeatPumpDailyEnergySensor(coord)
+    grid_sensor = EnphaseHeatPumpDailyGridEnergySensor(coord)
+    solar_sensor = EnphaseHeatPumpDailySolarEnergySensor(coord)
+    battery_sensor = EnphaseHeatPumpDailyBatteryEnergySensor(coord)
+    gateway_sensor = EnphaseHeatPumpSgReadyGatewaySensor(coord)
+
+    assert daily_sensor.available is True
+    assert daily_sensor.state_class == SensorStateClass.TOTAL
+    assert daily_sensor.native_value == pytest.approx(0.23)
+    assert daily_sensor.extra_state_attributes["daily_endpoint_timestamp"] == (
+        "2026-03-20T07:53:00.739143826Z"
+    )
+    assert grid_sensor.available is True
+    assert grid_sensor.native_value == pytest.approx(0.2)
+    assert grid_sensor.entity_registry_enabled_default is False
+    assert solar_sensor.native_value == pytest.approx(0.01)
+    assert battery_sensor.native_value == pytest.approx(0.02)
+    assert gateway_sensor.available is True
+    assert gateway_sensor.native_value == "Normal"
+    assert gateway_sensor.entity_registry_enabled_default is False
+
+    coord._heatpump_daily_consumption = {"daily_energy_wh": None}  # noqa: SLF001
+    assert daily_sensor.native_value is None
+
+    coord._heatpump_daily_consumption = {"daily_energy_wh": "bad"}  # noqa: SLF001
+    assert daily_sensor.native_value is None
+
+    coord.last_success_utc = None
+    coord.last_update_success = False
+    coord._heatpump_daily_consumption = {"daily_energy_wh": 230.0}  # noqa: SLF001
+    assert daily_sensor.available is False
+    assert (
+        _heatpump_daily_snapshot(SimpleNamespace(heatpump_daily_consumption=[])) == {}
+    )
 
 
 def test_site_heat_pump_energy_sensor_ignores_phantom_heatpump_device_info(
