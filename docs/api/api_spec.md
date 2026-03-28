@@ -322,6 +322,16 @@ GET /service/evse_management/fwDetails/<site_id>
 Returns site-scoped EV charger firmware rollout details as an array keyed by `serialNumber`.
 Unlike summary v2, the path variable is the site identifier, not the charger serial number.
 
+Observed request fields:
+- Method: `GET`.
+- Path parameter `site_id`: numeric Enlighten site identifier in the URL path.
+- Query/body: none observed.
+- `Accept: */*`.
+- `Content-Type: application/json`.
+- `X-Requested-With: XMLHttpRequest`.
+- `Referer`: `/web/<site_id>/today/graph/hours?v=3.4.0?osv=1`.
+- Browser capture authenticated with the normal Enlighten session cookie jar; the observed `e-auth-token` header value was the literal string `null`.
+
 Example response (anonymized capture):
 ```json
 [
@@ -339,6 +349,11 @@ Example response (anonymized capture):
 ]
 ```
 
+Observed structure:
+- The response is a bare JSON array with no top-level `meta`, `data`, or `error` envelope.
+- Each array item represents one charger at the site and can be joined to runtime/summary payloads via `serialNumber`.
+- Timestamp fields use extended ISO-8601 strings with fractional seconds plus a bracketed zone suffix such as `Z[UTC]`.
+
 Observed fields:
 - `serialNumber`: charger serial number used to join the record to summary/runtime data.
 - `siteId`: numeric site identifier echoed by the service.
@@ -349,6 +364,10 @@ Observed fields:
 - `lastUpdatedAt`: service timestamp for the current firmware-details record.
 - `statusDetail`: optional additional upgrade-state detail; often `null`.
 - `isAutoOta`: whether automatic OTA behavior is enabled for the charger.
+
+Notes:
+- The captured browser request succeeded with session cookies even though `e-auth-token` was `null`. Whether non-browser clients can omit `e-auth-token` for this endpoint remains unverified, so preserve standard session headers when scripting against it.
+- The original trace contained live cookies, XSRF tokens, JWT-bearing cookie values with account identifiers, a real site ID, a real charger serial number, and a client-facing proxy address. Those values are intentionally replaced with placeholders here.
 
 ### 2.2.3 EV Feature Flags
 ```
@@ -441,13 +460,13 @@ Body: [
 ]
 Headers:
   Accept: application/json, text/javascript, */*; q=0.01
-  Authorization: Bearer <jwt>
   Cookie: ...; XSRF-TOKEN=<token>; ...
-  e-auth-token: <token>
+  e-auth-token: <token-or-null>
   X-Requested-With: XMLHttpRequest
 ```
 Fetches the current authentication requirements for charging sessions.
 The same endpoint also returns other charger configuration keys when requested in the body array.
+Observed from the Enlighten web UI as an `XMLHttpRequest` `POST`, with the requested config keys supplied in the JSON body rather than query parameters.
 
 Example response:
 ```json
@@ -456,8 +475,8 @@ Example response:
   "data": [
     {
       "key": "rfidSessionAuthentication",
-      "value": "disabled",
-      "reqValue": "disabled",
+      "value": null,
+      "reqValue": null,
       "status": 1
     },
     {
@@ -536,7 +555,9 @@ Notes:
 - `DefaultChargeLevel` was observed as `null`; the exact semantics remain unconfirmed and may indicate unset/disabled state.
 - When either setting is enabled, charging sessions require user authentication before starting.
 - Observed: read responses use `status=1`; update responses use `status=2`, with `value` reflecting the prior state and `reqValue` the desired state.
-- Observed: `sessionAuthentication` can return `null` when disabled or unset.
+- Observed: both `sessionAuthentication` and `rfidSessionAuthentication` can return `null` for both `value` and `reqValue`, which appears to represent a disabled or unset state.
+- Observed in one web capture: the request succeeded with session cookies plus XSRF cookies present, while `e-auth-token` was sent as `null` and no bearer token header was present. Treat the auth requirements here as UI-path dependent.
+- Privacy: real captures include site IDs, charger serial numbers, cookies, JWTs, names, and email addresses. Redact all such values when preserving examples.
 
 ### 2.6 Session History (Filter Criteria)
 ```
@@ -727,7 +748,9 @@ Example response shape (anonymized):
           "status": "normal",
           "statusText": "Normal",
           "ip": "192.0.2.10",
+          "ap_mode": true,
           "envoy_sw_version": "D8.X.XXXX",
+          "supportsEntrez": true,
           "last_report": 1770000000,
           "show_connection_details": true,
           "warranty_end_date": "2030-09-18"
@@ -738,11 +761,12 @@ Example response shape (anonymized):
       "type": "encharge",
       "devices": [
         {
-          "name": "IQ Battery 5P",
+          "name": "IQ Battery 5P FlexPhase",
           "serial_number": "BT0000000001",
-          "sku_id": "B05-T02-ROW00-1-2",
+          "sku_id": "IQBATTERY-5P-3P-INT",
           "channel_type": "IQ Battery",
           "status": "normal",
+          "statusText": "Normal",
           "last_report": 1770000010,
           "sw_version": "522-00002-01-vX.Y.Z_rel/31.44",
           "warranty_end_date": "2040-09-18"
@@ -753,11 +777,12 @@ Example response shape (anonymized):
       "type": "enpower",
       "devices": [
         {
-          "name": "IQ System Controller 3",
+          "name": "IQ System Controller 3 INT",
           "serial_number": "SC0000000000",
           "sku_id": "SC100G-M000ROW",
           "channel_type": "IQ System Controller",
           "status": "normal",
+          "statusText": "Normal",
           "last_report": 1770000020,
           "sw_version": "522-00003-01-vX.Y.Z_rel/31.44",
           "warranty_end_date": "2035-09-18"
@@ -803,7 +828,13 @@ Additional observed buckets (anonymized excerpt):
       "type": "hemsDevices",
       "devices": [
         {
-          "gateway": [{ "device-type": "IQ_ENERGY_ROUTER", "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1" }],
+          "gateway": [
+            {
+              "device-type": "IQ_ENERGY_ROUTER",
+              "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
+              "ip-address": "192.0.2.11"
+            }
+          ],
           "heat-pump": [{ "device-type": "HEAT_PUMP", "device-uid": "<site_id>_HEAT_PUMP_1" }],
           "evse": [],
           "water-heater": []
@@ -818,8 +849,11 @@ Observed structure:
 - `result[]` is a mixed array containing typed buckets (`{type, devices}`) and metadata objects (for example `curr_date_site`).
 - Each bucket's `type` identifies the device family; `devices[]` may be empty.
 - Common device fields: `name`, `serial_number`, `sku_id`, `status`, `statusText`, `last_report`.
-- Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
+- Observed `type` values include `envoy`, `storage`, `q_relay`, `meter`, `encharge`, `enpower`, `generator`, `wirelessRangeExtender`, `dryContactLoads`, `stringInverters`, `iqCollars`, and `hemsDevices`.
+- Optional fields vary by type (`ip`, `ap_mode`, `connected`, `supportsEntrez`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
 - `channel_type` labels may be localized by site locale (for example French meter labels).
+- Meter examples observed both production and consumption labels via synthetic serial suffixes such as `EIM1` and `EIM2`.
+- `dryContactLoads` entries may expose user-assigned names such as garage/PV load labels.
 - Some sites include a nested `type: "hemsDevices"` bucket in `/devices.json`, reusing the hierarchical HEMS shape documented in `2.17`.
 
 ### 2.9.1 Filtered Site-Device Inventory
@@ -2340,11 +2374,12 @@ Observed structure:
 GET /pv/settings/<site_id>/battery_status.json
 Headers:
   Accept: */*
-  Cookie: ...; XSRF-TOKEN=<token>; ...   # authenticated Enlighten web session cookies
-  e-auth-token: <token>
+  Cookie: <authenticated Enlighten web session cookies>
+  e-auth-token: <session token>
   X-Requested-With: XMLHttpRequest
 ```
 Returns the battery card payload used in Enlighten web/app for site-level and per-battery SoC, power, and status details.
+The raw web capture also included live cookies, XSRF tokens, a request ID, and browser metadata; those are omitted here because they are account-specific and not required to describe the schema.
 
 Example response (anonymized):
 ```json
@@ -2387,8 +2422,8 @@ Example response (anonymized):
       "cycle_count": 115,
       "battery_mode": "Self-Consumption",
       "rated_power": 3840,
-      "battery_phase_count": 1,
-      "is_flex_phase": false,
+      "battery_phase_count": 3,
+      "is_flex_phase": true,
       "battery_soh": "100%"
     },
     {
@@ -2416,8 +2451,8 @@ Example response (anonymized):
       "cycle_count": 115,
       "battery_mode": "Self-Consumption",
       "rated_power": 3840,
-      "battery_phase_count": 1,
-      "is_flex_phase": false,
+      "battery_phase_count": 3,
+      "is_flex_phase": true,
       "battery_soh": "100%"
     }
   ]
@@ -2425,11 +2460,15 @@ Example response (anonymized):
 ```
 Observed structure:
 - Top-level metrics summarize combined battery behavior (`current_charge`, energy/power totals, microinverter counts).
+- `show_battery_banner` is a UI hint flag; observed value so far: `false`.
 - `storages[]` contains one object per battery with SoC, power, status, reporting timestamp, and event/error metadata.
-- `excluded=true` marks batteries excluded from active fleet calculations; included/excluded counters are exposed at the top level.
+- `excluded` has been observed as `false`; `true` is still the documented exclusion indicator when a battery is omitted from active fleet calculations.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
-- Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
+- Status appears as normalized code (`status`) plus a display label (`statusText`); observed pair so far: `normal` / `Normal`.
+- `battery_mode` is a display string; observed value so far: `Self-Consumption`.
+- `battery_phase_count` and `is_flex_phase` vary by hardware/site topology; observed combinations so far: `1` / `false` and `3` / `true`.
 - `led_status` is the raw battery LED/runtime status code. The integration currently interprets `12` as charging, `13` as discharging, `14` as idle, `15` as idle, and `17` as idle; any other value is treated as unknown runtime state.
+- `led_status` should be interpreted alongside `status`/`statusText`; observed values in captures so far: `12` and `17`.
 
 Observed battery LED legend:
 - Rapidly Flashing Yellow: Starting up / establishing communications
@@ -2475,21 +2514,28 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000000,
+            "last-report": "2026-02-01T10:00:00Z",
             "hems-device-id": "hd_router_001",
             "hems-device-facet-id": "hf_router_001",
             "iqer-uid": "iqer_uid_001",
-            "created-at": "2026-02-01T10:00:00Z"
+            "created-at": "2026-02-01T10:00:00Z",
+            "ip-address": "192.0.2.11"
           },
           {
             "name": "IQ Gateway_1",
             "device-type": "IQ_GATEWAY",
             "device-uid": "<site_id>_IQ_GATEWAY_1",
             "uid": "GW-UID-001",
+            "make": "Enphase",
+            "model": "Envoy-S Metered",
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000001
+            "last-report": "2026-02-01T10:00:01Z",
+            "created-at": "2026-02-01T09:59:58Z",
+            "hems-device-id": "hd_gateway_001",
+            "hems-device-facet-id": "hf_gateway_001",
+            "iqer-uid": "iqer_uid_001"
           }
         ],
         "heat-pump": [
@@ -2503,7 +2549,11 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000002
+            "last-report": "2026-02-01T10:00:02Z",
+            "created-at": "2026-02-01T09:58:58Z",
+            "hems-device-id": "hd_sgready_001",
+            "hems-device-facet-id": "hf_sgready_001",
+            "iqer-uid": "iqer_uid_001"
           },
           {
             "name": "Energy Meter_1",
@@ -2516,10 +2566,14 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "last-report": 1770000003
+            "last-report": "2026-02-01T10:00:03Z",
+            "created-at": "2026-02-01T09:58:59Z",
+            "hems-device-id": "hd_meter_001",
+            "hems-device-facet-id": "hf_meter_001",
+            "iqer-uid": "iqer_uid_001"
           },
           {
-            "name": "Heat Pump_1",
+            "name": "Waermepumpe",
             "device-type": "HEAT_PUMP",
             "device-uid": "<site_id>_HEAT_PUMP_1",
             "make": "HeatPumpVendor",
@@ -2527,7 +2581,9 @@ Example response shape (anonymized):
             "status": "normal",
             "statusText": "Normal",
             "pairing-status": "PAIRED",
-            "fvt-time": 1770000000
+            "created-at": "2026-02-01T09:59:00.000000000Z",
+            "fvt-time": "2026-02-01T10:00:00.000Z",
+            "iqer-uid": "iqer_uid_001"
           }
         ],
         "evse": [],
@@ -2540,6 +2596,8 @@ Example response shape (anonymized):
 Observed structure:
 - Device grouping is hierarchical (`gateway`, `heat-pump`, `evse`, `water-heater`) rather than the flat `type/devices` shape used by `/app-api/<site_id>/devices.json`.
 - `device-uid` is a stable HEMS identifier reused across timeseries filters and related detail requests.
+- `created-at`, `last-report`, and `fvt-time` were observed as ISO-8601 strings in this capture, not epoch seconds.
+- Router/gateway members may expose network-local metadata such as `ip-address`; redact concrete LAN addresses when documenting captures.
 - For the captured site, device types present were `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, and `HEAT_PUMP`.
 
 ### 2.17.1 HEMS Heat Pump Runtime State (Per Heat Pump UID)
@@ -3386,20 +3444,62 @@ Example response (anonymized):
   "type": "battery-details",
   "timestamp": "<timestamp>",
   "data": {
+    "supportsMqtt": true,
+    "pollingInterval": 60,
+    "drEventActive": false,
+    "drEventMode": "",
     "profile": "self-consumption",
-    "batteryBackupPercentage": 20,
-    "stormGuardState": "disabled",
-    "hideChargeFromGrid": false,
+    "batteryBackupPercentage": 5,
+    "requestedConfigMqtt": {},
+    "requestedConfig": {},
+    "stormGuardState": "enabled",
+    "showStormGuardAlert": false,
+    "acceptedItcDisclaimer": "<timestamp>",
+    "hideChargeFromGrid": true,
     "envoySupportsVls": true,
     "chargeBeginTime": 120,
     "chargeEndTime": 300,
     "batteryGridMode": "ImportExport",
-    "veryLowSoc": 15,
-    "veryLowSocMin": 10,
+    "veryLowSoc": 5,
+    "veryLowSocMin": 5,
     "veryLowSocMax": 25,
-    "chargeFromGrid": true,
+    "chargeFromGrid": false,
     "chargeFromGridScheduleEnabled": true,
-    "acceptedItcDisclaimer": "<timestamp>",
+    "batteryBackupPercentageMax": 100,
+    "batteryBackupPercentageMin": 5,
+    "previousBatteryBackupPercentage": {
+      "self-consumption": 30,
+      "cost_savings": 30,
+      "backup_only": 100,
+      "expert": 30,
+      "ai_optimisation": 5
+    },
+    "systemTask": false,
+    "dtgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true,
+      "startTime": 960,
+      "endTime": 1140
+    },
+    "cfgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true,
+      "forceScheduleSupported": true,
+      "forceScheduleOpted": true
+    },
+    "rbdControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true
+    },
     "devices": {
       "iqEvse": { "useBatteryFrSelfConsumption": true }
     }
@@ -3438,12 +3538,26 @@ Response:
 ```
 
 Notes:
-- `batteryGridMode` matches the Battery Mode card ("ImportExport" renders as "Import and Export") and is controlled by interconnection settings.
+- The raw capture contained live cookies, JWTs, XSRF tokens, site IDs, and user IDs. Only the endpoint shape and sanitized field values are recorded here.
+- `supportsMqtt` and `pollingInterval` indicate whether the page can use the MQTT-backed battery settings flow and how often the UI expects state refreshes. Observed values so far: `supportsMqtt=true`, `pollingInterval=60`.
+- `requestedConfig` and `requestedConfigMqtt` were empty objects in the capture; they appear to be placeholders for pending configuration writes or async acknowledgements. Observed values so far: `{}` for both fields.
+- `drEventActive` / `drEventMode` look like demand-response state flags; observed values so far: `false` / `""`.
+- `profile` is the backend battery profile code. Observed values in this endpoint so far: `self-consumption`.
+- `stormGuardState` is the backend Storm Guard state. Observed values in captures so far: `enabled`, `disabled`.
+- `showStormGuardAlert` is a UI flag. Observed value so far: `false`.
+- `batteryGridMode` matches the Battery Mode card ("ImportExport" renders as "Import and Export") and is controlled by interconnection settings. Observed value so far: `ImportExport`.
+- `batteryBackupPercentage` is the active reserve percentage. Observed values in captures so far: `5`, `20`.
+- `batteryBackupPercentageMin` / `batteryBackupPercentageMax` expose the allowed reserve slider bounds, while `previousBatteryBackupPercentage` preserves the last reserve value used for each profile. Observed bounds so far: `5` and `100`.
 - `chargeFromGrid` backs the "Charge battery from the grid" toggle. Enabling it shows a disclaimer dialog; the confirmation sets `acceptedItcDisclaimer` and unlocks the schedule controls.
-- The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local).
+- Observed `chargeFromGrid` values so far: `true`, `false`.
+- The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local). Observed values so far: `chargeFromGridScheduleEnabled=true`, `chargeBeginTime=120`, `chargeEndTime=300`.
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
 - Captured writes used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
-- `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`.
+- `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`. Observed values so far: `veryLowSoc=5` and `15`, `veryLowSocMin=5` and `10`, `veryLowSocMax=25`.
+- `dtgControl`, `cfgControl`, and `rbdControl` are per-feature UI capability blocks. In the March 28, 2026 homeowner capture they each exposed `show`, `enabled`, `locked`, and schedule-support fields even though the corresponding toggles were off. Observed booleans so far: `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true`, plus `cfgControl.forceScheduleSupported=true` and `cfgControl.forceScheduleOpted=true`.
+- `hideChargeFromGrid` may be `true` even when charge-from-grid schedule fields are still present in the payload, so clients should not infer field absence from UI visibility. Observed values so far: `true`, `false`.
+- `systemTask` remained `false` in the capture and likely flags backend-owned operations that temporarily lock manual changes. Observed value so far: `false`.
+- `devices.iqEvse.useBatteryFrSelfConsumption` exposes whether an IQ EV charger can draw from battery during self-consumption mode. Observed value so far: `true`.
 - Two equivalent write variants were observed:
   - REST-only flows use `PUT /batterySettings/<site_id>?source=enho&userId=<user_id>`.
   - MQTT-backed RBD flows on `supportsMqtt=true` systems use `PUT /batterySettings/<site_id>?userId=<user_id>` after opening the MQTT response stream.
@@ -3896,17 +4010,33 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `current_charge` | Site battery state-of-charge percentage string (for example `"48%"`) |
 | `available_energy` / `max_capacity` | Site battery available/maximum capacity in kWh |
 | `available_power` / `max_power` | Site battery instantaneous/maximum power in kW |
+| `show_battery_banner` | Battery-card UI hint flag from `/pv/settings/<site_id>/battery_status.json`; observed value so far: `false` |
 | `storages[].serial_number` | Battery serial identifier |
-| `storages[].excluded` | Battery inclusion flag |
-| `storages[].led_status` | Raw battery LED/runtime status code |
-| `storages[].status` / `storages[].statusText` | Battery status code + display label |
+| `storages[].excluded` | Battery inclusion flag; observed value so far: `false` |
+| `storages[].led_status` | Raw battery LED/runtime status code; observed values so far: `12`, `17` |
+| `storages[].status` / `storages[].statusText` | Battery status code + display label; observed pair so far: `normal` / `Normal` |
 | `storages[].last_report` | Epoch seconds for latest battery telemetry |
+| `storages[].battery_mode` | Human-readable battery profile label for the individual storage unit; observed value so far: `Self-Consumption` |
+| `storages[].battery_phase_count` | Number of AC phases exposed for that battery/system view; observed values so far: `1`, `3` |
+| `storages[].is_flex_phase` | Flex-phase capability flag observed on three-phase systems; observed values so far: `false`, `true` |
 | `storages[].battery_soh` | Battery state-of-health percentage string |
 | `included_count` / `excluded_count` | Active vs excluded battery counts in the payload |
+| `supportsMqtt` | Battery settings capability flag indicating MQTT-backed config flows are available; observed value so far: `true` |
+| `pollingInterval` | Suggested BatteryConfig refresh cadence in seconds; observed value so far: `60` |
+| `requestedConfig` / `requestedConfigMqtt` | Pending or echoed config state objects in battery-settings responses; observed values so far: `{}` |
+| `drEventActive` / `drEventMode` | Demand-response event state fields in battery-settings responses; observed values so far: `false` / `""` |
+| `batteryBackupPercentageMin` / `batteryBackupPercentageMax` | Allowed reserve slider bounds from BatteryConfig; observed values so far: `5` / `100` |
+| `previousBatteryBackupPercentage` | Per-profile remembered reserve percentage values |
+| `dtgControl` / `cfgControl` / `rbdControl` | Battery UI feature-capability blocks with visibility, lock, and schedule support flags; observed booleans so far include `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true` |
+| `systemTask` | Backend task/activity flag that may indicate settings are being managed asynchronously; observed value so far: `false` |
+| `devices.iqEvse.useBatteryFrSelfConsumption` | Indicates IQ EV charger battery participation support in self-consumption mode; observed value so far: `true` |
 | `device-uid` | Stable HEMS device identifier |
 | `device-type` (HEMS) | HEMS device taxonomy values seen in captures: `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, `HEAT_PUMP` |
 | `pairing-status` (HEMS) | Pairing state label (for example `PAIRED`) for router-attached ecosystem devices |
 | `hems-device-id` / `hems-device-facet-id` | HEMS backend identifiers present on router/heat-pump stack members in `hems-devices` payloads |
+| `ip` / `ip-address` | Device LAN address fields seen on gateway/router inventory payloads; treat as sensitive in examples |
+| `ap_mode` | Boolean flag on gateway inventory entries indicating the IQ Gateway access-point mode was enabled |
+| `supportsEntrez` | Boolean capability flag observed on gateway inventory entries |
 | `heatpump-status` | App-facing heat-pump runtime state from `/heatpump/<device_uid>/state`; observed values: `IDLE`, `RUNNING` |
 | `sg-ready-mode` | SG Ready operating mode label from `/heatpump/<device_uid>/state`; observed values: `MODE_2` (normal), `MODE_3` (recommended consumption / SG Ready on) |
 | `vpp-sgready-mode-override` | SG Ready override label from `/heatpump/<device_uid>/state`; observed off-state value: `NONE` |
