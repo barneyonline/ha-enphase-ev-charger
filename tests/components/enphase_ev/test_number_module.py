@@ -16,6 +16,56 @@ from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
+def test_cfg_schedule_edit_available_uses_schedule_id_and_public_times() -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=True,
+        charge_from_grid_schedule_supported=True,
+        battery_cfg_schedule_limit=None,
+        _battery_cfg_schedule_id="sched-1",
+        battery_charge_from_grid_start_time=1,
+        battery_charge_from_grid_end_time=2,
+        _battery_charge_begin_time=None,
+        _battery_charge_end_time=None,
+    )
+
+    assert number_mod._cfg_schedule_edit_available(coord) is True
+
+    coord.battery_charge_from_grid_start_time = None
+    coord.battery_charge_from_grid_end_time = None
+    coord._battery_charge_begin_time = 60
+    coord._battery_charge_end_time = 120
+
+    assert number_mod._cfg_schedule_edit_available(coord) is True
+
+    coord._battery_cfg_schedule_id = None
+    coord.battery_charge_from_grid_start_time = 1
+    coord.battery_charge_from_grid_end_time = 2
+    coord._battery_charge_begin_time = None
+    coord._battery_charge_end_time = None
+
+    assert number_mod._cfg_schedule_edit_available(coord) is False
+
+
+def test_cfg_schedule_edit_available_rejects_when_control_unavailable() -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=False,
+        charge_from_grid_schedule_supported=True,
+        _battery_cfg_schedule_id="sched-1",
+        battery_charge_from_grid_start_time=1,
+        battery_charge_from_grid_end_time=2,
+        _battery_charge_begin_time=60,
+        _battery_charge_end_time=120,
+    )
+
+    assert number_mod._cfg_schedule_edit_available(coord) is False
+
+
 @pytest.mark.asyncio
 async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     coord = SimpleNamespace()
@@ -529,6 +579,9 @@ def test_battery_cfg_schedule_limit_number_bounds_and_availability(
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
     coord._battery_very_low_soc = 12  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "sched-1"  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
 
     number = BatteryCfgScheduleLimitNumber(coord)
 
@@ -589,7 +642,40 @@ def test_battery_cfg_schedule_limit_number_unavailable_without_force_support(
         )
     )
 
-    assert BatteryCfgScheduleLimitNumber(coord).available is False
+    assert BatteryCfgScheduleLimitNumber(coord).available is True
+
+
+@pytest.mark.asyncio
+async def test_battery_cfg_schedule_limit_number_updates_existing_schedule_when_force_toggle_unavailable(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "sched-1"  # noqa: SLF001
+    coord._battery_charge_begin_time = 180  # noqa: SLF001
+    coord._battery_charge_end_time = 960  # noqa: SLF001
+    coord._battery_cfg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            }
+        )
+    )
+    coord.async_update_cfg_schedule = AsyncMock()
+
+    number = BatteryCfgScheduleLimitNumber(coord)
+
+    assert number.available is True
+    await number.async_set_native_value(95)
+
+    coord.async_update_cfg_schedule.assert_awaited_once_with(limit=95)
 
 
 def test_battery_cfg_schedule_limit_number_super_unavailable_and_device_info_fallback(

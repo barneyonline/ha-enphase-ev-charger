@@ -26,6 +26,40 @@ def test_time_type_available_falls_back_to_has_type() -> None:
     assert time_mod._type_available(coord_no_helpers, "encharge") is True
 
 
+def test_cfg_schedule_edit_available_handles_supported_and_existing_windows() -> None:
+    from custom_components.enphase_ev import time as time_mod
+
+    coord = SimpleNamespace(
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=False,
+        charge_from_grid_schedule_supported=False,
+        _battery_cfg_schedule_id=None,
+        battery_charge_from_grid_start_time=None,
+        battery_charge_from_grid_end_time=None,
+        _battery_charge_begin_time=None,
+        _battery_charge_end_time=None,
+    )
+
+    assert time_mod._cfg_schedule_edit_available(coord) is False
+
+    coord.charge_from_grid_control_available = True
+    assert time_mod._cfg_schedule_edit_available(coord) is False
+
+    coord.charge_from_grid_schedule_supported = True
+    coord.battery_charge_from_grid_start_time = dt_time(1, 0)
+    coord.battery_charge_from_grid_end_time = dt_time(2, 0)
+
+    assert time_mod._cfg_schedule_edit_available(coord) is False
+
+    coord._battery_cfg_schedule_id = "sched-1"
+    coord.battery_charge_from_grid_start_time = None
+    coord.battery_charge_from_grid_end_time = None
+    coord._battery_charge_begin_time = 60
+    coord._battery_charge_end_time = 120
+
+    assert time_mod._cfg_schedule_edit_available(coord) is True
+
+
 def test_migrated_time_entity_id_handles_strong_migration_and_auto_suffix() -> None:
     assert (
         _migrated_time_entity_id(
@@ -425,8 +459,9 @@ async def test_charge_from_grid_time_entity_availability_and_values(
     assert end.native_value == dt_time(5, 0)
 
     coord._battery_charge_from_grid = False  # noqa: SLF001
-    assert start.available is False
-    assert end.available is False
+    coord._battery_cfg_schedule_id = "sched-1"  # noqa: SLF001
+    assert start.available is True
+    assert end.available is True
 
 
 @pytest.mark.asyncio
@@ -505,3 +540,39 @@ async def test_charge_from_grid_time_entity_sets_value(coordinator_factory) -> N
     coord.async_set_charge_from_grid_schedule_time.assert_awaited_with(
         end=dt_time(4, 45)
     )
+
+
+@pytest.mark.asyncio
+async def test_charge_from_grid_time_entity_updates_existing_schedule_when_cfg_disabled(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_begin_time = 180  # noqa: SLF001
+    coord._battery_charge_end_time = 960  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "sched-1"  # noqa: SLF001
+    coord._battery_cfg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            }
+        )
+    )
+    coord.async_update_cfg_schedule = AsyncMock()
+
+    start = ChargeFromGridStartTimeEntity(coord)
+    end = ChargeFromGridEndTimeEntity(coord)
+
+    assert start.available is True
+    assert end.available is True
+
+    await start.async_set_value(dt_time(1, 30))
+    coord.async_update_cfg_schedule.assert_awaited_with(start=dt_time(1, 30))
+
+    await end.async_set_value(dt_time(4, 45))
+    coord.async_update_cfg_schedule.assert_awaited_with(end=dt_time(4, 45))
