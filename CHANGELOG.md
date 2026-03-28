@@ -11,14 +11,37 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Preserved Green mode from the live EVSE schedule summary when Enphase temporarily omits the scheduler preference, keeping `preferred_mode` and the charge-mode select stable instead of dropping to `null`/`unknown`.
+- None
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
-- Expanded the API reference documentation for the EVSE feature-flags endpoint with a newer redacted capture and additional observed flag names.
-- Refreshed the API reference for the EV firmware-details endpoint with a redacted browser capture, observed request/auth notes, and the latest payload structure.
+- None
+
+## v2.6.1 - 2026-03-29
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added HEMS-backed heat-pump daily energy entities, including `Heat Pump Daily Energy` plus optional diagnostic breakdown sensors for daily grid, solar, and battery energy.
+- Added a dedicated `Heat Pump SG-Ready Gateway Status` entity for SG-Ready gateway devices discovered in the heat-pump inventory.
+
+### 🐛 Bug fixes
+- Preserved Green mode from the live EVSE schedule summary when Enphase temporarily omits the scheduler preference, keeping `preferred_mode` and the charge-mode select stable instead of dropping to `null` or `unknown`.
+- Fixed IQ Battery charge-from-grid schedule helper availability so schedule controls stay editable when an existing schedule is present even if Enphase omits parts of the capability metadata.
+- Hardened battery write gating so battery profile, reserve, shutdown-level, and charge-from-grid helpers only surface when the account has confirmed owner or installer write access.
+- Improved battery settings parsing and reserve-limit handling so battery reserve writes respect Enphase-provided minimum and maximum bounds instead of assuming a fixed upper limit.
+- Hardened EV charger auth/config requests and gateway inventory fallbacks so auth settings, config metadata, and connectivity details remain available across more Enphase payload and authorization variants.
+- Improved HEMS heat-pump runtime and power parsing so alternate endpoint payload shapes keep runtime, SG-Ready, daily-energy, and power telemetry available instead of dropping state.
+
+### 🔧 Improvements
+- Expanded EV charger diagnostic attributes with preserved gateway connectivity details, phase-switch configuration, default charge level, and additional endpoint metadata surfaced from charger config payloads.
+- Enriched heat-pump runtime and power diagnostics with endpoint timestamps, device identifiers, and daily-energy context to make diagnostics captures more actionable.
+
+### 🔄 Other changes
+- Expanded the API reference documentation for EVSE feature flags, the mobile constants endpoint, and the EV firmware-details endpoint with newer captures and observed payload notes.
 
 ## v2.6.0 - 2026-03-28
 
