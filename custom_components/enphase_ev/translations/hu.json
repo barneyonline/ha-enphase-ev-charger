@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Hőszivattyú SG-Ready átjáró"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Hőszivattyú napi energia"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Hőszivattyú napi hálózati energia"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Hőszivattyú napi napenergia"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Hőszivattyú napi akkumulátor-energia"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Hőszivattyú SG-Ready átjáró állapota"
       }
     },
     "number": {

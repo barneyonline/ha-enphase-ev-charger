@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Mode SG-Ready de la pompe à chaleur"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Énergie quotidienne de la pompe à chaleur"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Énergie réseau quotidienne de la pompe à chaleur"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Énergie solaire quotidienne de la pompe à chaleur"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Énergie batterie quotidienne de la pompe à chaleur"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "État de la passerelle SG-Ready de la pompe à chaleur"
       }
     },
     "number": {
