@@ -137,6 +137,26 @@ def test_battery_runtime_remembers_ai_optimisation_reserve_from_payload(
     assert coord._target_reserve_for_profile("ai_optimisation") == 10  # noqa: SLF001
 
 
+def test_battery_runtime_ignores_invalid_previous_reserve_entries(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    coord._battery_profile_reserve_memory = {}  # noqa: SLF001
+
+    runtime.remember_previous_battery_reserves(
+        {
+            "": 15,
+            "cost_savings": "invalid",
+            "ai_optimisation": 10,
+        }
+    )
+
+    assert "cost_savings" not in coord._battery_profile_reserve_memory  # noqa: SLF001
+    assert coord._battery_profile_reserve_memory["ai_optimisation"] == 10  # noqa: SLF001
+
+
 def test_battery_runtime_current_savings_subtype_uses_coordinator_property() -> None:
     coordinator = SimpleNamespace(battery_selected_operation_mode_sub_type="other")
     runtime = BatteryRuntime(coordinator)
