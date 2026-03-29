@@ -2633,6 +2633,42 @@ def test_migrate_cloud_entity_unique_ids_handles_duplicate_remove_failure(
     _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
 
 
+def test_migrate_cloud_entity_unique_ids_handles_duplicate_alias_remove_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    preferred = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error_code",
+        config_entry=config_entry,
+        original_name="Cloud Last Error Code",
+    )
+    duplicate_alias = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error",
+        config_entry=config_entry,
+        original_name="Cloud Last Error",
+    )
+
+    original_remove = ent_reg.async_remove
+
+    def _raise_remove(entity_id: str) -> None:
+        if entity_id == duplicate_alias.entity_id:
+            raise RuntimeError("boom")
+        original_remove(entity_id)
+
+    monkeypatch.setattr(ent_reg, "async_remove", _raise_remove)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    reg_entry = ent_reg.async_get(preferred.entity_id)
+    assert reg_entry is not None
+    assert reg_entry.unique_id == f"{DOMAIN}_site_{site_id}_last_error_code"
+    assert ent_reg.async_get(duplicate_alias.entity_id) is not None
+
+
 def test_migrate_cloud_entity_unique_ids_handles_update_failure(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
