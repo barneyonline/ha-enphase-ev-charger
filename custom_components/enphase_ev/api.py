@@ -34,6 +34,7 @@ _EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
 _DEBUG_KV_RE = re.compile(
     r"(?P<key>[A-Za-z][A-Za-z0-9_\-]*)(?P<sep>\s*[=:]\s*)(?P<value>[^,\s)]+)"
 )
+_XSRF_COOKIE_NAMES = ("xsrf-token", "bp-xsrf-token")
 
 
 class Unauthorized(Exception):
@@ -580,7 +581,7 @@ def _extract_xsrf_token(cookies: dict[str, str] | None) -> str | None:
 
     if not cookies:
         return None
-    for preferred in ("xsrf-token", "bp-xsrf-token"):
+    for preferred in _XSRF_COOKIE_NAMES:
         for name, value in cookies.items():
             if name and name.lower() == preferred:
                 try:
@@ -596,6 +597,58 @@ def _extract_xsrf_token(cookies: dict[str, str] | None) -> str | None:
                 except Exception:  # noqa: BLE001 - defensive decoding
                     return token
     return None
+
+
+def _coerce_cookie_map(cookies: object) -> dict[str, str]:
+    """Normalize cookie containers to a simple string mapping."""
+
+    items = getattr(cookies, "items", None)
+    if not callable(items):
+        return {}
+
+    normalized: dict[str, str] = {}
+    try:
+        cookie_items = list(items())
+    except Exception:  # noqa: BLE001 - defensive cookie parsing
+        return normalized
+
+    for name, morsel in cookie_items:
+        try:
+            cookie_name = str(name).strip()
+        except Exception:  # noqa: BLE001 - defensive parsing
+            continue
+        if not cookie_name:
+            continue
+        raw_value = getattr(morsel, "value", morsel)
+        try:
+            normalized[cookie_name] = str(raw_value).strip()
+        except Exception:  # noqa: BLE001 - defensive parsing
+            continue
+    return normalized
+
+
+def _cookie_map_from_header(cookie_header: object) -> dict[str, str]:
+    """Parse a Cookie header string into a simple mapping."""
+
+    try:
+        text = str(cookie_header or "")
+    except Exception:  # noqa: BLE001 - defensive cookie parsing
+        return {}
+
+    if not text:
+        return {}
+
+    cookies: dict[str, str] = {}
+    for part in text.split(";"):
+        item = part.strip()
+        if not item:
+            continue
+        name, sep, value = item.partition("=")
+        name = name.strip()
+        if not sep or not name:
+            continue
+        cookies[name] = value.strip()
+    return cookies
 
 
 def _seed_cookie_jar(session: aiohttp.ClientSession, cookies: dict[str, str]) -> None:
@@ -1855,7 +1908,8 @@ class EnphaseEVClient:
         parts = [
             part.strip()
             for part in cookie_str.split(";")
-            if part.strip() and not part.strip().startswith("BP-XSRF-Token=")
+            if part.strip()
+            and part.strip().partition("=")[0].strip().lower() not in _XSRF_COOKIE_NAMES
         ]
         if include_xsrf:
             xsrf = self._xsrf_token()
@@ -1923,22 +1977,19 @@ class EnphaseEVClient:
             parts = [p.strip() for p in (self._cookie or "").split(";")]
         except Exception:  # noqa: BLE001 - defensive parsing
             return None
-        for key in ("XSRF-TOKEN", "BP-XSRF-Token"):
-            for part in parts:
-                if part.startswith(f"{key}="):
-                    token = part.split("=", 1)[1].strip()
-                    if (
-                        token.startswith('"')
-                        and token.endswith('"')
-                        and len(token) >= 2
-                    ):
-                        token = token[1:-1]
-                    if not token:
-                        continue
-                    try:
-                        return unquote(token)
-                    except Exception:  # noqa: BLE001 - defensive decoding
-                        return token
+        for part in parts:
+            key, sep, value = part.partition("=")
+            if not sep or key.strip().lower() not in _XSRF_COOKIE_NAMES:
+                continue
+            token = value.strip()
+            if token.startswith('"') and token.endswith('"') and len(token) >= 2:
+                token = token[1:-1]
+            if not token:
+                continue
+            try:
+                return unquote(token)
+            except Exception:  # noqa: BLE001 - defensive decoding
+                return token
         return None
 
     async def _acquire_xsrf_token(self) -> str | None:
@@ -1975,27 +2026,42 @@ class EnphaseEVClient:
         }
 
         try:
+            _seed_cookie_jar(self._s, _cookie_map_from_header(self._cookie))
+
+            def _remember_xsrf(token: str | None, source: str) -> str | None:
+                if not token:
+                    return None
+                self._bp_xsrf_token = token
+                _LOGGER.debug("Acquired BP-XSRF-Token from %s", source)
+                return token
+
             async with asyncio.timeout(self._timeout):
                 async with self._s.request(
                     "POST", url, json=payload, headers=headers
                 ) as r:
-                    # Extract BP-XSRF-Token from Set-Cookie header
-                    set_cookie = r.headers.get("Set-Cookie", "")
-                    match = re.search(r"BP-XSRF-Token=([^;]+)", set_cookie)
-                    if match:
-                        self._bp_xsrf_token = match.group(1)
-                        _LOGGER.debug("Acquired BP-XSRF-Token from isValid endpoint")
-                        return self._bp_xsrf_token
-
-                    # Fallback: check all Set-Cookie headers
                     for value in r.headers.getall("Set-Cookie", []):
-                        match = re.search(r"BP-XSRF-Token=([^;]+)", value)
+                        match = re.search(
+                            r"(?i)(?:^|;\s*)(?:bp-)?xsrf-token=([^;]+)", value
+                        )
                         if match:
-                            self._bp_xsrf_token = match.group(1)
-                            _LOGGER.debug(
-                                "Acquired BP-XSRF-Token from Set-Cookie header"
+                            return _remember_xsrf(
+                                unquote(match.group(1)), "Set-Cookie header"
                             )
-                            return self._bp_xsrf_token
+
+                    response_cookie_token = _extract_xsrf_token(
+                        _coerce_cookie_map(getattr(r, "cookies", None))
+                    )
+                    if response_cookie_token:
+                        return _remember_xsrf(response_cookie_token, "response cookies")
+
+                    cookie_header, cookie_map = _serialize_cookie_jar(
+                        self._s.cookie_jar, (url, BASE_URL, ENTREZ_URL)
+                    )
+                    session_cookie_token = _extract_xsrf_token(cookie_map)
+                    if session_cookie_token:
+                        return _remember_xsrf(
+                            session_cookie_token, "session cookie jar"
+                        )
 
                     _LOGGER.warning(
                         "isValid endpoint did not return BP-XSRF-Token cookie"
