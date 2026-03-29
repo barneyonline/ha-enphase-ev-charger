@@ -1216,7 +1216,11 @@ class InventoryRuntime:
             if isinstance(members_raw, list)
             else []
         )
-        dashboard_envoy = self.system_dashboard_envoy_detail()
+        dashboard_envoy_fetcher = self.__dict__.get("system_dashboard_envoy_detail")
+        if callable(dashboard_envoy_fetcher):
+            dashboard_envoy = dashboard_envoy_fetcher()
+        else:
+            dashboard_envoy = self.coordinator.system_dashboard_envoy_detail()
         if not members and isinstance(dashboard_envoy, dict):
             members = [dict(dashboard_envoy)]
         try:
