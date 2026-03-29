@@ -154,7 +154,9 @@ def test_battery_runtime_ignores_invalid_previous_reserve_entries(
     )
 
     assert "cost_savings" not in coord._battery_profile_reserve_memory  # noqa: SLF001
-    assert coord._battery_profile_reserve_memory["ai_optimisation"] == 10  # noqa: SLF001
+    assert (
+        coord._battery_profile_reserve_memory["ai_optimisation"] == 10
+    )  # noqa: SLF001
 
 
 def test_battery_runtime_current_savings_subtype_uses_coordinator_property() -> None:
