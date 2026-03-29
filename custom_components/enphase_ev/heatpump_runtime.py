@@ -21,7 +21,7 @@ from .const import (
     HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S,
 )
 from .device_types import normalize_type_key
-from .log_redaction import redact_site_id, redact_text
+from .log_redaction import redact_site_id, redact_text, truncate_identifier
 from .parsing_helpers import (
     coerce_optional_bool,
     coerce_optional_float,
@@ -32,6 +32,12 @@ from .parsing_helpers import (
     heatpump_status_text,
     parse_inverter_last_report,
     type_member_text,
+)
+from .runtime_helpers import (
+    copy_diagnostics_value,
+    redact_battery_payload,
+    resolve_site_local_current_date,
+    resolve_site_timezone_name,
 )
 from .state_models import install_state_descriptors
 
@@ -82,19 +88,24 @@ class HeatpumpRuntime:
         return [dict(item) for item in members if isinstance(item, dict)]
 
     def _site_timezone_name(self) -> str:
-        return self.coordinator._site_timezone_name()
+        return resolve_site_timezone_name(
+            getattr(self.coordinator, "_battery_timezone", None)
+        )
 
     def _site_local_current_date(self) -> str:
-        return self.coordinator._site_local_current_date()
+        return resolve_site_local_current_date(
+            getattr(self, "_devices_inventory_payload", None),
+            getattr(self.coordinator, "_battery_timezone", None),
+        )
 
     def _copy_diagnostics_value(self, value: object) -> object:
-        return self.coordinator._copy_diagnostics_value(value)
+        return copy_diagnostics_value(value)
 
     def _redact_battery_payload(self, payload: object) -> object:
-        return self.coordinator._redact_battery_payload(payload)
+        return redact_battery_payload(payload)
 
     def _debug_truncate_identifier(self, value: object) -> str | None:
-        return self.coordinator._debug_truncate_identifier(value)
+        return truncate_identifier(value)
 
     def _heatpump_power_redaction_identifiers(
         self, *extra_identifiers: object

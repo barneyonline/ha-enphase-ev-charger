@@ -669,9 +669,8 @@ def test_system_dashboard_helper_branches(coordinator_factory, monkeypatch) -> N
     )
     with monkeypatch.context() as nested_patch:
         nested_patch.setattr(
-            type(coord),
-            "_dashboard_first_mapping",
-            classmethod(lambda cls, payload, *keys: "bad"),
+            "custom_components.enphase_ev.system_dashboard_helpers.dashboard_first_mapping",
+            lambda payload, *keys: "bad",
         )
         assert (
             coord._system_dashboard_microinverter_summary({}, {}, None) == {}
@@ -1302,6 +1301,152 @@ def test_summary_compat_shims(coordinator_factory):
     coord._session_history_cache_ttl = 120
     assert coord.session_history.cache_ttl == 120
     assert coord._session_history_cache_ttl == 120
+
+
+def test_runtime_and_dashboard_delegate_shims(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "count": 3,
+                "devices": [
+                    {"name": "Gateway A", "status": "normal", "connected": "yes"},
+                    {"name": "Gateway B", "status": "warning", "connected": "no"},
+                    {"name": "Gateway C", "status": "normal", "connected": "maybe"},
+                ],
+            }
+        },
+        ["envoy"],
+    )
+    gateway_summary = coord._build_gateway_inventory_summary()  # noqa: SLF001
+    assert gateway_summary["connected_devices"] == 2
+    assert gateway_summary["disconnected_devices"] == 1
+
+    assert (
+        coord._heatpump_member_device_type({"device_type": "heat_pump"}) == "HEAT_PUMP"
+    )  # noqa: SLF001
+    assert (
+        coord._heatpump_worst_status_text({"not_reporting": 1}) == "Not Reporting"
+    )  # noqa: SLF001
+    assert coord._debug_truncate_identifier("ABCDEFGHIJKL") is not None  # noqa: SLF001
+    assert (
+        coord._debug_topology_summary(  # noqa: SLF001
+            coord.inventory_runtime.topology_snapshot()
+        )["charger_count"]
+        == 0
+    )
+    assert (
+        coord._dashboard_first_value(  # noqa: SLF001
+            {"wrapper": {"meter_type": "consumption"}},
+            "meter_type",
+        )
+        == "consumption"
+    )
+    assert coord._dashboard_first_mapping(  # noqa: SLF001
+        {"wrapper": {"network": {"mode": "dhcp"}}},
+        "network",
+    ) == {"mode": "dhcp"}
+    assert (
+        coord._dashboard_field(  # noqa: SLF001
+            {"wrapper": {"meter_type": "consumption"}},
+            "meter_type",
+        )
+        == "consumption"
+    )
+    assert coord._dashboard_field_map(  # noqa: SLF001
+        {"serialNumber": "GW-1"},
+        {"serial": ("serial_number", "serialNumber")},
+    ) == {"serial": "GW-1"}
+    assert coord._dashboard_aliases(
+        {"serialNumber": "GW-1", "id": "node-1"}
+    ) == [  # noqa: SLF001
+        "GW-1",
+        "node-1",
+    ]
+    assert coord._dashboard_primary_id({"id": "node-1"}) == "node-1"  # noqa: SLF001
+    assert (
+        coord._dashboard_raw_type({"device_type": "envoy"}) == "envoy"
+    )  # noqa: SLF001
+    assert coord._dashboard_child_containers(  # noqa: SLF001
+        {"type": "envoy", "children": [{"id": "child-1"}]}
+    ) == [([{"id": "child-1"}], "envoy")]
+
+    payloads = {
+        "envoys": {"envoys": [{"device_uid": "GW-1", "network": {"mode": "dhcp"}}]},
+        "encharges": {
+            "encharges": [
+                {
+                    "device_uid": "BAT-1",
+                    "serial_number": "BAT-1",
+                    "app_version": "1.2.3",
+                }
+            ]
+        },
+    }
+    envoy_index = coord._index_dashboard_nodes(
+        [{"device_uid": "GW-1", "type": "envoy"}]
+    )  # noqa: SLF001
+    encharge_index = coord._index_dashboard_nodes(  # noqa: SLF001
+        [{"device_uid": "BAT-1", "type": "encharge"}]
+    )
+    assert (
+        coord._system_dashboard_type_hierarchy("envoy", envoy_index, None)["count"] == 1
+    )  # noqa: SLF001
+    assert (
+        coord._system_dashboard_envoy_summary(  # noqa: SLF001
+            payloads,
+            envoy_index,
+            None,
+        )["network"]["mode"]
+        == "dhcp"
+    )
+    assert (
+        coord._system_dashboard_encharge_summary(  # noqa: SLF001
+            payloads,
+            encharge_index,
+            None,
+        )["batteries"][0]["serial_number"]
+        == "BAT-1"
+    )
+
+    tree_payload = {
+        "devices": [
+            {
+                "device_uid": "GW-1",
+                "type": "envoy",
+                "children": [
+                    {"device_uid": "BAT-1", "type": "encharge", "name": "Battery"}
+                ],
+            }
+        ]
+    }
+    details_payloads = {
+        "envoy": {"envoys": {"envoys": [{"device_uid": "GW-1"}]}},
+        "encharge": {
+            "encharges": {
+                "encharges": [{"device_uid": "BAT-1", "serial_number": "BAT-1"}]
+            }
+        },
+    }
+    type_summaries, hierarchy_summary, hierarchy_index = (
+        coord._build_system_dashboard_summaries(  # noqa: SLF001
+            tree_payload,
+            details_payloads,
+        )
+    )
+    assert hierarchy_summary["total_nodes"] == 2
+    assert hierarchy_index["GW-1"]["device_uid"] == "GW-1"
+    assert type_summaries["envoy"]["hierarchy"]["count"] == 1
+    assert coord._coerce_int("7") == 7  # noqa: SLF001
+    assert coord.coerce_int("bad", default=4) == 4
+    assert (
+        coord._inverter_connectivity_state(  # noqa: SLF001
+            {"total": 1, "not_reporting": 1, "unknown": 0}
+        )
+        == "offline"
+    )
 
 
 @pytest.mark.asyncio

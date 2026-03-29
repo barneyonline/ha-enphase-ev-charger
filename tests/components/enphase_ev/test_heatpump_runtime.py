@@ -172,7 +172,7 @@ async def test_heatpump_runtime_power_failure_logs_truncated_device_uid(
     )
     coord.heatpump_runtime._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
     coord.heatpump_runtime._heatpump_power_fetch_plan = lambda: (["DEVICE-UID-123456789"], False, ())  # type: ignore[assignment]  # noqa: SLF001
-    coord._site_local_current_date = lambda: "2026-03-13"  # type: ignore[assignment]  # noqa: SLF001
+    coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
 
     with caplog.at_level(logging.DEBUG):
         await coord.heatpump_runtime._async_refresh_heatpump_power(
@@ -789,7 +789,7 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
             return None
         return payload
 
-    monkeypatch.setattr(coord, "_redact_battery_payload", _redact)
+    monkeypatch.setattr(heatpump_runtime_mod, "redact_battery_payload", _redact)
 
     await runtime.async_ensure_heatpump_runtime_diagnostics(force=True)
 
@@ -1274,8 +1274,8 @@ def test_heatpump_daily_window_handles_dst_transition_day(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[])
-    coord._site_timezone_name = lambda: "Europe/Berlin"  # type: ignore[assignment]  # noqa: SLF001
-    coord._site_local_current_date = lambda: "2026-03-29"  # type: ignore[assignment]  # noqa: SLF001
+    coord._battery_timezone = "Europe/Berlin"  # noqa: SLF001
+    coord._devices_inventory_payload = {"curr_date_site": "2026-03-29"}  # noqa: SLF001
 
     assert coord.heatpump_runtime._heatpump_daily_window() == (  # noqa: SLF001
         "2026-03-28T23:00:00.000Z",
@@ -1291,9 +1291,19 @@ def test_heatpump_daily_helper_and_property_edge_cases(
     coord = coordinator_factory(serials=[])
     coord._battery_timezone = "Not/A-Timezone"  # noqa: SLF001
     assert coord._site_timezone_name() == "UTC"  # noqa: SLF001
-    coord._site_timezone_name = lambda: "Not/A-Timezone"  # type: ignore[assignment]  # noqa: SLF001
-    coord._site_local_current_date = lambda: "bad-date"  # type: ignore[assignment]  # noqa: SLF001
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        heatpump_runtime_mod,
+        "resolve_site_timezone_name",
+        lambda _value: "Not/A-Timezone",
+    )
+    monkeypatch.setattr(
+        heatpump_runtime_mod,
+        "resolve_site_local_current_date",
+        lambda _payload, _timezone: "bad-date",
+    )
     assert coord.heatpump_runtime._heatpump_daily_window() is None  # noqa: SLF001
+    monkeypatch.undo()
 
     assert coord._sum_optional_values("bad") is None  # noqa: SLF001
     assert (
@@ -1769,7 +1779,7 @@ async def test_heatpump_runtime_power_and_diagnostics_paths(
             return "event-redacted"
         return None if payload == "EVENT_NONE" else payload
 
-    monkeypatch.setattr(coord, "_redact_battery_payload", _redact)
+    monkeypatch.setattr(heatpump_runtime_mod, "redact_battery_payload", _redact)
     coord.client.show_livestream = AsyncMock(return_value="SHOW_SCALAR")
     coord.client.heat_pump_events_json = AsyncMock(
         side_effect=lambda uid: "EVENT_NONE" if uid == "HP-CTRL" else "EVENT_SCALAR"
