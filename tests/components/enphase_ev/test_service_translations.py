@@ -91,10 +91,6 @@ def test_shared_label_translations_exist_for_all_locales() -> None:
         "entity.sensor.shared_labels.state.scheduled_charging",
         "entity.sensor.shared_labels.state.green_charging",
         "entity.sensor.shared_labels.state.smart_charging",
-        "entity.sensor.shared_labels.state.unknown_profile",
-        "entity.sensor.shared_labels.state.unknown_mode",
-        "entity.sensor.shared_labels.state.unknown_option",
-        "entity.sensor.shared_labels.state.unknown_status",
         "entity.sensor.shared_labels.state.online",
         "entity.sensor.shared_labels.state.offline",
         "entity.sensor.shared_labels.state.degraded",
@@ -126,16 +122,6 @@ def test_shared_label_translations_exist_for_all_locales() -> None:
                 assert value != _at_path(
                     en_data, path
                 ), f"{name} should localize {path} (still matches English)"
-
-        for path, placeholder in (
-            ("entity.sensor.shared_labels.state.unknown_profile", "{profile}"),
-            ("entity.sensor.shared_labels.state.unknown_mode", "{mode}"),
-            ("entity.sensor.shared_labels.state.unknown_option", "{option}"),
-            ("entity.sensor.shared_labels.state.unknown_status", "{status}"),
-        ):
-            assert placeholder in _at_path(
-                data, path
-            ), f"{name} missing {placeholder} in {path}"
 
 
 def test_battery_settings_entity_strings_exist_for_all_locales() -> None:

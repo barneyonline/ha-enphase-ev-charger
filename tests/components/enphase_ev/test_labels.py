@@ -55,25 +55,23 @@ def test_label_helpers_cover_translation_fallbacks_and_unknowns(monkeypatch) -> 
     assert labels.battery_grid_mode_label("_", hass=hass) is None
     assert labels.charge_mode_label(None, hass=hass) is None
     assert (
-        labels.charge_mode_label("experimental-mode", hass=hass)
-        == "Unknown option (experimental mode)"
+        labels.charge_mode_label("experimental-mode", hass=hass) == "Experimental Mode"
     )
 
 
 def test_render_label_and_friendly_status_edge_cases() -> None:
     assert labels._render_label("{missing}", value="x") == "{missing}"  # noqa: SLF001
+    assert (
+        labels._friendly_label_text("regional_special") == "Regional Special"
+    )  # noqa: SLF001
+    assert (
+        labels._friendly_label_text("RegionalSpecial") == "RegionalSpecial"
+    )  # noqa: SLF001
     assert labels.friendly_status_text("_") is None
     assert labels.friendly_status_text("RUNNING") == "Running"
 
 
 def test_unknown_label_paths_return_none_when_display_text_collapses() -> None:
-    class FlakyText:
-        def __init__(self, values: list[str]) -> None:
-            self._values = values
-
-        def __str__(self) -> str:
-            return self._values.pop(0)
-
-    assert labels.battery_profile_label(FlakyText(["mystery_mode", "_"])) is None
-    assert labels.battery_grid_mode_label(FlakyText(["mystery-mode", "_"])) is None
-    assert labels.charge_mode_label(FlakyText(["experimental", "_"])) is None
+    assert labels.battery_profile_label("_") is None
+    assert labels.battery_grid_mode_label("_") is None
+    assert labels.charge_mode_label("_") is None

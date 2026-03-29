@@ -127,21 +127,24 @@ def _display_raw_value(value: object) -> str | None:
     return normalized or None
 
 
+def _friendly_label_text(value: object) -> str | None:
+    text = _display_raw_value(value)
+    if text is None:
+        return None
+    if text.isupper():
+        text = text.lower()
+    if text.islower():
+        return " ".join(word.capitalize() for word in text.split())
+    return text
+
+
 def battery_profile_label(profile: object, *, hass: Any | None = None) -> str | None:
     key = _normalize_state_key(profile)
     if key is None:
         return None
     if key in BATTERY_PROFILE_LABELS:
         return _shared_label(key, BATTERY_PROFILE_LABELS[key], hass=hass)
-    raw = _display_raw_value(profile)
-    if raw is None:
-        return None
-    return _shared_label(
-        "unknown_profile",
-        "Unknown profile ({profile})",
-        hass=hass,
-        profile=raw,
-    )
+    return _friendly_label_text(profile)
 
 
 def battery_grid_mode_label(mode: object, *, hass: Any | None = None) -> str | None:
@@ -150,15 +153,7 @@ def battery_grid_mode_label(mode: object, *, hass: Any | None = None) -> str | N
         return None
     if key in BATTERY_GRID_MODE_LABELS:
         return _shared_label(key, BATTERY_GRID_MODE_LABELS[key], hass=hass)
-    raw = _display_raw_value(mode)
-    if raw is None:
-        return None
-    return _shared_label(
-        "unknown_mode",
-        "Unknown mode ({mode})",
-        hass=hass,
-        mode=raw,
-    )
+    return _friendly_label_text(mode)
 
 
 def charge_mode_label(mode: object, *, hass: Any | None = None) -> str | None:
@@ -174,15 +169,7 @@ def charge_mode_label(mode: object, *, hass: Any | None = None) -> str | None:
     key = aliases.get(key, key)
     if key in CHARGE_MODE_LABELS:
         return _shared_label(key, CHARGE_MODE_LABELS[key], hass=hass)
-    raw = _display_raw_value(mode)
-    if raw is None:
-        return None
-    return _shared_label(
-        "unknown_option",
-        "Unknown option ({option})",
-        hass=hass,
-        option=raw,
-    )
+    return _friendly_label_text(mode)
 
 
 def status_label(value: object, *, hass: Any | None = None) -> str | None:
