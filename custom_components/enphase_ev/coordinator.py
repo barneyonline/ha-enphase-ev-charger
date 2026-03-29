@@ -5266,6 +5266,64 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return False
         return self.battery_charge_from_grid_enabled is True
 
+    def _battery_schedule_control_available(self, control: object) -> bool:
+        if getattr(self, "_battery_has_encharge", None) is False:
+            return False
+        if self.battery_system_task is True:
+            return False
+        if self._battery_control_field(control, "show") is False:
+            return False
+        if self._battery_control_field(control, "locked") is True:
+            return False
+        owner = self.battery_user_is_owner
+        installer = self.battery_user_is_installer
+        if owner is False and installer is False:
+            return False
+        return True
+
+    def _battery_schedule_supported(
+        self,
+        control: object,
+        *,
+        schedule_id: object,
+        start_minutes: object,
+        end_minutes: object,
+    ) -> bool:
+        if not self._battery_schedule_control_available(control):
+            return False
+        show_day_schedule = self._battery_control_field(control, "show_day_schedule")
+        if show_day_schedule is False:
+            return False
+        schedule_supported = self._battery_control_field(control, "schedule_supported")
+        if schedule_supported is not None:
+            return schedule_supported
+        return (
+            schedule_id is not None
+            and start_minutes is not None
+            and end_minutes is not None
+        )
+
+    def _battery_schedule_available(
+        self,
+        control: object,
+        *,
+        schedule_id: object,
+        start_minutes: object,
+        end_minutes: object,
+    ) -> bool:
+        if not self._battery_schedule_supported(
+            control,
+            schedule_id=schedule_id,
+            start_minutes=start_minutes,
+            end_minutes=end_minutes,
+        ):
+            return False
+        return (
+            schedule_id is not None
+            and start_minutes is not None
+            and end_minutes is not None
+        )
+
     @property
     def battery_charge_from_grid_start_time(self) -> dt_time | None:
         return self._minutes_of_day_to_time(
@@ -5292,6 +5350,102 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_cfg_schedule_pending(self) -> bool:
         """Return True if a CFG schedule change is pending Envoy sync."""
         return self.battery_cfg_schedule_status == "pending"
+
+    @property
+    def discharge_to_grid_schedule_supported(self) -> bool:
+        return self._battery_schedule_supported(
+            getattr(self, "_battery_dtg_control", None),
+            schedule_id=getattr(self, "_battery_dtg_schedule_id", None),
+            start_minutes=getattr(self, "_battery_dtg_begin_time", None),
+            end_minutes=getattr(self, "_battery_dtg_end_time", None),
+        )
+
+    @property
+    def discharge_to_grid_schedule_available(self) -> bool:
+        return self._battery_schedule_available(
+            getattr(self, "_battery_dtg_control", None),
+            schedule_id=getattr(self, "_battery_dtg_schedule_id", None),
+            start_minutes=getattr(self, "_battery_dtg_begin_time", None),
+            end_minutes=getattr(self, "_battery_dtg_end_time", None),
+        )
+
+    @property
+    def battery_discharge_to_grid_schedule_enabled(self) -> bool | None:
+        return getattr(self, "_battery_dtg_schedule_enabled", None)
+
+    @property
+    def battery_discharge_to_grid_start_time(self) -> dt_time | None:
+        minutes = getattr(self, "_battery_dtg_begin_time", None)
+        if minutes is None:
+            minutes = getattr(self, "_battery_dtg_control_begin_time", None)
+        return self._minutes_of_day_to_time(minutes)
+
+    @property
+    def battery_discharge_to_grid_end_time(self) -> dt_time | None:
+        minutes = getattr(self, "_battery_dtg_end_time", None)
+        if minutes is None:
+            minutes = getattr(self, "_battery_dtg_control_end_time", None)
+        return self._minutes_of_day_to_time(minutes)
+
+    @property
+    def battery_dtg_schedule_limit(self) -> int | None:
+        return getattr(self, "_battery_dtg_schedule_limit", None)
+
+    @property
+    def battery_dtg_schedule_status(self) -> str | None:
+        return getattr(self, "_battery_dtg_schedule_status", None)
+
+    @property
+    def battery_dtg_schedule_pending(self) -> bool:
+        return self.battery_dtg_schedule_status == "pending"
+
+    @property
+    def restrict_battery_discharge_schedule_supported(self) -> bool:
+        return self._battery_schedule_supported(
+            getattr(self, "_battery_rbd_control", None),
+            schedule_id=getattr(self, "_battery_rbd_schedule_id", None),
+            start_minutes=getattr(self, "_battery_rbd_begin_time", None),
+            end_minutes=getattr(self, "_battery_rbd_end_time", None),
+        )
+
+    @property
+    def restrict_battery_discharge_schedule_available(self) -> bool:
+        return self._battery_schedule_available(
+            getattr(self, "_battery_rbd_control", None),
+            schedule_id=getattr(self, "_battery_rbd_schedule_id", None),
+            start_minutes=getattr(self, "_battery_rbd_begin_time", None),
+            end_minutes=getattr(self, "_battery_rbd_end_time", None),
+        )
+
+    @property
+    def battery_restrict_battery_discharge_schedule_enabled(self) -> bool | None:
+        return getattr(self, "_battery_rbd_schedule_enabled", None)
+
+    @property
+    def battery_restrict_battery_discharge_start_time(self) -> dt_time | None:
+        minutes = getattr(self, "_battery_rbd_begin_time", None)
+        if minutes is None:
+            minutes = getattr(self, "_battery_rbd_control_begin_time", None)
+        return self._minutes_of_day_to_time(minutes)
+
+    @property
+    def battery_restrict_battery_discharge_end_time(self) -> dt_time | None:
+        minutes = getattr(self, "_battery_rbd_end_time", None)
+        if minutes is None:
+            minutes = getattr(self, "_battery_rbd_control_end_time", None)
+        return self._minutes_of_day_to_time(minutes)
+
+    @property
+    def battery_rbd_schedule_limit(self) -> int | None:
+        return getattr(self, "_battery_rbd_schedule_limit", None)
+
+    @property
+    def battery_rbd_schedule_status(self) -> str | None:
+        return getattr(self, "_battery_rbd_schedule_status", None)
+
+    @property
+    def battery_rbd_schedule_pending(self) -> bool:
+        return self.battery_rbd_schedule_status == "pending"
 
     @property
     def battery_shutdown_level(self) -> int | None:
@@ -5717,6 +5871,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if field is not None:
             return field
         return getattr(self, "_battery_cfg_control_enabled", None)
+
+    @property
+    def battery_dtg_control_enabled(self) -> bool | None:
+        value = getattr(self, "_battery_dtg_control", None)
+        return self._battery_control_field(value, "enabled")
+
+    @property
+    def battery_rbd_control_enabled(self) -> bool | None:
+        value = getattr(self, "_battery_rbd_control", None)
+        return self._battery_control_field(value, "enabled")
 
     @property
     def battery_cfg_control_locked(self) -> bool | None:
@@ -6453,6 +6617,48 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             start=start,
             end=end,
             limit=limit,
+        )
+
+    async def async_set_discharge_to_grid_schedule_enabled(self, enabled: bool) -> None:
+        await self.battery_runtime.async_set_discharge_to_grid_schedule_enabled(enabled)
+
+    async def async_set_discharge_to_grid_schedule_time(
+        self,
+        *,
+        start: dt_time | None = None,
+        end: dt_time | None = None,
+    ) -> None:
+        await self.battery_runtime.async_set_discharge_to_grid_schedule_time(
+            start=start,
+            end=end,
+        )
+
+    async def async_set_discharge_to_grid_schedule_limit(self, limit: int) -> None:
+        await self.battery_runtime.async_set_discharge_to_grid_schedule_limit(limit)
+
+    async def async_set_restrict_battery_discharge_schedule_enabled(
+        self, enabled: bool
+    ) -> None:
+        await self.battery_runtime.async_set_restrict_battery_discharge_schedule_enabled(
+            enabled
+        )
+
+    async def async_set_restrict_battery_discharge_schedule_time(
+        self,
+        *,
+        start: dt_time | None = None,
+        end: dt_time | None = None,
+    ) -> None:
+        await self.battery_runtime.async_set_restrict_battery_discharge_schedule_time(
+            start=start,
+            end=end,
+        )
+
+    async def async_set_restrict_battery_discharge_schedule_limit(
+        self, limit: int
+    ) -> None:
+        await self.battery_runtime.async_set_restrict_battery_discharge_schedule_limit(
+            limit
         )
 
     async def async_request_grid_toggle_otp(self) -> None:

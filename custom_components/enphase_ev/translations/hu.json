@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Akkumulátor töltési korlát"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Hálózatba kisütési korlát"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Akkumulátorkisütés-korlátozási határ"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Hálózatról töltés ütemezése"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Hálózatba kisütési ütemezés"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Akkumulátorkisütés-korlátozási ütemezés"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Hálózatról töltés befejezési ideje"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Hálózatba kisütés kezdési ideje"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Hálózatba kisütés befejezési ideje"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Akkumulátorkisütés-korlátozás kezdési ideje"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Akkumulátorkisütés-korlátozás befejezési ideje"
       }
     },
     "calendar": {

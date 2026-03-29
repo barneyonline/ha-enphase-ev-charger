@@ -143,6 +143,12 @@ async def async_setup_entry(
             if "charge_from_grid_schedule" not in site_entity_keys:
                 site_entities.append(ChargeFromGridScheduleSwitch(coord))
                 site_entity_keys.add("charge_from_grid_schedule")
+            if "discharge_to_grid_schedule" not in site_entity_keys:
+                site_entities.append(DischargeToGridScheduleSwitch(coord))
+                site_entity_keys.add("discharge_to_grid_schedule")
+            if "restrict_battery_discharge_schedule" not in site_entity_keys:
+                site_entities.append(RestrictBatteryDischargeScheduleSwitch(coord))
+                site_entity_keys.add("restrict_battery_discharge_schedule")
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
 
@@ -421,6 +427,91 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
+        )
+
+
+class _BaseBatteryScheduleSwitch(CoordinatorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        *,
+        unique_suffix: str,
+        availability_attr: str,
+        enabled_attr: str,
+        setter_name: str,
+        suggested_object_id: str,
+    ) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._availability_attr = availability_attr
+        self._enabled_attr = enabled_attr
+        self._setter_name = setter_name
+        self._suggested_object_id = suggested_object_id
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{unique_suffix}"
+
+    @property
+    def suggested_object_id(self) -> str | None:
+        return self._suggested_object_id
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return (
+            _type_available(self._coord, "encharge")
+            and _battery_write_access_confirmed(self._coord)
+            and bool(getattr(self._coord, self._availability_attr, False))
+        )
+
+    @property
+    def is_on(self) -> bool:
+        return bool(getattr(self._coord, self._enabled_attr, None))
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await getattr(self._coord, self._setter_name)(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await getattr(self._coord, self._setter_name)(False)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
+            manufacturer="Enphase",
+        )
+
+
+class DischargeToGridScheduleSwitch(_BaseBatteryScheduleSwitch):
+    _attr_translation_key = "discharge_to_grid_schedule"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            unique_suffix="discharge_to_grid_schedule",
+            availability_attr="discharge_to_grid_schedule_available",
+            enabled_attr="battery_discharge_to_grid_schedule_enabled",
+            setter_name="async_set_discharge_to_grid_schedule_enabled",
+            suggested_object_id="discharge_to_grid_schedule",
+        )
+
+
+class RestrictBatteryDischargeScheduleSwitch(_BaseBatteryScheduleSwitch):
+    _attr_translation_key = "restrict_battery_discharge_schedule"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            unique_suffix="restrict_battery_discharge_schedule",
+            availability_attr="restrict_battery_discharge_schedule_available",
+            enabled_attr="battery_restrict_battery_discharge_schedule_enabled",
+            setter_name="async_set_restrict_battery_discharge_schedule_enabled",
+            suggested_object_id="restrict_battery_discharge_schedule",
         )
 
 

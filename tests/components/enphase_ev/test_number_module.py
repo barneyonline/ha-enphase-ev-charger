@@ -7,6 +7,8 @@ import pytest
 
 from custom_components.enphase_ev.number import (
     BatteryCfgScheduleLimitNumber,
+    BatteryDischargeToGridScheduleLimitNumber,
+    BatteryRestrictBatteryDischargeScheduleLimitNumber,
     BatteryShutdownLevelNumber,
     BatteryReserveNumber,
     ChargingAmpsNumber,
@@ -98,6 +100,13 @@ async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     ]
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+    assert any(
+        isinstance(ent, BatteryDischargeToGridScheduleLimitNumber) for ent in added
+    )
+    assert any(
+        isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
+        for ent in added
+    )
     assert config_entry._on_unload
 
 
@@ -122,10 +131,17 @@ async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert len(added) == 3
+    assert len(added) == 5
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
     assert any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
+    assert any(
+        isinstance(ent, BatteryDischargeToGridScheduleLimitNumber) for ent in added
+    )
+    assert any(
+        isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
+        for ent in added
+    )
 
 
 @pytest.mark.asyncio
@@ -733,3 +749,140 @@ def test_battery_numbers_unavailable_without_confirmed_write_access(
     assert BatteryReserveNumber(coord).available is False
     assert BatteryShutdownLevelNumber(coord).available is False
     assert BatteryCfgScheduleLimitNumber(coord).available is False
+
+
+def test_dtg_schedule_limit_number_bounds_and_availability(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord._battery_dtg_schedule_limit = 25  # noqa: SLF001
+
+    number = BatteryDischargeToGridScheduleLimitNumber(coord)
+
+    assert number.available is True
+    assert number.native_value == 25
+
+
+def test_dtg_schedule_limit_number_available_from_control_window_without_schedule_id(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord.battery_runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "batteryGridMode": "ImportExport",
+                "dtgControl": {
+                    "show": True,
+                    "showDaySchedule": True,
+                    "scheduleSupported": True,
+                    "enabled": False,
+                    "locked": False,
+                    "startTime": 1140,
+                    "endTime": 1320,
+                },
+            }
+        }
+    )
+    coord._battery_dtg_schedule_limit = 25  # noqa: SLF001
+
+    number = BatteryDischargeToGridScheduleLimitNumber(coord)
+
+    assert number.available is True
+    assert number.native_value == 25
+
+
+@pytest.mark.asyncio
+async def test_dtg_schedule_limit_number_sets_value(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord._battery_dtg_schedule_limit = 25  # noqa: SLF001
+    coord.async_set_discharge_to_grid_schedule_limit = AsyncMock()
+
+    number = BatteryDischargeToGridScheduleLimitNumber(coord)
+    await number.async_set_native_value(15)
+
+    coord.async_set_discharge_to_grid_schedule_limit.assert_awaited_once_with(15)
+
+
+def test_rbd_schedule_limit_number_bounds_and_availability(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    coord._battery_rbd_schedule_limit = 100  # noqa: SLF001
+
+    number = BatteryRestrictBatteryDischargeScheduleLimitNumber(coord)
+
+    assert number.available is True
+    assert number.native_value == 100
+
+
+@pytest.mark.asyncio
+async def test_rbd_schedule_limit_number_sets_value(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    coord._battery_rbd_schedule_limit = 100  # noqa: SLF001
+    coord.async_set_restrict_battery_discharge_schedule_limit = AsyncMock()
+
+    number = BatteryRestrictBatteryDischargeScheduleLimitNumber(coord)
+    await number.async_set_native_value(80)
+
+    coord.async_set_restrict_battery_discharge_schedule_limit.assert_awaited_once_with(
+        80
+    )

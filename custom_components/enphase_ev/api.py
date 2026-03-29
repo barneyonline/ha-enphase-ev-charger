@@ -3140,9 +3140,10 @@ class EnphaseEVClient:
         schedule_type: str,
         start_time: str,
         end_time: str,
-        limit: int,
+        limit: int | None,
         days: list[int],
         timezone: str = "UTC",
+        is_enabled: bool | None = None,
     ) -> dict:
         """Create a new battery schedule.
 
@@ -3171,10 +3172,13 @@ class EnphaseEVClient:
                 "timezone": timezone,
                 "startTime": start_time[:5],
                 "endTime": end_time[:5],
-                "limit": int(limit),
                 "scheduleType": str(schedule_type).upper(),
                 "days": [int(d) for d in days],
             }
+            if limit is not None:
+                payload["limit"] = int(limit)
+            if is_enabled is not None:
+                payload["isEnabled"] = bool(is_enabled)
             return await self._json("POST", url, json=payload, headers=headers)
         finally:
             self._bp_xsrf_token = None
@@ -3186,9 +3190,11 @@ class EnphaseEVClient:
         schedule_type: str,
         start_time: str,
         end_time: str,
-        limit: int,
+        limit: int | None,
         days: list[int],
         timezone: str = "UTC",
+        is_enabled: bool | None = None,
+        is_deleted: bool | None = None,
     ) -> dict:
         """Update an existing battery schedule in-place.
 
@@ -3218,10 +3224,15 @@ class EnphaseEVClient:
                 "timezone": timezone,
                 "startTime": start_time[:5],
                 "endTime": end_time[:5],
-                "limit": int(limit),
                 "scheduleType": str(schedule_type).upper(),
                 "days": [int(d) for d in days],
             }
+            if limit is not None:
+                payload["limit"] = int(limit)
+            if is_enabled is not None:
+                payload["isEnabled"] = bool(is_enabled)
+            if is_deleted is not None:
+                payload["isDeleted"] = bool(is_deleted)
             return await self._json("PUT", url, json=payload, headers=headers)
         finally:
             self._bp_xsrf_token = None

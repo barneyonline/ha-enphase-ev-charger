@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Limit nabíjení baterie"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Limit vybíjení do sítě"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Limit omezení vybíjení baterie"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Plán nabíjení ze sítě"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Plán vybíjení do sítě"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Plán omezení vybíjení baterie"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Čas ukončení nabíjení ze sítě"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Čas zahájení vybíjení do sítě"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Čas ukončení vybíjení do sítě"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Čas zahájení omezení vybíjení baterie"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Čas ukončení omezení vybíjení baterie"
       }
     },
     "calendar": {

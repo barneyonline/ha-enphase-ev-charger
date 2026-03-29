@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Limită de încărcare a bateriei"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Limită de descărcare în rețea"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Limită de restricționare a descărcării bateriei"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Program de încărcare din rețea"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Program de descărcare în rețea"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Program de restricționare a descărcării bateriei"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Ora de sfârșit a încărcării din rețea"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Ora de început a descărcării în rețea"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Ora de sfârșit a descărcării în rețea"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Ora de început a restricționării descărcării bateriei"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Ora de sfârșit a restricționării descărcării bateriei"
       }
     },
     "calendar": {
