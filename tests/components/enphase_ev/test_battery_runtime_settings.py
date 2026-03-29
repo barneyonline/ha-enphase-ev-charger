@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
+from custom_components.enphase_ev.state_models import BatteryControlCapability
+
 
 def test_parse_battery_settings_payload_maps_mode_and_controls(
     coordinator_factory,
@@ -30,12 +32,34 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
                 "veryLowSocMax": 25,
                 "profile": "self-consumption",
                 "batteryBackupPercentage": 20,
+                "batteryBackupPercentageMin": 8,
+                "batteryBackupPercentageMax": 95,
                 "stormGuardState": "enabled",
+                "cfgControl": {
+                    "show": True,
+                    "enabled": True,
+                    "locked": False,
+                    "showDaySchedule": True,
+                    "scheduleSupported": True,
+                    "forceScheduleSupported": True,
+                    "forceScheduleOpted": True,
+                },
+                "dtgControl": {
+                    "show": True,
+                    "enabled": False,
+                    "locked": True,
+                },
+                "rbdControl": {
+                    "show": True,
+                    "enabled": True,
+                    "locked": False,
+                },
                 "devices": {
                     "iqEvse": {
                         "useBatteryFrSelfConsumption": True,
                     }
                 },
+                "systemTask": False,
             }
         }
     )
@@ -53,7 +77,35 @@ def test_parse_battery_settings_payload_maps_mode_and_controls(
     assert coord.battery_shutdown_level_available is True
     assert coord.battery_profile == "self-consumption"
     assert coord.battery_effective_backup_percentage == 20
+    assert coord.battery_reserve_min == 8
+    assert coord.battery_reserve_max == 95
     assert coord.storm_guard_state == "enabled"
+    assert coord.battery_cfg_control_show is True
+    assert coord.battery_cfg_control_enabled is True
+    assert coord.battery_cfg_control_schedule_supported is True
+    assert coord.battery_cfg_control_force_schedule_supported is True
+    assert coord.battery_cfg_control_locked is False
+    assert coord.battery_cfg_control_show_day_schedule is True
+    assert coord.battery_cfg_control_force_schedule_opted is True
+    assert coord.battery_dtg_control == {
+        "show": True,
+        "enabled": False,
+        "locked": True,
+        "show_day_schedule": None,
+        "schedule_supported": None,
+        "force_schedule_supported": None,
+        "force_schedule_opted": None,
+    }
+    assert coord.battery_rbd_control == {
+        "show": True,
+        "enabled": True,
+        "locked": False,
+        "show_day_schedule": None,
+        "schedule_supported": None,
+        "force_schedule_supported": None,
+        "force_schedule_opted": None,
+    }
+    assert coord.battery_system_task is False
     assert coord.battery_use_battery_for_self_consumption is True
 
 
@@ -110,6 +162,7 @@ def test_battery_soc_min_floor_applies_to_reserve_and_shutdown(
 
     coord._battery_profile = "backup_only"  # noqa: SLF001
     assert coord.battery_reserve_min == 100
+    assert coord.battery_reserve_max == 100
 
 
 def test_parse_battery_settings_unknown_grid_mode_uses_none_permissions(
@@ -411,7 +464,99 @@ def test_charge_from_grid_control_honors_cfg_control_false(
     coord._battery_cfg_control_enabled = False  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001
 
+    assert coord.charge_from_grid_control_available is True
+
+
+def test_charge_from_grid_control_honors_cfg_control_show_false(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_cfg_control_show = False  # noqa: SLF001
+    coord._battery_cfg_control_enabled = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+
     assert coord.charge_from_grid_control_available is False
+
+
+def test_charge_from_grid_control_honors_cfg_control_locked(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=True,
+    )
+
+    assert coord.charge_from_grid_control_available is False
+
+
+def test_charge_from_grid_schedule_supported_uses_capability_flags(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+        show_day_schedule=False,
+        schedule_supported=True,
+        force_schedule_supported=True,
+    )
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+
+    assert coord.charge_from_grid_schedule_supported is False
+
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=False,
+    )
+    assert coord.charge_from_grid_schedule_supported is True
+    assert coord.charge_from_grid_force_schedule_supported is False
+
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=True,
+    )
+    assert coord.charge_from_grid_schedule_supported is True
+    assert coord.charge_from_grid_force_schedule_supported is True
+
+
+def test_charge_from_grid_schedule_supported_uses_capability_without_times(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=False,
+    )
+    coord._battery_charge_begin_time = None  # noqa: SLF001
+    coord._battery_charge_end_time = None  # noqa: SLF001
+
+    assert coord.charge_from_grid_schedule_supported is True
+    assert coord.charge_from_grid_force_schedule_supported is False
 
 
 def test_charge_from_grid_control_falls_back_to_legacy_hide_when_cfg_control_absent(
@@ -426,6 +571,45 @@ def test_charge_from_grid_control_falls_back_to_legacy_hide_when_cfg_control_abs
     coord._battery_hide_charge_from_grid = True  # noqa: SLF001
 
     assert coord.charge_from_grid_control_available is False
+
+
+def test_charge_from_grid_control_enabled_state_does_not_hide_writable_control(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+    )
+
+    assert coord.charge_from_grid_control_available is True
+
+
+def test_battery_control_capability_helpers_cover_none_inputs(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+    coord._battery_cfg_control_show = True  # noqa: SLF001
+    coord._battery_cfg_control_enabled = True  # noqa: SLF001
+    coord._battery_cfg_control_schedule_supported = True  # noqa: SLF001
+    coord._battery_cfg_control_force_schedule_supported = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+
+    assert runtime._parse_battery_control_capability(None) is None  # noqa: SLF001
+    assert (
+        runtime._apply_battery_control_state("_battery_cfg_control", None) is None
+    )  # noqa: SLF001
+    assert coord._battery_cfg_control_show is None  # noqa: SLF001
+    assert coord._battery_cfg_control_enabled is None  # noqa: SLF001
+    assert coord._battery_cfg_control_schedule_supported is None  # noqa: SLF001
+    assert coord._battery_cfg_control_force_schedule_supported is None  # noqa: SLF001
+
+    runtime._apply_battery_permission_payload(["bad"])  # noqa: SLF001
+    assert coord.battery_user_is_owner is True
 
 
 def test_parse_battery_settings_payload_handles_non_dict_and_bad_disclaimer(
@@ -443,6 +627,38 @@ def test_parse_battery_settings_payload_handles_non_dict_and_bad_disclaimer(
         {"data": {"acceptedItcDisclaimer": BadStr()}}
     )
     assert coord._battery_accepted_itc_disclaimer is None  # noqa: SLF001
+
+
+def test_parse_battery_settings_payload_clears_missing_reserve_bounds(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_backup_percentage_min = 8  # noqa: SLF001
+    coord._battery_backup_percentage_max = 95  # noqa: SLF001
+    coord._battery_very_low_soc_min = 10  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {"data": {"batteryBackupPercentage": 20}}
+    )
+
+    assert coord.battery_reserve_min == 10
+    assert coord.battery_reserve_max == 100
+
+
+def test_parse_battery_settings_payload_keeps_reserve_bounds_for_partial_update(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_backup_percentage_min = 8  # noqa: SLF001
+    coord._battery_backup_percentage_max = 95  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {"chargeFromGrid": True},
+        clear_missing_reserve_bounds=False,
+    )
+
+    assert coord.battery_reserve_min == 8
+    assert coord.battery_reserve_max == 95
 
 
 @pytest.mark.asyncio
@@ -529,6 +745,196 @@ async def test_battery_settings_forbidden_read_only_user_translates_to_permissio
             {"chargeFromGrid": False}
         )
     coord.client.set_battery_settings.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_settings_write_blocked_when_system_task_active(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_system_task = True  # noqa: SLF001
+    coord.client.set_battery_settings = AsyncMock()
+
+    with pytest.raises(
+        ServiceValidationError, match="Battery settings updates are unavailable"
+    ):
+        await coord.battery_runtime.async_apply_battery_settings(
+            {"chargeFromGrid": False}
+        )
+    coord.client.set_battery_settings.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_settings_write_blocked_when_refresh_discovers_system_task(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(
+        return_value={
+            "data": {
+                "userDetails": {"isOwner": True, "isInstaller": False},
+                "systemTask": True,
+            }
+        }
+    )
+    coord.client.set_battery_settings = AsyncMock()
+
+    with pytest.raises(
+        ServiceValidationError, match="Battery settings updates are unavailable"
+    ):
+        await coord.battery_runtime.async_apply_battery_settings(
+            {"chargeFromGrid": False}
+        )
+    coord.client.set_battery_settings.assert_not_awaited()
+
+
+def test_battery_settings_feature_writable_rejects_read_only_user(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Battery settings updates are not permitted for this account",
+    ):
+        coord.battery_runtime._assert_battery_settings_feature_writable(  # noqa: SLF001
+            "Charge from grid setting is unavailable."
+        )
+
+
+@pytest.mark.asyncio
+async def test_set_battery_reserve_rejects_when_reserve_not_editable(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_rbd_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        locked=True,
+    )
+
+    with pytest.raises(ServiceValidationError, match="Battery reserve is unavailable"):
+        await coord.async_set_battery_reserve(25)
+
+
+@pytest.mark.asyncio
+async def test_set_savings_use_battery_after_peak_rejects_when_switch_unavailable(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_show_savings_mode = False  # noqa: SLF001
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Savings profile settings are unavailable",
+    ):
+        await coord.async_set_savings_use_battery_after_peak(True)
+
+
+@pytest.mark.asyncio
+async def test_set_charge_from_grid_schedule_enabled_rejects_without_force_support(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=False,
+    )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Charge from grid schedule is unavailable",
+    ):
+        await coord.async_set_charge_from_grid_schedule_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_battery_settings_unknown_role_rejects_when_refresh_unresolved(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(
+        return_value={"data": {"userDetails": {}}}
+    )
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+
+    with pytest.raises(ServiceValidationError, match="could not be confirmed"):
+        await coord.async_set_charge_from_grid(False)
+
+    coord.client.battery_site_settings.assert_awaited_once()
+    coord.client.set_battery_settings.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_write_access_refresh_failure_rejects_when_unconfirmed(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with pytest.raises(ServiceValidationError, match="could not be confirmed"):
+        await coord.battery_runtime.async_ensure_battery_write_access_confirmed()
+
+
+@pytest.mark.asyncio
+async def test_battery_write_access_refresh_uses_payload_fallback_and_custom_denial(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord.redact_battery_payload = MagicMock(return_value="redacted")  # type: ignore[method-assign]
+    coord.client.battery_site_settings = AsyncMock(
+        return_value={"userDetails": {"isOwner": False, "isInstaller": False}}
+    )
+
+    with pytest.raises(ServiceValidationError, match="custom denied"):
+        await coord.battery_runtime.async_ensure_battery_write_access_confirmed(
+            denied_message="custom denied"
+        )
+
+    assert coord.battery_state._battery_site_settings_payload == {
+        "value": "redacted"
+    }  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -972,6 +1378,27 @@ async def test_cfg_schedule_limit_rejects_without_schedule_api(
     coord.client = MagicMock(spec=())
 
     with pytest.raises(ServiceValidationError, match="Schedule API not available"):
+        await coord.battery_runtime.async_set_cfg_schedule_limit(90)
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_limit_rejects_when_force_schedule_explicitly_unsupported(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        locked=False,
+        force_schedule_supported=False,
+    )
+    coord.client.update_battery_schedule = AsyncMock()
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Charge from grid schedule is unavailable",
+    ):
         await coord.battery_runtime.async_set_cfg_schedule_limit(90)
 
 

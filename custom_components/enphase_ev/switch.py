@@ -67,6 +67,15 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     return bool(has_type(type_key)) if callable(has_type) else True
 
 
+def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
+    confirmed = getattr(coord, "battery_write_access_confirmed", None)
+    if confirmed is not None:
+        return bool(confirmed)
+    owner = getattr(coord, "battery_user_is_owner", None)
+    installer = getattr(coord, "battery_user_is_installer", None)
+    return owner is True or installer is True
+
+
 def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
     show_storm_guard = getattr(coord, "battery_show_storm_guard", None)
     return show_storm_guard is not False
@@ -117,11 +126,14 @@ async def async_setup_entry(
         if (
             "storm_guard" not in site_entity_keys
             and _type_available(coord, "envoy")
+            and _battery_write_access_confirmed(coord)
             and _storm_guard_visible(coord)
         ):
             site_entities.append(StormGuardSwitch(coord))
             site_entity_keys.add("storm_guard")
-        if _type_available(coord, "encharge"):
+        if _type_available(coord, "encharge") and _battery_write_access_confirmed(
+            coord
+        ):
             if "savings_use_battery_after_peak" not in site_entity_keys:
                 site_entities.append(SavingsUseBatteryAfterPeakSwitch(coord))
                 site_entity_keys.add("savings_use_battery_after_peak")
@@ -155,7 +167,11 @@ async def async_setup_entry(
         entities: list[SwitchEntity] = []
         if serials:
             entities.extend(ChargingSwitch(coord, sn) for sn in serials)
-            if site_has_battery and _storm_guard_visible(coord):
+            if (
+                site_has_battery
+                and _battery_write_access_confirmed(coord)
+                and _storm_guard_visible(coord)
+            ):
                 entities.extend(StormGuardEvseSwitch(coord, sn) for sn in serials)
             known_serials.update(serials)
         data_source = coord.data or {}
@@ -240,6 +256,8 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
             return False
+        if not _battery_write_access_confirmed(self._coord):
+            return False
         if not _storm_guard_visible(self._coord):
             return False
         if not _type_available(self._coord, "envoy"):
@@ -292,6 +310,7 @@ class SavingsUseBatteryAfterPeakSwitch(CoordinatorEntity, SwitchEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and _battery_write_access_confirmed(self._coord)
             and self._coord.savings_use_battery_switch_available
         )
 
@@ -332,6 +351,7 @@ class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and _battery_write_access_confirmed(self._coord)
             and self._coord.charge_from_grid_control_available
         )
 
@@ -378,7 +398,8 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
-            and self._coord.charge_from_grid_schedule_available
+            and _battery_write_access_confirmed(self._coord)
+            and self._coord.charge_from_grid_force_schedule_available
         )
 
     @property
@@ -522,9 +543,7 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
             return False
         if not self._coord.auth_settings_available:
             return False
-        if self.data.get("app_auth_supported") is not True:
-            return False
-        return self.data.get("app_auth_enabled") is not None
+        return self.data.get("app_auth_supported") is True
 
     @property
     def is_on(self) -> bool:
@@ -566,6 +585,8 @@ class StormGuardEvseSwitch(EnphaseBaseEntity, SwitchEntity):
     @property
     def available(self) -> bool:  # type: ignore[override]
         if not super().available:
+            return False
+        if not _battery_write_access_confirmed(self._coord):
             return False
         if not _storm_guard_visible(self._coord):
             return False

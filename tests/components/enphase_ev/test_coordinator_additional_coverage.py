@@ -34,6 +34,7 @@ from custom_components.enphase_ev.api import (
 from custom_components.enphase_ev.const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
+    DEFAULT_CHARGE_LEVEL_SETTING,
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     GREEN_BATTERY_SETTING,
@@ -46,9 +47,11 @@ from custom_components.enphase_ev.const import (
     ISSUE_SITE_ENERGY_UNAVAILABLE,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
+    PHASE_SWITCH_CONFIG_SETTING,
 )
 from custom_components.enphase_ev.evse_runtime import (
     AUTH_SETTINGS_CACHE_TTL,
+    CHARGER_CONFIG_CACHE_TTL,
     CHARGE_MODE_CACHE_TTL,
     FAST_TOGGLE_POLL_HOLD_S,
     GREEN_BATTERY_CACHE_TTL,
@@ -666,9 +669,8 @@ def test_system_dashboard_helper_branches(coordinator_factory, monkeypatch) -> N
     )
     with monkeypatch.context() as nested_patch:
         nested_patch.setattr(
-            type(coord),
-            "_dashboard_first_mapping",
-            classmethod(lambda cls, payload, *keys: "bad"),
+            "custom_components.enphase_ev.system_dashboard_helpers.dashboard_first_mapping",
+            lambda payload, *keys: "bad",
         )
         assert (
             coord._system_dashboard_microinverter_summary({}, {}, None) == {}
@@ -1299,6 +1301,152 @@ def test_summary_compat_shims(coordinator_factory):
     coord._session_history_cache_ttl = 120
     assert coord.session_history.cache_ttl == 120
     assert coord._session_history_cache_ttl == 120
+
+
+def test_runtime_and_dashboard_delegate_shims(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "count": 3,
+                "devices": [
+                    {"name": "Gateway A", "status": "normal", "connected": "yes"},
+                    {"name": "Gateway B", "status": "warning", "connected": "no"},
+                    {"name": "Gateway C", "status": "normal", "connected": "maybe"},
+                ],
+            }
+        },
+        ["envoy"],
+    )
+    gateway_summary = coord._build_gateway_inventory_summary()  # noqa: SLF001
+    assert gateway_summary["connected_devices"] == 2
+    assert gateway_summary["disconnected_devices"] == 1
+
+    assert (
+        coord._heatpump_member_device_type({"device_type": "heat_pump"}) == "HEAT_PUMP"
+    )  # noqa: SLF001
+    assert (
+        coord._heatpump_worst_status_text({"not_reporting": 1}) == "Not Reporting"
+    )  # noqa: SLF001
+    assert coord._debug_truncate_identifier("ABCDEFGHIJKL") is not None  # noqa: SLF001
+    assert (
+        coord._debug_topology_summary(  # noqa: SLF001
+            coord.inventory_runtime.topology_snapshot()
+        )["charger_count"]
+        == 0
+    )
+    assert (
+        coord._dashboard_first_value(  # noqa: SLF001
+            {"wrapper": {"meter_type": "consumption"}},
+            "meter_type",
+        )
+        == "consumption"
+    )
+    assert coord._dashboard_first_mapping(  # noqa: SLF001
+        {"wrapper": {"network": {"mode": "dhcp"}}},
+        "network",
+    ) == {"mode": "dhcp"}
+    assert (
+        coord._dashboard_field(  # noqa: SLF001
+            {"wrapper": {"meter_type": "consumption"}},
+            "meter_type",
+        )
+        == "consumption"
+    )
+    assert coord._dashboard_field_map(  # noqa: SLF001
+        {"serialNumber": "GW-1"},
+        {"serial": ("serial_number", "serialNumber")},
+    ) == {"serial": "GW-1"}
+    assert coord._dashboard_aliases(
+        {"serialNumber": "GW-1", "id": "node-1"}
+    ) == [  # noqa: SLF001
+        "GW-1",
+        "node-1",
+    ]
+    assert coord._dashboard_primary_id({"id": "node-1"}) == "node-1"  # noqa: SLF001
+    assert (
+        coord._dashboard_raw_type({"device_type": "envoy"}) == "envoy"
+    )  # noqa: SLF001
+    assert coord._dashboard_child_containers(  # noqa: SLF001
+        {"type": "envoy", "children": [{"id": "child-1"}]}
+    ) == [([{"id": "child-1"}], "envoy")]
+
+    payloads = {
+        "envoys": {"envoys": [{"device_uid": "GW-1", "network": {"mode": "dhcp"}}]},
+        "encharges": {
+            "encharges": [
+                {
+                    "device_uid": "BAT-1",
+                    "serial_number": "BAT-1",
+                    "app_version": "1.2.3",
+                }
+            ]
+        },
+    }
+    envoy_index = coord._index_dashboard_nodes(
+        [{"device_uid": "GW-1", "type": "envoy"}]
+    )  # noqa: SLF001
+    encharge_index = coord._index_dashboard_nodes(  # noqa: SLF001
+        [{"device_uid": "BAT-1", "type": "encharge"}]
+    )
+    assert (
+        coord._system_dashboard_type_hierarchy("envoy", envoy_index, None)["count"] == 1
+    )  # noqa: SLF001
+    assert (
+        coord._system_dashboard_envoy_summary(  # noqa: SLF001
+            payloads,
+            envoy_index,
+            None,
+        )["network"]["mode"]
+        == "dhcp"
+    )
+    assert (
+        coord._system_dashboard_encharge_summary(  # noqa: SLF001
+            payloads,
+            encharge_index,
+            None,
+        )["batteries"][0]["serial_number"]
+        == "BAT-1"
+    )
+
+    tree_payload = {
+        "devices": [
+            {
+                "device_uid": "GW-1",
+                "type": "envoy",
+                "children": [
+                    {"device_uid": "BAT-1", "type": "encharge", "name": "Battery"}
+                ],
+            }
+        ]
+    }
+    details_payloads = {
+        "envoy": {"envoys": {"envoys": [{"device_uid": "GW-1"}]}},
+        "encharge": {
+            "encharges": {
+                "encharges": [{"device_uid": "BAT-1", "serial_number": "BAT-1"}]
+            }
+        },
+    }
+    type_summaries, hierarchy_summary, hierarchy_index = (
+        coord._build_system_dashboard_summaries(  # noqa: SLF001
+            tree_payload,
+            details_payloads,
+        )
+    )
+    assert hierarchy_summary["total_nodes"] == 2
+    assert hierarchy_index["GW-1"]["device_uid"] == "GW-1"
+    assert type_summaries["envoy"]["hierarchy"]["count"] == 1
+    assert coord._coerce_int("7") == 7  # noqa: SLF001
+    assert coord.coerce_int("bad", default=4) == 4
+    assert (
+        coord._inverter_connectivity_state(  # noqa: SLF001
+            {"total": 1, "not_reporting": 1, "unknown": 0}
+        )
+        == "offline"
+    )
 
 
 @pytest.mark.asyncio
@@ -2237,6 +2385,167 @@ async def test_async_update_data_drops_expired_cached_charge_preference_when_sta
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_uses_battery_profile_charge_mode_when_scheduler_pref_missing(
+    coordinator_factory,
+):
+    coord = coordinator_factory(
+        serials=["EV1"],
+        data={
+            "EV1": {
+                "sn": "EV1",
+                "name": "Garage EV",
+                "charge_mode": "IDLE",
+            }
+        },
+    )
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._scheduler_available = False  # noqa: SLF001
+    coord._scheduler_backoff_active = lambda: False  # type: ignore[assignment]  # noqa: SLF001
+    coord._charge_mode_cache["EV1"] = (
+        "GREEN_CHARGING",
+        coord_mod.time.monotonic() - CHARGE_MODE_CACHE_TTL - 1,
+    )
+    coord._storm_guard_cache_until = coord_mod.time.monotonic() + 300  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "chargeMode": "GREEN", "enable": True}
+    ]
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": "EV1",
+                    "name": "Garage EV",
+                    "connectors": [
+                        {
+                            "connectorStatusType": coord_mod.SUSPENDED_EVSE_STATUS,
+                            "connectorStatusReason": "INSUFFICIENT_SOLAR",
+                        }
+                    ],
+                    "sch_d": {"status": 1, "info": [{"type": "CUSTOM"}]},
+                    "session_d": {},
+                    "charging": False,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+    )
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **kwargs: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=lambda: None,
+    )
+    coord.evse_timeseries.async_refresh = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.evse_timeseries.merge_charger_payloads = MagicMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_dry_contact_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._get_charge_mode = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert result["EV1"]["charge_mode_pref"] == "GREEN_CHARGING"
+    assert result["EV1"]["charge_mode"] == "GREEN_CHARGING"
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_uses_green_schedule_type_when_scheduler_pref_missing(
+    coordinator_factory,
+):
+    coord = coordinator_factory(
+        serials=["EV1"],
+        data={
+            "EV1": {
+                "sn": "EV1",
+                "name": "Garage EV",
+                "charge_mode": "IDLE",
+            }
+        },
+    )
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._scheduler_available = False  # noqa: SLF001
+    coord._scheduler_backoff_active = lambda: False  # type: ignore[assignment]  # noqa: SLF001
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": "EV1",
+                    "name": "Garage EV",
+                    "connectors": [
+                        {
+                            "connectorStatusType": coord_mod.SUSPENDED_EVSE_STATUS,
+                            "connectorStatusReason": "INSUFFICIENT_SOLAR",
+                        }
+                    ],
+                    "sch_d": {"status": 1, "info": [{"type": "greencharging"}]},
+                    "session_d": {},
+                    "charging": False,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+    )
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **kwargs: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=lambda: None,
+    )
+    coord.evse_timeseries.async_refresh = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.evse_timeseries.merge_charger_payloads = MagicMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_dry_contact_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._get_charge_mode = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert result["EV1"]["schedule_type"] == "greencharging"
+    assert result["EV1"]["charge_mode_pref"] == "GREEN_CHARGING"
+    assert result["EV1"]["charge_mode"] == "GREEN_CHARGING"
+
+
+@pytest.mark.asyncio
 async def test_async_update_data_handles_numeric_ts(
     coordinator_factory,
 ):
@@ -2408,7 +2717,10 @@ def test_charge_mode_preference_helpers(coordinator_factory):
 
     coord.data[sn]["charge_mode_pref"] = None
     coord._charge_mode_cache[sn] = ("SMART", coord_mod.time.monotonic())
-    assert coord._resolve_charge_mode_pref(sn) is None
+    assert coord._resolve_charge_mode_pref(sn) == "SMART_CHARGING"
+    prefs = coord._charge_mode_start_preferences(sn)
+    assert prefs.include_level is False
+    assert prefs.strict is True
 
     coord._charge_mode_cache[sn] = ("SCHEDULED", coord_mod.time.monotonic())
     assert coord._resolve_charge_mode_pref(sn) == "SCHEDULED_CHARGING"
@@ -2419,6 +2731,9 @@ def test_charge_mode_preference_helpers(coordinator_factory):
     )
     coord.data[sn]["charge_mode"] = "IDLE"
     assert coord._resolve_charge_mode_pref(sn) is None
+
+    coord.data[sn]["schedule_type"] = "greencharging"
+    assert coord._resolve_charge_mode_pref(sn) == "GREEN_CHARGING"
 
 
 def test_resolve_charge_mode_pref_handles_errors(coordinator_factory):
@@ -2449,6 +2764,7 @@ def test_charge_mode_normalizers_handle_invalid_values(coordinator_factory):
     assert coord._normalize_effective_charge_mode(BadStr()) is None  # noqa: SLF001
     assert coord._normalize_effective_charge_mode("   ") is None  # noqa: SLF001
     assert coord._normalize_effective_charge_mode("custom") is None  # noqa: SLF001
+    assert coord._schedule_type_charge_mode_preference(BadStr()) is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -2622,7 +2938,7 @@ async def test_get_auth_settings_handles_missing_setting(coordinator_factory):
 async def test_get_auth_settings_coercion_paths(coordinator_factory):
     coord = coordinator_factory(serials=["EV1"])
     cases = [
-        (None, False),
+        (None, None),
         (True, True),
         (0, False),
         ("true", True),
@@ -2635,6 +2951,24 @@ async def test_get_auth_settings_coercion_paths(coordinator_factory):
         )
         result = await coord._get_auth_settings("EV1")
         assert result == (expected, None, True, False)
+
+
+@pytest.mark.asyncio
+async def test_get_auth_settings_treats_null_values_as_unknown_supported(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=["EV1"])
+    coord._auth_settings_cache.clear()
+    coord.client.charger_auth_settings = AsyncMock(
+        return_value=[
+            {"key": AUTH_APP_SETTING, "value": None, "reqValue": None},
+            {"key": AUTH_RFID_SETTING, "value": None, "reqValue": None},
+        ]
+    )
+
+    result = await coord._get_auth_settings("EV1")
+
+    assert result == (None, None, True, True)
 
 
 @pytest.mark.asyncio
@@ -2699,6 +3033,47 @@ async def test_async_update_data_includes_auth_settings(coordinator_factory):
     assert result[SERIAL_ONE]["app_auth_enabled"] is True
     assert result[SERIAL_ONE]["rfid_auth_enabled"] is False
     assert result[SERIAL_ONE]["auth_required"] is True
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_keeps_null_auth_settings_unknown(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._has_successful_refresh = True  # noqa: SLF001
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "chargeMode": "IDLE",
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.charger_auth_settings = AsyncMock(
+        return_value=[
+            {"key": AUTH_APP_SETTING, "value": None, "reqValue": None},
+            {"key": AUTH_RFID_SETTING, "value": None, "reqValue": None},
+        ]
+    )
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+    await coord._async_refresh_evse_feature_flags(force=True)
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["app_auth_supported"] is True
+    assert result[SERIAL_ONE]["rfid_auth_supported"] is True
+    assert result[SERIAL_ONE]["app_auth_enabled"] is None
+    assert result[SERIAL_ONE]["rfid_auth_enabled"] is None
+    assert result[SERIAL_ONE]["auth_required"] is None
 
 
 @pytest.mark.asyncio
@@ -2805,6 +3180,316 @@ async def test_async_update_data_treats_embedded_charge_mode_as_runtime_support(
 
     assert result[SERIAL_ONE]["charge_mode_supported"] is True
     assert result[SERIAL_ONE]["charge_mode_supported_source"] == "runtime"
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_merges_charger_config_fallback_fields(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._has_successful_refresh = True  # noqa: SLF001
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.charger_config = AsyncMock(
+        return_value=[
+            {"key": DEFAULT_CHARGE_LEVEL_SETTING, "value": None},
+            {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+        ]
+    )
+    coord.client.charger_auth_settings = AsyncMock(return_value=[])
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert "default_charge_level" in result[SERIAL_ONE]
+    assert result[SERIAL_ONE]["default_charge_level"] is None
+    assert result[SERIAL_ONE]["phase_switch_config"] == "auto"
+    coord.client.charger_config.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_charger_config_honors_backoff(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._charger_config_backoff_until[SERIAL_ONE] = time.monotonic() + 60
+    coord.client.charger_config = AsyncMock()
+
+    result = await coord.evse_runtime.async_resolve_charger_config(
+        [SERIAL_ONE],
+        keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
+    )
+
+    assert result == {}
+    coord.client.charger_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_get_charger_config_covers_normalization_and_reqvalue(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    class _BadResponseKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord.client.charger_config = AsyncMock(
+        return_value=[
+            "invalid",
+            {"key": _BadResponseKey(), "value": "ignored"},
+            {"key": "unrequested", "value": "ignored"},
+            {"key": DEFAULT_CHARGE_LEVEL_SETTING, "reqValue": "disabled"},
+            {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+        ]
+    )
+
+    result = await coord.evse_runtime.async_get_charger_config(
+        SERIAL_ONE,
+        keys=(
+            "",
+            DEFAULT_CHARGE_LEVEL_SETTING,
+            DEFAULT_CHARGE_LEVEL_SETTING,
+            _BadKey(),
+            PHASE_SWITCH_CONFIG_SETTING,
+        ),
+    )
+
+    assert result == {
+        DEFAULT_CHARGE_LEVEL_SETTING: "disabled",
+        PHASE_SWITCH_CONFIG_SETTING: "auto",
+    }
+    coord.client.charger_config.assert_awaited_once_with(
+        SERIAL_ONE,
+        [DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING],
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_get_charger_config_returns_empty_with_no_valid_keys(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    result = await coord.evse_runtime.async_get_charger_config(
+        SERIAL_ONE,
+        keys=("", _BadKey()),
+    )
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_async_get_charger_config_returns_full_fresh_cache(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._charger_config_cache[SERIAL_ONE] = (
+        {
+            DEFAULT_CHARGE_LEVEL_SETTING: "disabled",
+            PHASE_SWITCH_CONFIG_SETTING: "auto",
+        },
+        time.monotonic(),
+    )
+    coord.client.charger_config = AsyncMock()
+
+    result = await coord.evse_runtime.async_get_charger_config(
+        SERIAL_ONE,
+        keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
+    )
+
+    assert result == {
+        DEFAULT_CHARGE_LEVEL_SETTING: "disabled",
+        PHASE_SWITCH_CONFIG_SETTING: "auto",
+    }
+    coord.client.charger_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_get_charger_config_uses_cache_for_backoff_and_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._charger_config_cache[SERIAL_ONE] = (
+        {DEFAULT_CHARGE_LEVEL_SETTING: "disabled"},
+        time.monotonic(),
+    )
+    coord._charger_config_backoff_until[SERIAL_ONE] = time.monotonic() + 60
+    coord.client.charger_config = AsyncMock()
+
+    result = await coord.evse_runtime.async_get_charger_config(
+        SERIAL_ONE,
+        keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
+    )
+
+    assert result == {DEFAULT_CHARGE_LEVEL_SETTING: "disabled"}
+    coord.client.charger_config.assert_not_awaited()
+
+    coord._charger_config_backoff_until.clear()
+    coord.client.charger_config = AsyncMock(side_effect=RuntimeError("boom"))
+
+    result = await coord.evse_runtime.async_get_charger_config(
+        SERIAL_ONE,
+        keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
+    )
+
+    assert result == {DEFAULT_CHARGE_LEVEL_SETTING: "disabled"}
+    assert coord._charger_config_backoff_until[SERIAL_ONE] > time.monotonic()
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_charger_config_uses_cached_and_exception_fallback(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._charger_config_cache[SERIAL_ONE] = (
+        {DEFAULT_CHARGE_LEVEL_SETTING: "disabled"},
+        time.monotonic(),
+    )
+
+    async def _boom(sn: str, *, keys) -> dict[str, object] | None:
+        raise RuntimeError(f"boom:{sn}")
+
+    coord.evse_runtime.async_get_charger_config = _boom  # type: ignore[assignment]
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    result = await coord.evse_runtime.async_resolve_charger_config(
+        ["", SERIAL_ONE],
+        keys=(
+            DEFAULT_CHARGE_LEVEL_SETTING,
+            DEFAULT_CHARGE_LEVEL_SETTING,
+            "",
+            _BadKey(),
+            PHASE_SWITCH_CONFIG_SETTING,
+        ),
+    )
+
+    assert result == {SERIAL_ONE: {DEFAULT_CHARGE_LEVEL_SETTING: "disabled"}}
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_charger_config_returns_empty_with_no_valid_keys(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    result = await coord.evse_runtime.async_resolve_charger_config(
+        [SERIAL_ONE],
+        keys=("", _BadKey()),
+    )
+
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_charger_config_uses_full_fresh_cache(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._charger_config_cache[SERIAL_ONE] = (
+        {
+            DEFAULT_CHARGE_LEVEL_SETTING: "disabled",
+            PHASE_SWITCH_CONFIG_SETTING: "auto",
+        },
+        time.monotonic(),
+    )
+    coord.client.charger_config = AsyncMock()
+
+    result = await coord.evse_runtime.async_resolve_charger_config(
+        [SERIAL_ONE],
+        keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
+    )
+
+    assert result == {
+        SERIAL_ONE: {
+            DEFAULT_CHARGE_LEVEL_SETTING: "disabled",
+            PHASE_SWITCH_CONFIG_SETTING: "auto",
+        }
+    }
+    coord.client.charger_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_drops_expired_charger_config_after_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        serials=[SERIAL_ONE],
+        data={
+            SERIAL_ONE: {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "default_charge_level": "disabled",
+                "phase_switch_config": "auto",
+            }
+        },
+    )
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._charger_config_cache[SERIAL_ONE] = (
+        {
+            DEFAULT_CHARGE_LEVEL_SETTING: "disabled",
+            PHASE_SWITCH_CONFIG_SETTING: "auto",
+        },
+        time.monotonic() - CHARGER_CONFIG_CACHE_TTL - 1,
+    )
+    payload = {
+        "evChargerData": [
+            {
+                "sn": SERIAL_ONE,
+                "name": "Garage",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+                "faulted": False,
+                "session_d": {"e_c": 0},
+            }
+        ],
+        "ts": 0,
+    }
+    coord.client.status = AsyncMock(return_value=payload)
+    coord.client.charger_config = AsyncMock(side_effect=RuntimeError("boom"))
+    coord.client.charger_auth_settings = AsyncMock(return_value=[])
+    coord.client.green_charging_settings = AsyncMock(return_value=[])
+    coord.summary.prepare_refresh = MagicMock(return_value=False)
+    coord.summary.async_fetch = AsyncMock(return_value=[])
+    coord.energy._async_refresh_site_energy = AsyncMock()
+
+    result = await coord._async_update_data()
+
+    assert "default_charge_level" not in result[SERIAL_ONE]
+    assert "phase_switch_config" not in result[SERIAL_ONE]
+    assert coord._charger_config_backoff_until[SERIAL_ONE] > time.monotonic()
 
 
 @pytest.mark.asyncio
@@ -4085,6 +4770,37 @@ async def test_async_set_storm_guard_enabled_forbidden_generic_message(
 
 
 @pytest.mark.asyncio
+async def test_async_set_storm_guard_enabled_forbidden_after_role_change_not_permitted(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={"data": {"stormGuardState": "disabled", "evseStormEnabled": True}}
+    )
+
+    async def _forbidden_after_role_change(**_kwargs):
+        coord._battery_user_is_owner = False  # noqa: SLF001
+        coord._battery_user_is_installer = False  # noqa: SLF001
+        raise aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+
+    coord.client.set_storm_guard = AsyncMock(side_effect=_forbidden_after_role_change)
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard updates are not permitted for this account.",
+    ):
+        await coord.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
 async def test_async_set_storm_guard_enabled_unauthorized_message(
     coordinator_factory,
 ) -> None:
@@ -4218,6 +4934,37 @@ async def test_async_set_storm_evse_enabled_forbidden_not_permitted(
             message="forbidden",
         )
     )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard updates are not permitted for this account.",
+    ):
+        await coord.async_set_storm_evse_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_async_set_storm_evse_enabled_forbidden_after_role_change_not_permitted(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={"data": {"stormGuardState": "enabled", "evseStormEnabled": False}}
+    )
+
+    async def _forbidden_after_role_change(**_kwargs):
+        coord._battery_user_is_owner = False  # noqa: SLF001
+        coord._battery_user_is_installer = False  # noqa: SLF001
+        raise aiohttp.ClientResponseError(
+            _request_info(),
+            (),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+
+    coord.client.set_storm_guard = AsyncMock(side_effect=_forbidden_after_role_change)
 
     with pytest.raises(
         ServiceValidationError,

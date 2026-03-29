@@ -199,6 +199,34 @@ class DummyCoordinator(SimpleNamespace):
             "per_battery_status": {"BT0001": "normal"},
             "worst_storage_key": "BT0001",
         }
+        self.battery_dtg_control = {
+            "show": True,
+            "enabled": False,
+            "locked": True,
+            "show_day_schedule": None,
+            "schedule_supported": None,
+            "force_schedule_supported": None,
+            "force_schedule_opted": None,
+        }
+        self.battery_cfg_control = {
+            "show": True,
+            "enabled": True,
+            "locked": False,
+            "show_day_schedule": True,
+            "schedule_supported": True,
+            "force_schedule_supported": True,
+            "force_schedule_opted": True,
+        }
+        self.battery_rbd_control = {
+            "show": True,
+            "enabled": True,
+            "locked": False,
+            "show_day_schedule": None,
+            "schedule_supported": None,
+            "force_schedule_supported": None,
+            "force_schedule_opted": None,
+        }
+        self.battery_system_task = False
         self._grid_control_check_payload = {
             "disableGridControl": False,
             "activeDownload": False,
@@ -420,6 +448,38 @@ class DummyCoordinator(SimpleNamespace):
                 "payload": [{"statusText": "Recommended"}],
             }
         ]
+        self._heatpump_power_snapshot = {
+            "site_date": "2026-03-01",
+            "force": True,
+            "compare_all": True,
+            "previous_device_ref": "H...1",
+            "candidates": [
+                {
+                    "requested_device_ref": "H...1",
+                    "member_device_ref": "H...1",
+                    "member_device_type": "HEAT_PUMP",
+                    "status": "Normal",
+                    "recommended": False,
+                }
+            ],
+            "attempts": [
+                {
+                    "requested_device_ref": "H...1",
+                    "resolved_device_ref": "H...1",
+                    "bucket_count": 3,
+                    "non_null_bucket_count": 1,
+                    "latest_sample_w": 550.0,
+                }
+            ],
+            "selected_payload": {
+                "resolved_device_ref": "H...1",
+                "latest_sample_w": 550.0,
+            },
+            "selected_source": "hems_power_timeseries:H...1",
+            "selected_sample_at_utc": "2026-03-01T00:05:00+00:00",
+            "last_error": None,
+            "outcome": "selected_sample",
+        }
         self._heatpump_runtime_diagnostics_error = None
 
     def collect_site_metrics(self):
@@ -440,6 +500,10 @@ class DummyCoordinator(SimpleNamespace):
             "dry_contact_settings_unmatched_count": 0,
             "dry_contact_settings_fetch_failures": 0,
             "dry_contact_settings_data_stale": False,
+            "battery_dtg_control": self.battery_dtg_control,
+            "battery_cfg_control": self.battery_cfg_control,
+            "battery_rbd_control": self.battery_rbd_control,
+            "battery_system_task": self.battery_system_task,
         }
 
     def charge_mode_cache_snapshot(self):
@@ -506,6 +570,7 @@ class DummyCoordinator(SimpleNamespace):
             "daily_consumption_last_error": self._heatpump_daily_consumption_last_error,
             "show_livestream_payload": self._show_livestream_payload,
             "events_payloads": self._heatpump_events_payloads,
+            "power_snapshot": self._heatpump_power_snapshot,
             "last_error": self._heatpump_runtime_diagnostics_error,
         }
 
@@ -631,6 +696,9 @@ async def test_config_entry_diagnostics_includes_coordinator(
         diag["coordinator"]["battery_config"]["backup_history_payload"]["total_records"]
         == 1
     )
+    assert diag["coordinator"]["site_metrics"]["battery_cfg_control"]["locked"] is False
+    assert diag["coordinator"]["site_metrics"]["battery_dtg_control"]["locked"] is True
+    assert diag["coordinator"]["site_metrics"]["battery_system_task"] is False
     assert (
         diag["coordinator"]["battery_config"]["hems_devices_payload"]["data"][
             "hems-devices"
@@ -670,6 +738,22 @@ async def test_config_entry_diagnostics_includes_coordinator(
             "statusText"
         ]
         == "Recommended"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["candidates"][0][
+            "requested_device_ref"
+        ]
+        == "H...1"
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["selected_payload"][
+            "latest_sample_w"
+        ]
+        == 550.0
+    )
+    assert (
+        diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["selected_source"]
+        == "hems_power_timeseries:H...1"
     )
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
@@ -1188,6 +1272,16 @@ async def test_device_diagnostics_heatpump_includes_runtime_payloads(
     assert (
         result["heatpump_runtime"]["events_payloads"][0]["payload"][0]["statusText"]
         == "Recommended"
+    )
+    assert (
+        result["heatpump_runtime"]["power_snapshot"]["selected_payload"][
+            "resolved_device_ref"
+        ]
+        == "H...1"
+    )
+    assert (
+        result["heatpump_runtime"]["power_snapshot"]["selected_source"]
+        == "hems_power_timeseries:H...1"
     )
 
 

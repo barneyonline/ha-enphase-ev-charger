@@ -14,6 +14,8 @@ _TYPE_ALIAS_TOKEN_MAP: dict[str, str] = {
     "meter": "envoy",
     "meters": "envoy",
     "encharge": "encharge",
+    "storage": "encharge",
+    "storages": "encharge",
     "battery": "encharge",
     "batteries": "encharge",
     "enpower": "envoy",

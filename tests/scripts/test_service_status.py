@@ -581,6 +581,7 @@ def test_endpoint_result_and_status_evaluation(service_status_module) -> None:
         method="GET",
         url="https://example.invalid/service/SITE/SERIAL?site=SITE&serial=SERIAL",
         group="main",
+        category="evse_runtime",
     )
     endpoint = service_status_module._endpoint_result(
         spec,
@@ -720,7 +721,7 @@ def test_main_mfa_required_generates_synthetic_failure(
     assert status_payload["status"] == "Down"
     assert status_payload["summary"]["checks_failed"] == 1
     assert {check["name"] for check in status_payload["checks"]} == {
-        "auth_login",
+        "auth",
         "auth_mfa_required",
     }
     assert history_payload["samples"][0]["failed_check_names"] == ["auth_mfa_required"]
@@ -801,7 +802,7 @@ def test_main_login_failed_status_code_generates_synthetic_failure(
     history_payload = json.loads((tmp_path / "out" / "history.json").read_text())
 
     assert result == 0
-    assert history_payload["samples"][0]["failed_check_names"] == ["auth_login"]
+    assert history_payload["samples"][0]["failed_check_names"] == ["auth"]
 
 
 def test_main_site_discovery_and_serial_discovery_failures(
@@ -847,7 +848,7 @@ def test_main_site_discovery_and_serial_discovery_failures(
         (tmp_path / "discovery-out" / "history.json").read_text()
     )
     assert result == 0
-    assert discovery_payload["samples"][0]["failed_check_names"] == ["auth_token"]
+    assert discovery_payload["samples"][0]["failed_check_names"] == ["auth"]
 
     def fake_request_serial(opener, method, url, **kwargs):  # noqa: ARG001
         if url == service_status_module.LOGIN_URL:
@@ -1018,7 +1019,7 @@ def test_main_success_generates_history_and_wiki(
     assert incidents_payload["incidents"][-1]["status"] == "Degraded"
     assert incidents_payload["incidents"][-1]["active"] is True
     assert incidents_payload["incidents"][-1]["ended_at"] is None
-    assert "auth_settings" in wiki_text
+    assert "evse_control" in wiki_text
     assert "Ongoing" in wiki_text
     expected_label = service_status_module._format_mermaid_label_utc(
         incidents_payload["incidents"][-1]["started_at"]

@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Siltumsūkņa SG-Ready vārteja"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Siltumsūkņa dienas enerģija"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Siltumsūkņa dienas tīkla enerģija"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Siltumsūkņa dienas saules enerģija"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Siltumsūkņa dienas akumulatora enerģija"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Siltumsūkņa SG-Ready vārtejas statuss"
       }
     },
     "number": {

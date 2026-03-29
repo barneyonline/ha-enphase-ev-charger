@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Šilumos siurblio SG-Ready šliuzas"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Šilumos siurblio dienos energija"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Šilumos siurblio dienos tinklo energija"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Šilumos siurblio dienos saulės energija"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Šilumos siurblio dienos akumuliatoriaus energija"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Šilumos siurblio SG-Ready šliuzo būsena"
       }
     },
     "number": {

@@ -1036,8 +1036,16 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
                     },
                     "gatewayConnectivityDetails": [
                         "bad",
-                        {"gwConnStatus": 0},
-                        {"gwConnStatus": 1},
+                        {
+                            "gwConnStatus": 0,
+                            "gwConnFailureReason": 0,
+                            "lastConnTime": 1_714_550_000_000,
+                        },
+                        {
+                            "gwConnStatus": 1,
+                            "gwConnFailureReason": 7,
+                            "lastConnTime": 1_714_550_600_000,
+                        },
                     ],
                 },
                 {
@@ -1108,6 +1116,11 @@ async def test_async_update_data_handles_complex_payload(monkeypatch, hass):
     assert data["EV1"]["functional_validation_updated_at"] == 1714550000
     assert data["EV1"]["gateway_connection_count"] == 3
     assert data["EV1"]["gateway_connected_count"] == 1
+    assert data["EV1"]["gateway_last_connection_at"] == 1714550600
+    assert data["EV1"]["gateway_connectivity_details"] == [
+        {"status": 0, "failure_reason": 0, "last_connection_at": 1714550000},
+        {"status": 1, "failure_reason": 7, "last_connection_at": 1714550600},
+    ]
 
     assert data["EV2"]["suspended_by_evse"] is True
     assert isinstance(data["EV2"]["session_end"], int)

@@ -18,7 +18,9 @@ from custom_components.enphase_ev import api
 from custom_components.enphase_ev.const import (
     AUTH_APP_SETTING,
     AUTH_RFID_SETTING,
+    DEFAULT_CHARGE_LEVEL_SETTING,
     GREEN_BATTERY_SETTING,
+    PHASE_SWITCH_CONFIG_SETTING,
 )
 
 TEST_EVSE_SERIAL = "EVSE-SERIAL-0001"
@@ -2401,6 +2403,29 @@ async def test_charge_mode_extracts_enabled_mode() -> None:
 
 
 @pytest.mark.asyncio
+async def test_charge_mode_extracts_enabled_smart_mode() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "modes": {
+                    "smartCharging": {
+                        "enabled": True,
+                        "chargingMode": "SMART_CHARGING",
+                    },
+                    "scheduledCharging": {
+                        "enabled": False,
+                        "chargingMode": "SCHEDULED_CHARGING",
+                    },
+                }
+            }
+        }
+    )
+
+    assert await client.charge_mode("SN") == "SMART_CHARGING"
+
+
+@pytest.mark.asyncio
 async def test_charge_mode_handles_unexpected_shape() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": {"modes": "invalid"}})
@@ -2998,6 +3023,31 @@ async def test_charger_auth_settings_filters_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_charger_auth_settings_retries_without_authorization_on_401() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(
+                status=200,
+                json_body={"data": [{"key": AUTH_APP_SETTING, "value": None}]},
+            ),
+        ]
+    )
+    client = _make_client(session)
+
+    settings = await client.charger_auth_settings("SN")
+
+    assert settings == [{"key": AUTH_APP_SETTING, "value": None}]
+    assert len(session.calls) == 2
+    first_headers = session.calls[0][2]["headers"]
+    second_headers = session.calls[1][2]["headers"]
+    assert "Authorization" in first_headers
+    assert "e-auth-token" in first_headers
+    assert "Authorization" not in second_headers
+    assert "e-auth-token" not in second_headers
+
+
+@pytest.mark.asyncio
 async def test_charger_auth_settings_handles_non_dict_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value=["bad"])
@@ -3009,6 +3059,68 @@ async def test_charger_auth_settings_handles_non_list_data() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"data": "nope"})
     assert await client.charger_auth_settings("SN") == []
+
+
+@pytest.mark.asyncio
+async def test_charger_config_filters_payload_and_passes_requested_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": [
+                {"key": DEFAULT_CHARGE_LEVEL_SETTING, "value": None},
+                {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+                "invalid",
+            ]
+        }
+    )
+
+    settings = await client.charger_config(
+        "SN",
+        [DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING],
+    )
+
+    assert settings == [
+        {"key": DEFAULT_CHARGE_LEVEL_SETTING, "value": None},
+        {"key": PHASE_SWITCH_CONFIG_SETTING, "value": "auto"},
+    ]
+    args, kwargs = client._json.await_args
+    assert args[0] == "POST"
+    assert "ev_charger_config" in args[1]
+    assert kwargs["json"] == [
+        {"key": DEFAULT_CHARGE_LEVEL_SETTING},
+        {"key": PHASE_SWITCH_CONFIG_SETTING},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_charger_config_normalizes_requested_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": []})
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    await client.charger_config(
+        "SN",
+        ["", DEFAULT_CHARGE_LEVEL_SETTING, DEFAULT_CHARGE_LEVEL_SETTING, _BadKey()],
+    )
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["json"] == [{"key": DEFAULT_CHARGE_LEVEL_SETTING}]
+
+
+@pytest.mark.asyncio
+async def test_charger_config_returns_empty_when_no_valid_keys() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": []})
+
+    class _BadKey:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert await client.charger_config("SN", ["", _BadKey()]) == []
+    client._json.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -3398,8 +3510,9 @@ async def test_hems_consumption_lifetime_uses_control_headers() -> None:
 @pytest.mark.asyncio
 async def test_hems_heatpump_state_normalization_and_headers() -> None:
     client = _make_client()
+    cookie_token = _make_token({"user_id": "user-123"})
     client.update_credentials(
-        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        cookie=f"enlighten_manager_token_production={cookie_token}; XSRF-TOKEN=xsrf",
         eauth="EAUTH",
     )
     client._json = AsyncMock(
@@ -3421,6 +3534,8 @@ async def test_hems_heatpump_state_normalization_and_headers() -> None:
     assert payload == {
         "type": "hems-heatpump-details",
         "timestamp": "2026-03-20T08:19:17.945447902Z",
+        "endpoint_type": "hems-heatpump-details",
+        "endpoint_timestamp": "2026-03-20T08:19:17.945447902Z",
         "device_uid": "HP-1",
         "heatpump_status": "RUNNING",
         "sg_ready_mode_raw": "MODE_3",
@@ -3438,9 +3553,11 @@ async def test_hems_heatpump_state_normalization_and_headers() -> None:
     )
     assert callable(kwargs["headers"])
     headers = kwargs["headers"]()
-    assert headers["Authorization"] == "Bearer BEAR"
+    assert headers["Authorization"] == f"Bearer {cookie_token}"
     assert headers["e-auth-token"] == "EAUTH"
     assert headers["X-CSRF-Token"] == "xsrf"
+    assert headers["username"] == "user-123"
+    assert headers["requestId"]
 
 
 def test_hems_heatpump_state_normalizers_cover_edge_cases() -> None:
@@ -3478,6 +3595,8 @@ def test_hems_heatpump_state_normalizers_cover_edge_cases() -> None:
     ) == {
         "type": "hems-heatpump-details",
         "timestamp": None,
+        "endpoint_type": "hems-heatpump-details",
+        "endpoint_timestamp": None,
         "device_uid": "HP-2",
         "heatpump_status": "IDLE",
         "sg_ready_mode_raw": "MODE_2",
@@ -3602,6 +3721,8 @@ def test_hems_energy_consumption_normalizers_cover_edge_cases() -> None:
     ) == {
         "type": "hems-device-details",
         "timestamp": "2026-03-20T07:53:00.739143826Z",
+        "endpoint_type": "hems-device-details",
+        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
         "data": {
             "heat-pump": [
                 {
@@ -3679,6 +3800,8 @@ async def test_hems_energy_consumption_normalization_and_query() -> None:
     assert payload == {
         "type": "hems-device-details",
         "timestamp": "2026-03-20T07:53:00.739143826Z",
+        "endpoint_type": "hems-device-details",
+        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
         "data": {
             "heat-pump": [
                 {
@@ -3711,12 +3834,17 @@ async def test_hems_energy_consumption_normalization_and_query() -> None:
             ],
         },
     }
-    args, _kwargs = client._json.await_args
+    args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert "from=2026-03-20T00:00:00%2B01:00" in args[1]
     assert "to=2026-03-21T00:00:00%2B01:00" in args[1]
     assert "timezone=Europe/Berlin" in args[1]
     assert "step=P1D" in args[1]
+    assert callable(kwargs["headers"])
+    headers = kwargs["headers"]()
+    assert headers["Authorization"] == "Bearer EAUTH"
+    assert headers["e-auth-token"] == "EAUTH"
+    assert headers["requestId"]
 
 
 @pytest.mark.asyncio
@@ -3807,8 +3935,9 @@ async def test_hems_energy_consumption_optional_and_reraise_variants() -> None:
 @pytest.mark.asyncio
 async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     client = _make_client()
+    cookie_token = _make_token({"user_id": "user-123"})
     client.update_credentials(
-        cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
+        cookie=f"enlighten_manager_token_production={cookie_token}; XSRF-TOKEN=xsrf",
         eauth="EAUTH",
     )
     client._json = AsyncMock(return_value={"data": {"hems-devices": {}}})
@@ -3822,9 +3951,11 @@ async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     assert args[1].endswith("/api/v1/hems/SITE/hems-devices?refreshData=false")
     assert callable(kwargs["headers"])
     headers = kwargs["headers"]()
-    assert headers["Authorization"] == "Bearer BEAR"
+    assert headers["Authorization"] == f"Bearer {cookie_token}"
     assert headers["e-auth-token"] == "EAUTH"
     assert headers["X-CSRF-Token"] == "xsrf"
+    assert headers["username"] == "user-123"
+    assert headers["requestId"]
 
 
 @pytest.mark.asyncio
@@ -4597,6 +4728,7 @@ async def test_hems_power_timeseries_normalization() -> None:
     client = _make_client()
     client._json = AsyncMock(
         return_value={
+            "device_uid": "HP-1",
             "heat_pump_consumption": [None, "1200.5", "bad", 900],
             "startDate": "2026-02-27T00:00:00Z",
             "interval": "5",
@@ -4606,6 +4738,7 @@ async def test_hems_power_timeseries_normalization() -> None:
     payload = await client.hems_power_timeseries(device_uid="HP-1")
 
     assert payload == {
+        "device_uid": "HP-1",
         "heat_pump_consumption": [None, 1200.5, None, 900.0],
         "start_date": "2026-02-27T00:00:00Z",
         "interval_minutes": 5.0,
@@ -4985,6 +5118,41 @@ async def test_hems_power_timeseries_optional_invalid_payload_logs_redacted_summ
     assert "[redacted]" in caplog.text
 
 
+@pytest.mark.asyncio
+async def test_hems_power_timeseries_success_logs_redacted_response_summary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "device_uid": "DEVICE-UID-123456789",
+            "heat_pump_consumption": [None, "550.5", 0],
+            "startDate": "2026-02-27T00:00:00Z",
+            "intervalMinutes": "5",
+        }
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        payload = await client.hems_power_timeseries(
+            device_uid="DEVICE-UID-123456789",
+            site_date="2026-03-13",
+        )
+
+    assert payload == {
+        "device_uid": "DEVICE-UID-123456789",
+        "heat_pump_consumption": [None, 550.5, 0.0],
+        "start_date": "2026-02-27T00:00:00Z",
+        "interval_minutes": 5.0,
+    }
+    assert "HEMS power endpoint response summary for site [site]" in caplog.text
+    assert "DEVICE-UID-123456789" not in caplog.text
+    assert "/systems/SITE/hems_power_timeseries" not in caplog.text
+    assert "DEVI...6789" in caplog.text
+    assert "/systems/[site]/hems_power_timeseries" in caplog.text
+    assert "'bucket_count': 3" in caplog.text
+    assert "'latest_non_null_value': 0.0" in caplog.text
+
+
 def test_is_hems_invalid_date_error_handles_unstringable_message() -> None:
     class _BadString:
         def __str__(self) -> str:
@@ -5034,12 +5202,14 @@ def test_normalize_hems_power_timeseries_payload_accepts_alias_keys() -> None:
     assert client._normalize_hems_power_timeseries_payload(  # noqa: SLF001
         {
             "data": {
+                "uid": "HP-1",
                 "heatpump_consumption": [None, "550.5", "bad"],
                 "startDate": "2026-02-27T00:00:00Z",
                 "intervalMinutes": "5",
             }
         }
     ) == {
+        "device_uid": "HP-1",
         "heat_pump_consumption": [None, 550.5, None],
         "start_date": "2026-02-27T00:00:00Z",
         "interval_minutes": 5.0,
@@ -5079,6 +5249,14 @@ def test_normalize_hems_power_timeseries_payload_skips_non_list_alias_values() -
         "heat_pump_consumption": [None, 525.0],
         "start_date": "2026-03-01T00:00:00Z",
         "interval_minutes": 5.0,
+    }
+
+
+def test_debug_hems_power_timeseries_summary_handles_non_dict_payload() -> None:
+    client = _make_client()
+
+    assert client._debug_hems_power_timeseries_summary(None) == {  # noqa: SLF001
+        "payload_type": "NoneType"
     }
 
 
@@ -5217,6 +5395,71 @@ async def test_auth_settings_reraise_non_service_errors(monkeypatch) -> None:
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
     with pytest.raises(aiohttp.ClientResponseError):
         await client.set_app_authentication("SN", enabled=False)
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_reraises_retry_error(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(side_effect=[api.Unauthorized(), _make_cre(400, "Bad")]),
+    )
+    with pytest.raises(aiohttp.ClientResponseError) as ctx:
+        await client.charger_auth_settings("SN")
+
+    assert ctx.value.status == 400
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_wraps_retry_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=[api.Unauthorized(), _make_cre(503, "Service Unavailable")]
+        ),
+    )
+    with pytest.raises(api.AuthSettingsUnavailable):
+        await client.charger_auth_settings("SN")
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_unauthorized_without_control_auth_reraises() -> (
+    None
+):
+    client = api.EnphaseEVClient(_DefaultSession(), "SITE", None, "COOKIE")
+    client._json = AsyncMock(side_effect=api.Unauthorized())
+
+    with pytest.raises(api.Unauthorized):
+        await client.charger_auth_settings("SN")
+
+
+@pytest.mark.asyncio
+async def test_charger_auth_settings_retries_without_auth_on_403(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client,
+        "_json",
+        AsyncMock(
+            side_effect=[
+                _make_cre(403, "Forbidden"),
+                {"data": [{"key": AUTH_APP_SETTING, "value": "enabled"}]},
+            ]
+        ),
+    )
+
+    settings = await client.charger_auth_settings("SN")
+
+    assert settings == [{"key": AUTH_APP_SETTING, "value": "enabled"}]
+    first_call = client._json.await_args_list[0]
+    second_call = client._json.await_args_list[1]
+    assert first_call.kwargs["headers"] == {"Authorization": "Bearer EAUTH"}
+    assert second_call.kwargs["headers"] == {
+        "Authorization": None,
+        "e-auth-token": None,
+    }
 
 
 @pytest.mark.asyncio

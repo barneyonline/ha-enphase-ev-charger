@@ -312,6 +312,96 @@ def test_type_device_envoy_prefers_system_controller_metadata(
     )  # noqa: SLF001
 
 
+def test_type_device_envoy_falls_back_to_gateway_member_metadata(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 3,
+                "devices": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-123",
+                        "sku_id": "SC100G-M230ROW",
+                        "envoy_sw_version": "D8.3.5167",
+                    },
+                    {
+                        "name": "Consumption Meter",
+                        "channel_type": "consumption_meter",
+                        "serial_number": "CM-123",
+                    },
+                    {
+                        "name": "Production Meter",
+                        "channel_type": "production_meter",
+                        "serial_number": "PM-123",
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    assert coord.type_device_name("envoy") == "IQ Gateway"
+    assert coord.type_device_model("envoy") == "IQ Gateway"
+    assert coord.type_device_serial_number("envoy") == "GW-123"
+    assert coord.type_device_model_id("envoy") == "SC100G-M230ROW"
+    assert coord.type_device_sw_version("envoy") == "D8.3.5167"
+
+    info = coord.type_device_info("envoy")
+    assert info is not None
+    assert info["name"] == "IQ Gateway"
+    assert info["model"] == "IQ Gateway"
+    assert info["serial_number"] == "GW-123"
+    assert info["model_id"] == "SC100G-M230ROW"
+    assert info["sw_version"] == "D8.3.5167"
+
+
+def test_type_device_envoy_does_not_promote_localized_meters_to_gateway(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "IQ Envoy",
+                        "serial_number": "GW-EIM1",
+                        "channel_type": "Compteur de production integre Enphase",
+                    },
+                    {
+                        "name": "IQ Envoy",
+                        "serial_number": "GW-EIM2",
+                        "channel_type": "Compteur de consommation integre Enphase",
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    assert coord.type_device_name("envoy") == "IQ Gateway"
+    assert coord.type_device_model("envoy") == "IQ Gateway"
+    assert coord.type_device_serial_number("envoy") is None
+    assert coord.type_device_model_id("envoy") is None
+    assert coord.type_device_sw_version("envoy") is None
+
+    info = coord.type_device_info("envoy")
+    assert info is not None
+    assert info["name"] == "IQ Gateway"
+    assert info["model"] == "IQ Gateway"
+    assert "serial_number" not in info
+    assert "model_id" not in info
+    assert "sw_version" not in info
+
+
 def test_type_device_summary_helpers_for_battery_and_microinverter(
     hass, monkeypatch
 ) -> None:
@@ -2544,6 +2634,8 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     assert set_buckets.call_args.kwargs["authoritative"] is False
     assert coord._battery_storage_order == ["BAT-1"]  # noqa: SLF001
     assert coord._inverter_order == ["INV-1"]  # noqa: SLF001
+    assert coord.inventory_runtime.iter_inverter_serials() == ["INV-1"]
+    assert coord.inventory_runtime.inverter_data("INV-1") == {"name": "Inverter"}
     assert coord._restored_site_energy_channels == {"heat_pump"}  # noqa: SLF001
     assert coord._restored_gateway_iq_energy_router_records == [  # noqa: SLF001
         {"device-uid": "REST-1"}
@@ -2801,6 +2893,14 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
     coord._async_resolve_auth_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         return_value={RANDOM_SERIAL: (True, False, True, True)}
     )
+    coord._async_resolve_charger_config = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={
+            RANDOM_SERIAL: {
+                "phase_switch_config": "auto",
+                "DefaultChargeLevel": None,
+            }
+        }
+    )
     await coord._async_refresh_secondary_evse_state_for_warmup()  # noqa: SLF001
     merged_secondary = set_updated.call_args_list[-1].args[0]
     assert merged_secondary[RANDOM_SERIAL]["charge_mode_pref"] == "SCHEDULED"
@@ -2808,6 +2908,9 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
     assert merged_secondary[RANDOM_SERIAL]["app_auth_supported"] is True
     assert merged_secondary[RANDOM_SERIAL]["rfid_auth_supported"] is True
     assert merged_secondary[RANDOM_SERIAL]["auth_required"] is True
+    assert merged_secondary[RANDOM_SERIAL]["phase_switch_config"] == "auto"
+    assert "default_charge_level" in merged_secondary[RANDOM_SERIAL]
+    assert merged_secondary[RANDOM_SERIAL]["default_charge_level"] is None
 
     coord.iter_serials = lambda: [""]  # type: ignore[assignment]
     await coord._async_refresh_secondary_evse_state_for_warmup()  # noqa: SLF001

@@ -1753,6 +1753,12 @@ class EnphaseEVClient:
         headers.update(self._control_headers())
         return headers
 
+    def _hems_auth_context(self) -> tuple[str | None, str | None]:
+        """Return the preferred HEMS bearer token and resolved user id."""
+
+        bearer = self._bearer() or self._eauth
+        return bearer, _jwt_user_id(bearer)
+
     @staticmethod
     def _system_dashboard_is_optional_error(err: Exception) -> bool:
         """Return True when a dashboard route should fall back or soft-fail."""
@@ -1788,7 +1794,12 @@ class EnphaseEVClient:
         """Return headers for HEMS read endpoints."""
 
         headers = dict(self._h)
-        headers.update(self._control_headers())
+        bearer, username = self._hems_auth_context()
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
+        if username:
+            headers["username"] = username
+        headers["requestId"] = str(uuid.uuid4())
         return headers
 
     def _battery_config_user_id(self) -> str | None:
@@ -2289,6 +2300,9 @@ class EnphaseEVClient:
         Accepts optional ``headers`` in kwargs which will be merged with the
         default headers for this client, allowing call-sites to add/override
         fields (e.g. Authorization) without causing duplicate parameter errors.
+        Header values explicitly set to ``None`` are removed from the merged
+        request headers, which allows per-request suppression of defaults such
+        as ``e-auth-token``.
         ``headers`` may also be a zero-argument callable so retries can rebuild
         auth-sensitive headers after a successful reauthentication callback.
         """
@@ -2307,7 +2321,11 @@ class EnphaseEVClient:
             else:
                 attempt_headers = extra_headers
             if isinstance(attempt_headers, dict):
-                base_headers.update(attempt_headers)
+                for header_key, header_value in attempt_headers.items():
+                    if header_value is None:
+                        base_headers.pop(header_key, None)
+                    else:
+                        base_headers[header_key] = header_value
 
             async with asyncio.timeout(self._timeout):
                 async with self._s.request(
@@ -2846,7 +2864,8 @@ class EnphaseEVClient:
 
         GET /service/evse_scheduler/api/v1/iqevc/charging-mode/<site>/<sn>/preference
         Requires Authorization: Bearer <jwt> in addition to existing cookies.
-        Returns one of: GREEN_CHARGING, SCHEDULED_CHARGING, MANUAL_CHARGING when enabled.
+        Returns one of: SMART_CHARGING, GREEN_CHARGING, SCHEDULED_CHARGING,
+        MANUAL_CHARGING when enabled.
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = dict(self._h)
@@ -2860,7 +2879,12 @@ class EnphaseEVClient:
         try:
             modes = (data.get("data") or {}).get("modes") or {}
             # Prefer the mode whose 'enabled' is true
-            for key in ("greenCharging", "scheduledCharging", "manualCharging"):
+            for key in (
+                "smartCharging",
+                "greenCharging",
+                "scheduledCharging",
+                "manualCharging",
+            ):
                 m = modes.get(key)
                 if isinstance(m, dict) and m.get("enabled"):
                     return m.get("chargingMode")
@@ -2872,7 +2896,8 @@ class EnphaseEVClient:
         """Set the charging mode via scheduler API.
 
         PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/<site>/<sn>/preference
-        Body: { "mode": "MANUAL_CHARGING" | "SCHEDULED_CHARGING" | "GREEN_CHARGING" }
+        Body: { "mode": "MANUAL_CHARGING" | "SCHEDULED_CHARGING" |
+        "GREEN_CHARGING" | "SMART_CHARGING" }
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = dict(self._h)
@@ -3250,18 +3275,67 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
             f"{sn}/ev_charger_config"
         )
-        headers = dict(self._h)
-        headers.update(self._control_headers())
-        payload = [
-            {"key": AUTH_RFID_SETTING},
-            {"key": AUTH_APP_SETTING},
-        ]
         try:
-            response = await self._json("POST", url, json=payload, headers=headers)
+            return await self.charger_config(
+                sn,
+                [AUTH_RFID_SETTING, AUTH_APP_SETTING],
+            )
         except aiohttp.ClientResponseError as err:
             if is_auth_settings_unavailable_error(err.message, err.status, url):
                 raise AuthSettingsUnavailable(str(err)) from err
             raise
+
+    async def charger_config(
+        self,
+        sn: str,
+        keys: Iterable[str],
+    ) -> list[dict[str, Any]]:
+        """Return raw charger config entries for the requested keys."""
+
+        normalized_keys: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            normalized_keys.append(key_text)
+        if not normalized_keys:
+            return []
+
+        url = (
+            f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
+            f"{sn}/ev_charger_config"
+        )
+        headers = dict(self._control_headers())
+        payload = [{"key": key} for key in normalized_keys]
+
+        async def _retry_without_control_auth() -> dict[str, Any]:
+            return await self._json(
+                "POST",
+                url,
+                json=payload,
+                headers={
+                    "Authorization": None,
+                    "e-auth-token": None,
+                },
+            )
+
+        try:
+            response = await self._json("POST", url, json=payload, headers=headers)
+        except Unauthorized:
+            if headers.get("Authorization"):
+                response = await _retry_without_control_auth()
+            else:
+                raise
+        except aiohttp.ClientResponseError as err:
+            if err.status == 403 and headers.get("Authorization"):
+                response = await _retry_without_control_auth()
+            else:
+                raise
         if not isinstance(response, dict):
             return []
         data = response.get("data")
@@ -4179,9 +4253,13 @@ class EnphaseEVClient:
             else data.get("sg-ready-mode")
         )
         details = cls._heatpump_sg_ready_mode_details(sg_ready_mode_raw)
+        endpoint_type = cls._clean_optional_text(payload.get("type"))
+        endpoint_timestamp = payload.get("timestamp")
         normalized: dict[str, object] = {
-            "type": cls._clean_optional_text(payload.get("type")),
-            "timestamp": payload.get("timestamp"),
+            "type": endpoint_type,
+            "timestamp": endpoint_timestamp,
+            "endpoint_type": endpoint_type,
+            "endpoint_timestamp": endpoint_timestamp,
             "device_uid": device_uid,
             "heatpump_status": heatpump_status,
             "sg_ready_mode_raw": sg_ready_mode_raw,
@@ -4253,9 +4331,13 @@ class EnphaseEVClient:
         if not isinstance(data, dict):
             data = payload
 
+        endpoint_type = cls._clean_optional_text(payload.get("type"))
+        endpoint_timestamp = payload.get("timestamp")
         normalized: dict[str, object] = {
-            "type": cls._clean_optional_text(payload.get("type")),
-            "timestamp": payload.get("timestamp"),
+            "type": endpoint_type,
+            "timestamp": endpoint_timestamp,
+            "endpoint_type": endpoint_type,
+            "endpoint_timestamp": endpoint_timestamp,
             "data": {
                 "heat-pump": [],
                 "evse": [],
@@ -4432,6 +4514,11 @@ class EnphaseEVClient:
         normalized: dict[str, object] = {
             "heat_pump_consumption": values,
         }
+        device_uid = data.get("device_uid")
+        if device_uid is None:
+            device_uid = data.get("uid")
+        if device_uid is not None:
+            normalized["device_uid"] = device_uid
         start_date = data.get("start_date")
         if start_date is None:
             start_date = data.get("startDate")
@@ -4507,6 +4594,62 @@ class EnphaseEVClient:
 
         return urls
 
+    def _debug_hems_power_timeseries_summary(
+        self,
+        payload: dict[str, object] | None,
+        *,
+        requested_device_uid: str | None = None,
+    ) -> dict[str, object]:
+        """Return a compact debug summary for normalized HEMS power payloads."""
+
+        if not isinstance(payload, dict):
+            return {"payload_type": type(payload).__name__}
+
+        values = payload.get("heat_pump_consumption")
+        bucket_count = 0
+        non_null_bucket_count = 0
+        latest_non_null_index: int | None = None
+        latest_non_null_value: float | None = None
+        if isinstance(values, list):
+            bucket_count = len(values)
+            for index in range(len(values) - 1, -1, -1):
+                numeric = self._coerce_lifetime_energy_value(values[index])
+                if numeric is None:
+                    continue
+                non_null_bucket_count += 1
+                if latest_non_null_index is None:
+                    latest_non_null_index = index
+                    latest_non_null_value = numeric
+
+        interval_minutes = self._coerce_lifetime_energy_value(
+            payload.get("interval_minutes")
+        )
+        response_uid = payload.get("device_uid") or payload.get("uid")
+        return {
+            "requested_device_uid": (
+                self._truncate_debug_identifier(requested_device_uid)
+                if requested_device_uid
+                else None
+            ),
+            "response_device_uid": (
+                self._truncate_debug_identifier(response_uid) if response_uid else None
+            ),
+            "bucket_count": bucket_count,
+            "non_null_bucket_count": non_null_bucket_count,
+            "latest_non_null_index": latest_non_null_index,
+            "latest_non_null_value": (
+                round(float(latest_non_null_value), 3)
+                if latest_non_null_value is not None
+                else None
+            ),
+            "start_date": payload.get("start_date"),
+            "interval_minutes": (
+                round(float(interval_minutes), 3)
+                if interval_minutes is not None
+                else None
+            ),
+        }
+
     async def hems_power_timeseries(
         self,
         device_uid: str | None = None,
@@ -4581,7 +4724,18 @@ class EnphaseEVClient:
                     return None
                 raise
             else:
-                return self._normalize_hems_power_timeseries_payload(data)
+                normalized = self._normalize_hems_power_timeseries_payload(data)
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug(
+                        "HEMS power endpoint response summary for site %s: context=%s summary=%s",
+                        redact_site_id(self._site),
+                        debug_context,
+                        self._debug_hems_power_timeseries_summary(
+                            normalized,
+                            requested_device_uid=device_uid,
+                        ),
+                    )
+                return normalized
 
     async def heat_pump_events_json(self, device_uid: str) -> dict | list | None:
         """Return per-device HEMS heat-pump events payload when available."""
