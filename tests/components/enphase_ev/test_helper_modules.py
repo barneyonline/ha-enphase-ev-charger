@@ -14,6 +14,7 @@ from multidict import CIMultiDict, CIMultiDictProxy
 from yarl import URL
 
 from custom_components.enphase_ev import session_history as sh_mod
+from custom_components.enphase_ev import runtime_helpers, system_dashboard_helpers
 from custom_components.enphase_ev.api import (
     InvalidPayloadError,
     SessionHistoryUnavailable,
@@ -30,6 +31,215 @@ from custom_components.enphase_ev.summary import (
     SUMMARY_ACTIVE_MIN_TTL,
     SUMMARY_IDLE_TTL,
 )
+
+
+def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    assert runtime_helpers.coerce_int(True) == 1
+    assert runtime_helpers.coerce_int(" 7 ") == 7
+    assert runtime_helpers.coerce_int("bad", default=9) == 9
+    assert runtime_helpers.coerce_optional_int(" 5 ") == 5
+    assert runtime_helpers.coerce_optional_int(BadStr()) is None
+    assert runtime_helpers.normalize_iso_date("2026-03-29") == "2026-03-29"
+    assert runtime_helpers.normalize_iso_date(BadStr()) is None
+    assert (
+        runtime_helpers.resolve_inverter_start_date(
+            {"start_date": "2022-08-10"},
+            {},
+        )
+        == "2022-08-10"
+    )
+    assert (
+        runtime_helpers.resolve_inverter_start_date(
+            {},
+            {
+                "INV-B": {"lifetime_query_start_date": "2023-01-01"},
+                "INV-A": {"lifetime_query_start_date": "2022-08-10"},
+            },
+        )
+        == "2022-08-10"
+    )
+    assert runtime_helpers.resolve_inverter_start_date({}, {"INV-A": "bad"}) is None
+
+    assert (
+        runtime_helpers.resolve_site_timezone_name("Europe/Berlin") == "Europe/Berlin"
+    )
+    assert runtime_helpers.resolve_site_timezone_name("Bad/Zone") == "UTC"
+    assert (
+        runtime_helpers.resolve_site_local_current_date(
+            {"curr_date_site": "2026-03-29"},
+            None,
+        )
+        == "2026-03-29"
+    )
+    assert (
+        runtime_helpers.resolve_site_local_current_date(
+            {"result": [{"curr_date_site": "2026-03-28"}]},
+            None,
+        )
+        == "2026-03-28"
+    )
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.runtime_helpers.dt_util.now",
+        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    fallback_date = runtime_helpers.resolve_site_local_current_date({}, "Bad/Zone")
+    assert fallback_date == datetime.now(timezone.utc).date().isoformat()
+
+    original = {"a": [1, {"b": 2}], "token": "secret"}
+    copied = runtime_helpers.copy_diagnostics_value(original)
+    assert copied == original
+    assert copied is not original
+    assert copied["a"] is not original["a"]
+    assert runtime_helpers.redact_battery_payload(original) == {
+        "a": [1, {"b": 2}],
+        "token": "[redacted]",
+    }
+
+
+def test_system_dashboard_helpers_cover_core_paths(monkeypatch) -> None:
+    assert (
+        system_dashboard_helpers.dashboard_key_token("System Controller")
+        == "system_controller"
+    )
+    assert system_dashboard_helpers.dashboard_key_matches("meter_type", "meter")
+    assert system_dashboard_helpers.dashboard_simple_value({"a": [1, "x", None]}) == {
+        "a": [1, "x"]
+    }
+    assert list(
+        system_dashboard_helpers.iter_dashboard_mappings(
+            [{"status": "ok"}, {"nested": {"mode": "dhcp"}}]
+        )
+    ) == [{"status": "ok"}, {"nested": {"mode": "dhcp"}}, {"mode": "dhcp"}]
+    assert (
+        system_dashboard_helpers.dashboard_parent_id({"parentId": "PARENT"}) == "PARENT"
+    )
+    assert system_dashboard_helpers.system_dashboard_type_key("meters") == "envoy"
+    assert (
+        system_dashboard_helpers.system_dashboard_type_key("inverters")
+        == "microinverter"
+    )
+    assert system_dashboard_helpers.system_dashboard_battery_detail_subset(None) == {}
+    assert (
+        system_dashboard_helpers.system_dashboard_meter_kind({"meter_type": " "})
+        is None
+    )
+    assert system_dashboard_helpers.system_dashboard_detail_records(
+        {"envoys": {"envoys": {"devices": [{"id": "dup"}, {"id": "dup"}]}}},
+        "envoys",
+    ) == [{"id": "dup"}]
+
+    with monkeypatch.context() as nested:
+        nested.setattr(
+            "custom_components.enphase_ev.system_dashboard_helpers.dashboard_first_mapping",
+            lambda payload, *keys: "bad",
+        )
+        assert (
+            system_dashboard_helpers.system_dashboard_microinverter_summary(
+                {}, {}, None
+            )
+            == {}
+        )
+
+    tree_payload = {
+        "devices": [
+            {
+                "device_uid": "GW-1",
+                "type": "envoy",
+                "name": "Gateway",
+                "serial_number": "GW-1",
+                "children": [
+                    {"device_uid": "BAT-1", "type": "encharge", "name": "Battery"}
+                ],
+            }
+        ]
+    }
+    details_payloads = {
+        "envoy": {
+            "envoys": {
+                "envoys": [
+                    {
+                        "device_uid": "GW-1",
+                        "status": "online",
+                        "network": {"mode": "dhcp"},
+                    }
+                ]
+            },
+            "meters": {
+                "meters": [{"id": "1", "name": "M1", "meter_type": "consumption"}]
+            },
+        },
+        "encharge": {
+            "encharges": {
+                "encharges": [
+                    {
+                        "device_uid": "BAT-1",
+                        "serial_number": "BAT-1",
+                        "app_version": "1.2.3",
+                        "status": "ok",
+                    }
+                ]
+            }
+        },
+        "microinverter": {
+            "inverters": {
+                "inverters": {
+                    "total": 2,
+                    "not_reporting": 1,
+                    "items": [{"name": "IQ8", "count": 2}],
+                }
+            }
+        },
+    }
+
+    type_summaries, hierarchy_summary, hierarchy_index = (
+        system_dashboard_helpers.build_system_dashboard_summaries(
+            tree_payload, details_payloads
+        )
+    )
+    assert hierarchy_summary["total_nodes"] == 3
+    assert hierarchy_index["GW-1"]["type_key"] == "envoy"
+    assert type_summaries["envoy"]["meters"] == [
+        {"name": "M1", "meter_type": "consumption"}
+    ]
+    assert type_summaries["encharge"]["batteries"][0]["app_version"] == "1.2.3"
+    assert type_summaries["microinverter"]["connectivity"] == "degraded"
+    assert (
+        system_dashboard_helpers._format_inverter_model_summary(  # noqa: SLF001
+            {"": 1, "IQ7": "bad", "IQ8": 0, "IQ8M": 2}
+        )
+        == "IQ8M x2"
+    )
+    merged_index = system_dashboard_helpers.index_dashboard_nodes(
+        [
+            {"device_uid": "GW-1", "serial_number": "GW-1", "name": "Gateway"},
+            {"serial_number": "GW-1", "name": None, "type": "envoy"},
+        ]
+    )
+    assert merged_index["GW-1"]["name"] == "Gateway"
+    with monkeypatch.context() as nested:
+        original_node_entry = system_dashboard_helpers.dashboard_node_entry
+
+        def _fake_node_entry(payload, **kwargs):
+            entry = original_node_entry(payload, **kwargs)
+            if entry is not None and payload.get("serial_number") == "GW-1-ALIAS":
+                entry["name"] = None
+            return entry
+
+        nested.setattr(
+            system_dashboard_helpers, "dashboard_node_entry", _fake_node_entry
+        )
+        merged_with_none = system_dashboard_helpers.index_dashboard_nodes(
+            [
+                {"device_uid": "GW-1", "serial_number": "GW-1", "name": "Gateway"},
+                {"serial_number": "GW-1-ALIAS", "id": "GW-1", "name": "Alias"},
+            ]
+        )
+        assert merged_with_none["GW-1"]["name"] == "Gateway"
 
 
 class _DummySummaryClient:

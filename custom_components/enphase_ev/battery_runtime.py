@@ -37,6 +37,12 @@ from .const import (
 )
 from .device_types import member_is_retired, sanitize_member
 from .log_redaction import redact_identifier, redact_site_id, redact_text
+from .parsing_helpers import (
+    coerce_optional_bool,
+    coerce_optional_float,
+    coerce_optional_text,
+)
+from .runtime_helpers import coerce_int, coerce_optional_int
 from .service_validation import raise_translated_service_validation
 from .state_models import BatteryControlCapability
 
@@ -79,63 +85,19 @@ class BatteryRuntime:
             func()
 
     def _coerce_int(self, value: object, *, default: int = 0) -> int:
-        coord = self.coordinator
-        func = getattr(coord, "coerce_int", None)
-        if callable(func):
-            return func(value, default=default)
-        func = getattr(coord, "_coerce_int", None)
-        if callable(func):
-            return func(value, default=default)
-        try:
-            return int(value)
-        except Exception:
-            return default
+        return coerce_int(value, default=default)
 
     def _coerce_optional_bool(self, value: object) -> bool | None:
-        coord = self.coordinator
-        func = getattr(coord, "coerce_optional_bool", None)
-        if callable(func):
-            return func(value)
-        func = getattr(coord, "_coerce_optional_bool", None)
-        if callable(func):
-            return func(value)
-        return None
+        return coerce_optional_bool(value)
 
     def _coerce_optional_text(self, value: object) -> str | None:
-        coord = self.coordinator
-        func = getattr(coord, "coerce_optional_text", None)
-        if callable(func):
-            return func(value)
-        func = getattr(coord, "_coerce_optional_text", None)
-        if callable(func):
-            return func(value)
-        if value is None:
-            return None
-        try:
-            text = str(value).strip()
-        except Exception:
-            return None
-        return text or None
+        return coerce_optional_text(value)
 
     def _coerce_optional_int(self, value: object) -> int | None:
-        coord = self.coordinator
-        func = getattr(coord, "coerce_optional_int", None)
-        if callable(func):
-            return func(value)
-        func = getattr(coord, "_coerce_optional_int", None)
-        if callable(func):
-            return func(value)
-        return None
+        return coerce_optional_int(value)
 
     def _coerce_optional_float(self, value: object) -> float | None:
-        coord = self.coordinator
-        func = getattr(coord, "coerce_optional_float", None)
-        if callable(func):
-            return func(value)
-        func = getattr(coord, "_coerce_optional_float", None)
-        if callable(func):
-            return func(value)
-        return None
+        return coerce_optional_float(value)
 
     def _coerce_optional_kwh(self, value: object) -> float | None:
         func = getattr(self.coordinator, "_coerce_optional_kwh", None)
