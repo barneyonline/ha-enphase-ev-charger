@@ -73,6 +73,8 @@ HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_min_amp",
     "_max_amp",
     "_connection",
+    "_reporting_interval",
+    "_ip_address",
 )
 SITE_LIFETIME_FLOW_BUCKET_LENGTH_KEYS: dict[str, tuple[str, ...]] = {
     "grid_import": ("import", "grid_home", "grid_battery"),
@@ -301,11 +303,18 @@ async def async_setup_entry(
             if entry_config_id is not None and entry_config_id != entry.entry_id:
                 continue
             unique_id = _gateway_clean_text(getattr(reg_entry, "unique_id", None))
-            if not unique_id or not unique_id.startswith(unique_prefix):
-                continue
-            if not unique_id.endswith(unique_suffix):
-                continue
-            type_key = unique_id[len(unique_prefix) : -len(unique_suffix)]
+            type_key = None
+            if unique_id and unique_id.startswith(unique_prefix):
+                if not unique_id.endswith(unique_suffix):
+                    continue
+                type_key = unique_id[len(unique_prefix) : -len(unique_suffix)]
+            else:
+                entity_slug = reg_entry.entity_id.partition(".")[2]
+                if "drycontactloads" not in entity_slug or not entity_slug.endswith(
+                    "_inventory"
+                ):
+                    continue
+                type_key = "drycontactloads"
             if not _is_dry_contact_type_key(type_key):
                 continue
             ent_reg.async_remove(reg_entry.entity_id)

@@ -2488,6 +2488,66 @@ async def test_migrate_cloud_entity_unique_ids_preserves_legacy_entity_id(
     assert migrated.unique_id == f"{DOMAIN}_site_{site_id}_current_production_power"
 
 
+@pytest.mark.asyncio
+async def test_migrate_cloud_entity_unique_ids_updates_cloud_last_error_alias(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    legacy = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error",
+        config_entry=config_entry,
+        original_name="Cloud Last Error",
+    )
+
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    migrated = ent_reg.async_get(legacy.entity_id)
+    assert migrated is not None
+    assert migrated.entity_id == legacy.entity_id
+    assert migrated.unique_id == f"{DOMAIN}_site_{site_id}_last_error_code"
+
+
+@pytest.mark.asyncio
+async def test_migrate_cloud_entity_unique_ids_prefers_error_code_alias_and_prunes_duplicates(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    preferred = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error_code",
+        config_entry=config_entry,
+        original_name="Cloud Last Error Code",
+    )
+    duplicate_alias = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error",
+        config_entry=config_entry,
+        original_name="Cloud Last Error",
+    )
+    duplicate_target = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_site_{site_id}_last_error_code",
+        config_entry=config_entry,
+        original_name="Cloud Error Code",
+    )
+
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    migrated = ent_reg.async_get(preferred.entity_id)
+    assert migrated is not None
+    assert migrated.entity_id == preferred.entity_id
+    assert migrated.unique_id == f"{DOMAIN}_site_{site_id}_last_error_code"
+    assert ent_reg.async_get(duplicate_alias.entity_id) is None
+    assert ent_reg.async_get(duplicate_target.entity_id) is None
+
+
 def test_migrate_cloud_entity_unique_ids_handles_guard_paths(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:
@@ -2571,6 +2631,42 @@ def test_migrate_cloud_entity_unique_ids_handles_duplicate_remove_failure(
 
     monkeypatch.setattr(ent_reg, "async_remove", _raise_remove)
     _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+
+def test_migrate_cloud_entity_unique_ids_handles_duplicate_alias_remove_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    preferred = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error_code",
+        config_entry=config_entry,
+        original_name="Cloud Last Error Code",
+    )
+    duplicate_alias = ent_reg.async_get_or_create(
+        domain="sensor",
+        platform=DOMAIN,
+        unique_id=f"{DOMAIN}_{site_id}_cloud_last_error",
+        config_entry=config_entry,
+        original_name="Cloud Last Error",
+    )
+
+    original_remove = ent_reg.async_remove
+
+    def _raise_remove(entity_id: str) -> None:
+        if entity_id == duplicate_alias.entity_id:
+            raise RuntimeError("boom")
+        original_remove(entity_id)
+
+    monkeypatch.setattr(ent_reg, "async_remove", _raise_remove)
+    _migrate_cloud_entity_unique_ids(hass, config_entry, site_id)
+
+    reg_entry = ent_reg.async_get(preferred.entity_id)
+    assert reg_entry is not None
+    assert reg_entry.unique_id == f"{DOMAIN}_site_{site_id}_last_error_code"
+    assert ent_reg.async_get(duplicate_alias.entity_id) is not None
 
 
 def test_migrate_cloud_entity_unique_ids_handles_update_failure(

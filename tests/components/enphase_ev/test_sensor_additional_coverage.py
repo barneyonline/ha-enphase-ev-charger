@@ -351,6 +351,8 @@ async def test_async_setup_entry_prunes_historical_charger_sensor_entities(
         "_min_amp",
         "_max_amp",
         "_connection",
+        "_reporting_interval",
+        "_ip_address",
     )
 
     entities: dict[str, Any] = {}
@@ -5737,6 +5739,58 @@ async def test_async_setup_entry_prunes_stale_dry_contact_type_inventory_entity(
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
     fake_registry.async_remove.assert_any_call("sensor.dry_contact_inventory")
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_legacy_drycontactloads_inventory_entity_id(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"name": "System Controller", "channel_type": "enpower"}],
+            },
+            "dry_contact": {
+                "type_key": "dry_contact",
+                "type_label": "Dry Contact",
+                "count": 1,
+                "devices": [{"name": "Dry Contact 1", "statusText": "Closed"}],
+            },
+        },
+        ["envoy", "dry_contact"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    fake_registry = SimpleNamespace(
+        entities={
+            "sensor.drycontactloads_drycontactloads_inventory": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.drycontactloads_drycontactloads_inventory",
+                platform="enphase_ev",
+                config_entry_id=config_entry.entry_id,
+                unique_id=None,
+            )
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_called_once_with(
+        "sensor.drycontactloads_drycontactloads_inventory"
+    )
 
 
 @pytest.mark.asyncio
