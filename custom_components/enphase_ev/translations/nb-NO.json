@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Batteriets ladegrense"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Grense for utlading til nettet"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Grense for begrensning av batteriutlading"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Tidsplan for lading fra strømnettet"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Plan for utlading til nettet"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Plan for begrensning av batteriutlading"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Sluttid for lading fra strømnettet"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Starttid for utlading til nettet"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Sluttid for utlading til nettet"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Starttid for begrensning av batteriutlading"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Sluttid for begrensning av batteriutlading"
       }
     },
     "calendar": {

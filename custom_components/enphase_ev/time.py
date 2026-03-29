@@ -94,6 +94,42 @@ def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
     return begin is not None and end is not None
 
 
+def _dtg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
+    if getattr(coord, "discharge_to_grid_schedule_available", False):
+        return True
+    if not getattr(coord, "discharge_to_grid_schedule_supported", False):
+        return False
+    start_time = getattr(coord, "battery_discharge_to_grid_start_time", None)
+    end_time = getattr(coord, "battery_discharge_to_grid_end_time", None)
+    if start_time is not None and end_time is not None:
+        return True
+    begin = getattr(coord, "_battery_dtg_begin_time", None)
+    end = getattr(coord, "_battery_dtg_end_time", None)
+    if begin is None:
+        begin = getattr(coord, "_battery_dtg_control_begin_time", None)
+    if end is None:
+        end = getattr(coord, "_battery_dtg_control_end_time", None)
+    return begin is not None and end is not None
+
+
+def _rbd_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
+    if getattr(coord, "restrict_battery_discharge_schedule_available", False):
+        return True
+    if not getattr(coord, "restrict_battery_discharge_schedule_supported", False):
+        return False
+    start_time = getattr(coord, "battery_restrict_battery_discharge_start_time", None)
+    end_time = getattr(coord, "battery_restrict_battery_discharge_end_time", None)
+    if start_time is not None and end_time is not None:
+        return True
+    begin = getattr(coord, "_battery_rbd_begin_time", None)
+    end = getattr(coord, "_battery_rbd_end_time", None)
+    if begin is None:
+        begin = getattr(coord, "_battery_rbd_control_begin_time", None)
+    if end is None:
+        end = getattr(coord, "_battery_rbd_control_end_time", None)
+    return begin is not None and end is not None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -134,7 +170,14 @@ async def async_setup_entry(
         if not _site_has_battery(coord) or not _type_available(coord, "encharge"):
             return
         async_add_entities(
-            [ChargeFromGridStartTimeEntity(coord), ChargeFromGridEndTimeEntity(coord)],
+            [
+                ChargeFromGridStartTimeEntity(coord),
+                ChargeFromGridEndTimeEntity(coord),
+                DischargeToGridStartTimeEntity(coord),
+                DischargeToGridEndTimeEntity(coord),
+                RestrictBatteryDischargeStartTimeEntity(coord),
+                RestrictBatteryDischargeEndTimeEntity(coord),
+            ],
             update_before_add=False,
         )
         site_entities_added = True
@@ -215,3 +258,126 @@ class ChargeFromGridEndTimeEntity(_BaseChargeFromGridTimeEntity):
             await self._coord.async_set_charge_from_grid_schedule_time(end=value)
             return
         await self._coord.async_update_cfg_schedule(end=value)
+
+
+class _BaseNamedBatteryScheduleTimeEntity(CoordinatorEntity, TimeEntity):
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        *,
+        suffix: str,
+        availability_check,
+        value_attr: str,
+        setter_name: str,
+        suggested_object_id: str,
+    ) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._availability_check = availability_check
+        self._value_attr = value_attr
+        self._setter_name = setter_name
+        self._suggested_object_id = suggested_object_id
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{suffix}"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return _type_available(self._coord, "encharge") and self._availability_check(
+            self._coord
+        )
+
+    @property
+    def suggested_object_id(self) -> str | None:
+        return self._suggested_object_id
+
+    @property
+    def native_value(self) -> dt_time | None:
+        return getattr(self._coord, self._value_attr)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
+            manufacturer="Enphase",
+        )
+
+    async def async_set_value(self, value: dt_time) -> None:
+        await getattr(self._coord, self._setter_name)(
+            **{self._schedule_endpoint_key(): value}
+        )
+
+    def _schedule_endpoint_key(self) -> str:
+        return "start"
+
+
+class _BaseNamedBatteryScheduleStartTimeEntity(_BaseNamedBatteryScheduleTimeEntity):
+    def _schedule_endpoint_key(self) -> str:
+        return "start"
+
+
+class _BaseNamedBatteryScheduleEndTimeEntity(_BaseNamedBatteryScheduleTimeEntity):
+    def _schedule_endpoint_key(self) -> str:
+        return "end"
+
+
+class DischargeToGridStartTimeEntity(_BaseNamedBatteryScheduleStartTimeEntity):
+    _attr_translation_key = "discharge_to_grid_start_time"
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            suffix="discharge_to_grid_start_time",
+            availability_check=_dtg_schedule_edit_available,
+            value_attr="battery_discharge_to_grid_start_time",
+            setter_name="async_set_discharge_to_grid_schedule_time",
+            suggested_object_id="discharge_to_grid_schedule_from_time",
+        )
+
+
+class DischargeToGridEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEntity):
+    _attr_translation_key = "discharge_to_grid_end_time"
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            suffix="discharge_to_grid_end_time",
+            availability_check=_dtg_schedule_edit_available,
+            value_attr="battery_discharge_to_grid_end_time",
+            setter_name="async_set_discharge_to_grid_schedule_time",
+            suggested_object_id="discharge_to_grid_schedule_to_time",
+        )
+
+
+class RestrictBatteryDischargeStartTimeEntity(_BaseNamedBatteryScheduleStartTimeEntity):
+    _attr_translation_key = "restrict_battery_discharge_start_time"
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            suffix="restrict_battery_discharge_start_time",
+            availability_check=_rbd_schedule_edit_available,
+            value_attr="battery_restrict_battery_discharge_start_time",
+            setter_name="async_set_restrict_battery_discharge_schedule_time",
+            suggested_object_id="restrict_battery_discharge_schedule_from_time",
+        )
+
+
+class RestrictBatteryDischargeEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEntity):
+    _attr_translation_key = "restrict_battery_discharge_end_time"
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            suffix="restrict_battery_discharge_end_time",
+            availability_check=_rbd_schedule_edit_available,
+            value_attr="battery_restrict_battery_discharge_end_time",
+            setter_name="async_set_restrict_battery_discharge_schedule_time",
+            suggested_object_id="restrict_battery_discharge_schedule_to_time",
+        )

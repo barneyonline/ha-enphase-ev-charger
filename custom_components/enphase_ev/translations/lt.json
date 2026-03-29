@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Baterijos įkrovimo riba"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Iškrovimo į tinklą riba"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Baterijos iškrovimo ribojimo riba"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Įkrovimo iš tinklo tvarkaraštis"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Iškrovimo į tinklą tvarkaraštis"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Baterijos iškrovimo ribojimo tvarkaraštis"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Įkrovimo iš tinklo pabaigos laikas"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Iškrovimo į tinklą pradžios laikas"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Iškrovimo į tinklą pabaigos laikas"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Baterijos iškrovimo ribojimo pradžios laikas"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Baterijos iškrovimo ribojimo pabaigos laikas"
       }
     },
     "calendar": {

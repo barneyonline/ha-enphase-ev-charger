@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Limite di carica della batteria"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Limite di scarica verso la rete"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Limite di restrizione della scarica della batteria"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Programma carica da rete"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Programma di scarica verso la rete"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Programma di restrizione della scarica della batteria"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Ora di fine carica da rete"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Ora di inizio scarica verso la rete"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Ora di fine scarica verso la rete"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Ora di inizio restrizione della scarica della batteria"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Ora di fine restrizione della scarica della batteria"
       }
     },
     "calendar": {
