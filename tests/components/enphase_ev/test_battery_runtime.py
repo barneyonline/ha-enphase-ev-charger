@@ -22,9 +22,11 @@ def test_battery_runtime_normalizes_labels() -> None:
     runtime = BatteryRuntime(SimpleNamespace())
 
     assert runtime.normalize_battery_profile_key(" Cost_Savings ") == "cost_savings"
+    assert runtime.normalize_battery_profile_key("AI Optimization") == "ai_optimisation"
     assert runtime.normalize_battery_profile_key(None) is None
     assert runtime.battery_profile_label("ai_optimisation") == "AI Optimisation"
     assert runtime.battery_profile_label("backup_only") == "Full Backup"
+    assert runtime.battery_profile_label("ai_optimisation") == "AI Optimisation"
     assert runtime.battery_profile_label("regional-profile") == "Regional Profile"
     assert runtime.battery_profile_label(None) is None
 
@@ -112,6 +114,49 @@ def test_battery_runtime_target_reserve_and_current_savings_subtype(
 
     runtime.remember_battery_reserve("custom", 44)
     assert "custom" not in coord._battery_profile_reserve_memory
+
+
+def test_battery_runtime_remembers_ai_optimisation_reserve_from_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_profile_payload(
+        {
+            "profile": "self-consumption",
+            "batteryBackupPercentage": 20,
+            "previousBatteryBackupPercentage": {
+                "cost_savings": 49,
+                "ai_optimisation": 10,
+                "expert": 30,
+            },
+        }
+    )
+
+    assert coord._target_reserve_for_profile("cost_savings") == 49  # noqa: SLF001
+    assert coord._target_reserve_for_profile("ai_optimisation") == 10  # noqa: SLF001
+
+
+def test_battery_runtime_ignores_invalid_previous_reserve_entries(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    coord._battery_profile_reserve_memory = {}  # noqa: SLF001
+
+    runtime.remember_previous_battery_reserves(
+        {
+            "": 15,
+            "cost_savings": "invalid",
+            "ai_optimisation": 10,
+        }
+    )
+
+    assert "cost_savings" not in coord._battery_profile_reserve_memory  # noqa: SLF001
+    assert (
+        coord._battery_profile_reserve_memory["ai_optimisation"] == 10
+    )  # noqa: SLF001
 
 
 def test_battery_runtime_current_savings_subtype_uses_coordinator_property() -> None:
@@ -605,6 +650,33 @@ def test_battery_runtime_profile_option_passthrough_for_unknown_mode(
     assert (
         "regional_special" not in coord._battery_profile_reserve_memory
     )  # noqa: SLF001
+
+
+def test_battery_runtime_parse_site_settings_payload_supports_ai_optimisation_flag(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_site_settings_payload(
+        {
+            "data": {
+                "showChargeFromGrid": True,
+                "showSavingsMode": False,
+                "showAiOptiSavingsMode": True,
+                "isEmea": False,
+                "showFullBackup": True,
+            }
+        }
+    )
+
+    assert coord._battery_show_ai_optimisation_mode is True  # noqa: SLF001
+    assert coord.battery_is_emea is False
+    assert coord.battery_profile_option_keys == [
+        "self-consumption",
+        "ai_optimisation",
+        "backup_only",
+    ]
+    assert coord.battery_profile_option_labels["ai_optimisation"] == "AI Optimisation"
 
 
 def test_battery_runtime_parse_profile_payload_clears_pending_exact_match(
