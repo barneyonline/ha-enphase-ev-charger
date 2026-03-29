@@ -106,6 +106,55 @@ async def test_async_setup_entry_syncs_binary_sensors(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_historical_charger_binary_sensor_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    fake_registry = SimpleNamespace(
+        entities={
+            "binary_sensor.old_commissioned": SimpleNamespace(
+                entity_id="binary_sensor.old_commissioned",
+                domain="binary_sensor",
+                platform=DOMAIN,
+                unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_commissioned",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "binary_sensor.old_problem": SimpleNamespace(
+                entity_id="binary_sensor.old_problem",
+                domain="binary_sensor",
+                platform=DOMAIN,
+                unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_charger_problem",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "binary_sensor.keep_connected": SimpleNamespace(
+                entity_id="binary_sensor.keep_connected",
+                domain="binary_sensor",
+                platform=DOMAIN,
+                unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_connected",
+                config_entry_id=config_entry.entry_id,
+            ),
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.binary_sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        coord, "async_add_topology_listener", lambda callback: _stub_listener()
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert fake_registry.async_remove.call_count == 2
+    fake_registry.async_remove.assert_any_call("binary_sensor.old_commissioned")
+    fake_registry.async_remove.assert_any_call("binary_sensor.old_problem")
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_falls_back_to_generic_listener_for_binary_sensors(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:

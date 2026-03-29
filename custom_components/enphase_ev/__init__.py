@@ -662,24 +662,56 @@ def _migrate_cloud_entity_unique_ids(
     migrated = 0
     removed = 0
     rename_specs = (
-        ("sensor", "current_power_consumption", "current_production_power"),
+        (
+            "sensor",
+            "current_production_power",
+            (("current_power_consumption", False),),
+        ),
+        (
+            "sensor",
+            "last_error_code",
+            (
+                ("cloud_last_error_code", True),
+                ("cloud_last_error", True),
+            ),
+        ),
     )
 
-    for domain, old_suffix, new_suffix in rename_specs:
-        old_unique_id = f"{DOMAIN}_site_{site_id_text}_{old_suffix}"
-        new_unique_id = f"{DOMAIN}_site_{site_id_text}_{new_suffix}"
-        old_entity_id = _find_entity_id_by_unique_id(
-            ent_reg, domain, old_unique_id, entry_id=entry_id
-        )
-        if not old_entity_id:
-            continue
+    def _candidate_unique_ids(
+        suffix: str, *, include_legacy_prefix: bool
+    ) -> tuple[str, ...]:
+        unique_ids = [f"{DOMAIN}_site_{site_id_text}_{suffix}"]
+        if include_legacy_prefix:
+            unique_ids.append(f"{DOMAIN}_{site_id_text}_{suffix}")
+        return tuple(unique_ids)
 
-        new_entity_id = _find_entity_id_by_unique_id(
+    for domain, new_suffix, source_specs in rename_specs:
+        new_unique_id = f"{DOMAIN}_site_{site_id_text}_{new_suffix}"
+        target_entity_id = _find_entity_id_by_unique_id(
             ent_reg, domain, new_unique_id, entry_id=entry_id
         )
-        if new_entity_id and new_entity_id != old_entity_id:
+        source_entity_ids: list[tuple[str, str]] = []
+        seen_entity_ids: set[str] = set()
+        for old_suffix, include_legacy_prefix in source_specs:
+            for old_unique_id in _candidate_unique_ids(
+                old_suffix,
+                include_legacy_prefix=include_legacy_prefix,
+            ):
+                old_entity_id = _find_entity_id_by_unique_id(
+                    ent_reg, domain, old_unique_id, entry_id=entry_id
+                )
+                if not old_entity_id or old_entity_id in seen_entity_ids:
+                    continue
+                source_entity_ids.append((old_suffix, old_entity_id))
+                seen_entity_ids.add(old_entity_id)
+
+        if not source_entity_ids:
+            continue
+        preserve_suffix, preserve_entity_id = source_entity_ids[0]
+
+        if target_entity_id and target_entity_id != preserve_entity_id:
             try:
-                ent_reg.async_remove(new_entity_id)
+                ent_reg.async_remove(target_entity_id)
                 removed += 1
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(
@@ -691,16 +723,29 @@ def _migrate_cloud_entity_unique_ids(
                 continue
 
         try:
-            ent_reg.async_update_entity(old_entity_id, new_unique_id=new_unique_id)
+            ent_reg.async_update_entity(preserve_entity_id, new_unique_id=new_unique_id)
             migrated += 1
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
                 "Failed migrating %s unique_id to %s for site %s: %s",
-                old_suffix,
+                preserve_suffix,
                 new_suffix,
                 redact_site_id(site_id_text),
                 redact_text(err, site_ids=(site_id_text,)),
             )
+            continue
+
+        for stale_suffix, stale_entity_id in source_entity_ids[1:]:
+            try:
+                ent_reg.async_remove(stale_entity_id)
+                removed += 1
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Failed removing duplicate %s alias for site %s: %s",
+                    stale_suffix,
+                    redact_site_id(site_id_text),
+                    redact_text(err, site_ids=(site_id_text,)),
+                )
 
     if migrated:
         _LOGGER.debug(

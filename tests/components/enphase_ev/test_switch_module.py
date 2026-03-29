@@ -16,6 +16,7 @@ from custom_components.enphase_ev.evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
     _migrated_switch_entity_id,
+    _migrate_storm_guard_evse_entity_id,
     AppAuthenticationSwitch,
     ChargeFromGridScheduleSwitch,
     ChargeFromGridSwitch,
@@ -48,6 +49,27 @@ def test_migrated_switch_entity_id_handles_canonical_and_suffixes() -> None:
             "switch.custom_schedule_2", "switch.charge_from_grid_schedule"
         )
         == "switch.charge_from_grid_schedule_2"
+    )
+
+
+def test_migrate_storm_guard_evse_entity_id_handles_legacy_suffixes() -> None:
+    assert (
+        _migrate_storm_guard_evse_entity_id(
+            "switch.iq_ev_charger_1707_storm_guard_ev_charge"
+        )
+        == "switch.iq_ev_charger_1707_storm_guard_evse_charge"
+    )
+    assert (
+        _migrate_storm_guard_evse_entity_id(
+            "switch.iq_ev_charger_1707_storm_guard_ev_charge_2"
+        )
+        == "switch.iq_ev_charger_1707_storm_guard_evse_charge_2"
+    )
+    assert (
+        _migrate_storm_guard_evse_entity_id(
+            "switch.iq_ev_charger_1707_storm_guard_evse_charge"
+        )
+        is None
     )
 
 
@@ -354,6 +376,38 @@ async def test_async_setup_entry_switch_migration_handles_rename_conflict(
     fake_registry.async_update_entity.assert_called_once_with(
         "switch.custom_charge_from_grid_schedule",
         new_entity_id="switch.charge_from_grid_schedule",
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_migrates_storm_guard_evse_switch_entity_id(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    fake_registry = MagicMock()
+    fake_registry.async_update_entity = MagicMock()
+    entries = [
+        SimpleNamespace(
+            unique_id=f"enphase_ev_{RANDOM_SERIAL}_storm_guard_evse_charge",
+            entity_id="switch.iq_ev_charger_1707_storm_guard_ev_charge",
+        )
+    ]
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.er.async_entries_for_config_entry",
+        lambda _registry, _entry_id: entries,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_update_entity.assert_called_once_with(
+        "switch.iq_ev_charger_1707_storm_guard_ev_charge",
+        new_entity_id="switch.iq_ev_charger_1707_storm_guard_evse_charge",
     )
 
 
