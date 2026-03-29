@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Batteriets opladningsgrænse"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Grænse for afladning til nettet"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Grænse for begrænset batteriafladning"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Tidsplan for opladning fra elnet"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Tidsplan for afladning til nettet"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Tidsplan for begrænset batteriafladning"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Sluttid for opladning fra elnet"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Starttid for afladning til nettet"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Sluttid for afladning til nettet"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Starttid for begrænset batteriafladning"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Sluttid for begrænset batteriafladning"
       }
     },
     "calendar": {

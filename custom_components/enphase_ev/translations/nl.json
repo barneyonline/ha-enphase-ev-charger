@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Laadlimiet van de batterij"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Limiet voor ontladen naar het net"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Limiet voor beperkte batterijontlading"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Laadschema vanaf net"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Schema voor ontladen naar het net"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Schema voor beperkte batterijontlading"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Eindtijd laden vanaf net"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Starttijd voor ontladen naar het net"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Eindtijd voor ontladen naar het net"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Starttijd voor beperkte batterijontlading"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Eindtijd voor beperkte batterijontlading"
       }
     },
     "calendar": {

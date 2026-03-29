@@ -20,7 +20,9 @@ from custom_components.enphase_ev.switch import (
     ChargeFromGridScheduleSwitch,
     ChargeFromGridSwitch,
     ChargingSwitch,
+    DischargeToGridScheduleSwitch,
     GreenBatterySwitch,
+    RestrictBatteryDischargeScheduleSwitch,
     SavingsUseBatteryAfterPeakSwitch,
     ScheduleSlotSwitch,
     StormGuardEvseSwitch,
@@ -1417,6 +1419,149 @@ async def test_charge_from_grid_schedule_switch_turn_on_off(
 
     await sw.async_turn_off()
     coord.async_set_charge_from_grid_schedule_enabled.assert_awaited_with(False)
+
+
+def test_discharge_to_grid_schedule_switch_availability(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord._battery_dtg_schedule_enabled = True  # noqa: SLF001
+
+    sw = DischargeToGridScheduleSwitch(coord)
+
+    assert sw.available is True
+    assert sw.is_on is True
+
+
+@pytest.mark.asyncio
+async def test_discharge_to_grid_schedule_switch_turn_on_off(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord.async_set_discharge_to_grid_schedule_enabled = AsyncMock()
+
+    sw = DischargeToGridScheduleSwitch(coord)
+
+    await sw.async_turn_on()
+    coord.async_set_discharge_to_grid_schedule_enabled.assert_awaited_with(True)
+
+    await sw.async_turn_off()
+    coord.async_set_discharge_to_grid_schedule_enabled.assert_awaited_with(False)
+
+
+def test_restrict_battery_discharge_schedule_switch_availability(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    coord._battery_rbd_schedule_enabled = True  # noqa: SLF001
+
+    sw = RestrictBatteryDischargeScheduleSwitch(coord)
+
+    assert sw.available is True
+    assert sw.is_on is True
+
+
+@pytest.mark.asyncio
+async def test_restrict_battery_discharge_schedule_switch_turn_on_off(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    coord.async_set_restrict_battery_discharge_schedule_enabled = AsyncMock()
+
+    sw = RestrictBatteryDischargeScheduleSwitch(coord)
+
+    await sw.async_turn_on()
+    coord.async_set_restrict_battery_discharge_schedule_enabled.assert_awaited_with(
+        True
+    )
+
+    await sw.async_turn_off()
+    coord.async_set_restrict_battery_discharge_schedule_enabled.assert_awaited_with(
+        False
+    )
+
+
+def test_base_battery_schedule_switch_fallbacks(coordinator_factory) -> None:
+    from custom_components.enphase_ev import switch as switch_mod
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord.type_device_info = None
+    coord.custom_schedule_available = True
+    coord.custom_schedule_enabled = None
+    coord.async_custom_schedule_enabled = AsyncMock()
+
+    switch = switch_mod._BaseBatteryScheduleSwitch(
+        coord,
+        unique_suffix="custom_schedule",
+        availability_attr="custom_schedule_available",
+        enabled_attr="custom_schedule_enabled",
+        setter_name="async_custom_schedule_enabled",
+        suggested_object_id="custom_schedule",
+    )
+
+    assert switch.suggested_object_id == "custom_schedule"
+    assert switch.is_on is False
+    assert switch.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.type_device_info = MagicMock(return_value=expected)
+    assert switch.device_info is expected
+
+    coord.last_update_success = False
+    assert switch.available is False
 
 
 def test_charge_from_grid_switches_unavailable_when_coordinator_unavailable(
