@@ -2788,6 +2788,43 @@ async def test_create_battery_schedule_omits_optional_limit_and_sets_is_enabled(
 
 
 @pytest.mark.asyncio
+async def test_update_battery_schedule_sets_optional_is_enabled_and_is_deleted() -> (
+    None
+):
+    client = _make_client()
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    async def _acquire() -> str:
+        client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
+        return "fresh-token"
+
+    client._acquire_xsrf_token = AsyncMock(side_effect=_acquire)  # noqa: SLF001
+
+    await client.update_battery_schedule(
+        "sched-rbd",
+        schedule_type="rbd",
+        start_time="01:00",
+        end_time="16:00",
+        limit=None,
+        days=[1, 2, 3],
+        timezone="Europe/London",
+        is_enabled=False,
+        is_deleted=True,
+    )
+
+    call = client._json.await_args
+    assert call.kwargs["json"] == {
+        "timezone": "Europe/London",
+        "startTime": "01:00",
+        "endTime": "16:00",
+        "scheduleType": "RBD",
+        "days": [1, 2, 3],
+        "isEnabled": False,
+        "isDeleted": True,
+    }
+
+
+@pytest.mark.asyncio
 async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})

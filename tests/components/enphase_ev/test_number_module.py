@@ -68,6 +68,46 @@ def test_cfg_schedule_edit_available_rejects_when_control_unavailable() -> None:
     assert number_mod._cfg_schedule_edit_available(coord) is False
 
 
+def test_dtg_and_rbd_schedule_edit_available_cover_control_window_fallbacks() -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    dtg = SimpleNamespace(
+        discharge_to_grid_schedule_available=False,
+        discharge_to_grid_schedule_supported=True,
+        battery_discharge_to_grid_start_time=None,
+        battery_discharge_to_grid_end_time=None,
+        _battery_dtg_begin_time=None,
+        _battery_dtg_end_time=None,
+        _battery_dtg_control_begin_time=60,
+        _battery_dtg_control_end_time=120,
+    )
+    assert number_mod._dtg_schedule_edit_available(dtg) is True
+    dtg.discharge_to_grid_schedule_supported = False
+    assert number_mod._dtg_schedule_edit_available(dtg) is False
+
+    rbd = SimpleNamespace(
+        restrict_battery_discharge_schedule_available=False,
+        restrict_battery_discharge_schedule_supported=True,
+        battery_restrict_battery_discharge_start_time=None,
+        battery_restrict_battery_discharge_end_time=None,
+        _battery_rbd_begin_time=None,
+        _battery_rbd_end_time=None,
+        _battery_rbd_control_begin_time=60,
+        _battery_rbd_control_end_time=120,
+    )
+    assert number_mod._rbd_schedule_edit_available(rbd) is True
+    rbd._battery_rbd_control_end_time = None
+    assert number_mod._rbd_schedule_edit_available(rbd) is False
+
+    rbd.restrict_battery_discharge_schedule_supported = False
+    assert number_mod._rbd_schedule_edit_available(rbd) is False
+
+    rbd.restrict_battery_discharge_schedule_supported = True
+    rbd.battery_restrict_battery_discharge_start_time = 1
+    rbd.battery_restrict_battery_discharge_end_time = 2
+    assert number_mod._rbd_schedule_edit_available(rbd) is True
+
+
 @pytest.mark.asyncio
 async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     coord = SimpleNamespace()
@@ -749,6 +789,40 @@ def test_battery_numbers_unavailable_without_confirmed_write_access(
     assert BatteryReserveNumber(coord).available is False
     assert BatteryShutdownLevelNumber(coord).available is False
     assert BatteryCfgScheduleLimitNumber(coord).available is False
+
+
+@pytest.mark.asyncio
+async def test_base_battery_schedule_limit_number_fallbacks(hass, config_entry) -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord.async_custom_schedule_setter = AsyncMock()
+    coord.type_device_info = None
+
+    number = number_mod._BaseBatteryScheduleLimitNumber(
+        coord,
+        unique_suffix="custom_limit",
+        limit_attr="custom_schedule_limit",
+        availability_check=lambda _: True,
+        setter_name="async_custom_schedule_setter",
+    )
+
+    assert number.native_value is None
+    assert number.native_min_value == 0.0
+    await number.async_set_native_value(42)
+    coord.async_custom_schedule_setter.assert_awaited_once_with(42)
+    assert number.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.type_device_info = MagicMock(return_value=expected)
+    assert number.device_info is expected
+
+    coord.last_update_success = False
+    assert number.available is False
 
 
 def test_dtg_schedule_limit_number_bounds_and_availability(hass, config_entry) -> None:
