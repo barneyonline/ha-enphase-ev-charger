@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, time as dt_time, timezone
-from unittest.mock import AsyncMock, MagicMock
+from http import HTTPStatus
+from unittest.mock import AsyncMock, MagicMock, call
 
 import aiohttp
 import pytest
@@ -2076,3 +2077,562 @@ async def test_cfg_schedule_limit_write_guard_allows_when_active(
     await coord.battery_runtime.async_set_cfg_schedule_limit(90)
 
     coord.client.update_battery_schedule.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_refresh_storm_guard_profile_caches_and_handles_bad_locale(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class BadConfig:
+        @property
+        def language(self):
+            raise RuntimeError("boom")
+
+    coord.hass.config = BadConfig()
+    coord.client.storm_guard_profile = AsyncMock(
+        side_effect=[
+            {"data": {"stormGuardState": "enabled", "evseStormEnabled": False}},
+            {"data": {"stormGuardState": "disabled", "evseStormEnabled": True}},
+        ]
+    )
+
+    await coord.battery_runtime.async_refresh_storm_guard_profile(force=True)
+    assert coord.storm_guard_state == "enabled"
+    assert coord.storm_evse_enabled is False
+
+    await coord.battery_runtime.async_refresh_storm_guard_profile()
+    assert coord.client.storm_guard_profile.await_count == 1
+
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_storm_guard_profile()
+    assert coord.client.storm_guard_profile.await_count == 2
+    assert coord.storm_guard_state == "disabled"
+    assert coord.storm_evse_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_refresh_storm_alert_parses_payloads_and_cache_short_circuits(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {"criticalAlertActive": False, "criticalAlertsOverride": True},
+            {
+                "stormAlerts": [
+                    {"type": "wind", "severity": "critical"},
+                    "legacy-alert",
+                ]
+            },
+            {
+                "criticalAlertActive": False,
+                "stormAlerts": [
+                    {"id": "IDV21037", "name": "Severe Weather", "status": "opted-out"},
+                ],
+            },
+        ]
+    )
+
+    await coord.battery_runtime.async_refresh_storm_alert(force=True)
+    assert coord.storm_alert_active is False
+    assert coord.storm_alert_critical_override is True
+
+    await coord.battery_runtime.async_refresh_storm_alert(force=True)
+    assert coord.storm_alert_active is True
+    assert coord.storm_alerts[0]["type"] == "wind"
+    assert coord.storm_alerts[1]["value"] == "legacy-alert"
+
+    await coord.battery_runtime.async_refresh_storm_alert(force=True)
+    assert coord.storm_alert_active is False
+    assert coord.storm_alerts[0]["status"] == "opted-out"
+
+    coord.client.storm_guard_alert.reset_mock()
+    await coord.battery_runtime.async_refresh_storm_alert()
+    coord.client.storm_guard_alert.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_async_opt_out_all_storm_alerts_targets_active_alerts(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {
+                "stormAlerts": [
+                    {"id": "IDV21037", "name": "Severe Weather", "status": "active"},
+                    {"id": "IDV21038", "name": "Flood Warning"},
+                    {"id": "IDV21037", "name": "Duplicate", "status": "active"},
+                    {"id": "IDV21039", "name": "Cleared", "status": "inactive"},
+                ]
+            },
+            {"stormAlerts": []},
+        ]
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(return_value={"message": "success"})
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.battery_runtime.async_opt_out_all_storm_alerts()
+
+    assert coord.client.opt_out_storm_alert.await_args_list == [
+        call(alert_id="IDV21037", name="Severe Weather"),
+        call(alert_id="IDV21038", name="Flood Warning"),
+    ]
+    assert coord.client.storm_guard_alert.await_count == 2
+    coord.kick_fast.assert_called_once()
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_async_opt_out_all_storm_alerts_maps_failures(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {"stormAlerts": [{"id": "IDV21037", "name": "Severe Weather"}]},
+            RuntimeError("refresh"),
+        ]
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(side_effect=RuntimeError("boom"))
+    coord.kick_fast = MagicMock()
+    coord.async_request_refresh = AsyncMock()
+
+    with pytest.raises(
+        ServiceValidationError,
+        match=r"Storm Alert opt-out failed for 1 alert\(s\)\.",
+    ):
+        await coord.battery_runtime.async_opt_out_all_storm_alerts()
+
+    coord.kick_fast.assert_not_called()
+    coord.async_request_refresh.assert_not_awaited()
+
+    coord.client.storm_guard_alert = AsyncMock(
+        return_value={
+            "stormAlerts": [
+                {"id": "IDV21037", "name": "Severe Weather", "status": "opted-out"}
+            ]
+        }
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(return_value={"message": "success"})
+    await coord.battery_runtime.async_opt_out_all_storm_alerts()
+    coord.client.opt_out_storm_alert.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_async_set_storm_guard_enabled_success_and_error_paths(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        side_effect=[
+            {"data": {"stormGuardState": "disabled", "evseStormEnabled": True}},
+            {"data": {"stormGuardState": "enabled", "evseStormEnabled": True}},
+        ]
+    )
+    coord.client.set_storm_guard = AsyncMock(return_value={"message": "success"})
+
+    await coord.battery_runtime.async_set_storm_guard_enabled(True)
+    assert coord.storm_guard_update_pending is True
+    await coord.battery_runtime.async_refresh_storm_guard_profile(force=True)
+    assert coord.storm_guard_update_pending is False
+
+    coord._storm_evse_enabled = None  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(return_value={"data": {}})
+    with pytest.raises(
+        ServiceValidationError, match="Storm Guard settings are unavailable"
+    ):
+        await coord.battery_runtime.async_set_storm_guard_enabled(True)
+
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={"data": {"stormGuardState": "disabled", "evseStormEnabled": True}}
+    )
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard updates are not permitted for this account.",
+    ):
+        await coord.battery_runtime.async_set_storm_guard_enabled(True)
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.UNAUTHORIZED,
+            message="unauthorized",
+        )
+    )
+    with pytest.raises(
+        ServiceValidationError,
+        match="could not be authenticated",
+    ):
+        await coord.battery_runtime.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_async_set_storm_evse_enabled_success_and_error_paths(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={"data": {"stormGuardState": "enabled", "evseStormEnabled": False}}
+    )
+    coord.client.set_storm_guard = AsyncMock(return_value={"message": "success"})
+
+    await coord.battery_runtime.async_set_storm_evse_enabled(True)
+    assert coord.storm_evse_enabled is True
+
+    coord._storm_guard_state = None  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(return_value={"data": {}})
+    with pytest.raises(
+        ServiceValidationError, match="Storm Guard settings are unavailable"
+    ):
+        await coord.battery_runtime.async_set_storm_evse_enabled(True)
+
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard update was rejected by Enphase",
+    ):
+        await coord.battery_runtime.async_set_storm_evse_enabled(True)
+
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard updates are not permitted for this account.",
+    ):
+        await coord.battery_runtime.async_set_storm_evse_enabled(True)
+
+
+def test_battery_runtime_storm_alert_and_guard_helper_edge_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    class BadText:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert runtime.normalize_storm_guard_state(True) == "enabled"
+    assert runtime.normalize_storm_guard_state(0) == "disabled"
+    assert runtime.normalize_storm_guard_state(" yes ") == "enabled"
+    assert runtime.normalize_storm_guard_state("off") == "disabled"
+    assert runtime.storm_alert_status_is_inactive(None) is False
+    assert runtime.storm_alert_is_active({"active": True}) is True
+    assert runtime.parse_storm_alert("bad") is None
+
+    runtime.set_storm_guard_pending("enabled")
+    assert coord.storm_guard_update_pending is True
+    runtime.set_storm_guard_pending("not-a-state")
+    assert coord.storm_guard_update_pending is False
+
+    assert (
+        runtime.parse_storm_alert(
+            {
+                "stormAlerts": [
+                    {"priority": 1, "enabled": True},
+                    {},
+                    BadText(),
+                ]
+            }
+        )
+        is True
+    )
+    assert coord.storm_alerts[0] == {"priority": 1, "enabled": True}
+    assert coord.storm_alerts[1] == {"active": True}
+    assert coord.storm_alerts[2] == {"active": True}
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_storm_alert_opt_out_validation_and_refresh_reraise(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {
+                "stormAlerts": [
+                    "legacy",
+                    {"id": "IDV21037", "name": "Severe Weather", "status": "active"},
+                ]
+            },
+            RuntimeError("refresh"),
+        ]
+    )
+    coord.client.opt_out_storm_alert = None
+
+    with pytest.raises(ServiceValidationError, match="opt-out is unavailable"):
+        await coord.battery_runtime.async_opt_out_all_storm_alerts()
+
+    coord.client.storm_guard_alert = AsyncMock(
+        side_effect=[
+            {"stormAlerts": [{"id": "IDV21037", "name": "Severe Weather"}]},
+            RuntimeError("refresh"),
+        ]
+    )
+    coord.client.opt_out_storm_alert = AsyncMock(return_value={"message": "success"})
+
+    with pytest.raises(RuntimeError, match="refresh"):
+        await coord.battery_runtime.async_opt_out_all_storm_alerts()
+
+    coord._storm_alerts = [
+        "legacy",
+        {"id": "IDV21037", "name": "Severe Weather"},
+    ]  # noqa: SLF001
+    coord.async_refresh_storm_alert = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    coord.client.opt_out_storm_alert = None
+
+    with pytest.raises(ServiceValidationError, match="opt-out is unavailable"):
+        await coord.battery_runtime.async_opt_out_all_storm_alerts()
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_storm_guard_and_evse_error_mapping_edges(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        return_value={"data": {"stormGuardState": "enabled", "evseStormEnabled": True}}
+    )
+
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+    with pytest.raises(
+        ServiceValidationError,
+        match="Storm Guard update was rejected by Enphase",
+    ):
+        await coord.battery_runtime.async_set_storm_guard_enabled(False)
+    assert coord.storm_guard_update_pending is False
+
+    coord.client.set_storm_guard = AsyncMock(side_effect=RuntimeError("boom"))
+    with pytest.raises(RuntimeError, match="boom"):
+        await coord.battery_runtime.async_set_storm_guard_enabled(True)
+    assert coord.storm_guard_update_pending is False
+
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+    with pytest.raises(
+        ServiceValidationError,
+        match="not permitted for this account",
+    ):
+        await coord.battery_runtime.async_set_storm_guard_enabled(True)
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.UNAUTHORIZED,
+            message="unauthorized",
+        )
+    )
+    with pytest.raises(ServiceValidationError, match="could not be authenticated"):
+        await coord.battery_runtime.async_set_storm_evse_enabled(True)
+
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+    with pytest.raises(
+        ServiceValidationError,
+        match="not permitted for this account",
+    ):
+        await coord.battery_runtime.async_set_storm_evse_enabled(True)
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            message="boom",
+        )
+    )
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.battery_runtime.async_set_storm_evse_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_storm_guard_direct_error_branch_coverage(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    monkeypatch.setattr(
+        runtime,
+        "async_ensure_battery_write_access_confirmed",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        coord,
+        "async_refresh_storm_guard_profile",
+        AsyncMock(return_value=None),
+    )
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="not permitted for this account",
+    ):
+        await runtime.async_set_storm_guard_enabled(True)
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await runtime.async_set_storm_guard_enabled(True)
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_storm_alert_loop_skips_non_dict_entries(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+    monkeypatch.setattr(
+        type(coord),
+        "storm_alerts",
+        property(lambda _self: ["legacy", {"id": "IDV21037", "name": "Storm"}]),
+    )
+    monkeypatch.setattr(
+        coord,
+        "async_refresh_storm_alert",
+        AsyncMock(return_value=None),
+    )
+    coord.client.opt_out_storm_alert = None
+
+    with pytest.raises(ServiceValidationError, match="opt-out is unavailable"):
+        await runtime.async_opt_out_all_storm_alerts()
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_storm_evse_forbidden_owner_branch_coverage(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    monkeypatch.setattr(
+        runtime,
+        "async_ensure_battery_write_access_confirmed",
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        coord,
+        "async_refresh_storm_guard_profile",
+        AsyncMock(return_value=None),
+    )
+    coord.client.set_storm_guard = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="forbidden",
+        )
+    )
+
+    with pytest.raises(
+        ServiceValidationError,
+        match="not permitted for this account",
+    ):
+        await runtime.async_set_storm_evse_enabled(True)
