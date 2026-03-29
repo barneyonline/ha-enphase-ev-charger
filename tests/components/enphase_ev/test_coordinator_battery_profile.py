@@ -712,6 +712,88 @@ def test_battery_reserve_editable_emea_prefers_cfg_control(
     assert coord.battery_reserve_editable is False
 
 
+def test_battery_reserve_editable_emea_uses_rbd_when_cfg_control_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_is_emea = True  # noqa: SLF001
+    coord._battery_cfg_control_show = None  # noqa: SLF001
+    coord._battery_rbd_control = BatteryControlCapability(
+        show=False, locked=False
+    )  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+
+    assert coord.battery_reserve_editable is False
+
+
+def test_battery_reserve_editable_non_emea_uses_rbd_when_reserve_flag_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_is_emea = False  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = None  # noqa: SLF001
+    coord._battery_rbd_control = BatteryControlCapability(
+        show=False, locked=False
+    )  # noqa: SLF001
+
+    assert coord.battery_reserve_editable is False
+
+
+def test_battery_reserve_editable_non_emea_uses_cfg_when_other_flags_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_is_emea = False  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = None  # noqa: SLF001
+    coord._battery_cfg_control_show = False  # noqa: SLF001
+    coord._battery_rbd_control = BatteryControlCapability(
+        show=None, locked=False
+    )  # noqa: SLF001
+
+    assert coord.battery_reserve_editable is False
+
+
+def test_battery_reserve_editable_non_emea_honors_rbd_when_reserve_not_true(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_is_emea = False  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = False  # noqa: SLF001
+    coord._battery_rbd_control = BatteryControlCapability(
+        show=False, locked=False
+    )  # noqa: SLF001
+
+    assert coord.battery_reserve_editable is False
+
+
+def test_battery_reserve_editable_non_emea_rejects_invalid_reserve_flag_value(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_is_emea = False  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = "unexpected"  # noqa: SLF001
+    coord._battery_rbd_control = BatteryControlCapability(
+        show=False, locked=False
+    )  # noqa: SLF001
+
+    assert coord.battery_reserve_editable is False
+
+
 def test_battery_reserve_editable_honors_rbd_control_locked(
     coordinator_factory,
 ) -> None:
