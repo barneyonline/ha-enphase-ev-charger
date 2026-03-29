@@ -24,8 +24,9 @@ def test_battery_runtime_normalizes_labels() -> None:
     assert runtime.normalize_battery_profile_key(" Cost_Savings ") == "cost_savings"
     assert runtime.normalize_battery_profile_key("AI Optimization") == "ai_optimisation"
     assert runtime.normalize_battery_profile_key(None) is None
+    assert runtime.battery_profile_label("ai_optimisation") == "AI Optimisation"
     assert runtime.battery_profile_label("backup_only") == "Full Backup"
-    assert runtime.battery_profile_label("ai_optimisation") == "AI Optimization"
+    assert runtime.battery_profile_label("ai_optimisation") == "AI Optimisation"
     assert runtime.battery_profile_label("regional-profile") == "Regional Profile"
     assert runtime.battery_profile_label(None) is None
 
@@ -94,11 +95,15 @@ def test_battery_runtime_target_reserve_and_current_savings_subtype(
 ) -> None:
     coord = coordinator_factory()
     runtime = BatteryRuntime(coord)
-    coord._battery_profile_reserve_memory = {"cost_savings": 35}  # noqa: SLF001
-    coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
+    coord._battery_profile_reserve_memory = {  # noqa: SLF001
+        "cost_savings": 35,
+        "ai_optimisation": 12,
+    }
+    coord._battery_pending_profile = "ai_optimisation"  # noqa: SLF001
     coord._battery_pending_sub_type = SAVINGS_OPERATION_MODE_SUBTYPE  # noqa: SLF001
 
     assert runtime.target_reserve_for_profile("cost_savings") == 35
+    assert runtime.target_reserve_for_profile("ai_optimisation") == 12
     assert runtime.target_reserve_for_profile("backup_only") == 100
     assert runtime.current_savings_sub_type() == SAVINGS_OPERATION_MODE_SUBTYPE
 
@@ -137,11 +142,24 @@ def test_battery_runtime_current_savings_subtype_uses_coordinator_property() -> 
     runtime = BatteryRuntime(coordinator)
 
     assert runtime.current_savings_sub_type() is None
+    assert runtime.target_operation_mode_sub_type("cost_savings") is None
+    assert (
+        runtime.target_operation_mode_sub_type("ai_optimisation")
+        == SAVINGS_OPERATION_MODE_SUBTYPE
+    )
 
     coordinator.battery_selected_operation_mode_sub_type = (
         SAVINGS_OPERATION_MODE_SUBTYPE
     )
     assert runtime.current_savings_sub_type() == SAVINGS_OPERATION_MODE_SUBTYPE
+    assert (
+        runtime.target_operation_mode_sub_type("cost_savings")
+        == SAVINGS_OPERATION_MODE_SUBTYPE
+    )
+    assert (
+        runtime.target_operation_mode_sub_type("ai_optimisation")
+        == SAVINGS_OPERATION_MODE_SUBTYPE
+    )
 
 
 def test_battery_runtime_set_pending_records_current_time(monkeypatch) -> None:
@@ -173,9 +191,6 @@ def test_battery_runtime_transition_helpers_cover_private_and_fallback_paths() -
     coordinator = SimpleNamespace(
         _normalize_battery_sub_type=lambda value: f"private:{value}",
         _sync_battery_profile_pending_issue=private_sync,
-        _coerce_int=lambda value, default=0: 41 if value == "41" else default,
-        _coerce_optional_bool=lambda value: True if value == "yes" else None,
-        _coerce_optional_text=lambda value: str(value).strip().upper(),
         _current_charge_from_grid_schedule_window=lambda: (11, 22),
         _raise_grid_validation=private_raise,
     )
@@ -186,7 +201,7 @@ def test_battery_runtime_transition_helpers_cover_private_and_fallback_paths() -
     private_sync.assert_called_once_with()
     assert runtime._coerce_int("41", default=-1) == 41
     assert runtime._coerce_optional_bool("yes") is True
-    assert runtime._coerce_optional_text(" a ") == "A"
+    assert runtime._coerce_optional_text(" a ") == "a"
     assert runtime._current_schedule_window_from_coordinator() == (11, 22)
 
     runtime.raise_grid_validation("grid_control_unavailable")
@@ -203,10 +218,6 @@ def test_battery_runtime_transition_helpers_cover_public_paths() -> None:
     coordinator = SimpleNamespace(
         normalize_battery_sub_type=lambda value: f"public:{value}",
         sync_battery_profile_pending_issue=public_sync,
-        coerce_int=lambda value, default=0: 52 if value == "52" else default,
-        coerce_optional_float=lambda value: 2.5 if value == "2.5" else None,
-        coerce_optional_bool=lambda value: False if value == "no" else None,
-        coerce_optional_text=lambda value: str(value).strip().lower(),
         current_charge_from_grid_schedule_window=lambda: (33, 44),
         raise_grid_validation=public_raise,
     )
@@ -218,7 +229,7 @@ def test_battery_runtime_transition_helpers_cover_public_paths() -> None:
     assert runtime._coerce_int("52", default=-1) == 52
     assert runtime._coerce_optional_float("2.5") == pytest.approx(2.5)
     assert runtime._coerce_optional_bool("no") is False
-    assert runtime._coerce_optional_text(" A ") == "a"
+    assert runtime._coerce_optional_text(" A ") == "A"
     assert runtime._current_schedule_window_from_coordinator() == (33, 44)
 
     runtime.raise_grid_validation("grid_control_unavailable")
@@ -300,8 +311,8 @@ def test_battery_runtime_top_level_helper_passthroughs_cover_fallback_paths() ->
     runtime = BatteryRuntime(SimpleNamespace())
     source = {"id": 1, "nested": {"value": 2}, "items": [{"x": 1}]}
 
-    assert runtime._coerce_optional_int("7") is None
-    assert runtime._coerce_optional_float("1.5") is None
+    assert runtime._coerce_optional_int("7") == 7
+    assert runtime._coerce_optional_float("1.5") == pytest.approx(1.5)
     assert runtime._coerce_optional_kwh("2.5") is None
     assert runtime._parse_percent_value("55") is None
     assert runtime._normalize_battery_status_text("Normal") is None
@@ -643,7 +654,7 @@ def test_battery_runtime_parse_site_settings_payload_supports_ai_optimisation_fl
         "ai_optimisation",
         "backup_only",
     ]
-    assert coord.battery_profile_option_labels["ai_optimisation"] == "AI Optimization"
+    assert coord.battery_profile_option_labels["ai_optimisation"] == "AI Optimisation"
 
 
 def test_battery_runtime_parse_profile_payload_clears_pending_exact_match(
@@ -692,7 +703,7 @@ def test_battery_runtime_parse_profile_payload_branches_and_helpers(
     coord.battery_runtime.parse_battery_profile_payload([])
     coord.battery_runtime.parse_battery_site_settings_payload([])
     coord.battery_runtime.parse_battery_site_settings_payload(
-        {"showChargeFromGrid": True}
+        {"showChargeFromGrid": True, "showAiOptiSavingsMode": True}
     )
 
     coord.battery_runtime.parse_battery_profile_payload(
@@ -776,13 +787,42 @@ def test_battery_runtime_parse_profile_payload_branches_and_helpers(
     assert coord._target_reserve_for_profile("backup_only") == 100  # noqa: SLF001
     coord._battery_profile_reserve_memory.pop("cost_savings", None)  # noqa: SLF001
     assert coord._target_reserve_for_profile("cost_savings") == 20  # noqa: SLF001
+    coord._battery_profile_reserve_memory.pop("ai_optimisation", None)  # noqa: SLF001
+    assert coord._target_reserve_for_profile("ai_optimisation") == 10  # noqa: SLF001
     assert coord._target_reserve_for_profile("regional_special") == 20  # noqa: SLF001
     assert coord._current_savings_sub_type() is None  # noqa: SLF001
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
     coord._battery_pending_sub_type = "prioritize-energy"  # noqa: SLF001
     assert coord._current_savings_sub_type() == "prioritize-energy"  # noqa: SLF001
+    coord._battery_pending_profile = "ai_optimisation"  # noqa: SLF001
+    assert coord._current_savings_sub_type() == "prioritize-energy"  # noqa: SLF001
     coord._battery_pending_sub_type = "other"  # noqa: SLF001
     assert coord._current_savings_sub_type() is None  # noqa: SLF001
+
+
+def test_battery_runtime_ai_profile_parses_and_clears_pending(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "ai_optimisation"  # noqa: SLF001
+    coord._battery_pending_reserve = 10  # noqa: SLF001
+    coord._battery_pending_sub_type = "prioritize-energy"  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(UTC)  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "ai_optimisation",
+                "batteryBackupPercentage": 10,
+                "operationModeSubType": "prioritize-energy",
+            }
+        }
+    )
+
+    assert coord.battery_profile == "ai_optimisation"
+    assert coord.battery_effective_operation_mode_sub_type == "prioritize-energy"
+    assert coord.battery_profile_display == "AI Optimisation"
+    assert coord.battery_profile_pending is False
 
 
 def test_battery_runtime_parse_status_payload_aggregates_and_skips_excluded(

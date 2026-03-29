@@ -61,19 +61,21 @@ HEATPUMP_POWER_FAILURE_BACKOFF_S = 900.0
 BATTERY_PROFILE_LABELS = {
     "self-consumption": "Self-Consumption",
     "cost_savings": "Savings",
-    "ai_optimisation": "AI Optimization",
+    "ai_optimisation": "AI Optimisation",
     "backup_only": "Full Backup",
 }
 BATTERY_PROFILE_DEFAULT_RESERVE = {
     "self-consumption": 20,
     "cost_savings": 20,
-    "ai_optimisation": 20,
+    "ai_optimisation": 10,
     "backup_only": 100,
 }
 SAVINGS_OPERATION_MODE_SUBTYPE = "prioritize-energy"
 GREEN_BATTERY_SETTING = "USE_BATTERY_FOR_SELF_CONSUMPTION"
 AUTH_APP_SETTING = "sessionAuthentication"
 AUTH_RFID_SETTING = "rfidSessionAuthentication"
+DEFAULT_CHARGE_LEVEL_SETTING = "DefaultChargeLevel"
+PHASE_SWITCH_CONFIG_SETTING = "phase_switch_config"
 SAFE_LIMIT_AMPS = 8
 STORM_GUARD_CACHE_TTL = 300.0
 STORM_ALERT_CACHE_TTL = 60.0

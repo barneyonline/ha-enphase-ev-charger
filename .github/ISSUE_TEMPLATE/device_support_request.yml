@@ -1,0 +1,119 @@
+name: Device support request
+description: Request support for a device model, site-specific capability, or missing Enphase surface
+title: "[Device support]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when a specific Enphase device, device family, firmware variant, or site capability is missing support, missing entities, or missing controls.
+
+        If the integration used to work and now behaves incorrectly, use the bug report form instead.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find an open request for the same device or capability.
+          required: true
+        - label: I can describe what is available in the Enphase app or cloud API for this device.
+          required: true
+        - label: I will attach diagnostics or screenshots showing the missing support if available.
+          required: true
+  - type: dropdown
+    id: device_family
+    attributes:
+      label: Device family
+      options:
+        - IQ Gateway / System Controller
+        - IQ Battery / Encharge / BatteryConfig
+        - IQ EV Charger / IQ EVSE
+        - IQ Microinverters
+        - Heat Pump / HEMS device
+        - Water Heater / site-energy channel
+        - Site / cloud telemetry capability
+        - Other Enphase device or capability
+    validations:
+      required: true
+  - type: input
+    id: device_model
+    attributes:
+      label: Device model, firmware, and region
+      description: Include model names, firmware/build numbers, and country/region if known.
+      placeholder: "Example: IQ Battery 5P, firmware 7.x, Australia"
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      placeholder: "2.0.0"
+    validations:
+      required: true
+  - type: input
+    id: home_assistant_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.3.4"
+    validations:
+      required: true
+  - type: textarea
+    id: site_profile
+    attributes:
+      label: Site profile
+      description: List the major Enphase hardware on the site, even if only one device is missing support.
+      placeholder: |
+        Example:
+        - IQ Gateway
+        - 2 x IQ Battery 5P
+        - IQ EV Charger 2
+        - IQ8 microinverters
+        - Heat pump or water heater channels
+    validations:
+      required: true
+  - type: textarea
+    id: missing_support
+    attributes:
+      label: What is missing today?
+      description: Describe the missing entities, controls, diagnostics, or site capability.
+    validations:
+      required: true
+  - type: textarea
+    id: expected_support
+    attributes:
+      label: What do you expect the integration to expose?
+      description: Include exact values, controls, or device pages shown in the Enphase app when possible.
+    validations:
+      required: true
+  - type: input
+    id: affected_entities
+    attributes:
+      label: Current related entities or devices
+      description: If the integration partially supports the device, list the existing entity IDs or device names.
+  - type: dropdown
+    id: diagnostics_status
+    attributes:
+      label: Evidence attached?
+      options:
+        - Config-entry diagnostics attached
+        - Device diagnostics attached
+        - Both diagnostics and screenshots attached
+        - Screenshots only
+        - Nothing attached yet
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        Diagnostics are the fastest way to confirm a model or capability gap.
+
+        To capture them in Home Assistant:
+        1. Go to `Settings -> Devices & Services -> Integrations -> Enphase Energy`.
+        2. Use `Download diagnostics` for the integration.
+        3. For a specific device, open the device page and use `Download diagnostics` there as well.
+
+        Drag the downloaded file into this issue, or attach it in a follow-up comment.
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Add screenshots, API observations, installer-app details, or links to relevant documentation.

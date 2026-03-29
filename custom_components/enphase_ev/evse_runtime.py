@@ -37,6 +37,8 @@ _LOGGER = logging.getLogger(__name__)
 GREEN_BATTERY_CACHE_TTL = 300.0
 AUTH_SETTINGS_CACHE_TTL = 300.0
 CHARGE_MODE_CACHE_TTL = 300.0
+CHARGER_CONFIG_CACHE_TTL = 3600.0
+CHARGER_CONFIG_FAILURE_BACKOFF_S = 900.0
 CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
     "MANUAL": "MANUAL_CHARGING",
     "MANUAL_CHARGING": "MANUAL_CHARGING",
@@ -44,6 +46,8 @@ CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
     "SCHEDULED_CHARGING": "SCHEDULED_CHARGING",
     "GREEN": "GREEN_CHARGING",
     "GREEN_CHARGING": "GREEN_CHARGING",
+    "SMART": "SMART_CHARGING",
+    "SMART_CHARGING": "SMART_CHARGING",
 }
 EFFECTIVE_CHARGE_MODE_VALUES: frozenset[str] = frozenset(
     {
@@ -267,6 +271,8 @@ class EvseRuntime:
             "_operating_v",
             "_charge_mode_cache",
             "_green_battery_cache",
+            "_charger_config_cache",
+            "_charger_config_backoff_until",
             "_auth_settings_cache",
             "_evse_feature_flags_by_serial",
             "_last_charging",
@@ -331,10 +337,11 @@ class EvseRuntime:
                     mode = str(mode_raw).strip().upper()
                 except Exception:
                     mode = ""
-            if mode == "GREEN_CHARGING":
+            if mode in {"GREEN_CHARGING", "SMART_CHARGING"}:
                 _LOGGER.debug(
-                    "Skipping auto-resume for charger %s because mode is GREEN_CHARGING",
+                    "Skipping auto-resume for charger %s because mode is %s",
                     redact_identifier(sn_str),
+                    mode,
                 )
                 continue
             last_attempt = coord._auto_resume_attempts.get(sn_str)
@@ -1047,7 +1054,7 @@ class EvseRuntime:
 
         def _coerce(value: object) -> bool | None:
             if value is None:
-                return False
+                return None
             if isinstance(value, bool):
                 return value
             if isinstance(value, (int, float)):
@@ -1093,6 +1100,80 @@ class EvseRuntime:
             now,
         )
         return app_enabled, rfid_enabled, app_supported, rfid_supported
+
+    async def async_get_charger_config(
+        self,
+        sn: str,
+        *,
+        keys: Iterable[str],
+    ) -> dict[str, object] | None:
+        coord = self.coordinator
+        now = time.monotonic()
+        requested: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            requested.append(key_text)
+        if not requested:
+            return {}
+
+        cached = coord._charger_config_cache.get(sn)
+        cached_values: dict[str, object] = {}
+        cache_fresh = False
+        if cached and (now - cached[1] < CHARGER_CONFIG_CACHE_TTL):
+            cache_fresh = True
+            cached_values = dict(cached[0])
+            if all(key in cached_values for key in requested):
+                return {key: cached_values[key] for key in requested}
+        elif cached:
+            cached_values = dict(cached[0])
+
+        backoff_until = coord._charger_config_backoff_until.get(sn)
+        if backoff_until is not None and backoff_until > now:
+            if cache_fresh:
+                return {
+                    key: cached_values[key] for key in requested if key in cached_values
+                }
+            return None
+
+        try:
+            settings = await coord.client.charger_config(sn, requested)
+        except Exception:
+            coord._charger_config_backoff_until[sn] = (
+                time.monotonic() + CHARGER_CONFIG_FAILURE_BACKOFF_S
+            )
+            if cache_fresh:
+                return {
+                    key: cached_values[key] for key in requested if key in cached_values
+                }
+            return None
+
+        merged = dict(cached_values)
+        if isinstance(settings, list):
+            for item in settings:
+                if not isinstance(item, dict):
+                    continue
+                key = item.get("key")
+                try:
+                    key_text = str(key).strip()
+                except Exception:
+                    continue
+                if key_text not in seen:
+                    continue
+                if "value" in item:
+                    merged[key_text] = item.get("value")
+                elif "reqValue" in item:
+                    merged[key_text] = item.get("reqValue")
+
+        coord._charger_config_cache[sn] = (merged, now)
+        coord._charger_config_backoff_until.pop(sn, None)
+        return {key: merged[key] for key in requested if key in merged}
 
     def set_charge_mode_cache(self, sn: str, mode: str) -> None:
         normalized = self.normalize_charge_mode_preference(mode)
@@ -1230,6 +1311,74 @@ class EvseRuntime:
                 results[sn] = response
         return results
 
+    async def async_resolve_charger_config(
+        self,
+        serials: Iterable[str],
+        *,
+        keys: Iterable[str],
+    ) -> dict[str, dict[str, object]]:
+        coord = self.coordinator
+        requested: list[str] = []
+        seen: set[str] = set()
+        for key in keys:
+            try:
+                key_text = str(key).strip()
+            except Exception:
+                continue
+            if not key_text or key_text in seen:
+                continue
+            seen.add(key_text)
+            requested.append(key_text)
+        if not requested:
+            return {}
+
+        results: dict[str, dict[str, object]] = {}
+        pending: dict[str, asyncio.Task[dict[str, object] | None]] = {}
+        now = time.monotonic()
+        for sn in dict.fromkeys(serials):
+            if not sn:
+                continue
+            cached = coord._charger_config_cache.get(sn)
+            if cached and (now - cached[1] < CHARGER_CONFIG_CACHE_TTL):
+                cached_values = dict(cached[0])
+                if all(key in cached_values for key in requested):
+                    results[sn] = {
+                        key: cached_values[key]
+                        for key in requested
+                        if key in cached_values
+                    }
+                    continue
+            pending[sn] = asyncio.create_task(
+                self.async_get_charger_config(sn, keys=requested)
+            )
+        if pending:
+            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
+            for sn, response in zip(pending.keys(), responses, strict=False):
+                if isinstance(response, Exception):
+                    _LOGGER.debug(
+                        "Charger config lookup failed for %s: %s",
+                        redact_identifier(sn),
+                        redact_text(
+                            response,
+                            site_ids=(coord.site_id,),
+                            identifiers=(sn,),
+                        ),
+                    )
+                    cached = coord._charger_config_cache.get(sn)
+                    if cached:
+                        cached_values = dict(cached[0])
+                        filtered = {
+                            key: cached_values[key]
+                            for key in requested
+                            if key in cached_values
+                        }
+                        if filtered:
+                            results[sn] = filtered
+                    continue
+                if response:
+                    results[sn] = response
+        return results
+
     def resolve_charge_mode_pref(self, sn: str) -> str | None:
         sn_str = str(sn)
         try:
@@ -1240,15 +1389,51 @@ class EvseRuntime:
         candidates: list[str | None] = [
             data.get("charge_mode_pref"),
             data.get("charge_mode"),
+            self.schedule_type_charge_mode_preference(data.get("schedule_type")),
         ]
         cached = self.cached_charge_mode_preference(sn_str)
         if cached is not None:
             candidates.append(cached)
+        battery_profile = self.battery_profile_charge_mode_preference(sn_str)
+        if battery_profile is not None:
+            candidates.append(battery_profile)
         for raw in candidates:
             value = self.normalize_charge_mode_preference(raw)
             if value is not None:
                 return value
         return None
+
+    def battery_profile_charge_mode_preference(self, sn: str) -> str | None:
+        coord = self.coordinator
+        sn_str = str(sn)
+        configured_serials = self.normalize_serials(
+            getattr(coord, "_configured_serials", ())
+        )
+        if configured_serials:
+            if len(configured_serials) != 1 or sn_str not in configured_serials:
+                return None
+        else:
+            serials = self.normalize_serials(getattr(coord, "serials", ()))
+            if len(serials) != 1 or sn_str not in serials:
+                return None
+        cache_until = getattr(coord, "_storm_guard_cache_until", None)
+        if cache_until is None:
+            return None
+        try:
+            if time.monotonic() >= float(cache_until):
+                return None
+        except Exception:
+            return None
+        try:
+            devices = getattr(coord, "_battery_profile_devices", None)
+        except Exception:
+            return None
+        if not isinstance(devices, list) or len(devices) != 1:
+            return None
+        device = devices[0]
+        if not isinstance(device, dict):
+            return None
+        return self.normalize_charge_mode_preference(device.get("chargeMode"))
 
     def cached_charge_mode_preference(
         self,
@@ -1264,6 +1449,21 @@ class EvseRuntime:
         if now - cache_entry[1] >= CHARGE_MODE_CACHE_TTL:
             return None
         return self.normalize_charge_mode_preference(cache_entry[0])
+
+    @staticmethod
+    def schedule_type_charge_mode_preference(schedule_type: object) -> str | None:
+        if schedule_type is None:
+            return None
+        try:
+            normalized = str(schedule_type).strip().upper()
+        except Exception:
+            return None
+        if not normalized:
+            return None
+        compact = normalized.replace("_", "").replace("-", "").replace(" ", "")
+        if compact == "GREENCHARGING":
+            return "GREEN_CHARGING"
+        return None
 
     @staticmethod
     def normalize_charge_mode_preference(value: object) -> str | None:
@@ -1305,7 +1505,7 @@ class EvseRuntime:
             include_level = True
             strict = True
             enforce_mode = "SCHEDULED_CHARGING"
-        elif mode == "GREEN_CHARGING":
+        elif mode in {"GREEN_CHARGING", "SMART_CHARGING"}:
             include_level = False
             strict = True
         return ChargeModeStartPreferences(

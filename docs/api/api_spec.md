@@ -7,7 +7,7 @@ _This reference consolidates observed Enlighten mobile/web APIs across EV chargi
 ## 1. Overview
 - **Base URL:** `https://enlighten.enphaseenergy.com`
 - **Auth:** Most endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Some services (notably scheduler and selected control APIs) also require `Authorization: Bearer <token>`.
-- **Privacy:** Example identifiers, timestamps, and credentials in this document are anonymized placeholders.
+- **Privacy:** Example identifiers, account details, LAN metadata, and credentials in this document use placeholders. Raw browser-export request headers often contain JWTs, cookies, email addresses, user IDs, LAN IPs, MAC addresses, and serial numbers; those values must be redacted before captures are shared or committed. When this spec lists "observed values", it intentionally preserves non-sensitive enum/flag values so newly seen behavior is not lost.
 - **Path Variables:**
   - `<site_id>` - numeric site identifier
   - `<sn>` - charger serial number
@@ -23,7 +23,7 @@ GET /app-api/search_sites.json?searchText=&favourite=false
 Returns the sites tied to the authenticated account. `id` is the numeric site identifier and `title` is the display name when present.
 `searchText` filters results by name/id, while `favourite=false` returns all sites instead of just starred entries.
 
-Example response (anonymized):
+Example response:
 ```json
 {
   "sites": [
@@ -53,6 +53,7 @@ Example response (anonymized):
 - `1. Overview`
 - `2. Core Site and Device Endpoints`
 - `2.F HEMS (IQ Energy Router / Heat Pump Monitoring)`
+- `2.G Mobile/Web Shared Constants`
 - `3. EV Charger Control Operations`
 - `4. EV Scheduler (Charge Mode) API`
 - `5. BatteryConfig APIs (System Profile and Battery Controls)`
@@ -69,6 +70,7 @@ Example response (anonymized):
 | Site discovery | `GET` | `/app-api/search_sites.json` | login session cookies | Yes |
 | JWT token bootstrap | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No |
 | JWT token fallback | `GET` | `/service/auth_ms_enho/api/v1/session/token` | session cookies + `_enlighten_4_session` echoed as `e-auth-token` | No |
+| Mobile/web shared constants | `GET` | `https://enlighten-mobile-38d22.firebaseio.com/enho_constants.json` | none observed | No (documented from web UI) |
 | EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
 | EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -80,6 +82,8 @@ Example response (anonymized):
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
+| Site today snapshot | `GET` | `/pv/systems/<site_id>/today` | authenticated Enlighten session cookies | Yes |
+| Site tariff configuration | `GET` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies (observed); `e-auth-token` unverified | No (documented from web UI) |
 | System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
@@ -94,16 +98,20 @@ Example response (anonymized):
 | Battery backup history | `GET` | `/app-api/<site_id>/battery_backup_history.json` | `e-auth-token` + cookies | Yes |
 | Grid eligibility | `GET` | `/app-api/<site_id>/grid_control_check.json` | `e-auth-token` + cookies | Yes |
 | Microinverter inventory | `GET` | `/app-api/<site_id>/inverters.json` | `e-auth-token` + cookies | Yes |
+| Microinverter array layout | `GET` | `/systems/<site_id>/site_array_layout_x` | authenticated Enlighten session cookies | No (documented from web UI) |
+| Microinverter jellyfish bootstrap | `GET` | `/systems/<site_id>/jellyfish_initializer?range=<range>&view=<view>` | authenticated Enlighten session cookies | No (documented from web UI) |
 | Battery status | `GET` | `/pv/settings/<site_id>/battery_status.json` | `e-auth-token` + cookies | Yes |
-| HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices` | Enlighten session cookies | No (documented for roadmap) |
-| HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | Enlighten session cookies | No (documented from mobile app HAR) |
-| HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | Enlighten session cookies | No (documented from mobile app HAR) |
+| HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices[?include-retired=true|refreshData=false]` | Authorization JWT (`Bearer` and bare-token variants observed); cookies optional in web capture | No (documented for roadmap) |
+| HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | bearer JWT + Enlighten cookies (`username` and `requestId` also observed) | No (documented from mobile app HAR) |
+| HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | bearer JWT + Enlighten cookies (`username` and `requestId` also observed) | No (documented from mobile app HAR) |
+| HEMS supported device models | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/list-supported-models?deviceType=<device_type>` | bearer JWT + `e-auth-token` + Enlighten cookies | No (documented from web UI) |
 | HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS lifetime consumption | `GET` | `/systems/<site_id>/hems_consumption_lifetime` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS live stream toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status` | Enlighten session cookies | No (monitoring stream only) |
 | HEMS live vitals toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/vitals` | Enlighten session cookies | No (monitoring stream only) |
 | Start charging | `POST` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/start_charging` | `e-auth-token` + cookies | Yes |
 | Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
+| EV charger config read/write | `POST/PUT` | `/service/evse_controller/api/v1/<site_id>/ev_chargers/<sn>/ev_charger_config` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
 | Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
 | BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | `e-auth-token` + cookies + `Username` | Yes |
 | BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | `e-auth-token` + cookies + `Username` | No |
@@ -133,7 +141,7 @@ Returns charger state (plugged, charging, session energy, etc.).
 Recent cloud responses wrap the data in `meta`/`data` objects:
 ```json
 {
-  "meta": { "serverTimeStamp": 1761456789123 },
+  "meta": { "serverTimeStamp": 1774675080415 },
   "data": {
     "site": "1234567",
     "tz": "Region/City",
@@ -142,40 +150,50 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
         "smartEV": { "hasToken": false, "hasEVDetails": false },
         "evManufacturerName": "Example OEM",
         "offGrid": "ON_GRID",
-        "sn": "EV9876543210",
-        "name": "IQ EV Charger",
-        "lst_rpt_at": "2025-10-25T01:12:05Z[UTC]",
-        "offlineAt": "2025-10-23T03:00:29.082Z[UTC]",
+        "sn": "EV000000000000",
+        "name": "IQ EV Charger_ABCD",
+        "lst_rpt_at": "2026-03-28T04:54:34.360Z[UTC]",
+        "offlineAt": "2026-03-22T05:39:50.897Z[UTC]",
         "connected": true,
         "auth_token": null,
-        "mode": 0,
-        "charging": true,
-        "pluggedIn": true,
+        "mode": 1,
+        "charging": false,
+        "pluggedIn": false,
         "faulted": false,
         "commissioned": 1,
         "isEVDetailsSet": true,
-        "sch_d": { "status": 0, "info": [] },
+        "sch_d": {
+          "status": 1,
+          "info": [
+            {
+              "type": "greencharging",
+              "startTime": 1770591600,
+              "endTime": 1771196400,
+              "limit": 0
+            }
+          ]
+        },
         "session_d": {
-          "plg_in_at": "2025-10-24T23:57:05.145Z[UTC]",
-          "strt_chrg": 1761456500000,
-          "plg_out_at": null,
-          "e_c": 3542.11,
-          "miles": 14.35,
-          "session_cost": null,
-          "auth_status": -1,
+          "plg_in_at": "2026-01-29T12:06:21.074Z[UTC]",
+          "strt_chrg": 1769688441763,
+          "plg_out_at": "2026-01-29T14:40:37.428Z[UTC]",
+          "e_c": 9867,
+          "miles": 20.38028,
+          "session_cost": 2.56,
+          "auth_status": 4,
           "auth_type": null,
           "auth_id": null,
-          "charge_level": 32
+          "charge_level": null
         },
         "connectors": [
           {
             "connectorId": 1,
-            "connectorStatusType": "CHARGING",
-            "connectorStatusInfo": "EVConnected",
+            "connectorStatusType": "AVAILABLE",
+            "connectorStatusInfo": "",
             "connectorStatusReason": "",
             "safeLimitState": 1,
             "dlbActive": false,
-            "pluggedIn": true
+            "pluggedIn": false
           }
         ]
       }
@@ -187,37 +205,114 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
 Legacy responses may still return the flatter `evChargerData` shape.
 The `connectors[]` payload includes `dlbActive`, `safeLimitState`, and connector status fields.
 
+Observed field behavior:
+- `session_d` may still describe the most recent completed charge session even when `charging=false` and `pluggedIn=false`.
+- `sch_d.status=1` with `sch_d.info[].type="greencharging"` indicates an active green-charging policy window; `startTime` and `endTime` are Unix seconds.
+- `connectorStatusType="AVAILABLE"` can coexist with `connected=true`, meaning the charger is reachable but idle.
+- `smartEV.hasEVDetails` and top-level `isEVDetailsSet` are separate flags and can disagree in the same payload.
+
+Observed property values from the web capture:
+- `offGrid="ON_GRID"`, `mode=1`, `commissioned=1`
+- `connected=true`, `charging=false`, `pluggedIn=false`, `faulted=false`
+- `smartEV.hasToken=false`, `smartEV.hasEVDetails=false`, `isEVDetailsSet=true`
+- `sch_d.status=1`, `sch_d.info[].type="greencharging"`, `sch_d.info[].limit=0`
+- `session_d.auth_status=4`, `session_d.auth_type=null`, `session_d.auth_id=null`, `session_d.charge_level=null`
+- `connectors[].connectorId=1`, `connectors[].connectorStatusType="AVAILABLE"`, `connectors[].connectorStatusInfo=""`, `connectors[].connectorStatusReason=""`, `connectors[].safeLimitState=1`, `connectors[].dlbActive=false`
+
 ### 2.2 Extended Summary (Metadata)
 ```
 GET /service/evse_controller/api/v2/<site_id>/ev_chargers/summary?filter_retired=true
+GET /service/evse_controller/<site_id>/ev_chargers/summary
 GET /service/evse_controller/api/v2/<site_id>/ev_chargers/<sn>/summary
 ```
 Provides hardware/software versions, model names, operating voltage, IP addresses, and schedule information.
 The list endpoint returns a `data` array; the per-charger endpoint returns a single `data` object and includes `supportsUseBattery`
-to indicate whether the green-mode "Use Battery" toggle is supported.
+to indicate whether the green-mode "Use Battery" toggle is supported. The observed web capture used the non-`api/v2`
+site-summary alias and returned the same `meta`/`data`/`error` envelope shown below.
 
 ```json
 {
+  "meta": {
+    "serverTimeStamp": 1774677008657,
+    "rowCount": 1
+  },
   "data": [
     {
-      "serialNumber": "EV1234567890",
-      "displayName": "Sample Charger",
-      "modelName": "IQ-EVSE-SAMPLE",
+      "lastReportedAt": "2026-03-28T04:54:34.360Z[UTC]",
       "supportsUseBattery": true,
-      "maxCurrent": 32,
-      "chargeLevelDetails": { "min": "6", "max": "32", "granularity": "1" },
+      "chargeLevelDetails": {
+        "min": "6",
+        "max": "32",
+        "granularity": "1",
+        "defaultChargeLevel": "disabled"
+      },
+      "displayName": "IQ EV Charger_ABCD",
+      "timezone": "Region/City",
+      "warrantyDueDate": "2030-08-11T10:02:03.805264449Z[UTC]",
+      "isConnected": true,
+      "wifiConfig": "connectionStatus=0, wifiMode=, SSID=<redacted>, status=disconnected",
+      "hoControl": true,
+      "processorBoardVersion": "2.0.713.0",
+      "activeConnection": "ethernet",
+      "operatingVoltage": "230",
+      "defaultRoute": "interface=eth0, ip_address=192.0.2.1",
+      "wiringConfiguration": {
+        "L1": "L1",
+        "L2": "L2",
+        "L3": "L3",
+        "N": "N"
+      },
       "dlbEnabled": 1,
-      "networkConfig": "[...]",          // JSON or CSV-like string of interfaces
-      "lastReportedAt": "2025-01-15T12:34:56.000Z[UTC]",
-      "operatingVoltage": 240,
-      "firmwareVersion": "25.XX.Y.Z",
-      "processorBoardVersion": "A.B.C"
+      "systemVersion": "25.37.1.14",
+      "createdAt": "2025-08-11T10:02:03.805264449Z[UTC]",
+      "maxCurrent": 32,
+      "warrantyStartDate": "2025-08-11T10:02:03.805264449Z[UTC]",
+      "warrantyPeriod": 5,
+      "bootloaderVersion": "2024.04",
+      "gridType": 4,
+      "lifeTimeConsumption": 150657.53,
+      "hoControlScope": [],
+      "sku": "IQ-EVSE-EU-3032-XXXX-XXXX",
+      "firmwareVersion": "25.37.1.14",
+      "cellularConfig": "signalStrength=0, status=disconnected, network=, info=",
+      "applicationVersion": "25.37.1.5",
+      "reportingInterval": 300,
+      "serialNumber": "EV000000000000",
+      "commissioningStatus": 1,
+      "phaseMode": 3,
+      "gatewayConnectivityDetails": [
+        {
+          "gwSerialNum": "GW0000000000",
+          "gwConnStatus": 0,
+          "gwConnFailureReason": 0,
+          "lastConnTime": 1773917291326
+        }
+      ],
+      "rmaDetails": null,
+      "networkConfig": "[\n\"netmask=255.255.255.0,mac_addr=00:00:00:00:00:00,interface_name=eth0,connectionStatus=1,ipaddr=192.0.2.10,bootproto=dhcp,gateway=192.0.2.1\",\n\"netmask=,mac_addr=,interface_name=mlan0,connectionStatus=0,ipaddr=,bootproto=dhcp,gateway=\"\n]",
+      "breakerRating": 32,
+      "modelName": "IQ-EVSE-EU-3032",
+      "ratedCurrent": "32",
+      "isLocallyConnected": true,
+      "kernelVersion": "6.6.23-lts-next-gb2f1b3288874",
+      "siteId": 1234567,
+      "powerBoardVersion": "25.28.9.0",
+      "partNumber": "865-02030 09",
+      "isRetired": false,
+      "functionalValDetails": {
+        "lastUpdatedTimestamp": 1754917306774,
+        "state": 1
+      },
+      "skuScope": "GEN2_EU",
+      "status": "NORMAL",
+      "phaseCount": 3
     }
-  ]
+  ],
+  "error": {}
 }
 ```
 
-Example per-charger response (anonymized):
+Example per-charger response:
 ```json
 {
   "meta": {
@@ -292,13 +387,28 @@ Example per-charger response (anonymized):
 }
 ```
 
+Observed field behavior:
+- `meta.rowCount` is present on the list endpoint and reflects the number of chargers returned after filters such as `filter_retired=true`.
+- `networkConfig`, `wifiConfig`, `cellularConfig`, and `defaultRoute` are string-encoded diagnostics rather than nested JSON objects.
+- `gatewayConnectivityDetails[].lastConnTime` and `functionalValDetails.lastUpdatedTimestamp` are epoch milliseconds, while most other timestamps are ISO-8601 strings with `[UTC]`.
+- `lifeTimeConsumption` appears to be cumulative watt-hours.
+- `phaseMode`, `phaseCount`, `gridType`, and `wiringConfiguration` together describe electrical topology.
+
+Observed property values from the summary capture:
+- `supportsUseBattery=true`, `hoControl=true`, `dlbEnabled=1`, `isConnected=true`, `isLocallyConnected=true`, `isRetired=false`
+- `chargeLevelDetails.min="6"`, `chargeLevelDetails.max="32"`, `chargeLevelDetails.granularity="1"`, `chargeLevelDetails.defaultChargeLevel="disabled"`
+- `activeConnection="ethernet"`, `reportingInterval=300`, `status="NORMAL"`, `skuScope="GEN2_EU"`
+- `maxCurrent=32`, `breakerRating=32`, `ratedCurrent="32"`, `operatingVoltage="230"`
+- `commissioningStatus=1`, `phaseMode=3`, `phaseCount=3`, `gridType=4`, `functionalValDetails.state=1`
+- `gatewayConnectivityDetails[].gwConnStatus=0`, `gatewayConnectivityDetails[].gwConnFailureReason=0`, `rmaDetails=null`
+
 ### 2.2.1 Last Reported Timestamps
 ```
 GET /service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at
 ```
 Returns a compact map of charger serial numbers to their latest report timestamp in epoch milliseconds.
 
-Example response (anonymized):
+Example response:
 ```json
 {
   "meta": {
@@ -318,7 +428,17 @@ GET /service/evse_management/fwDetails/<site_id>
 Returns site-scoped EV charger firmware rollout details as an array keyed by `serialNumber`.
 Unlike summary v2, the path variable is the site identifier, not the charger serial number.
 
-Example response (anonymized capture):
+Observed request fields:
+- Method: `GET`.
+- Path parameter `site_id`: numeric Enlighten site identifier in the URL path.
+- Query/body: none observed.
+- `Accept: */*`.
+- `Content-Type: application/json`.
+- `X-Requested-With: XMLHttpRequest`.
+- `Referer`: `/web/<site_id>/today/graph/hours?v=3.4.0?osv=1`.
+- Browser capture authenticated with the normal Enlighten session cookie jar; the observed `e-auth-token` header value was the literal string `null`.
+
+Example response:
 ```json
 [
   {
@@ -335,6 +455,11 @@ Example response (anonymized capture):
 ]
 ```
 
+Observed structure:
+- The response is a bare JSON array with no top-level `meta`, `data`, or `error` envelope.
+- Each array item represents one charger at the site and can be joined to runtime/summary payloads via `serialNumber`.
+- Timestamp fields use extended ISO-8601 strings with fractional seconds plus a bracketed zone suffix such as `Z[UTC]`.
+
 Observed fields:
 - `serialNumber`: charger serial number used to join the record to summary/runtime data.
 - `siteId`: numeric site identifier echoed by the service.
@@ -346,52 +471,94 @@ Observed fields:
 - `statusDetail`: optional additional upgrade-state detail; often `null`.
 - `isAutoOta`: whether automatic OTA behavior is enabled for the charger.
 
+Notes:
+- The captured browser request succeeded with session cookies even though `e-auth-token` was `null`. Whether non-browser clients can omit `e-auth-token` for this endpoint remains unverified, so preserve standard session headers when scripting against it.
+- The original trace contained live cookies, XSRF tokens, JWT-bearing cookie values with account identifiers, a real site ID, a real charger serial number, and a client-facing proxy address. Those values are intentionally replaced with placeholders here.
+
 ### 2.2.3 EV Feature Flags
 ```
 GET /service/evse_management/api/v1/config/feature-flags?site_id=<site_id>[&country=<country>]
 ```
 Returns site-wide and per-charger capability flags.
+Captured web requests include authenticated cookies, session tokens, user IDs, site IDs, and charger serials; redact those fields before sharing traces or committing samples.
 
-Example response (anonymized capture):
+Observed query parameters:
+- `site_id`: numeric site identifier.
+- `country`: optional ISO country code used by the web UI; observed value `DE`.
+
+Example response:
 ```json
 {
   "meta": {
-    "serverTimeStamp": "2026-03-08T09:40:02.917+00:00"
+    "serverTimeStamp": "2026-03-28T05:13:14.438+00:00"
   },
   "data": {
     "evse_charging_mode": true,
     "evse_launch_countries": true,
+    "EVSE-SERIAL-0001": {
+      "evse_charge_level_gen1": false,
+      "evse_ble_control": true,
+      "evse_enpki_support": true,
+      "evse_ctep_certification": false,
+      "dynamic_load_supported": true,
+      "evse_operating_voltage": false,
+      "phase_config_support": true,
+      "evse_charge_level_control": false,
+      "evse_authentication": true,
+      "new_connect_to_internet_flow": false,
+      "iqevse_itk_fw_upgrade_status": false,
+      "local_green_charging": false,
+      "evse_charging_modes_cancel_task": true,
+      "iqevse_rfid": true,
+      "na_gen2_add_devices": true,
+      "max_current_config_support": true,
+      "evse_network_settings": true,
+      "iqevse_meter_connection": false,
+      "evse_gateway_connectivity": true,
+      "evse_v2_livestream": false,
+      "plug_and_charge": false,
+      "evse_connect_to_internet_flow_cellular": false,
+      "evse_connector_lock": false,
+      "evse_wifi_recommendation": true,
+      "evse_ocpp_server_settings": true,
+      "rcd_breaker_confirmation": true
+    },
     "evse_charge_range_slider": false,
     "off_peak_schedule": true,
     "evse_phase_switching": true,
     "ev_charging": true,
+    "evse_beta_users": false,
+    "evse_prelogin_cta": false,
+    "default_off_peak_schedule": false,
+    "iqevse_smart_charging": false,
     "evse_tamper_detection": true,
-    "evse_storm_guard": false,
     "iqevse_usebatterynew": false,
-    "EVSE-SERIAL-0001": {
-      "evse_network_settings": true,
-      "evse_ble_control": true,
-      "evse_gateway_connectivity": true,
-      "dynamic_load_supported": true,
-      "evse_authentication": true,
-      "iqevse_rfid": true,
-      "evse_ocpp_server_settings": true,
-      "phase_config_support": true,
-      "max_current_config_support": true,
-      "plug_and_charge": false
-    }
+    "ev_charger_faqs": true,
+    "evse_storm_guard": false,
+    "evse_auto_local_connection": false,
+    "evse_activation_logs": true,
+    "evse_ev_integration": false
   },
   "error": {}
 }
 ```
 
 Observed structure:
-- Top-level booleans under `data` are site-wide capability gates.
-- Nested objects keyed by charger serial contain per-device flags.
+- Top-level booleans under `data` are site-wide capability gates that drive global EVSE UI availability.
+- Nested objects keyed by charger serial contain per-device capability flags. Replace the key with a placeholder such as `EVSE-SERIAL-0001` when documenting captures.
+- `meta.serverTimeStamp` is an ISO 8601 timestamp string in this endpoint, unlike some other EVSE endpoints that return epoch milliseconds.
 
-Observed flags worth preserving:
-- Site-level: `evse_charging_mode`, `evse_charge_range_slider`, `off_peak_schedule`, `evse_phase_switching`, `ev_charging`, `evse_tamper_detection`, `evse_storm_guard`, `iqevse_usebatterynew`.
-- Per-charger: `dynamic_load_supported`, `evse_authentication`, `iqevse_rfid`, `evse_ocpp_server_settings`, `phase_config_support`, `max_current_config_support`, `plug_and_charge`, `evse_network_settings`, `evse_gateway_connectivity`.
+Observed site-level flags:
+- `evse_charging_mode`, `evse_launch_countries`, `evse_charge_range_slider`, `off_peak_schedule`, `evse_phase_switching`, `ev_charging`
+- `evse_beta_users`, `evse_prelogin_cta`, `default_off_peak_schedule`, `iqevse_smart_charging`, `iqevse_usebatterynew`
+- `evse_tamper_detection`, `ev_charger_faqs`, `evse_storm_guard`, `evse_auto_local_connection`, `evse_activation_logs`, `evse_ev_integration`
+
+Observed per-charger flags:
+- Connectivity and setup: `evse_ble_control`, `evse_enpki_support`, `evse_network_settings`, `evse_gateway_connectivity`, `evse_connect_to_internet_flow_cellular`, `evse_wifi_recommendation`, `new_connect_to_internet_flow`
+- Electrical and load management: `dynamic_load_supported`, `phase_config_support`, `max_current_config_support`, `evse_operating_voltage`, `rcd_breaker_confirmation`
+- Charging controls: `evse_charge_level_gen1`, `evse_charge_level_control`, `evse_charging_modes_cancel_task`, `local_green_charging`, `plug_and_charge`
+- Identity and integrations: `evse_authentication`, `iqevse_rfid`, `evse_ocpp_server_settings`, `iqevse_meter_connection`, `evse_v2_livestream`, `evse_connector_lock`
+- Rollout and certification gates: `evse_ctep_certification`, `iqevse_itk_fw_upgrade_status`, `na_gen2_add_devices`
 
 ### 2.3 Start Live Stream
 ```
@@ -399,7 +566,7 @@ GET /service/evse_controller/<site_id>/ev_chargers/start_live_stream
 ```
 Initiates a short burst of rapid status updates.
 
-Example response (anonymized):
+Example response:
 ```json
 {
   "meta": {
@@ -437,12 +604,13 @@ Body: [
 ]
 Headers:
   Accept: application/json, text/javascript, */*; q=0.01
-  Authorization: Bearer <jwt>
   Cookie: ...; XSRF-TOKEN=<token>; ...
-  e-auth-token: <token>
+  e-auth-token: <token-or-null>
   X-Requested-With: XMLHttpRequest
 ```
 Fetches the current authentication requirements for charging sessions.
+The same endpoint also returns other charger configuration keys when requested in the body array.
+Observed from the Enlighten web UI as an `XMLHttpRequest` `POST`, with the requested config keys supplied in the JSON body rather than query parameters.
 
 Example response:
 ```json
@@ -451,13 +619,43 @@ Example response:
   "data": [
     {
       "key": "rfidSessionAuthentication",
-      "value": "disabled",
-      "reqValue": "disabled",
+      "value": null,
+      "reqValue": null,
       "status": 1
     },
     {
       "key": "sessionAuthentication",
       "value": null,
+      "reqValue": null,
+      "status": 1
+    }
+  ],
+  "error": {}
+}
+```
+
+Observed phase/default-charge read request:
+```json
+[
+  { "key": "DefaultChargeLevel" },
+  { "key": "phase_switch_config" }
+]
+```
+
+Observed response (anonymized):
+```json
+{
+  "meta": { "serverTimeStamp": 1760000000000, "rowCount": 2 },
+  "data": [
+    {
+      "key": "DefaultChargeLevel",
+      "value": null,
+      "reqValue": null,
+      "status": 1
+    },
+    {
+      "key": "phase_switch_config",
+      "value": "auto",
       "reqValue": null,
       "status": 1
     }
@@ -497,9 +695,13 @@ Disable request payload:
 
 Notes:
 - `sessionAuthentication` controls "Auth via App"; `rfidSessionAuthentication` controls RFID auth.
+- `phase_switch_config` appears to expose the charger's automatic phase-switching mode; the observed read value was `"auto"`.
+- `DefaultChargeLevel` was observed as `null`; the exact semantics remain unconfirmed and may indicate unset/disabled state.
 - When either setting is enabled, charging sessions require user authentication before starting.
 - Observed: read responses use `status=1`; update responses use `status=2`, with `value` reflecting the prior state and `reqValue` the desired state.
-- Observed: `sessionAuthentication` can return `null` when disabled or unset.
+- Observed: both `sessionAuthentication` and `rfidSessionAuthentication` can return `null` for both `value` and `reqValue`, which appears to represent a disabled or unset state.
+- Observed in one web capture: the request succeeded with session cookies plus XSRF cookies present, while `e-auth-token` was sent as `null` and no bearer token header was present. Treat the auth requirements here as UI-path dependent.
+- Privacy: real captures include site IDs, charger serial numbers, cookies, JWTs, names, and email addresses. Redact all such values when preserving examples.
 
 ### 2.6 Session History (Filter Criteria)
 ```
@@ -621,6 +823,33 @@ Example lifetime request:
 GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=1234567&source=evse&requestId=<uuid>&username=2999024
 ```
 
+Observed lifetime response:
+```json
+{
+  "iqevc": [11882.44, 17529.02, 0, 0, 0, "..."],
+  "system_id": 1234567,
+  "start_date": "2025-08-11",
+  "last_report_date": 1774674802,
+  "update_pending": false,
+  "charger_iqevc": {
+    "2025": {
+      "EV000000000000": 116300.14
+    },
+    "2026": {
+      "EV000000000000": 34357.39
+    }
+  }
+}
+```
+
+Observed response behavior:
+- The lifetime endpoint returns a flat JSON object rather than a `meta`/`data` envelope.
+- `iqevc` is a dense energy-bucket array for the site-level EVSE stream; zero-valued buckets are preserved and should not be dropped.
+- `charger_iqevc` is nested by calendar year and then charger UUID/serial, allowing yearly per-charger totals to coexist with the site-level series.
+- `start_date` is the earliest bucket date in the returned history and `last_report_date` is an epoch-seconds cursor for the most recent charger report.
+- `update_pending` was observed as `false`.
+- The observed web capture succeeded with the simpler URL variant `?site_id=<site_id>` and no `Authorization`, `requestId`, or `username` headers; `e-auth-token` was the literal string `null`. Treat that as a web-session variant, not proof that non-browser clients can omit the documented auth/session headers.
+
 ### 2.8 Lifetime Energy (time-series buckets)
 ```
 GET /pv/systems/<site_id>/lifetime_energy
@@ -662,6 +891,134 @@ Notes:
 - Arrays are long; empty arrays imply the site lacks that flow type (for example `heatpump`).
 - When present, `evse` values report charging energy attributed to the EVSE.
 
+### 2.8.1 Site Today Snapshot (Quarter-Hour Energy + Battery Context)
+```
+GET /pv/systems/<site_id>/today
+Headers:
+  Accept: */*
+  Cookie: <authenticated Enlighten session cookies>
+  X-Requested-With: XMLHttpRequest
+```
+Returns the current-day site-energy view used by Enlighten, including quarter-hour arrays, totals, battery context, and verbose diagnostic/logger payloads.
+
+Example response shape:
+```json
+{
+  "system_id": 1234567,
+  "siteStatus": "normal",
+  "pending": null,
+  "next_report": null,
+  "start_date": "2026-03-28",
+  "end_date": "2026-03-28",
+  "stats": [
+    {
+      "grid_changes": {},
+      "production": [0, 0, 0, "..."],
+      "consumption": [93, 93, 210, 372, "..."],
+      "import": [93, 93, 210, "..."],
+      "export": [0, 0, 0, "..."],
+      "charge": [0, 0, 0, "..."],
+      "discharge": [0, 0, 0, "..."],
+      "soc": [5, 5, 5, "..."],
+      "generator": [0, 0, 0, "..."],
+      "grid_import": [93, 93, 210, "..."],
+      "solar_home": [0, 0, 0, "..."],
+      "solar_battery": [0, 0, 0, "..."],
+      "solar_grid": [0, 0, 0, "..."],
+      "generator_home": [0, 0, 0, "..."],
+      "generator_battery": [0, 0, 0, "..."],
+      "generator_grid": [0, 0, 0, "..."],
+      "battery_home": [0, 0, 0, "..."],
+      "battery_grid": [0, 0, 0, "..."],
+      "grid_battery": [0, 0, 0, "..."],
+      "grid_home": [93, 93, 210, "..."],
+      "start_time": 1774652400,
+      "interval_length": 900,
+      "totals": {
+        "production": 0,
+        "consumption": 3957,
+        "import": 1911,
+        "export": 44,
+        "charge": 71,
+        "discharge": 2157,
+        "soc": 360,
+        "generator": 0,
+        "grid_import": 6728400,
+        "solar_home": 0,
+        "solar_battery": 0,
+        "solar_grid": 44,
+        "generator_home": 0,
+        "generator_battery": 0,
+        "generator_grid": 0,
+        "battery_home": 2139,
+        "battery_grid": 18,
+        "grid_battery": 71,
+        "grid_home": 1861
+      },
+      "evse": [0, 0, 0, "..."],
+      "heatpump": [1, 2, 1, "..."],
+      "water_heater": [0, 0, 0, "..."]
+    }
+  ],
+  "isExportRate": true,
+  "isImportRate": true,
+  "statusDetails": {
+    "reason": null,
+    "statusSeverity": "warning",
+    "errorCount": 0,
+    "totalCount": 24,
+    "substatusApplicable": false
+  },
+  "battery_details": {
+    "aggregate_soc": 5
+  },
+  "connectionDetails": [
+    {
+      "cellular": false,
+      "wifi": null,
+      "ethernet": true,
+      "interface_ip": {
+        "wifi": null,
+        "ethernet": "192.0.2.10"
+      }
+    }
+  ],
+  "batteryConfig": {
+    "battery_backup_percentage": 5,
+    "buyback_export_plan": "",
+    "charge_from_grid": false,
+    "env_storage_settings": {
+      "GW0000000000": {
+        "soc": 5,
+        "cfg": "NOT_ALLOWED",
+        "vls": 5,
+        "src": "ENL",
+        "configState": "COMPLETED"
+      }
+    },
+    "grid_mode_settings": {
+      "battery_grid_mode": 3
+    },
+    "usage": "self-consumption",
+    "very_low_soc": 5
+  },
+  "system": {
+    "connection_type": "ethernet",
+    "statusCode": "normal"
+  },
+  "loggers": ["<redacted>"],
+  "update_pending": false,
+  "last_report_date": 1774674802
+}
+```
+
+Observed structure:
+- `stats[0]` contains 96 quarter-hour buckets (`interval_length=900`) plus a `totals` object using the same metric names.
+- The payload co-locates energy-flow arrays, battery state, connection details, and internal logging strings in one response.
+- `heatpump` can be populated even when `production` and `evse` are all zero for the same day.
+- `siteStatus="normal"` coexisted with `statusDetails.statusSeverity="warning"` in the observed capture.
+- `batteryConfig` mirrors several BatteryConfig-service concepts (`usage`, backup percentage, grid-mode settings, storm state) but adds internal class/ID fields and gateway-serial keyed maps.
+
 ### 2.B Site-Level Energy, Inventory, and Events
 
 ### 2.9 Device Inventory (Site Hardware Cards)
@@ -675,7 +1032,7 @@ Headers:
 ```
 Returns grouped device inventory for the site (Gateway, batteries, system controller, relays, meters, EV charger, etc.).
 
-Example response shape (anonymized):
+Example response shape:
 ```json
 {
   "result": [
@@ -690,7 +1047,9 @@ Example response shape (anonymized):
           "status": "normal",
           "statusText": "Normal",
           "ip": "192.0.2.10",
+          "ap_mode": true,
           "envoy_sw_version": "D8.X.XXXX",
+          "supportsEntrez": true,
           "last_report": 1770000000,
           "show_connection_details": true,
           "warranty_end_date": "2030-09-18"
@@ -701,11 +1060,12 @@ Example response shape (anonymized):
       "type": "encharge",
       "devices": [
         {
-          "name": "IQ Battery 5P",
+          "name": "IQ Battery 5P FlexPhase",
           "serial_number": "BT0000000001",
-          "sku_id": "B05-T02-ROW00-1-2",
+          "sku_id": "IQBATTERY-5P-3P-INT",
           "channel_type": "IQ Battery",
           "status": "normal",
+          "statusText": "Normal",
           "last_report": 1770000010,
           "sw_version": "522-00002-01-vX.Y.Z_rel/31.44",
           "warranty_end_date": "2040-09-18"
@@ -716,11 +1076,12 @@ Example response shape (anonymized):
       "type": "enpower",
       "devices": [
         {
-          "name": "IQ System Controller 3",
+          "name": "IQ System Controller 3 INT",
           "serial_number": "SC0000000000",
           "sku_id": "SC100G-M000ROW",
           "channel_type": "IQ System Controller",
           "status": "normal",
+          "statusText": "Normal",
           "last_report": 1770000020,
           "sw_version": "522-00003-01-vX.Y.Z_rel/31.44",
           "warranty_end_date": "2035-09-18"
@@ -766,7 +1127,13 @@ Additional observed buckets (anonymized excerpt):
       "type": "hemsDevices",
       "devices": [
         {
-          "gateway": [{ "device-type": "IQ_ENERGY_ROUTER", "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1" }],
+          "gateway": [
+            {
+              "device-type": "IQ_ENERGY_ROUTER",
+              "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
+              "ip-address": "192.0.2.11"
+            }
+          ],
           "heat-pump": [{ "device-type": "HEAT_PUMP", "device-uid": "<site_id>_HEAT_PUMP_1" }],
           "evse": [],
           "water-heater": []
@@ -781,8 +1148,11 @@ Observed structure:
 - `result[]` is a mixed array containing typed buckets (`{type, devices}`) and metadata objects (for example `curr_date_site`).
 - Each bucket's `type` identifies the device family; `devices[]` may be empty.
 - Common device fields: `name`, `serial_number`, `sku_id`, `status`, `statusText`, `last_report`.
-- Optional fields vary by type (`ip`, `connected`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
+- Observed `type` values include `envoy`, `storage`, `q_relay`, `meter`, `encharge`, `enpower`, `generator`, `wirelessRangeExtender`, `dryContactLoads`, `stringInverters`, `iqCollars`, and `hemsDevices`.
+- Optional fields vary by type (`ip`, `ap_mode`, `connected`, `supportsEntrez`, `envoy_sw_version`, `channel_type`, `sw_version`, `warranty_end_date`, `load_name`, `load_type`, etc.).
 - `channel_type` labels may be localized by site locale (for example French meter labels).
+- Meter examples observed both production and consumption labels via synthetic serial suffixes such as `EIM1` and `EIM2`.
+- `dryContactLoads` entries may expose user-assigned names such as garage/PV load labels.
 - Some sites include a nested `type: "hemsDevices"` bucket in `/devices.json`, reusing the hierarchical HEMS shape documented in `2.17`.
 
 ### 2.9.1 Filtered Site-Device Inventory
@@ -796,7 +1166,7 @@ Headers:
 ```
 Returns a filtered device list for the system dashboard and device-management views. The request body carries the site identifier plus device-family filters and requested extra fields.
 
-Example request body (anonymized capture):
+Example request body:
 ```json
 {
   "site_id": "1234567",
@@ -809,7 +1179,7 @@ Example request body (anonymized capture):
 }
 ```
 
-Example response (anonymized capture):
+Example response:
 ```json
 {
   "type": "device-details",
@@ -842,7 +1212,7 @@ GET /app-api/<site_id>/show_livestream
 ```
 Returns booleans indicating live site status and live vitals availability.
 
-Example response (anonymized capture):
+Example response:
 ```json
 {
   "live_status": true,
@@ -873,7 +1243,7 @@ GET /app-api/<site_id>/get_latest_power
 ```
 Returns the latest observed site power sample.
 
-Example response (anonymized capture):
+Example response:
 ```json
 {
   "latest_power": {
@@ -895,6 +1265,7 @@ Notes:
 - Requires the standard authenticated Enlighten session headers (`e-auth-token` plus cookies).
 - The payload is nested under `latest_power`; treat a missing or non-numeric `value` as no sample rather than coercing to `0`.
 - Observed timestamps are epoch seconds rather than milliseconds.
+- The observed capture returned `value=-30`, confirming the field can go negative. Preserve negative samples rather than clamping to `0`; they likely represent net import or reverse power flow.
 
 ### 2.9.4 System Dashboard Summary Flags
 ```
@@ -1746,6 +2117,138 @@ Observed structure:
 - `modems` expose provisioning state (`status`, `plan_end`, `part_number_with_sku`) instead of the gateway-style network payload.
 - These endpoints expose sensitive infrastructure details such as IP addresses, MAC-derived identifiers, and direct dashboard links; redact aggressively before sharing traces.
 
+### 2.9.8.a Site Tariff Configuration
+```
+GET /service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: <authenticated Enlighten session cookies>
+  e-auth-token: <session_id>
+  X-Requested-With: XMLHttpRequest
+```
+Returns the tariff profile used for site cost calculations and tariff-aware battery / EV charging UI flows.
+
+Example response (anonymized; representative values only):
+```json
+{
+  "site_id": 1234567,
+  "country": "XX",
+  "currency": "$",
+  "zipcode": "9999",
+  "hasAcb": false,
+  "chargeFromGrid": true,
+  "chargeBeginTime": 120,
+  "chargeEndTime": 300,
+  "showBatteryConfig": true,
+  "hideChargeFromGrid": true,
+  "supports_mqtt": true,
+  "calibrationProgress": false,
+  "purchase": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "hasNetMetering": false,
+    "source": "manual",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {
+                "id": "off-peak",
+                "startTime": "",
+                "endTime": "",
+                "rate": "0.18",
+                "type": "off-peak",
+                "rateComponents": []
+              },
+              {
+                "id": "peak-1",
+                "startTime": "840",
+                "endTime": "1260",
+                "rate": "0.31",
+                "type": "peak",
+                "rateComponents": []
+              }
+            ],
+            "updatedValue": "",
+            "must_charge_start": "0",
+            "must_charge_duration": "0",
+            "must_charge_mode": "CP"
+          }
+        ]
+      }
+    ]
+  },
+  "buyback": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "source": "netFit",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {
+                "id": "off-peak",
+                "startTime": "",
+                "endTime": "",
+                "rate": "0.02",
+                "type": "off-peak",
+                "rateComponents": []
+              },
+              {
+                "id": "peak-1",
+                "startTime": "960",
+                "endTime": "1320",
+                "rate": "0.06",
+                "type": "peak",
+                "rateComponents": []
+              }
+            ],
+            "updatedValue": ""
+          }
+        ]
+      }
+    ],
+    "exportPlan": "netFit"
+  },
+  "nemVersion": "",
+  "installDate": "2024-01-15",
+  "showDTQuestion": false,
+  "dtCustomChargeEnabled": true
+}
+```
+
+Observed request fields:
+- Path parameter `site_id`: numeric site identifier embedded in the `/systems/<site_id>/...` path.
+- Query parameter `include-site-details`: observed as `true`; when set, the response includes top-level site metadata such as `country`, `currency`, `zipcode`, `installDate`, and battery-related capability flags.
+
+Observed response structure:
+- The response is a flat JSON object with no `data` / `meta` wrapper.
+- `purchase` describes import tariffs and `buyback` describes export compensation. Both use the same nested `seasons[] -> days[] -> periods[]` shape.
+- `periods[].startTime` and `periods[].endTime` are stringified minutes-after-midnight values (for example `"840"` = 14:00 local time). Empty strings were observed for all-day/default periods.
+- `periods[].rate` is returned as a string, not a numeric JSON value.
+- `days[].days` uses numeric weekday values; the capture showed `[1, 2, 3, 4, 5, 6, 7]` for an every-day schedule.
+- `purchase.days[].must_charge_start`, `must_charge_duration`, and `must_charge_mode` appear to be EV/battery charge-policy hints attached to the import tariff definition.
+- Top-level `chargeBeginTime` / `chargeEndTime` are integer minutes after midnight and align with the charge-from-grid window exposed by the BatteryConfig APIs.
+- Top-level flags such as `showBatteryConfig`, `hideChargeFromGrid`, `supports_mqtt`, `calibrationProgress`, and `dtCustomChargeEnabled` appear to gate related UI behavior.
+
+Notes:
+- The observed browser request included live bearer tokens, cookies, site identifiers, postcode data, and account-linked metadata. Those values are intentionally replaced here with placeholders or representative examples.
+- `Authorization: Bearer <jwt>` was present in the capture, unlike many read-only site endpoints that rely on cookies plus `e-auth-token` alone.
+- `source` values under `purchase` / `buyback` are backend-origin labels (`manual`, `netFit` in the capture) and should be preserved verbatim until more variants are observed.
+
 ### 2.10 Homeowner Events History
 ```
 GET /service/events-platform-service/v1.0/<site_id>/events/homeowner?next=<cursor>&page_size=<n>&locale=<locale>
@@ -2076,6 +2579,16 @@ Observed structure:
 - `inverters[]` card fields include model (`name`), array grouping (`array_name`), serial, firmware (`fw1`/`fw2`), and warranty date.
 - Status rollups are provided as counters (`error_count`, `warning_count`, `normal_count`) plus `not_reporting`.
 - `last_report` is epoch seconds.
+- The observed capture contained only `total`, `not_reporting`, and `inverters`; the aggregate `*_count` fields were absent, so clients should treat them as optional.
+
+Observed property values from the capture:
+- `name`: `IQ8AC`, `IQ8HC`
+- `array_name`: localized free-form roof/array labels were observed; redact exact labels in published captures
+- `status` / `statusText`: `normal` / `Normal`
+- `sku_id`: `IQ8AC-72-M-INT`, `IQ8HC-72-M-INT`
+- `part_num`: `800-01395-r03`, `800-01391-r03`
+- `fw1`: `521-00005-r06-v08.13.01`
+- `fw2`: `549-00071-r01-v08.13.01`, `549-00047-r01-v08.13.01`
 
 ### 2.14 Inverter Production by Date Range
 ```
@@ -2164,6 +2677,127 @@ Observed structure:
 - Each entry includes `serialNum` and `deviceId`, allowing deterministic joins to `/app-api/<site_id>/inverters.json`.
 - Payload may include non-microinverter device types on mixed systems (for example battery PCU entries); filter by serial/type when building microinverter entities.
 
+Observed property values from the capture:
+- `statusCode` / `status`: `normal` / `Normal`
+- `emu_version`: `8.3.5167`
+- `show_sig_str`: `true`
+- `type`: `IQ8AC`, `IQ8HC`
+- `issi.level`: `0`; observed `issi.sig_str` values included `52`, `54`, `64`
+- `rssi.level`: `4`; observed `rssi.sig_str` values included `94`, `96`
+
+### 2.15.1 Site Array Layout
+```
+GET /systems/<site_id>/site_array_layout_x
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Cookie: <authenticated Enlighten session cookies>
+  X-Requested-With: XMLHttpRequest
+```
+Returns the microinverter-layout geometry used by the Enlighten "Arrays" / Jellyfish view.
+
+Example response shape:
+```json
+{
+  "system_id": 1234567,
+  "rotation": 0,
+  "dimensions": {
+    "x_min": 31,
+    "x_max": 1031,
+    "y_min": 1175,
+    "y_max": 1776
+  },
+  "arrays": [
+    {
+      "array_id": 9000001,
+      "label": "Array A",
+      "x": 531,
+      "y": 1475,
+      "azimuth": 180,
+      "modules": [
+        {
+          "module_id": 9100001,
+          "rotation": 0,
+          "x": 450,
+          "y": 201,
+          "inverter": {
+            "inverter_id": 9200001,
+            "serial_num": "12XXXXXXXXXX"
+          }
+        }
+      ]
+    }
+  ],
+  "haiku": "<display_text>",
+  "has_iq8d": false
+}
+```
+
+Observed structure:
+- `dimensions` defines the canvas bounds for the site layout.
+- `arrays[]` carries array-level position/orientation metadata plus `modules[]`.
+- Each module record includes both layout coordinates and the joined inverter reference (`inverter_id`, `serial_num`).
+- The observed capture exposed one array with 24 modules, `rotation=0`, `azimuth=180`, and `has_iq8d=false`.
+- `haiku` is decorative display text rather than telemetry.
+
+### 2.15.2 Jellyfish Initializer (HTML/JS Bootstrap)
+```
+GET /systems/<site_id>/jellyfish_initializer?range=<range>&view=<view>
+Headers:
+  Accept: text/html, */*; q=0.01
+  Cookie: <authenticated Enlighten session cookies>
+  X-Requested-With: XMLHttpRequest
+```
+Returns an HTML/JavaScript bootstrap snippet rather than JSON. The page initializes the client-side `JellyfishController` with endpoint paths, time ranges, localization strings, and view flags.
+
+Observed bootstrap fragment:
+```javascript
+new e.JellyfishController({
+  mode: "standard",
+  ab_gating: true,
+  dataMode: "inverter",
+  seeModuleData: true,
+  metered_view: true,
+  view: "energy",
+  alarms: "subStatusFlag",
+  systemId: 1234567,
+  energy: {
+    sitePath: "/systems/1234567/energy",
+    inverterPath: "/systems/1234567/inverter_data_x/energy.json",
+    startDate: "2026-03-28",
+    endDate: "2026-03-28"
+  },
+  power: {
+    sitePath: "/systems/1234567/power_time_series?all_production_sources=true",
+    inverterPath: "/systems/1234567/inverter_data_x/time_series.json",
+    startDate: "2026-03-22",
+    endDate: "2026-03-28"
+  },
+  acVoltage: {
+    inverterPath: "/systems/1234567/inverter_data_x/time_series.json?stat=ACV"
+  },
+  acFrequency: {
+    inverterPath: "/systems/1234567/inverter_data_x/time_series.json?stat=ACHZ"
+  },
+  dcVoltage: {
+    inverterPath: "/systems/1234567/inverter_data_x/time_series.json?stat=DCV"
+  },
+  dcCurrent: {
+    inverterPath: "/systems/1234567/inverter_data_x/time_series.json?stat=DCA"
+  },
+  temperature: {
+    inverterPath: "/systems/1234567/inverter_data_x/time_series.json?stat=TMPI"
+  },
+  statusPath: "/systems/1234567/inverter_status_x.json",
+  layout: "/systems/1234567/site_array_layout_x",
+  timezone: "Region/City"
+});
+```
+
+Observed behavior:
+- The response is an executable HTML fragment intended for same-origin browser use, not a stable public JSON API.
+- The initializer advertises the related microinverter endpoints and the stat query names `ACV`, `ACHZ`, `DCV`, `DCA`, and `TMPI`.
+- The observed capture used `range=today` and `view=energy_production`; the exported browser text showed `amp;view` in the query-parameter dump, which is an HTML-escaping artifact rather than a separate API parameter.
+
 ### 2.E Site Battery Runtime Status
 
 ### 2.16 Battery Status (Site Battery Card)
@@ -2171,11 +2805,12 @@ Observed structure:
 GET /pv/settings/<site_id>/battery_status.json
 Headers:
   Accept: */*
-  Cookie: ...; XSRF-TOKEN=<token>; ...   # authenticated Enlighten web session cookies
-  e-auth-token: <token>
+  Cookie: <authenticated Enlighten web session cookies>
+  e-auth-token: <session token>
   X-Requested-With: XMLHttpRequest
 ```
 Returns the battery card payload used in Enlighten web/app for site-level and per-battery SoC, power, and status details.
+The raw web capture also included live cookies, XSRF tokens, a request ID, and browser metadata; those are omitted here because they are account-specific and not required to describe the schema.
 
 Example response (anonymized):
 ```json
@@ -2218,8 +2853,8 @@ Example response (anonymized):
       "cycle_count": 115,
       "battery_mode": "Self-Consumption",
       "rated_power": 3840,
-      "battery_phase_count": 1,
-      "is_flex_phase": false,
+      "battery_phase_count": 3,
+      "is_flex_phase": true,
       "battery_soh": "100%"
     },
     {
@@ -2247,8 +2882,8 @@ Example response (anonymized):
       "cycle_count": 115,
       "battery_mode": "Self-Consumption",
       "rated_power": 3840,
-      "battery_phase_count": 1,
-      "is_flex_phase": false,
+      "battery_phase_count": 3,
+      "is_flex_phase": true,
       "battery_soh": "100%"
     }
   ]
@@ -2256,11 +2891,15 @@ Example response (anonymized):
 ```
 Observed structure:
 - Top-level metrics summarize combined battery behavior (`current_charge`, energy/power totals, microinverter counts).
+- `show_battery_banner` is a UI hint flag; observed value so far: `false`.
 - `storages[]` contains one object per battery with SoC, power, status, reporting timestamp, and event/error metadata.
-- `excluded=true` marks batteries excluded from active fleet calculations; included/excluded counters are exposed at the top level.
+- `excluded` has been observed as `false`; `true` is still the documented exclusion indicator when a battery is omitted from active fleet calculations.
 - Percentage fields (`current_charge`, `battery_soh`) are string percentages in observed payloads.
-- Status appears as normalized code (`status`, for example `normal`) plus a display label (`statusText`, for example `Normal`).
+- Status appears as normalized code (`status`) plus a display label (`statusText`); observed pair so far: `normal` / `Normal`.
+- `battery_mode` is a display string; observed value so far: `Self-Consumption`.
+- `battery_phase_count` and `is_flex_phase` vary by hardware/site topology; observed combinations so far: `1` / `false` and `3` / `true`.
 - `led_status` is the raw battery LED/runtime status code. The integration currently interprets `12` as charging, `13` as discharging, `14` as idle, `15` as idle, and `17` as idle; any other value is treated as unknown runtime state.
+- `led_status` should be interpreted alongside `status`/`statusText`; observed values in captures so far: `12` and `17`.
 
 Observed battery LED legend:
 - Rapidly Flashing Yellow: Starting up / establishing communications
@@ -2276,101 +2915,131 @@ Observed battery LED legend:
 
 ### 2.F HEMS (IQ Energy Router / Heat Pump Monitoring)
 
-The endpoints below are read-oriented HEMS/IQ Energy Router APIs observed in Enlighten web captures for sites with paired router + heat-pump accessories.
+The endpoints below are read-oriented HEMS/IQ Energy Router APIs observed in Enlighten web and mobile captures for sites with paired router + heat-pump accessories.
 
 ### 2.17 HEMS Device Inventory (Router + Heat Pump Stack)
 ```
 GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices?include-retired=true
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices?refreshData=false
 Headers:
   Accept: application/json
-  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Authorization: <jwt> or Bearer <jwt>
+  Cookie: ...; XSRF-TOKEN=<token>; ...    # optional in web capture
   Origin: https://enlighten.enphaseenergy.com
+  username: <user_id>                     # observed in Bearer-token variant
+  requestId: <uuid>                       # observed in Bearer-token variant
 ```
 Returns grouped HEMS devices, including IQ Energy Router and connected heat-pump ecosystem devices.
 
 Example response shape (anonymized):
 ```json
 {
-  "status": "success",
-  "result": {
-    "devices": [
-      {
-        "gateway": [
-          {
-            "name": "IQ Energy Router_1",
-            "device-type": "IQ_ENERGY_ROUTER",
-            "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
-            "uid": "ROUTER-UID-001",
-            "make": "RouterVendor",
-            "model": "RouterModel",
-            "status": "normal",
-            "statusText": "Normal",
-            "pairing-status": "PAIRED",
-            "last-report": 1770000000,
-            "hems-device-id": "hd_router_001",
-            "hems-device-facet-id": "hf_router_001",
-            "iqer-uid": "iqer_uid_001",
-            "created-at": "2026-02-01T10:00:00Z"
-          },
-          {
-            "name": "IQ Gateway_1",
-            "device-type": "IQ_GATEWAY",
-            "device-uid": "<site_id>_IQ_GATEWAY_1",
-            "uid": "GW-UID-001",
-            "status": "normal",
-            "statusText": "Normal",
-            "pairing-status": "PAIRED",
-            "last-report": 1770000001
-          }
-        ],
-        "heat-pump": [
-          {
-            "name": "SG Ready Gateway_1",
-            "device-type": "SG_READY_GATEWAY",
-            "device-uid": "<site_id>_SG_READY_GATEWAY_1",
-            "uid": "SGR-UID-001",
-            "make": "GatewayVendor",
-            "model": "GatewayModel",
-            "status": "normal",
-            "statusText": "Normal",
-            "pairing-status": "PAIRED",
-            "last-report": 1770000002
-          },
-          {
-            "name": "Energy Meter_1",
-            "device-type": "ENERGY_METER",
-            "device-uid": "<site_id>_ENERGY_METER_1",
-            "uid": "METER-UID-001",
-            "make": "MeterVendor",
-            "model": "MeterModel",
-            "firmware-version": "X.Y.Z",
-            "status": "normal",
-            "statusText": "Normal",
-            "pairing-status": "PAIRED",
-            "last-report": 1770000003
-          },
-          {
-            "name": "Heat Pump_1",
-            "device-type": "HEAT_PUMP",
-            "device-uid": "<site_id>_HEAT_PUMP_1",
-            "make": "HeatPumpVendor",
-            "model": "HeatPumpModel",
-            "status": "normal",
-            "statusText": "Normal",
-            "pairing-status": "PAIRED",
-            "fvt-time": 1770000000
-          }
-        ],
-        "evse": [],
-        "water-heater": []
-      }
-    ]
+  "type": "hems-device-details",
+  "timestamp": "2026-03-28T05:17:58.156910991Z",
+  "data": {
+    "hems-devices": {
+      "gateway": [
+        {
+          "name": "IQ Energy Router_1",
+          "device-type": "IQ_ENERGY_ROUTER",
+          "make": "Hive",
+          "model": "Nano Hub 2",
+          "uid": "ROUTER-UID-001",
+          "status": "normal",
+          "statusText": "Normal",
+          "created-at": "2025-08-11T08:11:08Z",
+          "last-report": "2026-03-28T05:16:57Z",
+          "hems-device-id": "hd_router_001",
+          "hems-device-facet-id": "hf_router_001",
+          "pairing-status": "PAIRED",
+          "device-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
+          "device-state": "ACTIVE",
+          "iqer-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
+          "ip-address": "192.0.2.11"
+        },
+        {
+          "name": "IQ Gateway_1",
+          "device-type": "IQ_GATEWAY",
+          "make": "Enphase",
+          "model": "Envoy-S Metered",
+          "uid": "GW-UID-001",
+          "status": "normal",
+          "statusText": "Normal",
+          "created-at": "2025-08-11T09:02:58Z",
+          "last-report": "2025-08-11T09:02:58Z",
+          "hems-device-id": "hd_gateway_001",
+          "hems-device-facet-id": "hf_gateway_001",
+          "pairing-status": "PAIRED",
+          "device-uid": "<site_id>_IQ_GATEWAY_1",
+          "iqer-uid": "<site_id>_IQ_ENERGY_ROUTER_1"
+        }
+      ],
+      "heat-pump": [
+        {
+          "name": "SG Ready Gateway_1",
+          "device-type": "SG_READY_GATEWAY",
+          "make": "Gude",
+          "model": "Expert Net Control 2302",
+          "uid": "SGR-UID-001",
+          "status": "normal",
+          "statusText": "Normal",
+          "created-at": "2025-08-11T09:33:28Z",
+          "last-report": "2026-03-28T05:16:55Z",
+          "hems-device-id": "hd_sgready_001",
+          "hems-device-facet-id": "hf_sgready_001",
+          "pairing-status": "PAIRED",
+          "device-uid": "<site_id>_SG_READY_GATEWAY_1",
+          "iqer-uid": "<site_id>_IQ_ENERGY_ROUTER_1"
+        },
+        {
+          "name": "Energy Meter_1",
+          "device-type": "ENERGY_METER",
+          "make": "Bcontrol",
+          "model": "Energy Manager 420",
+          "firmware-version": "3.3",
+          "uid": "METER-UID-001",
+          "status": "normal",
+          "statusText": "Normal",
+          "created-at": "2025-10-21T10:37:57Z",
+          "last-report": "2026-03-28T05:16:55Z",
+          "hems-device-id": "hd_meter_001",
+          "hems-device-facet-id": "hf_meter_001",
+          "pairing-status": "PAIRED",
+          "device-uid": "<site_id>_ENERGY_METER_1",
+          "iqer-uid": "<site_id>_IQ_ENERGY_ROUTER_1"
+        },
+        {
+          "name": "Waermepumpe",
+          "device-type": "HEAT_PUMP",
+          "make": "Ochsner",
+          "model": "Europa Mini WP",
+          "status": "normal",
+          "statusText": "Normal",
+          "created-at": "2025-10-21T10:38:35.641298069Z",
+          "hems-device-facet-id": "hf_heatpump_001",
+          "pairing-status": "PAIRED",
+          "device-uid": "<site_id>_HEAT_PUMP_1",
+          "iqer-uid": "<site_id>_IQ_ENERGY_ROUTER_1",
+          "fvt-time": "2025-10-21T12:45:52.110Z"
+        }
+      ],
+      "evse": [],
+      "water-heater": []
+    }
   }
 }
 ```
 Observed structure:
+- The top-level inventory envelope in the supplied captures was `type` + `timestamp` + `data["hems-devices"]`; an older `status/result/devices` example should not be assumed.
 - Device grouping is hierarchical (`gateway`, `heat-pump`, `evse`, `water-heater`) rather than the flat `type/devices` shape used by `/app-api/<site_id>/devices.json`.
+- Query variants observed so far are `include-retired=true` and `refreshData=false`; both returned the same `hems-device-details` payload shape.
+- Authorization varied by caller: one web capture succeeded with a bare JWT in the `Authorization` header and no cookies, while another used `Authorization: Bearer <jwt>` together with cookies, `username`, and `requestId`.
 - `device-uid` is a stable HEMS identifier reused across timeseries filters and related detail requests.
+- `created-at`, `last-report`, and `fvt-time` were observed as ISO-8601 strings in this capture, not epoch seconds.
+- `status` / `statusText` were observed as `normal` / `Normal` for all listed devices in these captures; `pairing-status` was `PAIRED`.
+- `device-state` was present on the IQ Energy Router and was observed as `ACTIVE`.
+- Router/gateway members may expose network-local metadata such as `ip-address`; redact concrete LAN addresses when documenting captures.
 - For the captured site, device types present were `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, and `HEAT_PUMP`.
 
 ### 2.17.1 HEMS Heat Pump Runtime State (Per Heat Pump UID)
@@ -2378,8 +3047,11 @@ Observed structure:
 GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>
 Headers:
   Accept: application/json
+  Authorization: Bearer <jwt>
   Cookie: ...; XSRF-TOKEN=<token>; ...
   Origin: https://enlighten.enphaseenergy.com
+  username: <user_id>
+  requestId: <uuid>
 ```
 Returns app-facing runtime state for a single heat-pump device UID.
 
@@ -2419,6 +3091,7 @@ Observed structure:
 - `sg-ready-mode` and `vpp-sgready-mode-override` appear alongside runtime state and may explain SG Ready behavior independently of health/status reporting.
 - `sg-ready-mode` was observed as `MODE_2` when the app/event history described the heat pump as being in normal mode, and as `MODE_3` when it was heating with recommended-consumption / SG Ready on.
 - `vpp-sgready-mode-override` remained `NONE` in both idle and running captures; other values are still undocumented.
+- Mobile captures also included `username` and `requestId` headers; `timezone` was observed as an IANA name (`Europe/Berlin`).
 - `last-report-at` is an ISO-8601 timestamp and is more precise than the sparse `fvt-time`/`last-report` fields seen on some inventory members.
 
 Inference:
@@ -2429,8 +3102,11 @@ Inference:
 GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=P1D
 Headers:
   Accept: application/json
+  Authorization: Bearer <jwt>
   Cookie: ...; XSRF-TOKEN=<token>; ...
   Origin: https://enlighten.enphaseenergy.com
+  username: <user_id>
+  requestId: <uuid>
 ```
 Returns per-device daily energy-consumption buckets for HEMS-managed loads.
 
@@ -2464,10 +3140,53 @@ Observed structure:
 - `type` was `hems-device-details` in the captured responses.
 - Results are grouped by HEMS family (`heat-pump`, `evse`, `water-heater`).
 - The `consumption[]` item exposes source-split totals (`solar`, `battery`, `grid`) plus a `details[]` numeric array.
+- The supplied March 28 capture returned `solar=0`, `battery=0`, `grid=0`, and `details=[987]`; earlier captures used decimal-looking values (`47.0`, `201.0`, `211.0`, `220.0`, `230.0`), so clients should treat these as generic numbers rather than fixed-format floats.
 - In active-heating captures the `details[]` value increased across polls (`201.0`, `211.0`, `220.0`, `230.0`) while `/heatpump/<device_uid>/state` reported `heatpump-status: RUNNING`.
+- Mobile captures also included `username` and `requestId` headers; `step` was observed as `P1D`.
 
 Inference:
 - In the "not running" capture, `details: [47.0]` was still present even though the runtime endpoint reported `heatpump-status: IDLE`, so this endpoint should be treated as daily aggregate consumption, not instantaneous on/off state.
+
+### 2.17.3 HEMS Supported Models Catalog
+```
+GET https://hems-integration.enphaseenergy.com/api/v1/hems/list-supported-models?deviceType=<device_type>
+Headers:
+  Accept: application/json, text/javascript, */*; q=0.01
+  Authorization: Bearer <jwt>
+  Cookie: <authenticated Enlighten session cookies>
+  e-auth-token: <session_id>
+  username: <user_id>
+  requestId: <uuid>
+  Origin: https://enlighten.enphaseenergy.com
+```
+Returns the supported-model catalog for a HEMS device family. The observed request used `deviceType=HEAT_PUMP`.
+
+Example response:
+```json
+{
+  "type": "hems-device-details",
+  "timestamp": "2026-03-28T05:43:36.648255652Z",
+  "data": {
+    "Dimplex": [],
+    "Vaillant": [],
+    "tecalor": [],
+    "iDM": [],
+    "alpha innotec": [],
+    "NIBE": [],
+    "Wolf": [],
+    "Viessmann": [],
+    "NOVELAN": [],
+    "Daikin": [],
+    "Remeha": [],
+    "Stiebel Eltron": []
+  }
+}
+```
+
+Observed structure:
+- The response is a manufacturer-keyed object inside `data`, not an array.
+- Empty arrays are meaningful and should be preserved; the capture showed known brands with no discovered models rather than omitting them.
+- Manufacturer keys are case-sensitive and mixed-style (`iDM`, `alpha innotec`, `Stiebel Eltron`), so clients should not normalize them.
 
 ### 2.18 HEMS Power Timeseries (Heat Pump Consumption)
 ```
@@ -2582,6 +3301,75 @@ Observed behavior:
 - A later capture also showed disable semantics: request body `{"livestream-enabled": false}` returned `"data": {"enable": false}`.
 - Treat the endpoint as transport control, not device actuation.
 
+### 2.G Mobile/Web Shared Constants
+
+### 2.22 Shared Constants Payload
+```
+GET https://enlighten-mobile-38d22.firebaseio.com/enho_constants.json
+```
+Returns a global JSON document consumed by the Enphase mobile/web clients for feature constants, localized support/store links,
+minimum supported app versions, SKU catalogs, and similar static configuration.
+
+Auth observations:
+- Captured request did not include cookies or a bearer token.
+- The observed `e-auth-token` header value was literal `null`, suggesting the endpoint is public or at least not session-bound.
+- Response was HTTP `200 OK` with `Content-Type: application/json; charset=utf-8`.
+
+Example response excerpt (anonymized):
+```json
+{
+  "AI_SAVINGS_DATA": {
+    "AI_SAVINGS_METRICS_LOWER_LIMIT": 0.1,
+    "AI_SAVINGS_METRICS_UPPER_LIMIT": 0.1,
+    "NEGATIVE_SAVINGS_LEARN_MORE_LINK": {
+      "US": {
+        "en": "https://support.enphase.com/s/article/why-is-my-electricity-bill-in-ai-optimization-profile-higher-than-expected"
+      }
+    }
+  },
+  "CONNECTIVITY_DATA": {
+    "ENV_SPECIAL_CHARACTERS": ["#", "$", "&", "%", "£", "+", "=", "\"", "\\", "€"],
+    "MIN_ESW_FOR_ENCODING": "D8.3.5314"
+  },
+  "ENPHASE_STORE": {
+    "US": {
+      "en": "https://store.enphase.com/storefront/en-us"
+    }
+  },
+  "ENSTORE_CONSTANTS": {
+    "ENPHASE_CARE_MAINTAINER_ID": {
+      "production": [
+        {
+          "company_id": "<redacted>"
+        }
+      ]
+    },
+    "ENPHASE_CARE_SKUs": {
+      "ANNUAL_SUBSCRIPTION": ["ENPH-CARE-ANNUAL-SOLAR", "ENPH-CARE"],
+      "PLUS_SUBSCRIPTION": ["ENPH-CARE-TEN-SOLAR"]
+    },
+    "ONE_MIN_TELEMETRY_SKU": "ONE-MIN-TELEMETRY"
+  },
+  "IQCP_DATA": {
+    "APP_VERSION": "4.1.0",
+    "COMMAND_RETRIES": 3,
+    "FW_VERSION": "2.0.0",
+    "ITK_MIN_APP_VERSION_RED_COMMISSIONING": "4.8.4"
+  }
+}
+```
+
+Notable field groups observed:
+- `AI_SAVINGS_DATA`: thresholds plus country/language-specific support article links.
+- `CONNECTIVITY_DATA`: app-side validation constants for special characters and minimum software support.
+- `ENPHASE_STORE` and `ENSTORE_CONSTANTS`: localized storefront links, SKU lists, titles, media base URLs, and feature toggles.
+- `IQCP_DATA`: balcony solar / IQCP app and firmware compatibility values plus device naming strings.
+
+Integration relevance:
+- No charger telemetry, per-site configuration, or account-specific state was present in the captured payload.
+- The document appears useful as a reference for feature-gating and catalog discovery, but not for live EV charger control/state.
+- Because the payload is shared/global and not site-scoped, any future use in the integration should treat it as cacheable static metadata.
+
 ---
 
 ## 3. EV Charger Control Operations
@@ -2654,6 +3442,52 @@ Response:
 }
 ```
 
+Observed AI Optimization variant:
+```json
+{
+  "meta": {
+    "serverTimeStamp": "<timestamp>"
+  },
+  "data": {
+    "config": {
+      "profile": "ai_optimisation",
+      "modeSyncStatus": "synced",
+      "stormActive": false,
+      "isModeCancellable": true,
+      "pendingModesOffGrid": false,
+      "pendingSchedulesOffGrid": false
+    },
+    "modes": {
+      "smartCharging": {
+        "chargingMode": "SMART_CHARGING",
+        "enabled": true,
+        "showSettings": false,
+        "isHidden": false,
+        "isDisabledByStorm": false,
+        "goalsEnabled": 0,
+        "defaultGoalAdded": false
+      },
+      "scheduledCharging": {
+        "chargingMode": "SCHEDULED_CHARGING",
+        "enabled": false,
+        "showSettings": false,
+        "isHidden": false,
+        "isDisabledByStorm": false,
+        "schedulesEnabled": 0
+      },
+      "manualCharging": {
+        "chargingMode": "MANUAL_CHARGING",
+        "enabled": false,
+        "showSettings": false,
+        "isHidden": false,
+        "isDisabledByStorm": false
+      }
+    }
+  },
+  "error": {}
+}
+```
+
 ### 4.2 Set Charge Mode
 ```
 PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference
@@ -2661,6 +3495,9 @@ Body: { "mode": "MANUAL_CHARGING" }
 Headers: Authorization: Bearer <token>
 ```
 Success response mirrors the GET payload.
+
+Observed mode values include `MANUAL_CHARGING`, `SCHEDULED_CHARGING`,
+`GREEN_CHARGING`, and `SMART_CHARGING`.
 
 ### 4.3 Green Charging Settings (Battery Support)
 ```
@@ -2849,43 +3686,113 @@ Example response (anonymized):
     "showProduction": true,
     "showConsumption": true,
     "hasEncharge": true,
+    "hasAcb": false,
+    "hasGenerator": false,
     "hasEnpower": true,
-    "countryCode": "XX",
-    "region": "XX",
-    "locale": "en-XX",
-    "timezone": "Region/City",
-    "showChargeFromGrid": true,
+    "countryCode": "AU",
+    "region": "AU",
+    "locale": "en-AU",
+    "ownerOrHostMaskedEmail": "u*******r@example.com",
+    "timezone": "Australia/Melbourne",
+    "showChargeFromGrid": false,
+    "isEnsemble": true,
+    "hasOjasDevice": false,
     "showSavingsMode": true,
+    "showAiOptiSavingsMode": true,
+    "siteStage": 5,
+    "isEmea": false,
+    "isDTSupported": false,
+    "isIQGWScheduleSupported": true,
+    "isDTEnabled": false,
+    "isDTSite": false,
+    "restrictCfg": false,
+    "isHemsActivationPending": true,
+    "isTariffNEM3": false,
+    "tariffTypeId": {
+      "importType": "tou",
+      "exportType": "tou"
+    },
+    "isHemsAuthPending": false,
+    "isHemsSite": false,
+    "isNEM3Supported": false,
+    "isNEM3Site": false,
+    "calibrationProgress": false,
+    "acceptedGICDisclaimer": false,
+    "featureDetails": {
+      "98daf27c08a25a0a": false,
+      "3951a76025fc7d6c": false,
+      "HEMS_EV_Custom_Schedule": true,
+      "a3f9c1e7b82d4a6f": false,
+      "554ed34b3f489c08": true,
+      "a56e30d62ecc443f": true,
+      "f3a9b7c4d681e25f": true,
+      "Disable_Storm_Guard_Grid_Charging": false,
+      "714ed62b9f489c98": true,
+      "2e6W81086bd123F8": false,
+      "ae9fc99447fa52a0": true,
+      "734ed62b3f489c98": true,
+      "b7def45a12d67e3f": false,
+      "af356d446af0e3b4": false,
+      "dtpfu43qwqxr5327": false,
+      "b707fae2750a4965": true,
+      "2e6W81086cd123F9": false,
+      "671b7d2591d1adc1": true,
+      "pm221c316d32ad3e": false,
+      "00eb0092160e4279": false,
+      "61df86665efcb677": false,
+      "a8cbe12f09b34c1d": true,
+      "534ed33b3f489c98": true,
+      "66f7a67f71be52f7": true
+    },
     "showStormGuard": true,
+    "showCriticalAlertsOverride": false,
+    "showVLS": true,
+    "isIQ8site": false,
     "showFullBackup": true,
     "showBatteryBackupPercentage": true,
-    "isChargingModesEnabled": true,
-    "batteryGridMode": "ImportExport",
-    "featureDetails": {
-      "HEMS_EV_Custom_Schedule": true,
-      "Disable_Storm_Guard_Grid_Charging": false
-    },
+    "isCollarPresent": false,
+    "isCollarInstalled": false,
     "userDetails": {
+      "isHost": false,
       "isOwner": true,
       "isInstaller": false,
-      "email": "u******r@example.com"
+      "isMaintainer": false,
+      "email": "u******r@example.com",
+      "isDemoUser": false
     },
     "siteStatus": {
       "code": "normal",
       "text": "Normal",
       "severity": "warning"
-    }
+    },
+    "isChargingModesEnabled": true,
+    "isUseBatteryForEVSESupported": false,
+    "batteryGridMode": "ImportExport",
+    "batteryLimitSupport": false,
+    "isHemsOptScheduleSupported": true,
+    "isChangePending": false,
+    "isThermostatSmartModeAllowed": false
   }
 }
 ```
 
+Observed field behavior:
+- `countryCode="DE"`, `region="DE"`, `locale="en-AU"`, and `timezone="Europe/Berlin"` can legitimately coexist when the account language differs from the site locale.
+- `isEmea=true`, `isDTSite=true`, and `isDTSupported=true` were observed together while `isDTEnabled=false`.
+- `isHemsSite=true`, `isHemsActivationPending=false`, `isHemsAuthPending=false`, and `isHemsOptScheduleSupported=true` were present on the same site.
+- `siteStatus.code="normal"` and `siteStatus.text="Normal"` coexisted with `siteStatus.severity="warning"`.
+- `batteryGridMode` was observed as `ImportExport`.
+- `featureDetails` mixes opaque rollout keys with readable flags such as `HEMS_EV_Custom_Schedule` and `Disable_Storm_Guard_Grid_Charging`; preserve unknown keys verbatim and record new values instead of filtering them out.
+
 ### 5.3 Profile Details (System + EVSE)
 ```
 GET /service/batteryConfig/api/v1/profile/<site_id>?source=enho&userId=<user_id>&locale=<locale>
+GET /service/batteryConfig/api/v1/profile/<site_id>?userId=<user_id>
 ```
 Returns the active system profile plus embedded EVSE configuration used to render the EV charging card.
+Both URL variants were observed; one request included `source=enho&locale=en-AU`, while another omitted them and still returned the same schema.
 
-Example response (anonymized):
+Example response:
 ```json
 {
   "type": "profile-details",
@@ -2893,47 +3800,116 @@ Example response (anonymized):
   "data": {
     "supportsMqtt": true,
     "pollingInterval": 60,
+    "drEventActive": false,
+    "drEventMode": "",
     "profile": "self-consumption",
-    "operationModeSubType": "prioritize-energy",
-    "batteryBackupPercentage": 20,
-    "stormGuardState": "disabled",
+    "requestedConfig": {},
+    "requestedConfigMqtt": {},
+    "isTariffTou": false,
+    "isBuybackTariffTou": false,
+    "buybackExportPlan": "netFit",
+    "batteryBackupPercentage": 5,
+    "stormGuardState": "enabled",
     "acceptedStormGuardDisclaimer": false,
+    "showStormGuardAlert": false,
     "devices": {
+      "thirdPartyEvse": [],
       "iqEvse": [
         {
           "uuid": "<evse_uuid>",
-          "deviceName": "IQ EV Charger",
+          "deviceName": "IQ EV Charger_XXXX",
           "profile": "self-consumption",
           "profileConfig": "full",
           "enable": false,
-          "status": -1,
-          "chargeMode": "MANUAL",
-          "chargeModeStatus": "COMPLETED",
-          "updatedAt": "<epoch_seconds>"
+          "status": 1,
+          "chargeMode": "GREEN",
+          "activeSchedules": [],
+          "updatedAt": 1772529741
         }
-      ]
+      ],
+      "thirdPartyWaterHeater": []
+    },
+    "systemTask": false,
+    "batteryBackupPercentageMax": 100,
+    "batteryBackupPercentageMin": 5,
+    "veryLowSoc": 5,
+    "previousBatteryBackupPercentage": {
+      "self-consumption": 30,
+      "cost_savings": 30,
+      "backup_only": 100,
+      "expert": 30,
+      "ai_optimisation": 5
+    },
+    "dtgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true,
+      "startTime": 960,
+      "endTime": 1140
     },
     "cfgControl": {
       "show": true,
-      "enabled": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
       "scheduleSupported": true,
-      "forceScheduleSupported": true
+      "forceScheduleSupported": true,
+      "forceScheduleOpted": true
     },
-    "evseStormEnabled": false
+    "rbdControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true
+    },
+    "evseStormEnabled": false,
+    "isIQGWScheduleSupported": true,
+    "appTutorialUrl": "<tutorial_id>",
+    "isBatteryChangePending": false
   }
 }
 ```
+
+Observed field behavior:
+- `profile` and `devices.iqEvse[].profile` were both `self-consumption`.
+- `devices.iqEvse[].chargeMode` was `GREEN`; preserve new charge-mode strings verbatim.
+- `devices.iqEvse[].status` was `1`, `profileConfig` was `full`, `enable` was `false`, and `activeSchedules` was an empty array.
+- `buybackExportPlan="netFit"` was present even while `isBuybackTariffTou=false`.
+- `stormGuardState="enabled"` coexisted with `acceptedStormGuardDisclaimer=false` and `showStormGuardAlert=false`.
+- `previousBatteryBackupPercentage` included `self-consumption=30`, `cost_savings=30`, `backup_only=100`, `expert=30`, and `ai_optimisation=5`.
+- `dtgControl.startTime=960` and `dtgControl.endTime=1140` indicate minute-of-day scheduling windows.
+- `cfgControl.forceScheduleSupported=true` and `cfgControl.forceScheduleOpted=true` were both present in the same payload.
 
 ### 5.4 System Profile Updates (Site Profile)
 ```
 PUT /service/batteryConfig/api/v1/profile/<site_id>?userId=<user_id>
 Headers: X-XSRF-Token: <token>
 ```
-Updates the system profile (Self-Consumption, Savings, Full Backup) and reserve percentage.
+Updates the system profile and reserve percentage. Observed profile keys include
+`self-consumption`, `cost_savings`, `backup_only`, and `ai_optimisation`.
 
 Example payloads observed:
 ```json
 { "profile": "self-consumption", "batteryBackupPercentage": 10 }
+```
+
+```json
+{
+  "profile": "self-consumption",
+  "batteryBackupPercentage": 20,
+  "devices": [
+    {
+      "uuid": "<evse_uuid>",
+      "profileConfig": "full",
+      "chargeMode": "SMART",
+      "deviceType": "iqEvse",
+      "enable": false
+    }
+  ]
+}
 ```
 
 ```json
@@ -2967,6 +3943,22 @@ Example payloads observed:
 }
 ```
 
+```json
+{
+  "profile": "ai_optimisation",
+  "batteryBackupPercentage": 10,
+  "operationModeSubType": "prioritize-energy",
+  "devices": [
+    {
+      "uuid": "<evse_uuid>",
+      "chargeMode": "MANUAL",
+      "deviceType": "iqEvse",
+      "enable": false
+    }
+  ]
+}
+```
+
 Response:
 ```json
 { "message": "success" }
@@ -2974,6 +3966,8 @@ Response:
 
 Notes:
 - The reserve slider enforces a 10% minimum (Self-Consumption) and 100% for Full Backup. The Savings profile uses a reserve slider plus a "Use battery after peak hours" toggle; `operationModeSubType` appears to track this state (only `prioritize-energy` observed so far).
+- The AI Optimization flow uses the profile key `ai_optimisation` and also sends `operationModeSubType: "prioritize-energy"` with the EVSE device payload.
+- Switching away from AI Optimization may still include an EVSE `devices` payload. In the observed AI -> Self-Consumption transition, the EVSE payload included `profileConfig: "full"` and `chargeMode: "SMART"`.
 - After saving a mode change, the profile may remain in a pending state until the change takes effect. During this window, a separate cancel endpoint can be used.
 
 ```
@@ -3000,20 +3994,62 @@ Example response (anonymized):
   "type": "battery-details",
   "timestamp": "<timestamp>",
   "data": {
+    "supportsMqtt": true,
+    "pollingInterval": 60,
+    "drEventActive": false,
+    "drEventMode": "",
     "profile": "self-consumption",
-    "batteryBackupPercentage": 20,
-    "stormGuardState": "disabled",
-    "hideChargeFromGrid": false,
+    "batteryBackupPercentage": 5,
+    "requestedConfigMqtt": {},
+    "requestedConfig": {},
+    "stormGuardState": "enabled",
+    "showStormGuardAlert": false,
+    "acceptedItcDisclaimer": "<timestamp>",
+    "hideChargeFromGrid": true,
     "envoySupportsVls": true,
     "chargeBeginTime": 120,
     "chargeEndTime": 300,
     "batteryGridMode": "ImportExport",
-    "veryLowSoc": 15,
-    "veryLowSocMin": 10,
+    "veryLowSoc": 5,
+    "veryLowSocMin": 5,
     "veryLowSocMax": 25,
-    "chargeFromGrid": true,
+    "chargeFromGrid": false,
     "chargeFromGridScheduleEnabled": true,
-    "acceptedItcDisclaimer": "<timestamp>",
+    "batteryBackupPercentageMax": 100,
+    "batteryBackupPercentageMin": 5,
+    "previousBatteryBackupPercentage": {
+      "self-consumption": 30,
+      "cost_savings": 30,
+      "backup_only": 100,
+      "expert": 30,
+      "ai_optimisation": 5
+    },
+    "systemTask": false,
+    "dtgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true,
+      "startTime": 960,
+      "endTime": 1140
+    },
+    "cfgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true,
+      "forceScheduleSupported": true,
+      "forceScheduleOpted": true
+    },
+    "rbdControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": true
+    },
     "devices": {
       "iqEvse": { "useBatteryFrSelfConsumption": true }
     }
@@ -3052,12 +4088,26 @@ Response:
 ```
 
 Notes:
-- `batteryGridMode` matches the Battery Mode card ("ImportExport" renders as "Import and Export") and is controlled by interconnection settings.
+- The raw capture contained live cookies, JWTs, XSRF tokens, site IDs, and user IDs. Only the endpoint shape and sanitized field values are recorded here.
+- `supportsMqtt` and `pollingInterval` indicate whether the page can use the MQTT-backed battery settings flow and how often the UI expects state refreshes. Observed values so far: `supportsMqtt=true`, `pollingInterval=60`.
+- `requestedConfig` and `requestedConfigMqtt` were empty objects in the capture; they appear to be placeholders for pending configuration writes or async acknowledgements. Observed values so far: `{}` for both fields.
+- `drEventActive` / `drEventMode` look like demand-response state flags; observed values so far: `false` / `""`.
+- `profile` is the backend battery profile code. Observed values in this endpoint so far: `self-consumption`.
+- `stormGuardState` is the backend Storm Guard state. Observed values in captures so far: `enabled`, `disabled`.
+- `showStormGuardAlert` is a UI flag. Observed value so far: `false`.
+- `batteryGridMode` matches the Battery Mode card ("ImportExport" renders as "Import and Export") and is controlled by interconnection settings. Observed value so far: `ImportExport`.
+- `batteryBackupPercentage` is the active reserve percentage. Observed values in captures so far: `5`, `20`.
+- `batteryBackupPercentageMin` / `batteryBackupPercentageMax` expose the allowed reserve slider bounds, while `previousBatteryBackupPercentage` preserves the last reserve value used for each profile. Observed bounds so far: `5` and `100`.
 - `chargeFromGrid` backs the "Charge battery from the grid" toggle. Enabling it shows a disclaimer dialog; the confirmation sets `acceptedItcDisclaimer` and unlocks the schedule controls.
-- The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local).
+- Observed `chargeFromGrid` values so far: `true`, `false`.
+- The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local). Observed values so far: `chargeFromGridScheduleEnabled=true`, `chargeBeginTime=120`, `chargeEndTime=300`.
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
 - Captured writes used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
-- `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`.
+- `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`. Observed values so far: `veryLowSoc=5` and `15`, `veryLowSocMin=5` and `10`, `veryLowSocMax=25`.
+- `dtgControl`, `cfgControl`, and `rbdControl` are per-feature UI capability blocks. In the homeowner capture they each exposed `show`, `enabled`, `locked`, and schedule-support fields even though the corresponding toggles were off. Observed booleans so far: `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true`, plus `cfgControl.forceScheduleSupported=true` and `cfgControl.forceScheduleOpted=true`.
+- `hideChargeFromGrid` may be `true` even when charge-from-grid schedule fields are still present in the payload, so clients should not infer field absence from UI visibility. Observed values so far: `true`, `false`.
+- `systemTask` remained `false` in the capture and likely flags backend-owned operations that temporarily lock manual changes. Observed value so far: `false`.
+- `devices.iqEvse.useBatteryFrSelfConsumption` exposes whether an IQ EV charger can draw from battery during self-consumption mode. Observed value so far: `true`.
 - Two equivalent write variants were observed:
   - REST-only flows use `PUT /batterySettings/<site_id>?source=enho&userId=<user_id>`.
   - MQTT-backed RBD flows on `supportsMqtt=true` systems use `PUT /batterySettings/<site_id>?userId=<user_id>` after opening the MQTT response stream.
@@ -3494,36 +4544,97 @@ Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/a
 | `pluggedIn` | Vehicle plugged state |
 | `charging` | Active charging session |
 | `faulted` | Fault present |
+| `offGrid` | Charger grid-mode label from `/ev_chargers/status`; observed value so far: `ON_GRID` |
+| `mode` | Charger operating-mode integer from `/ev_chargers/status`; observed value so far: `1` |
+| `commissioned` | Status payload commissioning flag; observed value so far: `1` |
+| `smartEV.hasToken` | Smart-EV token availability flag; observed value so far: `false` |
+| `smartEV.hasEVDetails` | Smart-EV vehicle-details availability flag; observed value so far: `false` |
+| `isEVDetailsSet` | Top-level charger vehicle-details flag from `/ev_chargers/status`; observed value so far: `true` |
+| `sch_d.status` | Schedule summary status integer from `/ev_chargers/status`; observed value so far: `1` |
+| `sch_d.info[].type` | Schedule summary type label; observed value so far: `greencharging` |
+| `sch_d.info[].limit` | Schedule summary limit value; observed value so far: `0` |
+| `session_d.auth_status` | Session authorization status code; observed value so far: `4` |
+| `session_d.auth_type` / `session_d.auth_id` | Session authorization metadata; observed values so far: `null` / `null` |
+| `session_d.charge_level` | Session charge-level override; observed value so far: `null` |
 | `connectorStatusType` | ENUM: `AVAILABLE`, `CHARGING`, `FINISHING`, `SUSPENDED`, `SUSPENDED_EV`, `SUSPENDED_EVSE`, `FAULTED` |
-| `connectorStatusReason` | Additional enum reason (e.g., `INSUFFICIENT_SOLAR`) |
+| `connectorStatusInfo` | Connector sub-state detail string; observed value so far: `""` |
+| `connectorStatusReason` | Additional enum reason (e.g., `INSUFFICIENT_SOLAR`); observed value so far: `""` |
+| `connectorId` | Connector index within `connectors[]`; observed value so far: `1` |
+| `dlbActive` | Per-connector Dynamic Load Balancing activity flag; observed value so far: `false` |
 | `session_d.e_c` | Session energy (Wh if >200, else kWh) |
 | `session_d.start_time` | Epoch seconds when session started |
 | `chargeLevelDetails.min/max` | Min/max allowed amps |
+| `chargeLevelDetails.granularity` | Charge-current step size as a string; observed value so far: `"1"` |
+| `chargeLevelDetails.defaultChargeLevel` | Default charge-level behavior label; observed value so far: `disabled` |
 | `maxCurrent` | Hardware max amp rating |
 | `operatingVoltage` | Nominal voltage per summary v2 |
 | `dlbEnabled` | Dynamic Load Balancing flag |
 | `safeLimitState` | DLB safe-mode indicator within `connectors[]`. Observed: `1` when DLB is enabled and the charger cannot reach the gateway, forcing a safe 8A limit. |
 | `supportsUseBattery` | Summary v2 flag for green-mode "Use Battery" support |
+| `hoControl` | Homeowner-control capability flag from summary v2; observed value so far: `true` |
+| `activeConnection` | Active network transport label from summary v2; observed value so far: `ethernet` |
+| `isConnected` | Connectivity flag from summary v2; observed value so far: `true` |
+| `isLocallyConnected` | Local-network connectivity flag from summary v2; observed value so far: `true` |
+| `isRetired` | Retirement flag from summary v2; observed value so far: `false` |
+| `commissioningStatus` | Summary v2 commissioning state code; observed value so far: `1` |
+| `status` (EV summary) | Summary v2 charger health label; observed value so far: `NORMAL` |
+| `reportingInterval` | Charger telemetry reporting cadence in seconds; observed value so far: `300` |
+| `gridType` | Electrical grid/topology code from summary v2; observed values so far: `2`, `4` |
+| `phaseMode` | Charger phase-mode code from summary v2; observed values so far: `1`, `3` |
+| `phaseCount` | Number of phases reported by summary v2; observed values so far: `1`, `3` |
+| `skuScope` | Charger SKU family label; observed value so far: `GEN2_EU` |
+| `warrantyPeriod` | Warranty duration in years from summary v2; observed value so far: `5` |
+| `gatewayConnectivityDetails[].gwConnStatus` | Gateway connectivity status code for the paired IQ Gateway; observed value so far: `0` |
+| `gatewayConnectivityDetails[].gwConnFailureReason` | Gateway connectivity failure-reason code; observed value so far: `0` |
+| `functionalValDetails.state` | Functional validation state code; observed value so far: `1` |
 | `networkConfig` | Interfaces with IP/fallback metadata |
 | `firmwareVersion` | Charger firmware |
 | `processorBoardVersion` | Hardware version |
+| `latest_power.value` | Latest site-power sample in watts; negative values were observed (`-30`), so imports/reverse flow must be preserved |
+| `latest_power.time` | Epoch-seconds timestamp for `latest_power` |
+| `statusCode` (inverter status) | Inverter-health code from `/systems/<site_id>/inverter_status_x.json`; observed value so far: `normal` |
+| `type` (inverter status) | Inverter model/family from `/systems/<site_id>/inverter_status_x.json`; observed values so far: `IQ8AC`, `IQ8HC` |
+| `siteStatus.severity` | Site-status severity label from BatteryConfig/site-today payloads; observed value so far: `warning` even when `siteStatus.code="normal"` |
+| `batteryGridMode` | Battery grid-mode label from BatteryConfig site settings; observed value so far: `ImportExport` |
+| `buybackExportPlan` | Battery/HEMS export-plan label from profile details; observed values so far: `netFit`, `""` |
+| `stormGuardState` / `severe_weather_watch` | Storm-guard state labels from profile/today payloads; observed value so far: `enabled` |
+| `chargeMode` (profile details) | EVSE charging-mode label nested under `devices.iqEvse[]`; observed value so far: `GREEN` |
+| `featureDetails.*` | Mixed readable and opaque feature-flag keys from BatteryConfig site settings; preserve unknown keys verbatim and record newly observed boolean values |
 | `current_charge` | Site battery state-of-charge percentage string (for example `"48%"`) |
 | `available_energy` / `max_capacity` | Site battery available/maximum capacity in kWh |
 | `available_power` / `max_power` | Site battery instantaneous/maximum power in kW |
+| `show_battery_banner` | Battery-card UI hint flag from `/pv/settings/<site_id>/battery_status.json`; observed value so far: `false` |
 | `storages[].serial_number` | Battery serial identifier |
-| `storages[].excluded` | Battery inclusion flag |
-| `storages[].led_status` | Raw battery LED/runtime status code |
-| `storages[].status` / `storages[].statusText` | Battery status code + display label |
+| `storages[].excluded` | Battery inclusion flag; observed value so far: `false` |
+| `storages[].led_status` | Raw battery LED/runtime status code; observed values so far: `12`, `17` |
+| `storages[].status` / `storages[].statusText` | Battery status code + display label; observed pair so far: `normal` / `Normal` |
 | `storages[].last_report` | Epoch seconds for latest battery telemetry |
+| `storages[].battery_mode` | Human-readable battery profile label for the individual storage unit; observed value so far: `Self-Consumption` |
+| `storages[].battery_phase_count` | Number of AC phases exposed for that battery/system view; observed values so far: `1`, `3` |
+| `storages[].is_flex_phase` | Flex-phase capability flag observed on three-phase systems; observed values so far: `false`, `true` |
 | `storages[].battery_soh` | Battery state-of-health percentage string |
 | `included_count` / `excluded_count` | Active vs excluded battery counts in the payload |
+| `supportsMqtt` | Battery settings capability flag indicating MQTT-backed config flows are available; observed value so far: `true` |
+| `pollingInterval` | Suggested BatteryConfig refresh cadence in seconds; observed value so far: `60` |
+| `requestedConfig` / `requestedConfigMqtt` | Pending or echoed config state objects in battery-settings responses; observed values so far: `{}` |
+| `drEventActive` / `drEventMode` | Demand-response event state fields in battery-settings responses; observed values so far: `false` / `""` |
+| `batteryBackupPercentageMin` / `batteryBackupPercentageMax` | Allowed reserve slider bounds from BatteryConfig; observed values so far: `5` / `100` |
+| `previousBatteryBackupPercentage` | Per-profile remembered reserve percentage values |
+| `dtgControl` / `cfgControl` / `rbdControl` | Battery UI feature-capability blocks with visibility, lock, and schedule support flags; observed booleans so far include `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true` |
+| `systemTask` | Backend task/activity flag that may indicate settings are being managed asynchronously; observed value so far: `false` |
+| `devices.iqEvse.useBatteryFrSelfConsumption` | Indicates IQ EV charger battery participation support in self-consumption mode; observed value so far: `true` |
 | `device-uid` | Stable HEMS device identifier |
 | `device-type` (HEMS) | HEMS device taxonomy values seen in captures: `IQ_ENERGY_ROUTER`, `IQ_GATEWAY`, `SG_READY_GATEWAY`, `ENERGY_METER`, `HEAT_PUMP` |
+| `status` / `statusText` (HEMS) | HEMS device health code + display label; observed pair so far: `normal` / `Normal` |
 | `pairing-status` (HEMS) | Pairing state label (for example `PAIRED`) for router-attached ecosystem devices |
+| `device-state` (HEMS) | Additional router lifecycle label from `hems-devices`; observed value so far: `ACTIVE` |
 | `hems-device-id` / `hems-device-facet-id` | HEMS backend identifiers present on router/heat-pump stack members in `hems-devices` payloads |
+| `ip` / `ip-address` | Device LAN address fields seen on gateway/router inventory payloads; treat as sensitive in examples |
+| `ap_mode` | Boolean flag on gateway inventory entries indicating the IQ Gateway access-point mode was enabled |
+| `supportsEntrez` | Boolean capability flag observed on gateway inventory entries |
 | `heatpump-status` | App-facing heat-pump runtime state from `/heatpump/<device_uid>/state`; observed values: `IDLE`, `RUNNING` |
 | `sg-ready-mode` | SG Ready operating mode label from `/heatpump/<device_uid>/state`; observed values: `MODE_2` (normal), `MODE_3` (recommended consumption / SG Ready on) |
-| `vpp-sgready-mode-override` | SG Ready override label from `/heatpump/<device_uid>/state`; observed off-state value: `NONE` |
+| `vpp-sgready-mode-override` | SG Ready override label from `/heatpump/<device_uid>/state`; observed value so far: `NONE` |
 | `last-report-at` | ISO-8601 last telemetry timestamp from `/heatpump/<device_uid>/state` |
 
 ---

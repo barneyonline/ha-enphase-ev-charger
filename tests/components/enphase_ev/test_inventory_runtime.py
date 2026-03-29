@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from custom_components.enphase_ev import inventory_runtime as inventory_runtime_mod
 from custom_components.enphase_ev.inventory_runtime import HEMS_DEVICES_STALE_AFTER_S
 
 
@@ -32,29 +34,47 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
 
     grouped = {"envoy": {"count": 1}}
     ordered = ["envoy"]
-    snapshot = object()
-    coord._debug_devices_inventory_summary = MagicMock(return_value={"devices": 1})  # type: ignore[method-assign]  # noqa: SLF001
-    coord._debug_hems_inventory_summary = MagicMock(return_value={"hems": 1})  # type: ignore[method-assign]  # noqa: SLF001
-    coord._debug_system_dashboard_summary = MagicMock(return_value={"dashboard": 1})  # type: ignore[method-assign]  # noqa: SLF001
-    coord._debug_topology_summary = MagicMock(return_value={"topology": 1})  # type: ignore[method-assign]  # noqa: SLF001
-    coord._build_system_dashboard_summaries = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
-        return_value=({"envoy": {}}, {"tree": 1}, {"index": {}})
-    )
+    snapshot = runtime.topology_snapshot()
 
-    assert runtime._debug_devices_inventory_summary(grouped, ordered) == {
-        "devices": 1
-    }  # noqa: SLF001
-    assert runtime._debug_hems_inventory_summary() == {"hems": 1}  # noqa: SLF001
-    assert runtime._debug_system_dashboard_summary({}, {}, {}, {}) == {
-        "dashboard": 1
-    }  # noqa: SLF001
-    assert runtime._debug_topology_summary(snapshot) == {"topology": 1}  # noqa: SLF001
+    assert runtime._debug_devices_inventory_summary(
+        grouped, ordered
+    ) == {  # noqa: SLF001
+        "ordered_type_keys": ["envoy"],
+        "type_count": 1,
+        "types": {"envoy": {"count": 1, "field_keys": []}},
+    }
+    hems_summary = runtime._debug_hems_inventory_summary()  # noqa: SLF001
+    assert hems_summary["site_supported"] is None
+    assert hems_summary["router_count"] == 0
+    assert runtime._debug_system_dashboard_summary({}, {}, {}, {}) == {  # noqa: SLF001
+        "tree_keys": [],
+        "hierarchy_total_nodes": 0,
+        "hierarchy_counts_by_type": {},
+        "types": {},
+    }
+    assert runtime._debug_topology_summary(snapshot) == {  # noqa: SLF001
+        "inventory_ready": False,
+        "charger_count": 0,
+        "battery_count": 0,
+        "inverter_count": 0,
+        "active_type_keys": [],
+        "gateway_iq_router_count": 0,
+        "site_energy_channels": [],
+    }
     assert runtime._build_system_dashboard_summaries(None, {}) == (  # noqa: SLF001
-        {"envoy": {}},
-        {"tree": 1},
-        {"index": {}},
+        {
+            "envoy": {"hierarchy": {"count": 0, "relationships": []}},
+            "encharge": {"hierarchy": {"count": 0, "relationships": []}},
+            "microinverter": {"hierarchy": {"count": 0, "relationships": []}},
+        },
+        {"total_nodes": 0, "counts_by_type": {}, "relationships": []},
+        {},
     )
     assert runtime._coerce_optional_bool("true") is True  # noqa: SLF001
+    assert (
+        runtime._normalize_inverter_status("unpaired") == "not_reporting"
+    )  # noqa: SLF001
+    assert runtime._normalize_inverter_status("pending") == "warning"  # noqa: SLF001
 
     router_records = runtime._gateway_iq_energy_router_summary_records(  # noqa: SLF001
         [{"name": "Router"}, {"name": "Router"}]
@@ -64,6 +84,20 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
         "name_router_2",
     ]
     assert runtime.system_dashboard_battery_detail("") is None  # noqa: SLF001
+
+    runtime.__dict__["_inverter_data"] = {
+        "INV-LOCAL": {"serial_number": "INV-LOCAL"}
+    }  # noqa: SLF001
+    assert runtime._coordinator_backed_attr("_inverter_data") == {  # noqa: SLF001
+        "INV-LOCAL": {"serial_number": "INV-LOCAL"}
+    }
+    runtime.__dict__.pop("_inverter_data", None)
+    coord._inverter_data = {
+        "INV-FALLBACK": {"serial_number": "INV-FALLBACK"}
+    }  # noqa: SLF001
+    assert runtime.inverter_data("INV-FALLBACK") == {  # noqa: SLF001
+        "serial_number": "INV-FALLBACK"
+    }
 
 
 def test_inventory_runtime_summary_and_inverter_helper_paths(
@@ -293,7 +327,7 @@ def test_inventory_runtime_summary_helpers_reuse_stable_cache_markers(
     heatpump_builder = MagicMock(return_value={"heatpump": 1})
     heatpump_type_builder = MagicMock(return_value={"HEAT_PUMP": {"count": 1}})
 
-    monkeypatch.setattr(runtime, "_build_gateway_inventory_summary", gateway_builder)
+    monkeypatch.setattr(coord, "_build_gateway_inventory_summary", gateway_builder)
     monkeypatch.setattr(
         runtime, "_build_microinverter_inventory_summary", micro_builder
     )
@@ -315,6 +349,169 @@ def test_inventory_runtime_summary_helpers_reuse_stable_cache_markers(
     assert micro_builder.call_count == 1
     assert heatpump_builder.call_count == 1
     assert heatpump_type_builder.call_count == 1
+
+
+def test_inventory_runtime_debug_cache_and_gateway_fallback_edges(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.inventory_runtime
+
+    class BadText:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert runtime._debug_sorted_keys({BadText(): 1, " ok ": 2}) == [
+        "ok"
+    ]  # noqa: SLF001
+    assert runtime._debug_field_keys([{"a": 1}, "bad"]) == ["a"]  # noqa: SLF001
+    rendered = runtime._debug_render_summary({"bad": object()})  # noqa: SLF001
+    assert isinstance(rendered, str)
+    assert "'bad':" in rendered
+
+    monkeypatch.setattr(
+        runtime,
+        "_hems_grouped_devices",
+        lambda: ["bad", {BadText(): []}, {"router": []}],
+    )
+    monkeypatch.setattr(runtime, "_hems_group_members", lambda *_args: [])
+    hems_summary = runtime._debug_hems_inventory_summary()  # noqa: SLF001
+    assert hems_summary["router_count"] == 0
+
+    coord.energy = None
+    assert runtime._live_site_energy_channels() == set()  # noqa: SLF001
+    coord.energy = SimpleNamespace(
+        site_energy={BadText(): 1, " grid_import ": 1},
+        site_energy_meta={
+            "bucket_lengths": {
+                BadText(): 2,
+                "": 1,
+                "heatpump": "2",
+                "evse": 0,
+                "ignored": [],
+                "battery_discharge": "bad",
+                "consumption": False,
+            }
+        },
+    )
+    assert runtime._live_site_energy_channels() == {  # noqa: SLF001
+        "battery_discharge",
+        "grid_import",
+        "heat_pump",
+    }
+
+    monkeypatch.setattr(runtime, "_gateway_inventory_summary_marker", lambda: "gw")
+    monkeypatch.setattr(
+        runtime, "_microinverter_inventory_summary_marker", lambda: "mi"
+    )
+    monkeypatch.setattr(runtime, "_heatpump_inventory_summary_marker", lambda: "hp")
+    monkeypatch.setattr(
+        runtime, "_gateway_iq_energy_router_records_marker", lambda: "router"
+    )
+    gateway_builder = MagicMock(return_value={"gateway": 1})
+    micro_builder = MagicMock(return_value={"micro": 1})
+    heatpump_builder = MagicMock(return_value={"heatpump": 1})
+    heatpump_type_builder = MagicMock(return_value={"HEAT_PUMP": {"count": 1}})
+    router_builder = MagicMock(return_value=[{"key": "router-1", "name": "Router"}])
+    monkeypatch.setattr(runtime, "_build_gateway_inventory_summary", gateway_builder)
+    monkeypatch.setattr(
+        runtime, "_build_microinverter_inventory_summary", micro_builder
+    )
+    monkeypatch.setattr(runtime, "_build_heatpump_inventory_summary", heatpump_builder)
+    monkeypatch.setattr(
+        runtime, "_build_heatpump_type_summaries", heatpump_type_builder
+    )
+    monkeypatch.setattr(
+        runtime, "_gateway_iq_energy_router_summary_records", router_builder
+    )
+    monkeypatch.setattr(
+        runtime,
+        "gateway_iq_energy_router_records",
+        lambda: [{"serial_number": "router-1"}],
+    )
+
+    assert runtime.gateway_inventory_summary() == {"gateway": 1}
+    assert runtime.gateway_inventory_summary() == {"gateway": 1}
+    assert runtime.microinverter_inventory_summary() == {"micro": 1}
+    assert runtime.microinverter_inventory_summary() == {"micro": 1}
+    assert runtime.heatpump_inventory_summary() == {"heatpump": 1}
+    assert runtime.heatpump_inventory_summary() == {"heatpump": 1}
+    assert runtime.heatpump_type_summary(BadText()) == {}
+    assert runtime.heatpump_type_summary("heat_pump") == {"count": 1}
+    assert runtime.gateway_iq_energy_router_summary_records() == [
+        {"key": "router-1", "name": "Router"}
+    ]
+    assert runtime.gateway_iq_energy_router_summary_records() == [
+        {"key": "router-1", "name": "Router"}
+    ]
+    assert runtime.gateway_iq_energy_router_record(" router-1 ") == {
+        "key": "router-1",
+        "name": "Router",
+    }
+    assert runtime.gateway_iq_energy_router_record(BadText()) is None
+    assert runtime.gateway_iq_energy_router_record("   ") is None
+
+    assert gateway_builder.call_count == 1
+    assert micro_builder.call_count == 1
+    assert heatpump_builder.call_count == 1
+    assert heatpump_type_builder.call_count == 1
+    assert router_builder.call_count >= 1
+
+    monkeypatch.setattr(
+        runtime,
+        "_build_gateway_inventory_summary",
+        type(runtime)._build_gateway_inventory_summary.__get__(runtime, type(runtime)),
+    )
+
+    monkeypatch.setattr(
+        runtime,
+        "type_bucket",
+        lambda _key: {"type_key": "envoy", "count": "bad", "devices": []},
+    )
+    monkeypatch.setattr(
+        runtime,
+        "system_dashboard_envoy_detail",
+        lambda: {
+            "name": "Gateway",
+            "serial_number": "GW-1",
+            "status": "normal",
+            "firmware_version": "8.2.0",
+            "last_interval_end_date": "2026-02-15T10:00:00Z",
+        },
+    )
+    gateway_summary = runtime._build_gateway_inventory_summary()  # noqa: SLF001
+    assert gateway_summary["firmware_summary"] == "8.2.0 x1"
+    assert gateway_summary["latest_reported_device"] == {
+        "name": "Gateway",
+        "serial_number": "GW-1",
+        "status": "normal",
+    }
+
+    monkeypatch.setattr(
+        runtime,
+        "type_bucket",
+        lambda _key: {
+            "type_key": "envoy",
+            "count": 1,
+            "devices": [{"name": "Online Gateway", "status": "normal"}],
+        },
+    )
+    monkeypatch.setattr(runtime, "system_dashboard_envoy_detail", lambda: None)
+    online_summary = runtime._build_gateway_inventory_summary()  # noqa: SLF001
+    assert online_summary["connected_devices"] == 1
+
+    monkeypatch.setattr(
+        runtime,
+        "type_bucket",
+        lambda _key: {
+            "type_key": "envoy",
+            "count": 1,
+            "devices": [{"name": "Offline Gateway", "status": "not_reporting"}],
+        },
+    )
+    monkeypatch.setattr(runtime, "system_dashboard_envoy_detail", lambda: None)
+    offline_summary = runtime._build_gateway_inventory_summary()  # noqa: SLF001
+    assert offline_summary["disconnected_devices"] == 1
 
 
 def test_devices_inventory_runtime_parser_shapes_and_buckets(
@@ -513,7 +710,9 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
     coord.client.devices_inventory = AsyncMock(return_value={})
     await runtime._async_refresh_devices_inventory()
 
-    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: "raw")
+    monkeypatch.setattr(
+        inventory_runtime_mod, "redact_battery_payload", lambda payload: "raw"
+    )
     coord.client.devices_inventory = AsyncMock(
         return_value={
             "result": [{"type": "envoy", "devices": [{"name": "IQ Gateway"}]}]
@@ -522,7 +721,9 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
     await runtime._async_refresh_devices_inventory(force=True)
     assert runtime._devices_inventory_payload == {"value": "raw"}  # noqa: SLF001
 
-    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: payload)
+    monkeypatch.setattr(
+        inventory_runtime_mod, "redact_battery_payload", lambda payload: payload
+    )
     await runtime._async_refresh_devices_inventory(force=True)
     assert coord.has_type("envoy") is True
 
@@ -573,7 +774,9 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
     await runtime._async_refresh_hems_devices()
     assert runtime._hems_devices_payload is None  # noqa: SLF001
 
-    monkeypatch.setattr(coord, "_redact_battery_payload", lambda payload: payload)
+    monkeypatch.setattr(
+        inventory_runtime_mod, "redact_battery_payload", lambda payload: payload
+    )
     runtime._hems_devices_cache_until = None  # noqa: SLF001
     coord.client.hems_devices = AsyncMock(
         return_value={"data": {"hems-devices": {"heat-pump": []}}}
@@ -825,7 +1028,7 @@ async def test_inventory_runtime_refresh_devices_inventory_without_refresh_kw(
 
 
 @pytest.mark.asyncio
-async def test_inventory_runtime_refresh_hems_devices_uses_coordinator_preflight(
+async def test_inventory_runtime_refresh_hems_devices_uses_heatpump_runtime_preflight(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -835,7 +1038,7 @@ async def test_inventory_runtime_refresh_hems_devices_uses_coordinator_preflight
         assert force is True
         coord.client._hems_site_supported = False  # noqa: SLF001
 
-    coord._async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=_mark_unsupported
     )
     coord.client.hems_devices = AsyncMock(side_effect=AssertionError("no fetch"))
@@ -844,7 +1047,7 @@ async def test_inventory_runtime_refresh_hems_devices_uses_coordinator_preflight
 
     await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
 
-    coord._async_refresh_hems_support_preflight.assert_awaited_once_with(  # noqa: SLF001
+    coord.heatpump_runtime.async_refresh_hems_support_preflight.assert_awaited_once_with(  # noqa: SLF001
         force=True
     )
     coord.client.hems_devices.assert_not_awaited()
@@ -912,3 +1115,727 @@ async def test_coordinator_inventory_runtime_wrapper_delegation(
     runtime._extract_hems_group_members.assert_called_once_with([], {"gateway"})
     runtime._rebuild_inventory_summary_caches.assert_called_once_with()
     runtime._async_refresh_devices_inventory.assert_awaited_once_with(force=True)
+
+
+def test_inventory_runtime_rebuild_summary_caches_updates_coordinator_caches(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.inventory_runtime
+
+    coord._gateway_inventory_summary_cache = {"stale": True}  # noqa: SLF001
+    coord._microinverter_inventory_summary_cache = {"stale": True}  # noqa: SLF001
+    coord._heatpump_inventory_summary_cache = {"stale": True}  # noqa: SLF001
+    coord._heatpump_type_summaries_cache = {
+        "HEAT_PUMP": {"stale": True}
+    }  # noqa: SLF001
+    coord._gateway_iq_energy_router_records_cache = [{"key": "stale"}]  # noqa: SLF001
+
+    monkeypatch.setattr(runtime, "_gateway_inventory_summary_marker", lambda: "gw")
+    monkeypatch.setattr(
+        runtime, "_microinverter_inventory_summary_marker", lambda: "micro"
+    )
+    monkeypatch.setattr(runtime, "_heatpump_inventory_summary_marker", lambda: "heat")
+    monkeypatch.setattr(
+        runtime, "_gateway_iq_energy_router_records_marker", lambda: "router"
+    )
+    monkeypatch.setattr(
+        runtime, "_build_gateway_inventory_summary", lambda: {"gateway": 1}
+    )
+    monkeypatch.setattr(
+        runtime, "_build_microinverter_inventory_summary", lambda: {"micro": 2}
+    )
+    monkeypatch.setattr(
+        runtime, "_build_heatpump_inventory_summary", lambda: {"heatpump": 3}
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_build_heatpump_type_summaries",
+        lambda: {"HEAT_PUMP": {"count": 4}},
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_gateway_iq_energy_router_summary_records",
+        lambda _records: [{"key": "router-1", "name": "Router"}],
+    )
+    monkeypatch.setattr(runtime, "gateway_iq_energy_router_records", lambda: [])
+
+    coord._rebuild_inventory_summary_caches()  # noqa: SLF001
+
+    assert coord.gateway_inventory_summary() == {"gateway": 1}
+    assert coord.microinverter_inventory_summary() == {"micro": 2}
+    assert coord.heatpump_inventory_summary() == {"heatpump": 3}
+    assert coord.heatpump_type_summary("heat_pump") == {"count": 4}
+    assert coord.gateway_iq_energy_router_summary_records() == [
+        {"key": "router-1", "name": "Router"}
+    ]
+
+
+def test_inventory_runtime_parser_and_hems_edge_cases(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.inventory_runtime import InventoryRuntime
+    from custom_components.enphase_ev import inventory_runtime as inv_mod
+
+    runtime = coordinator_factory().inventory_runtime
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    class EmptyNormalized(dict):
+        def __bool__(self) -> bool:
+            return False
+
+    buckets = runtime._devices_inventory_buckets(  # noqa: SLF001
+        {"value": {"result": [{"type": "envoy"}, "bad"]}}
+    )
+    assert buckets == [{"type": "envoy"}]
+
+    assert runtime._hems_devices_groups(
+        {"result": {"devices": [{"a": 1}, "bad"]}}
+    ) == [  # noqa: SLF001
+        {"a": 1}
+    ]
+    assert runtime._hems_devices_groups(
+        {"result": {"devices": {"gateway": []}}}
+    ) == [  # noqa: SLF001
+        {"gateway": []}
+    ]
+    assert runtime._hems_devices_groups({"data": []}) == []  # noqa: SLF001
+
+    assert (
+        runtime._legacy_hems_devices_groups(  # noqa: SLF001
+            {"result": [{"type": "hemsDevices", "devices": {"bad": True}}]}
+        )
+        == []
+    )
+    assert runtime._normalize_heatpump_member({"deviceUid": "abc"}) == {  # noqa: SLF001
+        "deviceUid": "abc",
+        "device_uid": "abc",
+        "uid": "abc",
+    }
+
+    groups = [
+        {
+            "gateway": [
+                "bad",
+                {"name": "skip-retired"},
+                {"device-uid": "UID-1", "name": "first"},
+                {"device-uid": "UID-1", "name": "duplicate"},
+                {"name": "empty-normalized"},
+                {"serial": "SER-2", "name": "second"},
+            ]
+        }
+    ]
+
+    monkeypatch.setattr(
+        runtime,
+        "member_is_retired",
+        lambda member: isinstance(member, dict)
+        and member.get("name") == "skip-retired",
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_normalize_hems_member",
+        lambda member: (
+            EmptyNormalized()
+            if member.get("name") == "empty-normalized"
+            else InventoryRuntime._normalize_hems_member(member)
+        ),
+    )
+
+    found, members = runtime._extract_hems_group_members(
+        groups, {"gateway"}
+    )  # noqa: SLF001
+    assert found is True
+    assert members == [
+        {"device-uid": "UID-1", "name": "first", "device_uid": "UID-1", "uid": "UID-1"},
+        {"serial": "SER-2", "name": "second", "serial_number": "SER-2"},
+    ]
+
+    assert runtime._hems_bucket_type("") is None  # noqa: SLF001
+    assert runtime._hems_bucket_type("heat-pump") == "heatpump"  # noqa: SLF001
+    assert runtime._hems_bucket_type(BadStr()) is None  # noqa: SLF001
+    original_hems_normalize_type_key = inv_mod.normalize_type_key
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.inventory_runtime.normalize_type_key",
+        lambda raw: (
+            None if raw == "raw hems type" else original_hems_normalize_type_key(raw)
+        ),
+    )
+    assert runtime._hems_bucket_type("raw hems type") == "rawhemstype"  # noqa: SLF001
+    assert (
+        runtime._heatpump_worst_status_text({"warning": 1}) == "Warning"
+    )  # noqa: SLF001
+    assert (
+        runtime._heatpump_worst_status_text({"not_reporting": 1}) == "Not Reporting"
+    )  # noqa: SLF001
+    assert runtime._heatpump_worst_status_text({"error": 1}) == "Error"  # noqa: SLF001
+
+    values = iter(
+        [
+            {"name": "Dry Contact 1", "rating": 10},
+            {"name": "Dry Contact 2", "enabled": True},
+            {"meta": {"ignored": True}},
+        ]
+    )
+    original_normalize_type_key = inv_mod.normalize_type_key
+    original_sanitize_member = inv_mod.sanitize_member
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.inventory_runtime.normalize_type_key",
+        lambda raw: (
+            "dry_contact"
+            if isinstance(raw, BadStr)
+            else original_normalize_type_key(raw)
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.inventory_runtime.type_display_label",
+        lambda _raw: "Dry Contact",
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.inventory_runtime.sanitize_member",
+        lambda _member: next(values, {"name": None}),
+    )
+
+    valid, grouped, ordered = runtime._parse_devices_inventory_payload(  # noqa: SLF001
+        [
+            "bad",
+            {"type": BadStr(), "devices": [{}, {}, {}]},
+            {"type": "envoy", "devices": "bad"},
+            {"type": "envoy", "devices": [None, {}, {"name": None}]},
+        ]
+    )
+    assert valid is True
+    assert ordered == ["dry_contact", "envoy"]
+    assert grouped["dry_contact"]["devices"] == [
+        {"name": "Dry Contact 1", "rating": 10},
+        {"name": "Dry Contact 2", "enabled": True},
+        {"meta": {"ignored": True}},
+    ]
+    assert grouped["envoy"]["devices"] == [{"name": None}, {"name": None}]
+
+    with monkeypatch.context() as nested:
+        nested.setattr(
+            "custom_components.enphase_ev.inventory_runtime.normalize_type_key",
+            original_hems_normalize_type_key,
+        )
+        nested.setattr(
+            "custom_components.enphase_ev.inventory_runtime.sanitize_member",
+            original_sanitize_member,
+        )
+        assert (
+            runtime._parse_devices_inventory_payload(  # noqa: SLF001
+                {
+                    "result": [
+                        {
+                            "type": "drycontactloads",
+                            "devices": [{"name": "x"}, {"name": "y"}],
+                        },
+                        {
+                            "type": "envoy",
+                            "devices": [{"name": "ignored"}],
+                        },
+                        {
+                            "type": "encharge",
+                            "devices": [
+                                {"serial_number": "BAT-1"},
+                                {"serial_number": "BAT-2", "name": "IQ Battery 5P"},
+                            ],
+                        },
+                    ]
+                }
+            )[1]["encharge"]["model_summary"]
+            == "IQ Battery 5P x1"
+        )
+
+    with monkeypatch.context() as nested:
+        dry_values = iter(
+            [
+                {"rating": 10},
+                {"meta": {"ignored": True}},
+                {},
+                {"serial_number": "ENV-1"},
+            ]
+        )
+        nested.setattr(
+            "custom_components.enphase_ev.inventory_runtime.sanitize_member",
+            lambda _member: next(dry_values),
+        )
+        valid, grouped, _ordered = (
+            runtime._parse_devices_inventory_payload(  # noqa: SLF001
+                {
+                    "result": [
+                        {
+                            "type": "drycontactloads",
+                            "devices": [{}, {}, {}],
+                        },
+                        {"type": "envoy", "devices": [{}]},
+                    ]
+                }
+            )
+        )
+        assert valid is True
+        assert grouped["dry_contact"]["devices"] == [
+            {"rating": 10},
+            {"meta": {"ignored": True}},
+        ]
+        assert grouped["envoy"]["devices"] == [{"serial_number": "ENV-1"}]
+
+
+def test_inventory_runtime_merge_heatpump_bucket_uses_worst_status_fallback(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord._type_device_buckets = {  # noqa: SLF001
+        "iqevse": {
+            "type_key": "iqevse",
+            "type_label": "EV Chargers",
+            "count": 1,
+            "devices": [{"serial_number": "EV-1"}],
+        }
+    }
+    coord._type_device_order = ["iqevse"]  # noqa: SLF001
+    runtime._devices_inventory_ready = False  # noqa: SLF001
+    runtime._hems_devices_payload = {  # noqa: SLF001
+        "data": {
+            "hems-devices": {
+                "heat-pump": [
+                    {
+                        "deviceType": "furnace",
+                        "device-uid": "HP-1",
+                        "name": "Aux Heat",
+                        "statusText": "warning",
+                        "firmware-version": "1.2.3",
+                        "part-number": "PN-1",
+                        "lastReportedAt": "2026-02-09T00:00:00Z",
+                    }
+                ]
+            }
+        }
+    }
+    refresh_calls: list[str] = []
+    runtime._refresh_cached_topology = lambda: refresh_calls.append("refresh") or True  # type: ignore[method-assign]  # noqa: SLF001
+
+    runtime._merge_heatpump_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("heatpump")
+    assert bucket is not None
+    assert coord.iter_type_keys() == ["iqevse", "heatpump"]
+    assert bucket["overall_status_text"] == "Warning"
+    assert bucket["latest_reported_device"] == {
+        "device_type": "FURNACE",
+        "device_uid": "HP-1",
+        "name": "Aux Heat",
+        "status": "warning",
+    }
+    assert bucket["model_summary"] == "PN-1 x1"
+    assert bucket["firmware_summary"] == "1.2.3 x1"
+    assert runtime._devices_inventory_ready is False  # noqa: SLF001
+    assert refresh_calls == ["refresh"]
+
+
+def test_merge_heatpump_type_bucket_preserves_fault_over_lifecycle_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {  # noqa: SLF001
+        "data": {
+            "hems-devices": {
+                "heat-pump": [
+                    {
+                        "device-type": "HEAT_PUMP",
+                        "device-uid": "HP-1",
+                        "name": "Primary Heat Pump",
+                        "statusText": "Fault",
+                        "pairing-status": "UNPAIRED",
+                        "device-state": "INACTIVE",
+                    }
+                ]
+            }
+        }
+    }
+
+    runtime._merge_heatpump_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("heatpump")
+    assert bucket is not None
+    assert bucket["overall_status_text"] == "Fault"
+    assert bucket["status_counts"] == {
+        "total": 1,
+        "normal": 0,
+        "warning": 0,
+        "error": 1,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+    assert bucket["latest_reported_device"] is None
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_devices_inventory_logs_empty_grouped_summary(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.client.devices_inventory = AsyncMock(return_value={"result": []})
+    runtime._debug_devices_inventory_summary = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        return_value={"devices": 0}
+    )
+    runtime._debug_log_summary_if_changed = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+
+    await runtime._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+
+    runtime._debug_log_summary_if_changed.assert_called_once_with(  # noqa: SLF001
+        "devices_inventory",
+        "Device inventory discovery summary",
+        {"devices": 0},
+    )
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._merge_heatpump_type_bucket = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    runtime._debug_log_summary_if_changed = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    runtime._debug_hems_inventory_summary = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        return_value={"hems": 1}
+    )
+
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+    runtime._hems_devices_last_success_mono = time.monotonic()  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
+    original_preflight = coord.heatpump_runtime.async_refresh_hems_support_preflight
+
+    async def unsupported_on_error(*, force: bool = False) -> None:
+        await original_preflight(force=force)
+        coord.client._hems_site_supported = True  # noqa: SLF001
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=unsupported_on_error
+    )
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
+
+    async def unsupported_preflight(*, force: bool = False) -> None:
+        coord.client._hems_site_supported = False  # noqa: SLF001
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=unsupported_preflight
+    )
+    coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("unused"))
+    runtime._hems_devices_cache_until = None  # noqa: SLF001
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+    assert runtime._hems_devices_payload is None  # noqa: SLF001
+    assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+    async def supported_preflight(*, force: bool = False) -> None:
+        coord.client._hems_site_supported = True  # noqa: SLF001
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=supported_preflight
+    )
+    runtime._hems_devices_payload = {"keep": True}  # noqa: SLF001
+    runtime._hems_devices_last_success_mono = (
+        time.monotonic() - HEMS_DEVICES_STALE_AFTER_S - 1
+    )  # noqa: SLF001
+    runtime._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value="bad")
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+    assert runtime._hems_devices_payload is None  # noqa: SLF001
+    assert runtime._hems_inventory_ready is False  # noqa: SLF001
+
+    async def unsupported_invalid_payload(*, force: bool = False) -> None:
+        coord.client._hems_site_supported = False  # noqa: SLF001
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=unsupported_invalid_payload
+    )
+    runtime._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value="still bad")
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+    assert runtime._hems_devices_payload is None  # noqa: SLF001
+    assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=supported_preflight
+    )
+    runtime._hems_devices_cache_until = None  # noqa: SLF001
+    monkeypatch.setattr(
+        inventory_runtime_mod,
+        "redact_battery_payload",
+        lambda payload: "wrapped",
+    )
+    coord.client.hems_devices = AsyncMock(return_value={"result": {"devices": []}})
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+    assert runtime._hems_devices_payload == {"value": "wrapped"}  # noqa: SLF001
+
+    async def unsupported_during_fetch(*, force: bool = False) -> None:
+        coord.client._hems_site_supported = True  # noqa: SLF001
+
+    async def fetch_marks_unsupported(*, refresh_data: bool = False):
+        coord.client._hems_site_supported = False  # noqa: SLF001
+        raise RuntimeError("boom")
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=unsupported_during_fetch
+    )
+    runtime._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=fetch_marks_unsupported)
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+    assert runtime._hems_devices_payload is None  # noqa: SLF001
+    assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+    async def fetch_invalid_marks_unsupported(*, refresh_data: bool = False):
+        coord.client._hems_site_supported = False  # noqa: SLF001
+        return "bad"
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=unsupported_during_fetch
+    )
+    runtime._hems_devices_cache_until = None  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=fetch_invalid_marks_unsupported)
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+    assert runtime._hems_devices_payload is None  # noqa: SLF001
+    assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    runtime._merge_microinverter_type_bucket = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    runtime._merge_heatpump_type_bucket = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+
+    class BadStatusType:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    pages: list[tuple[int, int]] = []
+
+    async def inventory_fetcher(*args, **kwargs):
+        if kwargs:
+            offset = kwargs["offset"]
+            pages.append((kwargs["limit"], offset))
+            if offset == 0:
+                return {
+                    "total": 3,
+                    "normal_count": 5,
+                    "warning_count": 5,
+                    "error_count": 5,
+                    "not_reporting": 5,
+                    "inverters": [
+                        {"serial_number": "INV-A", "name": "IQ8", "status": "normal"},
+                        {"serial_number": "INV-B", "name": "IQ8", "status": "offline"},
+                    ],
+                    "panel_info": {
+                        "manufacturer": "  ",
+                        "model": None,
+                        "rating": [],
+                    },
+                }
+            if offset == 2:
+                return {
+                    "total": 3,
+                    "inverters": [
+                        {"serial_number": "INV-C", "name": "IQ7", "status": "warning"},
+                        {"serial_number": "   ", "name": "blank"},
+                        {"serial_number": "INV-RET", "name": "retired"},
+                    ],
+                }
+            raise AssertionError(offset)
+        return {"total": 1, "inverters": [{"serial_number": "INV-FB", "name": "IQ7"}]}
+
+    coord.client.inverters_inventory = AsyncMock(side_effect=inventory_fetcher)
+    coord.client.inverter_status = AsyncMock(
+        return_value={
+            "1001": {
+                "serialNum": "INV-A",
+                "deviceId": 1,
+                "statusCode": "normal",
+                "type": BadStatusType(),
+            },
+            "1002": "bad",
+            "1003": {"serialNum": "", "deviceId": 3},
+        }
+    )
+    coord.client.inverter_production = AsyncMock(return_value={"production": []})
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-A": {
+            "serial_number": "INV-A",
+            "lifetime_production_wh": "bad",
+            "lifetime_query_start_date": "2022-08-01",
+            "lifetime_query_end_date": "2026-02-01",
+        },
+        "INV-B": {
+            "serial_number": "INV-B",
+            "inverter_id": "1002",
+            "device_id": 2,
+            "status_code": "warning",
+            "lifetime_production_wh": "still-bad",
+        },
+        "INV-C": {
+            "serial_number": "INV-C",
+            "lifetime_production_wh": 20.0,
+            "lifetime_query_start_date": "2022-08-05",
+            "lifetime_query_end_date": "2026-02-05",
+        },
+    }
+
+    monkeypatch.setattr(
+        runtime,
+        "member_is_retired",
+        lambda item: item.get("serial_number") == "INV-RET",
+    )
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    assert pages == [(1000, 0), (1000, 2)]
+    assert coord.iter_inverter_serials() == ["INV-A", "INV-B", "INV-C"]
+    assert coord.inverter_data("INV-A")["lifetime_production_wh"] is None
+    assert coord.inverter_data("INV-A")["lifetime_query_start_date"] == "2022-08-01"
+    assert coord.inverter_data("INV-B")["lifetime_query_start_date"] == "2022-08-10"
+    assert (
+        coord.inverter_data("INV-B")["lifetime_query_end_date"]
+        == coord._site_local_current_date()
+    )  # noqa: SLF001
+    assert coord.inverter_data("INV-B")["lifetime_production_wh"] is None
+    assert coord.inverter_data("INV-B")["inverter_type"] is None
+    assert coord.inverter_data("INV-C")["lifetime_production_wh"] == 20.0
+    assert runtime._inverter_summary_counts == {  # noqa: SLF001
+        "total": 3,
+        "normal": 1,
+        "warning": 1,
+        "error": 1,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+    assert runtime._inverter_panel_info is None  # noqa: SLF001
+
+    coord.client.inverters_inventory = AsyncMock(return_value="bad")
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+    assert coord.iter_inverter_serials() == ["INV-A", "INV-B", "INV-C"]
+
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 2,
+            "normal_count": 5,
+            "warning_count": 5,
+            "error_count": 5,
+            "not_reporting": 5,
+            "inverters": [
+                {"serial_number": "INV-X", "name": "IQX", "status": "mystery"},
+                {"serial_number": "INV-Y", "name": "IQY", "status": "mystery"},
+            ],
+        }
+    )
+    coord.client.inverter_status = AsyncMock(return_value={})
+    coord.client.inverter_production = AsyncMock(return_value={})
+    coord._inverter_data = {}  # noqa: SLF001
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+    assert runtime._inverter_summary_counts == {  # noqa: SLF001
+        "total": 2,
+        "normal": 2,
+        "warning": 0,
+        "error": 0,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+
+    async def legacy_inventory_fetcher(*args, **kwargs):
+        if kwargs:
+            raise TypeError("legacy")
+        return {"total": 1, "inverters": [{"serial_number": "INV-FB", "name": "IQ7"}]}
+
+    coord.client.inverters_inventory = AsyncMock(side_effect=legacy_inventory_fetcher)
+    coord.client.inverter_status = AsyncMock(return_value=[])
+    coord.client.inverter_production = AsyncMock(return_value="bad")
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+    coord.client.inverter_production.assert_awaited_once()
+
+    async def pagination_typeerror_fetcher(*args, **kwargs):
+        if kwargs.get("offset") == 0:
+            return {
+                "total": 2,
+                "inverters": [{"serial_number": "INV-1", "name": "IQ7"}],
+            }
+        raise TypeError("legacy page")
+
+    coord.client.inverters_inventory = AsyncMock(
+        side_effect=pagination_typeerror_fetcher
+    )
+    coord.client.inverter_status = AsyncMock(return_value={})
+    coord.client.inverter_production = AsyncMock(
+        return_value={"production": {"1001": "bad"}}
+    )
+    coord._inverter_data = {
+        "INV-1": {"serial_number": "INV-1", "inverter_id": "1001"}
+    }  # noqa: SLF001
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+    assert coord.iter_inverter_serials() == ["INV-1"]
+    assert coord.inverter_data("INV-1")["lifetime_production_wh"] is None
+
+    async def pagination_non_list_fetcher(*args, **kwargs):
+        if kwargs.get("offset") == 0:
+            return {
+                "total": 2,
+                "inverters": [{"serial_number": "INV-2", "name": "IQ7"}],
+            }
+        return {"total": 2, "inverters": "bad"}
+
+    coord.client.inverters_inventory = AsyncMock(
+        side_effect=pagination_non_list_fetcher
+    )
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+    assert coord.iter_inverter_serials() == ["INV-2"]
+
+    async def pagination_empty_page_fetcher(*args, **kwargs):
+        if kwargs.get("offset") == 0:
+            return {
+                "total": 2,
+                "inverters": [{"serial_number": "INV-3", "name": "IQ7"}],
+            }
+        return {"total": 2, "inverters": []}
+
+    coord.client.inverters_inventory = AsyncMock(
+        side_effect=pagination_empty_page_fetcher
+    )
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+    assert coord.iter_inverter_serials() == ["INV-3"]
+
+    async def pagination_total_growth_fetcher(*args, **kwargs):
+        if kwargs.get("offset") == 0:
+            return {
+                "total": 2,
+                "inverters": [{"serial_number": "INV-4", "name": "IQ7"}],
+            }
+        return {
+            "total": 3,
+            "inverters": [{"serial_number": "INV-5", "name": "IQ8"}],
+        }
+
+    coord.client.inverters_inventory = AsyncMock(
+        side_effect=pagination_total_growth_fetcher
+    )
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+    assert coord.iter_inverter_serials() == ["INV-4", "INV-5"]
+
+
+def test_inventory_runtime_misc_helper_edges(coordinator_factory) -> None:
+    runtime = coordinator_factory().inventory_runtime
+
+    assert runtime._normalize_inverter_status("") == "unknown"  # noqa: SLF001
+    assert (
+        runtime._inverter_connectivity_state({"total": 2, "unknown": 2}) == "unknown"
+    )  # noqa: SLF001

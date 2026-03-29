@@ -16,10 +16,61 @@ from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
+def test_cfg_schedule_edit_available_uses_schedule_id_and_public_times() -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=True,
+        charge_from_grid_schedule_supported=True,
+        battery_cfg_schedule_limit=None,
+        _battery_cfg_schedule_id="sched-1",
+        battery_charge_from_grid_start_time=1,
+        battery_charge_from_grid_end_time=2,
+        _battery_charge_begin_time=None,
+        _battery_charge_end_time=None,
+    )
+
+    assert number_mod._cfg_schedule_edit_available(coord) is True
+
+    coord.battery_charge_from_grid_start_time = None
+    coord.battery_charge_from_grid_end_time = None
+    coord._battery_charge_begin_time = 60
+    coord._battery_charge_end_time = 120
+
+    assert number_mod._cfg_schedule_edit_available(coord) is True
+
+    coord._battery_cfg_schedule_id = None
+    coord.battery_charge_from_grid_start_time = 1
+    coord.battery_charge_from_grid_end_time = 2
+    coord._battery_charge_begin_time = None
+    coord._battery_charge_end_time = None
+
+    assert number_mod._cfg_schedule_edit_available(coord) is False
+
+
+def test_cfg_schedule_edit_available_rejects_when_control_unavailable() -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=False,
+        charge_from_grid_schedule_supported=True,
+        _battery_cfg_schedule_id="sched-1",
+        battery_charge_from_grid_start_time=1,
+        battery_charge_from_grid_end_time=2,
+        _battery_charge_begin_time=60,
+        _battery_charge_end_time=120,
+    )
+
+    assert number_mod._cfg_schedule_edit_available(coord) is False
+
+
 @pytest.mark.asyncio
 async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     coord = SimpleNamespace()
     coord.site_id = "123456"
+    coord.battery_write_access_confirmed = True
     coord.serials = {RANDOM_SERIAL}
     coord._serial_order = [RANDOM_SERIAL]
     coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
@@ -55,6 +106,7 @@ async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
     """No new serials should short-circuit without adding entities."""
     coord = SimpleNamespace()
     coord.site_id = "123456"
+    coord.battery_write_access_confirmed = True
     coord.serials = set()
     coord._serial_order = []
     coord.data = {}
@@ -82,6 +134,7 @@ async def test_async_setup_entry_skips_site_battery_numbers_without_battery(
 ) -> None:
     coord = SimpleNamespace()
     coord.site_id = "123456"
+    coord.battery_write_access_confirmed = True
     coord.serials = {RANDOM_SERIAL}
     coord._serial_order = [RANDOM_SERIAL]
     coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
@@ -109,6 +162,7 @@ async def test_async_setup_entry_skips_site_numbers_without_battery_type(
 ) -> None:
     coord = SimpleNamespace()
     coord.site_id = "123456"
+    coord.battery_write_access_confirmed = True
     coord.serials = {RANDOM_SERIAL}
     coord._serial_order = [RANDOM_SERIAL]
     coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
@@ -160,7 +214,37 @@ def _make_coordinator(hass, config_entry, data):
     coord.async_request_refresh = AsyncMock()
     coord.set_last_set_amps = MagicMock(wraps=coord.set_last_set_amps)
     coord.client = SimpleNamespace()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     return coord
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_site_numbers_without_confirmed_write_access(
+    hass, config_entry
+) -> None:
+    coord = SimpleNamespace()
+    coord.site_id = "123456"
+    coord.battery_write_access_confirmed = False
+    coord.serials = {RANDOM_SERIAL}
+    coord._serial_order = [RANDOM_SERIAL]
+    coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
+    coord.iter_serials = lambda: [RANDOM_SERIAL]
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(ent, ChargingAmpsNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryReserveNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
 
 
 def test_charging_number_converts_values(hass, config_entry) -> None:
@@ -336,6 +420,8 @@ def test_battery_reserve_number_dynamic_bounds(hass, config_entry) -> None:
         config_entry,
         {RANDOM_SERIAL: {"charging_level": 22}},
     )
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_profile = "cost_savings"  # noqa: SLF001
     coord._battery_backup_percentage = 24  # noqa: SLF001
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
@@ -349,8 +435,13 @@ def test_battery_reserve_number_dynamic_bounds(hass, config_entry) -> None:
     assert number.native_min_value == 5.0
     assert number.native_max_value == 100.0
 
+    coord._battery_backup_percentage_min = 8  # noqa: SLF001
+    coord._battery_backup_percentage_max = 92  # noqa: SLF001
+    assert number.native_min_value == 8.0
+    assert number.native_max_value == 92.0
+
     coord._battery_very_low_soc_min = 12  # noqa: SLF001
-    assert number.native_min_value == 12.0
+    assert number.native_min_value == 8.0
 
 
 @pytest.mark.asyncio
@@ -360,6 +451,8 @@ async def test_battery_reserve_number_sets_value(hass, config_entry) -> None:
         config_entry,
         {RANDOM_SERIAL: {"charging_level": 22}},
     )
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     coord._battery_backup_percentage = 20  # noqa: SLF001
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
@@ -379,6 +472,8 @@ def test_battery_reserve_number_unavailable_in_full_backup(hass, config_entry) -
         {RANDOM_SERIAL: {"charging_level": 22}},
     )
     coord._battery_profile = "backup_only"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_backup_percentage = 100  # noqa: SLF001
     coord._battery_show_full_backup = True  # noqa: SLF001
     coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
@@ -396,6 +491,8 @@ def test_battery_reserve_number_handles_super_unavailable_and_none(
         {RANDOM_SERIAL: {"charging_level": 22}},
     )
     coord.last_update_success = False
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
@@ -409,6 +506,8 @@ def test_battery_shutdown_level_number_bounds_and_availability(
     hass, config_entry
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_envoy_supports_vls = True  # noqa: SLF001
     coord._battery_very_low_soc = 15  # noqa: SLF001
     coord._battery_very_low_soc_min = 10  # noqa: SLF001
@@ -424,6 +523,8 @@ def test_battery_shutdown_level_number_bounds_and_availability(
 @pytest.mark.asyncio
 async def test_battery_shutdown_level_number_sets_value(hass, config_entry) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_envoy_supports_vls = True  # noqa: SLF001
     coord._battery_very_low_soc = 15  # noqa: SLF001
     coord._battery_very_low_soc_min = 10  # noqa: SLF001
@@ -440,6 +541,8 @@ def test_battery_shutdown_level_number_unavailable_when_not_supported(
     hass, config_entry
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_envoy_supports_vls = False  # noqa: SLF001
     coord._battery_very_low_soc = 15  # noqa: SLF001
     coord._battery_very_low_soc_min = 10  # noqa: SLF001
@@ -454,6 +557,8 @@ def test_battery_shutdown_level_number_super_unavailable_and_none_value(
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
     coord.last_update_success = False
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_envoy_supports_vls = True  # noqa: SLF001
     coord._battery_very_low_soc = None  # noqa: SLF001
     coord._battery_very_low_soc_min = 10  # noqa: SLF001
@@ -468,10 +573,15 @@ def test_battery_cfg_schedule_limit_number_bounds_and_availability(
     hass, config_entry
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
     coord._battery_very_low_soc = 12  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "sched-1"  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
 
     number = BatteryCfgScheduleLimitNumber(coord)
 
@@ -483,6 +593,8 @@ def test_battery_cfg_schedule_limit_number_bounds_and_availability(
 @pytest.mark.asyncio
 async def test_battery_cfg_schedule_limit_number_sets_value(hass, config_entry) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
@@ -498,6 +610,8 @@ def test_battery_cfg_schedule_limit_number_unavailable_without_schedule(
     hass, config_entry
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = None  # noqa: SLF001
@@ -508,11 +622,69 @@ def test_battery_cfg_schedule_limit_number_unavailable_without_schedule(
     assert number.native_value is None
 
 
+def test_battery_cfg_schedule_limit_number_unavailable_without_force_support(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_cfg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            }
+        )
+    )
+
+    assert BatteryCfgScheduleLimitNumber(coord).available is True
+
+
+@pytest.mark.asyncio
+async def test_battery_cfg_schedule_limit_number_updates_existing_schedule_when_force_toggle_unavailable(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "sched-1"  # noqa: SLF001
+    coord._battery_charge_begin_time = 180  # noqa: SLF001
+    coord._battery_charge_end_time = 960  # noqa: SLF001
+    coord._battery_cfg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "forceScheduleSupported": False,
+            }
+        )
+    )
+    coord.async_update_cfg_schedule = AsyncMock()
+
+    number = BatteryCfgScheduleLimitNumber(coord)
+
+    assert number.available is True
+    await number.async_set_native_value(95)
+
+    coord.async_update_cfg_schedule.assert_awaited_once_with(limit=95)
+
+
 def test_battery_cfg_schedule_limit_number_super_unavailable_and_device_info_fallback(
     hass, config_entry
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
     coord.last_update_success = False
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
@@ -530,6 +702,8 @@ def test_battery_cfg_schedule_limit_number_uses_type_device_info_when_available(
     hass, config_entry
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
@@ -539,3 +713,23 @@ def test_battery_cfg_schedule_limit_number_uses_type_device_info_when_available(
     number = BatteryCfgScheduleLimitNumber(coord)
 
     assert number.device_info is expected
+
+
+def test_battery_numbers_unavailable_without_confirmed_write_access(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_very_low_soc = 15  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+
+    assert BatteryReserveNumber(coord).available is False
+    assert BatteryShutdownLevelNumber(coord).available is False
+    assert BatteryCfgScheduleLimitNumber(coord).available is False

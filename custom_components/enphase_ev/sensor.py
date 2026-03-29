@@ -29,12 +29,18 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import DistanceConverter
 
-from .const import DEFAULT_NOMINAL_VOLTAGE, DOMAIN, SAFE_LIMIT_AMPS
+from .const import (
+    DEFAULT_NOMINAL_VOLTAGE,
+    DOMAIN,
+    PHASE_SWITCH_CONFIG_SETTING,
+    SAFE_LIMIT_AMPS,
+)
 from .coordinator import EnphaseCoordinator
 from .device_types import is_dry_contact_type_key, member_is_retired
 from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
+from .parsing_helpers import heatpump_status_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -484,6 +490,10 @@ async def async_setup_entry(
             "heat_pump_connectivity_status",
             "heat_pump_sg_ready_mode",
             "heat_pump_energy_meter",
+            "heat_pump_daily_energy",
+            "heat_pump_daily_grid_energy",
+            "heat_pump_daily_solar_energy",
+            "heat_pump_daily_battery_energy",
             "heat_pump_last_reported",
             "heat_pump_power",
             "heat_pump_sg_ready_gateway",
@@ -709,8 +719,28 @@ async def async_setup_entry(
                 EnphaseHeatPumpEnergyMeterSensor(coord),
             )
             _add_site_entity(
+                "heat_pump_daily_energy",
+                EnphaseHeatPumpDailyEnergySensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_daily_grid_energy",
+                EnphaseHeatPumpDailyGridEnergySensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_daily_solar_energy",
+                EnphaseHeatPumpDailySolarEnergySensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_daily_battery_energy",
+                EnphaseHeatPumpDailyBatteryEnergySensor(coord),
+            )
+            _add_site_entity(
                 "heat_pump_power",
                 EnphaseHeatPumpPowerSensor(coord),
+            )
+            _add_site_entity(
+                "heat_pump_sg_ready_gateway",
+                EnphaseHeatPumpSgReadyGatewaySensor(coord),
             )
         elif inventory_ready:
             for entity_key in heatpump_site_entity_keys:
@@ -1050,6 +1080,7 @@ class EnphaseElectricalPhaseSensor(EnphaseBaseEntity, SensorEntity):
         _, phase_raw = self._friendly_phase_mode(self.data.get("phase_mode"))
         return {
             "phase_mode_raw": phase_raw,
+            PHASE_SWITCH_CONFIG_SETTING: self.data.get(PHASE_SWITCH_CONFIG_SETTING),
             "dlb_enabled": self._as_bool(self.data.get("dlb_enabled")),
             "dlb_active": self._as_bool(self.data.get("dlb_active")),
         }
@@ -2265,6 +2296,7 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
             "max_amp": max_amp,
             "max_current": max_current,
             "amp_granularity": amp_granularity,
+            "default_charge_level": self.data.get("default_charge_level"),
             "charging_amps_supported": self._optional_bool(
                 self.data.get("charging_amps_supported")
             ),
@@ -2393,6 +2425,8 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             "rated_current": _as_int(self.data.get("rated_current")),
             "grid_type": _as_int(self.data.get("grid_type")),
             "phase_count": _as_int(self.data.get("phase_count")),
+            "phase_switch_config": _clean_text(self.data.get("phase_switch_config")),
+            "default_charge_level": _clean_text(self.data.get("default_charge_level")),
             "commissioning_status": _as_int(self.data.get("commissioning_status")),
             "is_connected": _as_bool(self.data.get("is_connected")),
             "is_locally_connected": _as_bool(self.data.get("is_locally_connected")),
@@ -2403,6 +2437,9 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
             "gateway_connected_count": _as_int(
                 self.data.get("gateway_connected_count")
             ),
+            "gateway_last_connection_at": _localize(
+                self.data.get("gateway_last_connection_at")
+            ),
             "functional_validation_state": _as_int(
                 self.data.get("functional_validation_state")
             ),
@@ -2410,6 +2447,33 @@ class EnphaseLastReportedSensor(EnphaseBaseEntity, SensorEntity):
                 self.data.get("functional_validation_updated_at")
             ),
         }
+        gateway_details = self.data.get("gateway_connectivity_details")
+        if isinstance(gateway_details, list):
+            attrs["gateway_connectivity_details"] = [
+                {
+                    **(
+                        {"status": _as_int(detail.get("status"))}
+                        if _as_int(detail.get("status")) is not None
+                        else {}
+                    ),
+                    **(
+                        {"failure_reason": _as_int(detail.get("failure_reason"))}
+                        if _as_int(detail.get("failure_reason")) is not None
+                        else {}
+                    ),
+                    **(
+                        {
+                            "last_connection_at": _localize(
+                                detail.get("last_connection_at")
+                            )
+                        }
+                        if _localize(detail.get("last_connection_at")) is not None
+                        else {}
+                    ),
+                }
+                for detail in gateway_details
+                if isinstance(detail, dict)
+            ]
         return attrs
 
 
@@ -2436,6 +2500,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
             "IMMEDIATE": "mdi:flash",
             "SCHEDULED_CHARGING": "mdi:calendar-clock",
             "GREEN_CHARGING": "mdi:leaf",
+            "SMART_CHARGING": "mdi:leaf",
             "IDLE": "mdi:timer-sand-paused",
         }
         return mapping.get(mode, "mdi:car-electric")
@@ -3905,19 +3970,7 @@ def _heatpump_member_device_type(member: dict[str, object] | None) -> str | None
 
 
 def _heatpump_member_status_text(member: dict[str, object] | None) -> str | None:
-    if not isinstance(member, dict):
-        return None
-    status_text = _gateway_clean_text(
-        member.get("statusText")
-        if member.get("statusText") is not None
-        else member.get("status_text")
-    )
-    if status_text:
-        return status_text
-    status_raw = _gateway_clean_text(member.get("status"))
-    if not status_raw:
-        return None
-    return status_raw.replace("_", " ").replace("-", " ").title()
+    return heatpump_status_text(member)
 
 
 def _heatpump_status_counts(members: list[dict[str, object]]) -> dict[str, int]:
@@ -4176,6 +4229,13 @@ def _heatpump_runtime_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
     return {}
 
 
+def _heatpump_daily_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
+    snapshot = getattr(coord, "heatpump_daily_consumption", None)
+    if isinstance(snapshot, dict):
+        return dict(snapshot)
+    return {}
+
+
 def _heatpump_runtime_device_uid(coord: EnphaseCoordinator) -> str | None:
     getter = getattr(coord, "_heatpump_runtime_device_uid", None)
     if callable(getter):
@@ -4192,6 +4252,45 @@ def _heatpump_runtime_last_reported(snapshot: dict[str, object]) -> datetime | N
         if snapshot.get("last_report_at") is not None
         else snapshot.get("last_reported_at")
     )
+
+
+def _heatpump_runtime_common_attrs(
+    coord: EnphaseCoordinator, snapshot: dict[str, object]
+) -> dict[str, object]:
+    last_reported = _heatpump_runtime_last_reported(snapshot)
+    return {
+        "device_uid": snapshot.get("device_uid"),
+        "member_name": snapshot.get("member_name"),
+        "member_device_type": snapshot.get("member_device_type"),
+        "pairing_status": snapshot.get("pairing_status"),
+        "device_state": snapshot.get("device_state"),
+        "runtime_endpoint_type": snapshot.get("endpoint_type"),
+        "runtime_endpoint_timestamp": snapshot.get("endpoint_timestamp"),
+        "last_report_at_utc": (
+            last_reported.isoformat() if last_reported is not None else None
+        ),
+        "source": snapshot.get("source"),
+        "last_error": getattr(coord, "heatpump_runtime_state_last_error", None),
+    }
+
+
+def _heatpump_daily_common_attrs(
+    coord: EnphaseCoordinator, snapshot: dict[str, object]
+) -> dict[str, object]:
+    return {
+        "device_uid": snapshot.get("device_uid"),
+        "device_name": snapshot.get("device_name"),
+        "member_name": snapshot.get("member_name"),
+        "member_device_type": snapshot.get("member_device_type"),
+        "pairing_status": snapshot.get("pairing_status"),
+        "device_state": snapshot.get("device_state"),
+        "daily_endpoint_type": snapshot.get("endpoint_type"),
+        "daily_endpoint_timestamp": snapshot.get("endpoint_timestamp"),
+        "day_key": snapshot.get("day_key"),
+        "timezone": snapshot.get("timezone"),
+        "source": snapshot.get("source"),
+        "last_error": getattr(coord, "heatpump_daily_consumption_last_error", None),
+    }
 
 
 def _title_case_status(value: object) -> str | None:
@@ -5069,6 +5168,14 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
                     "daily_grid_wh",
                     "device_uid",
                     "device_name",
+                    "member_name",
+                    "member_device_type",
+                    "pairing_status",
+                    "device_state",
+                    "endpoint_type",
+                    "endpoint_timestamp",
+                    "day_key",
+                    "timezone",
                     "source",
                 ):
                     if key not in daily:
@@ -5076,6 +5183,12 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
                     attr_key = {
                         "device_uid": "daily_device_uid",
                         "device_name": "daily_device_name",
+                        "member_name": "daily_member_name",
+                        "member_device_type": "daily_member_device_type",
+                        "pairing_status": "daily_pairing_status",
+                        "device_state": "daily_device_state",
+                        "endpoint_type": "daily_endpoint_type",
+                        "endpoint_timestamp": "daily_endpoint_timestamp",
                         "source": "daily_source",
                     }.get(key, key)
                     attrs[attr_key] = daily.get(key)
@@ -6969,27 +7082,22 @@ class EnphaseHeatPumpStatusSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         snapshot = self._snapshot()
-        last_reported = _heatpump_runtime_last_reported(snapshot)
         sg_ready_details = _heatpump_sg_ready_semantics(
             snapshot.get("sg_ready_mode_label") or snapshot.get("sg_ready_mode_raw")
         )
-        return {
-            "device_uid": snapshot.get("device_uid"),
-            "heatpump_status_raw": snapshot.get("heatpump_status"),
-            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
-            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
-            "sg_ready_active": snapshot.get("sg_ready_active"),
-            "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
-            "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
-            "last_report_at_utc": (
-                last_reported.isoformat() if last_reported is not None else None
-            ),
-            "source": snapshot.get("source"),
-            "last_error": getattr(
-                self._coord, "heatpump_runtime_state_last_error", None
-            ),
-            **sg_ready_details,
-        }
+        attrs = _heatpump_runtime_common_attrs(self._coord, snapshot)
+        attrs.update(
+            {
+                "heatpump_status_raw": snapshot.get("heatpump_status"),
+                "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
+                "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
+                "sg_ready_active": snapshot.get("sg_ready_active"),
+                "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
+                "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
+                **sg_ready_details,
+            }
+        )
+        return attrs
 
 
 class EnphaseHeatPumpConnectivityStatusSensor(_SiteBaseEntity):
@@ -7154,27 +7262,22 @@ class EnphaseHeatPumpSgReadyModeSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         snapshot = self._snapshot()
-        last_reported = _heatpump_runtime_last_reported(snapshot)
         details = _heatpump_sg_ready_semantics(
             snapshot.get("sg_ready_mode_label") or snapshot.get("sg_ready_mode_raw")
         )
-        return {
-            "device_uid": snapshot.get("device_uid"),
-            "heatpump_status_raw": snapshot.get("heatpump_status"),
-            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
-            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
-            "sg_ready_active": snapshot.get("sg_ready_active"),
-            "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
-            "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
-            "last_report_at_utc": (
-                last_reported.isoformat() if last_reported is not None else None
-            ),
-            "source": snapshot.get("source"),
-            "last_error": getattr(
-                self._coord, "heatpump_runtime_state_last_error", None
-            ),
-            **details,
-        }
+        attrs = _heatpump_runtime_common_attrs(self._coord, snapshot)
+        attrs.update(
+            {
+                "heatpump_status_raw": snapshot.get("heatpump_status"),
+                "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
+                "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
+                "sg_ready_active": snapshot.get("sg_ready_active"),
+                "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
+                "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
+                **details,
+            }
+        )
+        return attrs
 
 
 class EnphaseHeatPumpEnergyMeterSensor(_EnphaseHeatPumpDeviceTypeSensor):
@@ -7186,6 +7289,19 @@ class EnphaseHeatPumpEnergyMeterSensor(_EnphaseHeatPumpDeviceTypeSensor):
             key="heat_pump_energy_meter",
             name="Heat Pump Energy Meter Status",
             device_type="ENERGY_METER",
+        )
+
+
+class EnphaseHeatPumpSgReadyGatewaySensor(_EnphaseHeatPumpDeviceTypeSensor):
+    _attr_translation_key = "heat_pump_sg_ready_gateway"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            key="heat_pump_sg_ready_gateway",
+            name="Heat Pump SG-Ready Gateway Status",
+            device_type="SG_READY_GATEWAY",
         )
 
 
@@ -7224,20 +7340,112 @@ class EnphaseHeatPumpLastReportedSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         snapshot = _heatpump_runtime_snapshot(self._coord)
-        last_reported = _heatpump_runtime_last_reported(snapshot)
-        return {
-            "device_uid": snapshot.get("device_uid"),
-            "heatpump_status_raw": snapshot.get("heatpump_status"),
-            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
-            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
-            "last_report_at_utc": (
-                last_reported.isoformat() if last_reported is not None else None
-            ),
-            "source": snapshot.get("source"),
-            "last_error": getattr(
-                self._coord, "heatpump_runtime_state_last_error", None
-            ),
-        }
+        attrs = _heatpump_runtime_common_attrs(self._coord, snapshot)
+        attrs.update(
+            {
+                "heatpump_status_raw": snapshot.get("heatpump_status"),
+                "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
+                "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
+            }
+        )
+        return attrs
+
+
+class _EnphaseHeatPumpDailyEnergySensor(_SiteBaseEntity):
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_suggested_display_precision = 3
+    _daily_key: str
+
+    def __init__(self, coord: EnphaseCoordinator, key: str, name: str) -> None:
+        super().__init__(coord, key, name, type_key="heatpump")
+
+    def _snapshot(self) -> dict[str, object]:
+        return _heatpump_daily_snapshot(self._coord)
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        snapshot = self._snapshot()
+        return snapshot.get(self._daily_key) is not None
+
+    @property
+    def native_value(self):
+        snapshot = self._snapshot()
+        value = snapshot.get(self._daily_key)
+        if value is None:
+            return None
+        try:
+            return round(float(value) / 1000.0, 3)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @property
+    def extra_state_attributes(self):
+        snapshot = self._snapshot()
+        attrs = _heatpump_daily_common_attrs(self._coord, snapshot)
+        attrs["details"] = (
+            list(snapshot.get("details"))
+            if isinstance(snapshot.get("details"), list)
+            else []
+        )
+        attrs["daily_energy_wh"] = snapshot.get("daily_energy_wh")
+        attrs["daily_grid_wh"] = snapshot.get("daily_grid_wh")
+        attrs["daily_solar_wh"] = snapshot.get("daily_solar_wh")
+        attrs["daily_battery_wh"] = snapshot.get("daily_battery_wh")
+        return attrs
+
+
+class EnphaseHeatPumpDailyEnergySensor(_EnphaseHeatPumpDailyEnergySensor):
+    _attr_translation_key = "heat_pump_daily_energy"
+    _daily_key = "daily_energy_wh"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(coord, "heat_pump_daily_energy", "Heat Pump Daily Energy")
+
+
+class EnphaseHeatPumpDailyGridEnergySensor(_EnphaseHeatPumpDailyEnergySensor):
+    _attr_translation_key = "heat_pump_daily_grid_energy"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _daily_key = "daily_grid_wh"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "heat_pump_daily_grid_energy",
+            "Heat Pump Daily Grid Energy",
+        )
+
+
+class EnphaseHeatPumpDailySolarEnergySensor(_EnphaseHeatPumpDailyEnergySensor):
+    _attr_translation_key = "heat_pump_daily_solar_energy"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _daily_key = "daily_solar_wh"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "heat_pump_daily_solar_energy",
+            "Heat Pump Daily Solar Energy",
+        )
+
+
+class EnphaseHeatPumpDailyBatteryEnergySensor(_EnphaseHeatPumpDailyEnergySensor):
+    _attr_translation_key = "heat_pump_daily_battery_energy"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _daily_key = "daily_battery_wh"
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "heat_pump_daily_battery_energy",
+            "Heat Pump Daily Battery Energy",
+        )
 
 
 class EnphaseHeatPumpPowerSensor(_SiteBaseEntity):
@@ -7267,6 +7475,8 @@ class EnphaseHeatPumpPowerSensor(_SiteBaseEntity):
 
     @property
     def extra_state_attributes(self):
+        runtime_snapshot = _heatpump_runtime_snapshot(self._coord)
+        daily_snapshot = _heatpump_daily_snapshot(self._coord)
         attrs: dict[str, object] = {
             "sampled_at_utc": (
                 self._coord.heatpump_power_sample_utc.isoformat()
@@ -7281,6 +7491,36 @@ class EnphaseHeatPumpPowerSensor(_SiteBaseEntity):
             "device_uid": self._coord.heatpump_power_device_uid,
             "source": self._coord.heatpump_power_source,
         }
+        attrs.update(
+            {
+                key: value
+                for key, value in _heatpump_runtime_common_attrs(
+                    self._coord, runtime_snapshot
+                ).items()
+                if key
+                not in {"device_uid", "source", "last_error", "last_report_at_utc"}
+            }
+        )
+        attrs.update(
+            {
+                key: value
+                for key, value in _heatpump_daily_common_attrs(
+                    self._coord, daily_snapshot
+                ).items()
+                if key
+                in {
+                    "device_name",
+                    "member_name",
+                    "member_device_type",
+                    "pairing_status",
+                    "device_state",
+                    "daily_endpoint_type",
+                    "daily_endpoint_timestamp",
+                    "day_key",
+                    "timezone",
+                }
+            }
+        )
         if self._coord.heatpump_power_last_error:
             attrs["last_error"] = self._coord.heatpump_power_last_error
         return attrs
@@ -7560,22 +7800,47 @@ class EnphaseBatteryModeSensor(_SiteBaseEntity):
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "battery_mode", "Battery Mode", type_key="encharge")
 
+    def _mode_raw(self) -> str | None:
+        raw_mode = getattr(self._coord, "battery_grid_mode", None)
+        if raw_mode is not None:
+            return raw_mode
+        payload = getattr(self._coord, "battery_status_payload", None)
+        if isinstance(payload, dict):
+            storages = payload.get("storages")
+            if isinstance(storages, list):
+                for storage in storages:
+                    if not isinstance(storage, dict):
+                        continue
+                    raw_mode = storage.get("battery_mode")
+                    if raw_mode is None:
+                        continue
+                    try:
+                        text = str(raw_mode).strip()
+                    except Exception:  # noqa: BLE001
+                        continue
+                    if text:
+                        return text
+        return None
+
     @property
     def available(self) -> bool:
         if not super().available:
             return False
-        return self._coord.battery_grid_mode is not None
+        return self.native_value is not None
 
     @property
     def native_value(self):
-        return self._coord.battery_mode_display
+        display = getattr(self._coord, "battery_mode_display", None)
+        if display is not None:
+            return display
+        return self._mode_raw()
 
     @property
     def extra_state_attributes(self):
         start_time = getattr(self._coord, "battery_charge_from_grid_start_time", None)
         end_time = getattr(self._coord, "battery_charge_from_grid_end_time", None)
         return {
-            "mode_raw": self._coord.battery_grid_mode,
+            "mode_raw": self._mode_raw(),
             "charge_from_grid_allowed": self._coord.battery_charge_from_grid_allowed,
             "discharge_to_grid_allowed": self._coord.battery_discharge_to_grid_allowed,
             "charge_from_grid_enabled": getattr(
@@ -7806,6 +8071,19 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
         attrs["cfg_control_force_schedule_supported"] = getattr(
             self._coord, "battery_cfg_control_force_schedule_supported", None
         )
+        attrs["cfg_control_locked"] = getattr(
+            self._coord, "battery_cfg_control_locked", None
+        )
+        attrs["cfg_control_show_day_schedule"] = getattr(
+            self._coord, "battery_cfg_control_show_day_schedule", None
+        )
+        attrs["cfg_control_force_schedule_opted"] = getattr(
+            self._coord, "battery_cfg_control_force_schedule_opted", None
+        )
+        attrs["dtg_control"] = getattr(self._coord, "battery_dtg_control", None)
+        attrs["cfg_control"] = getattr(self._coord, "battery_cfg_control", None)
+        attrs["rbd_control"] = getattr(self._coord, "battery_rbd_control", None)
+        attrs["battery_system_task"] = getattr(self._coord, "battery_system_task", None)
         attrs["site_show_production"] = getattr(
             self._coord, "battery_show_production", None
         )

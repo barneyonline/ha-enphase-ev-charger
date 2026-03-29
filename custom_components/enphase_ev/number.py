@@ -28,6 +28,33 @@ def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
     return bool(has_type(type_key)) if callable(has_type) else True
 
 
+def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
+    confirmed = getattr(coord, "battery_write_access_confirmed", None)
+    if confirmed is not None:
+        return bool(confirmed)
+    owner = getattr(coord, "battery_user_is_owner", None)
+    installer = getattr(coord, "battery_user_is_installer", None)
+    return owner is True or installer is True
+
+
+def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
+    if getattr(coord, "charge_from_grid_schedule_available", False):
+        return True
+    if not getattr(coord, "charge_from_grid_control_available", False):
+        return False
+    if not getattr(coord, "charge_from_grid_schedule_supported", False):
+        return False
+    if getattr(coord, "_battery_cfg_schedule_id", None) is not None:
+        start_time = getattr(coord, "battery_charge_from_grid_start_time", None)
+        end_time = getattr(coord, "battery_charge_from_grid_end_time", None)
+        if start_time is not None and end_time is not None:
+            return True
+        begin = getattr(coord, "_battery_charge_begin_time", None)
+        end = getattr(coord, "_battery_charge_end_time", None)
+        return begin is not None and end is not None
+    return False
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -43,6 +70,7 @@ async def async_setup_entry(
         if (
             not site_entities_added
             and _site_has_battery(coord)
+            and _battery_write_access_confirmed(coord)
             and _type_available(coord, "encharge")
         ):
             async_add_entities(
@@ -84,6 +112,7 @@ class BatteryReserveNumber(CoordinatorEntity, NumberEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and _battery_write_access_confirmed(self._coord)
             and self._coord.battery_reserve_editable
         )
 
@@ -219,6 +248,7 @@ class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
+            and _battery_write_access_confirmed(self._coord)
             and self._coord.battery_shutdown_level_available
         )
 
@@ -276,7 +306,8 @@ class BatteryCfgScheduleLimitNumber(CoordinatorEntity, NumberEntity):
             return False
         return (
             _type_available(self._coord, "encharge")
-            and self._coord.charge_from_grid_control_available
+            and _battery_write_access_confirmed(self._coord)
+            and _cfg_schedule_edit_available(self._coord)
             and self._coord.battery_cfg_schedule_limit is not None
         )
 
@@ -293,7 +324,11 @@ class BatteryCfgScheduleLimitNumber(CoordinatorEntity, NumberEntity):
         return float(level) if level is not None else 0.0
 
     async def async_set_native_value(self, value: float) -> None:
-        await self._coord.async_set_cfg_schedule_limit(int(value))
+        limit = int(value)
+        if self._coord.charge_from_grid_force_schedule_available:
+            await self._coord.async_set_cfg_schedule_limit(limit)
+            return
+        await self._coord.async_update_cfg_schedule(limit=limit)
 
     @property
     def device_info(self) -> DeviceInfo:

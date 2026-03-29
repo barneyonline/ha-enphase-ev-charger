@@ -4,6 +4,7 @@ import time
 
 import pytest
 
+from custom_components.enphase_ev.const import PHASE_SWITCH_CONFIG_SETTING
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
@@ -55,6 +56,7 @@ def test_charging_level_attributes_include_limits():
             "max_amp": 40,
             "max_current": "48",
             "amp_granularity": "2",
+            "default_charge_level": "disabled",
             "charging_amps_supported": True,
         },
     )
@@ -66,6 +68,7 @@ def test_charging_level_attributes_include_limits():
         "max_amp": 40,
         "max_current": 48,
         "amp_granularity": 2,
+        "default_charge_level": "disabled",
         "charging_amps_supported": True,
         "safe_limit_state": None,
         "safe_limit_active": False,
@@ -81,6 +84,7 @@ def test_charging_level_attributes_include_limits():
         "max_amp": None,
         "max_current": None,
         "amp_granularity": None,
+        "default_charge_level": "disabled",
         "charging_amps_supported": True,
         "safe_limit_state": None,
         "safe_limit_active": False,
@@ -174,6 +178,7 @@ def test_electrical_phase_sensor_formats_state_and_attributes():
             "sn": sn,
             "name": "Garage EV",
             "phase_mode": "3",
+            PHASE_SWITCH_CONFIG_SETTING: "auto",
             "dlb_enabled": "true",
             "dlb_active": 1,
         },
@@ -183,17 +188,42 @@ def test_electrical_phase_sensor_formats_state_and_attributes():
     assert sensor.native_value == "Three Phase"
     attrs = sensor.extra_state_attributes
     assert attrs["phase_mode_raw"] == "3"
+    assert attrs[PHASE_SWITCH_CONFIG_SETTING] == "auto"
     assert attrs["dlb_enabled"] is True
     assert attrs["dlb_active"] is True
 
     coord.data[sn]["phase_mode"] = " "
+    coord.data[sn][PHASE_SWITCH_CONFIG_SETTING] = None
     coord.data[sn]["dlb_enabled"] = None
     coord.data[sn]["dlb_active"] = None
     assert sensor.native_value is None
     attrs = sensor.extra_state_attributes
     assert attrs["phase_mode_raw"] is None
+    assert attrs[PHASE_SWITCH_CONFIG_SETTING] is None
     assert attrs["dlb_enabled"] is None
     assert attrs["dlb_active"] is None
+
+
+def test_last_reported_sensor_exposes_charger_config_attributes():
+    from custom_components.enphase_ev.sensor import EnphaseLastReportedSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "last_reported_at": "2025-09-09T09:00:00Z[UTC]",
+            "default_charge_level": "disabled",
+            "phase_switch_config": "auto",
+        },
+    )
+
+    sensor = EnphaseLastReportedSensor(coord, sn)
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["default_charge_level"] == "disabled"
+    assert attrs["phase_switch_config"] == "auto"
 
 
 def test_power_sensor_uses_lifetime_delta():
@@ -977,6 +1007,7 @@ def test_battery_mode_sensor_states():
     assert attrs["use_battery_for_self_consumption"] is True
 
     coord.battery_grid_mode = None
+    coord.battery_mode_display = None
     assert sensor.available is False
 
 
@@ -1003,6 +1034,102 @@ def test_battery_mode_sensor_unavailable_when_coordinator_unavailable():
     )
 
     assert EnphaseBatteryModeSensor(coord).available is False
+
+
+def test_battery_mode_sensor_falls_back_to_status_payload():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryModeSensor
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_grid_mode=None,
+        battery_mode_display=None,
+        battery_charge_from_grid_allowed=None,
+        battery_discharge_to_grid_allowed=None,
+        battery_charge_from_grid_enabled=False,
+        battery_charge_from_grid_schedule_enabled=True,
+        battery_charge_from_grid_start_time=dt_time(3, 0),
+        battery_charge_from_grid_end_time=dt_time(16, 0),
+        battery_shutdown_level=None,
+        battery_shutdown_level_min=5,
+        battery_shutdown_level_max=100,
+        battery_use_battery_for_self_consumption=None,
+        battery_status_payload={
+            "storages": [
+                {
+                    "battery_mode": "Self-Consumption",
+                }
+            ]
+        },
+        _battery_hide_charge_from_grid=True,
+        _battery_envoy_supports_vls=True,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryModeSensor(coord)
+
+    assert sensor.available is True
+    assert sensor.native_value == "Self-Consumption"
+    assert sensor.extra_state_attributes["mode_raw"] == "Self-Consumption"
+
+
+def test_battery_mode_sensor_skips_invalid_status_payload_entries():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import EnphaseBatteryModeSensor
+
+    class BadStr:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_grid_mode=None,
+        battery_mode_display=None,
+        battery_charge_from_grid_allowed=None,
+        battery_discharge_to_grid_allowed=None,
+        battery_charge_from_grid_enabled=False,
+        battery_charge_from_grid_schedule_enabled=False,
+        battery_charge_from_grid_start_time=None,
+        battery_charge_from_grid_end_time=None,
+        battery_shutdown_level=None,
+        battery_shutdown_level_min=5,
+        battery_shutdown_level_max=100,
+        battery_use_battery_for_self_consumption=None,
+        battery_status_payload={
+            "storages": [
+                None,
+                {},
+                {"battery_mode": BadStr()},
+                {"battery_mode": "Backup"},
+            ]
+        },
+        _battery_hide_charge_from_grid=False,
+        _battery_envoy_supports_vls=True,
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+    )
+
+    sensor = EnphaseBatteryModeSensor(coord)
+
+    assert sensor.available is True
+    assert sensor.native_value == "Backup"
 
 
 def test_grid_control_status_sensor_states_and_attributes():
@@ -1307,10 +1434,15 @@ def test_system_profile_status_sensor_states():
         battery_profile_display="Self-Consumption",
         battery_selected_backup_percentage=20,
         battery_selected_operation_mode_sub_type=None,
-        battery_profile_option_keys=["self-consumption", "cost_savings"],
+        battery_profile_option_keys=[
+            "self-consumption",
+            "cost_savings",
+            "ai_optimisation",
+        ],
         battery_profile_option_labels={
             "self-consumption": "Self-Consumption",
             "cost_savings": "Savings",
+            "ai_optimisation": "AI Optimisation",
         },
         battery_supports_mqtt=True,
         battery_profile_polling_interval=60,
@@ -1318,6 +1450,13 @@ def test_system_profile_status_sensor_states():
         battery_cfg_control_enabled=True,
         battery_cfg_control_schedule_supported=True,
         battery_cfg_control_force_schedule_supported=False,
+        battery_cfg_control_locked=False,
+        battery_cfg_control_show_day_schedule=True,
+        battery_cfg_control_force_schedule_opted=True,
+        battery_dtg_control={"show": True, "locked": False},
+        battery_cfg_control={"show": True, "locked": False},
+        battery_rbd_control={"show": True, "locked": False},
+        battery_system_task=False,
         battery_show_production=True,
         battery_show_consumption=True,
         battery_show_storm_guard=True,
@@ -1343,21 +1482,27 @@ def test_system_profile_status_sensor_states():
     assert sensor.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
 
     coord.battery_profile_pending = True
-    coord.battery_pending_profile = "cost_savings"
+    coord.battery_pending_profile = "ai_optimisation"
     coord.battery_pending_backup_percentage = 25
     coord.battery_pending_operation_mode_sub_type = "prioritize-energy"
     coord.battery_pending_requested_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    coord.battery_selected_profile = "cost_savings"
-    coord.battery_profile_display = "Savings"
+    coord.battery_selected_profile = "ai_optimisation"
+    coord.battery_profile_display = "AI Optimisation"
     coord.battery_selected_backup_percentage = 25
     coord.battery_selected_operation_mode_sub_type = "prioritize-energy"
     assert sensor.native_value == "Updating..."
     attrs = sensor.extra_state_attributes
     assert attrs["pending"] is True
-    assert attrs["requested_profile"] == "cost_savings"
-    assert attrs["requested_profile_label"] == "Savings"
+    assert attrs["requested_profile"] == "ai_optimisation"
+    assert attrs["requested_profile_label"] == "AI Optimisation"
     assert attrs["supports_mqtt"] is True
     assert attrs["cfg_control_show"] is True
+    assert attrs["cfg_control_locked"] is False
+    assert attrs["cfg_control_show_day_schedule"] is True
+    assert attrs["cfg_control_force_schedule_opted"] is True
+    assert attrs["cfg_control"]["locked"] is False
+    assert attrs["rbd_control"]["show"] is True
+    assert attrs["battery_system_task"] is False
     assert attrs["site_country_code"] == "US"
     assert attrs["feature_details"] == {"HEMS_EV_Custom_Schedule": True}
     assert attrs["evse_profile"]["uuid"] == "evse-1"
@@ -1677,6 +1822,20 @@ def test_last_reported_sensor_exposes_reporting_interval(monkeypatch):
             "ho_control": True,
             "gateway_connection_count": "2",
             "gateway_connected_count": "1",
+            "gateway_last_connection_at": 1_714_550_600,
+            "gateway_connectivity_details": [
+                {
+                    "status": "0",
+                    "failure_reason": "0",
+                    "last_connection_at": 1_714_550_000,
+                },
+                {
+                    "status": "1",
+                    "failure_reason": "7",
+                    "last_connection_at": 1_714_550_600,
+                },
+                "bad",
+            ],
             "functional_validation_state": "1",
             "functional_validation_updated_at": 1_714_550_000,
             "charger_timezone": "Region/City",
@@ -1698,6 +1857,19 @@ def test_last_reported_sensor_exposes_reporting_interval(monkeypatch):
     assert attrs["operating_voltage"] == 240
     assert attrs["is_connected"] is True
     assert attrs["is_locally_connected"] is False
+    assert attrs["gateway_last_connection_at"] is not None
+    assert attrs["gateway_connectivity_details"] == [
+        {
+            "status": 0,
+            "failure_reason": 0,
+            "last_connection_at": "2024-05-01T07:53:20+00:00",
+        },
+        {
+            "status": 1,
+            "failure_reason": 7,
+            "last_connection_at": "2024-05-01T08:03:20+00:00",
+        },
+    ]
     assert attrs["functional_validation_updated_at"] is not None
 
     coord.data[sn]["reporting_interval"] = 150
@@ -2119,6 +2291,25 @@ def test_charge_mode_sensor_attributes():
     assert sensor.extra_state_attributes["schedule_reminder_enabled"] is None
     coord.data[sn]["schedule_reminder_enabled"] = "maybe"
     assert sensor.extra_state_attributes["schedule_reminder_enabled"] is None
+
+
+def test_charge_mode_sensor_smart_icon():
+    from custom_components.enphase_ev.sensor import EnphaseChargeModeSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charge_mode_pref": "SMART_CHARGING",
+            "charge_mode": "SMART_CHARGING",
+        },
+    )
+
+    sensor = EnphaseChargeModeSensor(coord, sn)
+    assert sensor.native_value == "SMART_CHARGING"
+    assert sensor.icon == "mdi:leaf"
 
 
 def test_last_session_sensor_exposes_auth_metadata(monkeypatch):

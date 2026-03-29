@@ -136,6 +136,8 @@ def test_system_profile_select_and_storm_guard_availability_type_checks() -> Non
         site_id="site-2",
         last_update_success=True,
         has_type=lambda _key: False,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
         battery_controls_available=True,
         battery_profile_option_labels={"self-consumption": "Self-Consumption"},
         battery_profile_option_keys=["self-consumption"],
@@ -145,6 +147,61 @@ def test_system_profile_select_and_storm_guard_availability_type_checks() -> Non
     )
     assert SystemProfileSelect(coord).available is False
     assert StormGuardSwitch(coord).available is False
+
+
+def test_site_entities_fall_back_to_role_checks_without_property_or_type_helpers() -> (
+    None
+):
+    coord = SimpleNamespace(
+        site_id="site-3",
+        last_update_success=True,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_reserve_editable=True,
+        battery_reserve_min=10,
+        battery_reserve_max=100,
+        battery_selected_backup_percentage=25,
+        battery_controls_available=True,
+        battery_profile_option_labels={"self-consumption": "Self-Consumption"},
+        battery_profile_option_keys=["self-consumption"],
+        battery_selected_profile="self-consumption",
+        storm_guard_state="enabled",
+        storm_evse_enabled=True,
+    )
+
+    assert BatteryReserveNumber(coord).available is True
+    assert SystemProfileSelect(coord).available is True
+    assert StormGuardSwitch(coord).available is True
+
+
+def test_system_profile_select_fallback_unavailable_without_battery_controls() -> None:
+    coord = SimpleNamespace(
+        site_id="site-4",
+        last_update_success=True,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_controls_available=False,
+        battery_profile_option_labels={"self-consumption": "Self-Consumption"},
+        battery_profile_option_keys=["self-consumption"],
+        battery_selected_profile="self-consumption",
+    )
+
+    assert SystemProfileSelect(coord).available is False
+
+
+def test_system_profile_select_fallback_unavailable_for_read_only_user() -> None:
+    coord = SimpleNamespace(
+        site_id="site-5",
+        last_update_success=True,
+        battery_user_is_owner=False,
+        battery_user_is_installer=False,
+        battery_controls_available=True,
+        battery_profile_option_labels={"self-consumption": "Self-Consumption"},
+        battery_profile_option_keys=["self-consumption"],
+        battery_selected_profile="self-consumption",
+    )
+
+    assert SystemProfileSelect(coord).available is False
 
 
 def test_base_entity_device_info_sets_via_device_from_type_identifier() -> None:

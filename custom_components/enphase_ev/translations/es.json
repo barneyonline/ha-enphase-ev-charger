@@ -984,6 +984,21 @@
       },
       "heat_pump_sg_ready_mode": {
         "name": "Gateway SG-Ready de la bomba de calor"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Energía diaria de la bomba de calor"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Energía diaria de red de la bomba de calor"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Energía solar diaria de la bomba de calor"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Energía diaria de batería de la bomba de calor"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Estado de la pasarela SG-Ready de la bomba de calor"
       }
     },
     "number": {

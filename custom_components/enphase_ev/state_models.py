@@ -48,6 +48,17 @@ class DiscoveryState:
     _debug_summary_log_cache: dict[str, object] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class BatteryControlCapability:
+    show: bool | None = None
+    enabled: bool | None = None
+    locked: bool | None = None
+    show_day_schedule: bool | None = None
+    schedule_supported: bool | None = None
+    force_schedule_supported: bool | None = None
+    force_schedule_opted: bool | None = None
+
+
 @dataclass(slots=True)
 class RefreshHealthState:
     last_set_amps: dict[str, int] = field(default_factory=dict)
@@ -198,6 +209,10 @@ class EVSEState:
     _green_battery_cache: dict[str, tuple[bool | None, bool, float]] = field(
         default_factory=dict
     )
+    _charger_config_cache: dict[str, tuple[dict[str, object], float]] = field(
+        default_factory=dict
+    )
+    _charger_config_backoff_until: dict[str, float] = field(default_factory=dict)
     _auth_settings_cache: dict[
         str, tuple[bool | None, bool | None, bool, bool, float]
     ] = field(default_factory=dict)
@@ -252,6 +267,7 @@ class BatteryState:
     _battery_show_savings_mode: bool | None = None
     _battery_show_ai_optimisation_mode: bool | None = None
     _battery_is_emea: bool | None = None
+    _battery_show_ai_opti_savings_mode: bool | None = None
     _battery_show_storm_guard: bool | None = None
     _battery_show_full_backup: bool | None = None
     _battery_show_battery_backup_percentage: bool | None = None
@@ -270,13 +286,19 @@ class BatteryState:
     _battery_site_status_severity: str | None = None
     _battery_profile: str | None = None
     _battery_backup_percentage: int | None = None
+    _battery_backup_percentage_min: int | None = None
+    _battery_backup_percentage_max: int | None = None
     _battery_operation_mode_sub_type: str | None = None
     _battery_supports_mqtt: bool | None = None
     _battery_polling_interval_s: int | None = None
+    _battery_dtg_control: BatteryControlCapability | None = None
     _battery_cfg_control_show: bool | None = None
     _battery_cfg_control_enabled: bool | None = None
     _battery_cfg_control_schedule_supported: bool | None = None
     _battery_cfg_control_force_schedule_supported: bool | None = None
+    _battery_cfg_control: BatteryControlCapability | None = None
+    _battery_rbd_control: BatteryControlCapability | None = None
+    _battery_system_task: bool | None = None
     _battery_profile_evse_device: dict[str, object] | None = None
     _battery_use_battery_for_self_consumption: bool | None = None
     _battery_profile_devices: list[dict[str, object]] = field(default_factory=list)

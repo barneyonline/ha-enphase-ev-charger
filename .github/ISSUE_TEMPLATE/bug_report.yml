@@ -1,0 +1,154 @@
+name: Bug report
+description: Report a reproducible problem in the Enphase Energy integration
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for regressions, incorrect behavior, broken entities, missing updates, failed controls, repair issues, or diagnostics/export problems in the Enphase Energy integration.
+
+        Before filing:
+        - Update to the latest integration release available to you.
+        - Check existing issues for duplicates.
+        - Capture diagnostics if the problem is reproducible.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Checklist
+      options:
+        - label: I am using a current version of the integration and Home Assistant.
+          required: true
+        - label: I searched existing issues and did not find an open report for this problem.
+          required: true
+        - label: I understand diagnostics are redacted, but I will still review them before uploading.
+          required: true
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Installation method
+      options:
+        - HACS
+        - Manual install in custom_components
+        - Development checkout
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      description: Enter the version shown in Home Assistant for Enphase Energy.
+      placeholder: "2.0.0"
+    validations:
+      required: true
+  - type: input
+    id: home_assistant_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.3.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: primary_area
+    attributes:
+      label: Primary affected area
+      description: Pick the main category impacted by this issue.
+      options:
+        - Setup, sign-in, MFA, or reauthentication
+        - IQ Gateway / System Controller
+        - IQ Battery / Encharge / BatteryConfig
+        - IQ EV Charger / IQ EVSE
+        - IQ Microinverters
+        - Heat Pump / HEMS device data
+        - Water Heater / site-energy channel
+        - Site or cloud energy telemetry
+        - Diagnostics, repairs, or service-availability reporting
+        - Other / unsure
+    validations:
+      required: true
+  - type: textarea
+    id: site_profile
+    attributes:
+      label: Site profile
+      description: Describe the Enphase hardware on the affected site so device-specific issues can be triaged correctly.
+      placeholder: |
+        Example:
+        - 1 x IQ Gateway / System Controller
+        - 2 x IQ Battery 5P
+        - 1 x IQ EV Charger 2
+        - IQ8 microinverters
+        - Heat pump and/or water heater channels present
+    validations:
+      required: true
+  - type: input
+    id: affected_entities
+    attributes:
+      label: Affected device names, entity IDs, or serials
+      description: Include the exact Home Assistant device names or entity IDs when possible.
+      placeholder: "sensor.site_energy_import, select.enphase_battery_mode, charger serial 1234567890"
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and include exact errors, unexpected states, or missing data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Trigger ...
+        3. Wait ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: diagnostics_status
+    attributes:
+      label: Diagnostics attached?
+      description: Attach the downloaded diagnostics file directly to the issue or a follow-up comment.
+      options:
+        - Yes, config-entry diagnostics attached
+        - Yes, device diagnostics attached
+        - Yes, both config-entry and device diagnostics attached
+        - Not yet, but I can upload them
+        - I cannot capture diagnostics
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ### How to capture diagnostics
+
+        Config-entry diagnostics:
+        1. In Home Assistant, open `Settings -> Devices & Services -> Integrations`.
+        2. Select `Enphase Energy`.
+        3. Use the integration menu and choose `Download diagnostics`.
+
+        Device diagnostics:
+        1. Open the affected Enphase device page in Home Assistant.
+        2. Use the device menu and choose `Download diagnostics`.
+
+        Upload:
+        - Drag the downloaded diagnostics file into this issue body or into a comment after submission.
+        - If GitHub blocks the upload, compress the file and attach the archive instead.
+        - Add screenshots only when they show something diagnostics will not capture.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste redacted log lines from Home Assistant if you have them.
+      render: shell
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Include screenshots, repair issue text, when the issue started, or whether it began after an update.

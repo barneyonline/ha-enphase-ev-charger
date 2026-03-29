@@ -12,13 +12,60 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Fixed battery reserve availability so non-EMEA sites can keep the reserve control when the dedicated reserve-visibility flag allows editing, while EMEA sites still fall back to `cfgControl.show`.
-- Added BatteryConfig parsing and profile selection support for US NEM3 `AI Optimization` sites that expose `showAiOptiSavingsMode` / `ai_optimisation`.
+- Added BatteryConfig parsing and profile selection support for US NEM3 `AI Optimisation` sites that expose `showAiOptiSavingsMode` / `ai_optimisation`.
 
 ### 🔧 Improvements
-- None
+- Expanded the service-status synthetic checks to group results by service category and cover the broader set of safe EVSE, BatteryConfig, dashboard, HEMS, timeseries, and inventory endpoints used by the integration.
 
 ### 🔄 Other changes
 - None
+
+## v2.6.1 - 2026-03-29
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added HEMS-backed heat-pump daily energy entities, including `Heat Pump Daily Energy` plus optional diagnostic breakdown sensors for daily grid, solar, and battery energy.
+- Added a dedicated `Heat Pump SG-Ready Gateway Status` entity for SG-Ready gateway devices discovered in the heat-pump inventory.
+
+### 🐛 Bug fixes
+- Preserved Green mode from the live EVSE schedule summary when Enphase temporarily omits the scheduler preference, keeping `preferred_mode` and the charge-mode select stable instead of dropping to `null` or `unknown`.
+- Fixed IQ Battery charge-from-grid schedule helper availability so schedule controls stay editable when an existing schedule is present even if Enphase omits parts of the capability metadata.
+- Hardened battery write gating so battery profile, reserve, shutdown-level, and charge-from-grid helpers only surface when the account has confirmed owner or installer write access.
+- Improved battery settings parsing and reserve-limit handling so battery reserve writes respect Enphase-provided minimum and maximum bounds instead of assuming a fixed upper limit.
+- Hardened EV charger auth/config requests and gateway inventory fallbacks so auth settings, config metadata, and connectivity details remain available across more Enphase payload and authorization variants.
+- Improved HEMS heat-pump runtime and power parsing so alternate endpoint payload shapes keep runtime, SG-Ready, daily-energy, and power telemetry available instead of dropping state.
+
+### 🔧 Improvements
+- Expanded EV charger diagnostic attributes with preserved gateway connectivity details, phase-switch configuration, default charge level, and additional endpoint metadata surfaced from charger config payloads.
+- Enriched heat-pump runtime and power diagnostics with endpoint timestamps, device identifiers, and daily-energy context to make diagnostics captures more actionable.
+
+### 🔄 Other changes
+- Expanded the API reference documentation for EVSE feature flags, the mobile constants endpoint, and the EV firmware-details endpoint with newer captures and observed payload notes.
+
+## v2.6.0 - 2026-03-28
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added AI Optimisation battery profile support, including runtime handling for the new battery profile mode.
+
+### 🐛 Bug fixes
+- Preserved Green mode when refreshing battery profile state from a fresh payload so existing battery operating mode is not lost during profile updates.
+- Mapped IQ Battery LED runtime status `15` to `Idle` for battery status reporting.
+- Hardened site power outlier handling so anomalous samples are filtered more safely during live power calculations.
+- Stabilized heat-pump power diagnostics and standardized heat-pump runtime async boundaries so runtime refreshes keep telemetry and diagnostics consistent.
+
+### 🔧 Improvements
+- Reworked the coordinator refresh pipeline and continued the runtime ownership split by extracting battery, EVSE, heat-pump, and inventory runtime logic into dedicated helpers.
+- Refactored coordinator state and diagnostics helpers and extracted remaining coordinator issue-management paths to reduce coordinator complexity and clarify runtime responsibilities.
+- Redesigned runtime test ownership and expanded refactor coverage to support the runtime extraction work.
+
+### 🔄 Other changes
+- Documented the tariff API endpoint in `docs/api/`.
+- Refreshed GitHub issue templates.
 
 ## v2.5.0 - 2026-03-24
 

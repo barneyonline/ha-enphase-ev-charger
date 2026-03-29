@@ -235,8 +235,146 @@ def test_charge_mode_select_current_option_paths(coordinator_factory):
     assert sel.current_option == "Scheduled"
 
     coord.data[RANDOM_SERIAL]["charge_mode"] = ""
+    coord._storm_guard_cache_until = 10.0**12  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "chargeMode": "GREEN", "enable": True}
+    ]
+    coord._charge_mode_cache.clear()  # noqa: SLF001
+    assert sel.current_option == "Green"
+
+    coord._storm_guard_cache_until = 0.0  # noqa: SLF001
     coord._charge_mode_cache.clear()  # noqa: SLF001
     assert sel.current_option is None
+
+    coord.data[RANDOM_SERIAL]["schedule_type"] = "greencharging"
+    assert sel.current_option == "Green"
+
+
+def test_charge_mode_select_uses_smart_label_for_smart_mode(coordinator_factory):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord.data[RANDOM_SERIAL]["charge_mode_pref"] = "SMART_CHARGING"
+    coord.data[RANDOM_SERIAL]["charge_mode"] = "SMART_CHARGING"
+
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+
+    assert "Smart" in sel.options
+    assert "Green" not in sel.options
+    assert sel.current_option == "Smart"
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_sets_smart_mode_for_single_evse_profile_context(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord._storm_guard_cache_until = 10.0**12  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": RANDOM_SERIAL, "chargeMode": "SMART", "enable": False}
+    ]
+    coord.client.set_charge_mode = AsyncMock(return_value={"status": "accepted"})
+    coord.async_request_refresh = AsyncMock()
+
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+    assert "Smart" in sel.options
+    await sel.async_select_option("Smart")
+
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "SMART_CHARGING"
+    )
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_keeps_green_for_other_evse_on_ai_site(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    other_serial = "SERIAL-2"
+    coord = coordinator_factory(serials=[RANDOM_SERIAL, other_serial])
+    coord._battery_profile = "ai_optimisation"  # noqa: SLF001
+    coord.client.set_charge_mode = AsyncMock(return_value={"status": "accepted"})
+    coord.async_request_refresh = AsyncMock()
+
+    sel = ChargeModeSelect(coord, other_serial)
+
+    assert "Green" in sel.options
+    assert "Smart" not in sel.options
+
+    await sel.async_select_option("Green")
+
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        other_serial, "GREEN_CHARGING"
+    )
+
+
+def test_charge_mode_select_helper_branches(coordinator_factory):
+    from custom_components.enphase_ev.select import (
+        ChargeModeSelect,
+        _smart_charging_context,
+    )
+
+    coord = coordinator_factory()
+    assert _smart_charging_context(coord) is False
+    coord._battery_profile_charge_mode_preference = None  # noqa: SLF001
+    assert _smart_charging_context(coord, RANDOM_SERIAL) is False
+
+    class BrokenData:
+        def get(self, _sn, default=None):
+            raise RuntimeError("boom")
+
+    coord.data = BrokenData()
+    assert _smart_charging_context(coord, RANDOM_SERIAL) is False
+
+    coord = coordinator_factory()
+
+    class BadString:
+        def __str__(self):
+            raise ValueError("boom")
+
+    coord.data[RANDOM_SERIAL]["charge_mode_pref"] = BadString()
+    assert _smart_charging_context(coord, RANDOM_SERIAL) is False
+
+    coord.data[RANDOM_SERIAL]["charge_mode_pref"] = "SMART_CHARGING"
+    assert _smart_charging_context(coord, RANDOM_SERIAL) is True
+
+    coord.data[RANDOM_SERIAL]["charge_mode_pref"] = None
+    coord._charge_mode_cache[RANDOM_SERIAL] = (BadString(), 1.0)  # noqa: SLF001
+    assert _smart_charging_context(coord, RANDOM_SERIAL) is False
+
+    coord = coordinator_factory()
+    coord._battery_profile = "ai_optimisation"  # noqa: SLF001
+    assert _smart_charging_context(coord, RANDOM_SERIAL) is False
+    coord._battery_profile_charge_mode_preference = lambda _sn: (  # noqa: SLF001
+        _ for _ in ()
+    ).throw(RuntimeError("boom"))
+    assert _smart_charging_context(coord, RANDOM_SERIAL) is False
+
+    coord.data[RANDOM_SERIAL]["charge_mode_pref"] = "MANUAL_CHARGING"
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+    assert sel.current_option == "Manual"
+
+    coord._resolve_charge_mode_pref = lambda _sn: "EXPERIMENTAL"  # noqa: SLF001
+    assert sel.current_option is None
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_unknown_option_falls_back_to_uppercase(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord.client.set_charge_mode = AsyncMock(return_value={"status": "accepted"})
+    coord.async_request_refresh = AsyncMock()
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+
+    await sel.async_select_option("experimental")
+
+    coord.client.set_charge_mode.assert_awaited_once_with(RANDOM_SERIAL, "EXPERIMENTAL")
 
 
 def test_charge_mode_select_unavailable_when_scheduler_down(coordinator_factory):
@@ -301,6 +439,8 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
     coord = coordinator_factory(serials=["1111"])
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
     added: list[list[ChargeModeSelect]] = []
     listeners: list[object] = []
 
@@ -365,18 +505,73 @@ async def test_select_platform_skips_system_profile_without_battery(
     assert len(listeners) == 1
 
 
+@pytest.mark.asyncio
+async def test_select_platform_adds_system_profile_after_permission_refresh(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.select import (
+        ChargeModeSelect,
+        SystemProfileSelect,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=["1111"])
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    added: list[list[object]] = []
+    topology_callbacks: list[object] = []
+    update_callbacks: list[object] = []
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    def capture_topology(callback, *, context=None):
+        topology_callbacks.append(callback)
+        return lambda: None
+
+    def capture_update(callback, *, context=None):
+        update_callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = capture_topology  # type: ignore[attr-defined]
+    coord.async_add_listener = capture_update  # type: ignore[attr-defined]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await async_setup_entry(hass, config_entry, capture_add)
+
+    assert len(added) == 1
+    assert all(isinstance(entity, ChargeModeSelect) for entity in added[0])
+    assert len(topology_callbacks) == 1
+    assert len(update_callbacks) == 1
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    update_callbacks[0]()
+
+    assert len(added) == 2
+    assert isinstance(added[1][0], SystemProfileSelect)
+
+
 def test_system_profile_select_options_and_current(coordinator_factory):
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_show_ai_opti_savings_mode = True  # noqa: SLF001
     coord._battery_show_full_backup = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
 
     sel = SystemProfileSelect(coord)
 
-    assert sel.options == ["Self-Consumption", "Savings", "Full Backup"]
+    assert sel.options == [
+        "Self-Consumption",
+        "Savings",
+        "AI Optimisation",
+        "Full Backup",
+    ]
     assert sel.current_option == "Self-Consumption"
 
 
@@ -393,7 +588,7 @@ def test_system_profile_select_current_option_labels_ai_optimization(
 
     sel = SystemProfileSelect(coord)
 
-    assert sel.current_option == "AI Optimization"
+    assert sel.current_option == "AI Optimisation"
 
 
 def test_system_profile_select_options_include_ai_optimization(coordinator_factory):
@@ -407,7 +602,7 @@ def test_system_profile_select_options_include_ai_optimization(coordinator_facto
 
     sel = SystemProfileSelect(coord)
 
-    assert sel.options == ["Self-Consumption", "AI Optimization", "Full Backup"]
+    assert sel.options == ["Self-Consumption", "AI Optimisation", "Full Backup"]
 
 
 @pytest.mark.asyncio
@@ -423,7 +618,7 @@ async def test_system_profile_select_sets_ai_optimization_profile(
     coord.async_set_system_profile = AsyncMock()
 
     sel = SystemProfileSelect(coord)
-    await sel.async_select_option("AI Optimization")
+    await sel.async_select_option("AI Optimisation")
 
     coord.async_set_system_profile.assert_awaited_once_with("ai_optimisation")
 
@@ -454,6 +649,21 @@ def test_system_profile_select_unavailable_for_read_only_user(coordinator_factor
     assert sel.available is False
 
 
+def test_system_profile_select_unavailable_without_confirmed_write_access(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    sel = SystemProfileSelect(coord)
+
+    assert sel.available is False
+
+
 @pytest.mark.asyncio
 async def test_system_profile_select_sets_profile(coordinator_factory):
     from custom_components.enphase_ev.select import SystemProfileSelect
@@ -461,6 +671,7 @@ async def test_system_profile_select_sets_profile(coordinator_factory):
     coord = coordinator_factory()
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_show_ai_opti_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     coord.async_set_system_profile = AsyncMock()
 
@@ -468,6 +679,9 @@ async def test_system_profile_select_sets_profile(coordinator_factory):
     await sel.async_select_option("Savings")
 
     coord.async_set_system_profile.assert_awaited_once_with("cost_savings")
+
+    await sel.async_select_option("AI Optimisation")
+    coord.async_set_system_profile.assert_awaited_with("ai_optimisation")
 
 
 @pytest.mark.asyncio
