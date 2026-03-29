@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Heat Pump SG-Ready Gateway Status"
+      },
+      "shared_labels": {
+        "name": "Shared Labels",
+        "state": {
+          "self_consumption": "Self-Consumption",
+          "cost_savings": "Savings",
+          "ai_optimisation": "AI Optimisation",
+          "backup_only": "Full Backup",
+          "importexport": "Import and Export",
+          "importonly": "Import Only",
+          "exportonly": "Export Only",
+          "manual_charging": "Manual",
+          "scheduled_charging": "Scheduled",
+          "green_charging": "Green",
+          "smart_charging": "Smart",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Degraded",
+          "not_reporting": "Not Reporting",
+          "inactive": "Inactive",
+          "normal": "Normal",
+          "warning": "Warning",
+          "error": "Error",
+          "unknown": "Unknown",
+          "unpaired": "Unpaired",
+          "pairing": "Pairing"
+        }
       }
     },
     "number": {

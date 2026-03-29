@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Κατάσταση πύλης SG-Ready αντλίας θερμότητας"
+      },
+      "shared_labels": {
+        "name": "Κοινές ετικέτες",
+        "state": {
+          "self_consumption": "Αυτοκατανάλωση",
+          "cost_savings": "Εξοικονόμηση",
+          "ai_optimisation": "Βελτιστοποίηση AI",
+          "backup_only": "Πλήρης εφεδρεία",
+          "importexport": "Εισαγωγή και εξαγωγή",
+          "importonly": "Μόνο εισαγωγή",
+          "exportonly": "Μόνο εξαγωγή",
+          "manual_charging": "Χειροκίνητο",
+          "scheduled_charging": "Προγραμματισμένο",
+          "green_charging": "Πράσινο",
+          "smart_charging": "Έξυπνο",
+          "online": "Σε σύνδεση",
+          "offline": "Εκτός σύνδεσης",
+          "degraded": "Υποβαθμισμένο",
+          "not_reporting": "Δεν αναφέρει",
+          "inactive": "Ανενεργό",
+          "normal": "Κανονικό",
+          "warning": "Προειδοποίηση",
+          "error": "Σφάλμα",
+          "unknown": "Άγνωστο",
+          "unpaired": "Μη συζευγμένο",
+          "pairing": "Σύζευξη"
+        }
       }
     },
     "number": {

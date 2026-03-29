@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Lämpöpumpun SG-Ready-yhdyskäytävän tila"
+      },
+      "shared_labels": {
+        "name": "Yhteiset tunnisteet",
+        "state": {
+          "self_consumption": "Omakulutus",
+          "cost_savings": "Säästö",
+          "ai_optimisation": "Tekoälyoptimointi",
+          "backup_only": "Täysi varavoima",
+          "importexport": "Tuonti ja vienti",
+          "importonly": "Vain tuonti",
+          "exportonly": "Vain vienti",
+          "manual_charging": "Manuaalinen",
+          "scheduled_charging": "Ajastettu",
+          "green_charging": "Vihreä",
+          "smart_charging": "Älykäs",
+          "online": "Verkossa",
+          "offline": "Offline",
+          "degraded": "Heikentynyt",
+          "not_reporting": "Ei raportoi",
+          "inactive": "Inaktiivinen",
+          "normal": "Normaali",
+          "warning": "Varoitus",
+          "error": "Virhe",
+          "unknown": "Tuntematon",
+          "unpaired": "Ei paritettu",
+          "pairing": "Pariliitos"
+        }
       }
     },
     "number": {

@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Status do gateway SG-Ready da bomba de calor"
+      },
+      "shared_labels": {
+        "name": "Rótulos compartilhados",
+        "state": {
+          "self_consumption": "Autoconsumo",
+          "cost_savings": "Economia",
+          "ai_optimisation": "Otimização por IA",
+          "backup_only": "Backup total",
+          "importexport": "Importação e exportação",
+          "importonly": "Somente importação",
+          "exportonly": "Somente exportação",
+          "manual_charging": "Manual",
+          "scheduled_charging": "Agendado",
+          "green_charging": "Verde",
+          "smart_charging": "Inteligente",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Degradado",
+          "not_reporting": "Sem resposta",
+          "inactive": "Inativo",
+          "normal": "Normal",
+          "warning": "Aviso",
+          "error": "Erro",
+          "unknown": "Desconhecido",
+          "unpaired": "Não pareado",
+          "pairing": "Pareamento"
+        }
       }
     },
     "number": {

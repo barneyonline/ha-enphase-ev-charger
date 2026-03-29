@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Soojuspumba SG-Ready lüüsi olek"
+      },
+      "shared_labels": {
+        "name": "Ühised sildid",
+        "state": {
+          "self_consumption": "Omakasutus",
+          "cost_savings": "Sääst",
+          "ai_optimisation": "Tehisintellekti optimeerimine",
+          "backup_only": "Täielik varutoide",
+          "importexport": "Import ja eksport",
+          "importonly": "Ainult import",
+          "exportonly": "Ainult eksport",
+          "manual_charging": "Käsitsi",
+          "scheduled_charging": "Ajastatud",
+          "green_charging": "Roheline",
+          "smart_charging": "Nutikas",
+          "online": "Võrgus",
+          "offline": "Võrguühenduseta",
+          "degraded": "Halvenenud",
+          "not_reporting": "Ei teata",
+          "inactive": "Mitteaktiivne",
+          "normal": "Tavaline",
+          "warning": "Hoiatus",
+          "error": "Viga",
+          "unknown": "Tundmatu",
+          "unpaired": "Sidumata",
+          "pairing": "Sidumine"
+        }
       }
     },
     "number": {

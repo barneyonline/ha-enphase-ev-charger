@@ -88,6 +88,10 @@ from .evse_runtime import (
 )
 from .heatpump_runtime import HeatpumpRuntime
 from .inventory_runtime import CoordinatorTopologySnapshot, InventoryRuntime
+from .labels import (
+    battery_grid_mode_label,
+    battery_profile_label as translated_battery_profile_label,
+)
 from .log_redaction import (
     redact_site_id,
     redact_text,
@@ -172,11 +176,6 @@ SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
 }
 DISCOVERY_SNAPSHOT_STORE_VERSION = 1
 DISCOVERY_SNAPSHOT_SAVE_DELAY_S = 1.0
-BATTERY_GRID_MODE_LABELS = {
-    "importexport": "Import and Export",
-    "importonly": "Import Only",
-    "exportonly": "Export Only",
-}
 BATTERY_GRID_MODE_PERMISSIONS = {
     "importexport": (True, True),
     "importonly": (True, False),
@@ -4687,9 +4686,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _normalize_battery_profile_key(value: object) -> str | None:
         return BatteryRuntime.normalize_battery_profile_key(value)
 
-    @staticmethod
-    def _battery_profile_label(profile: str | None) -> str | None:
-        return BatteryRuntime.battery_profile_label(profile)
+    def _battery_profile_label(self, profile: str | None) -> str | None:
+        return translated_battery_profile_label(profile, hass=self.hass)
 
     @staticmethod
     def _normalize_battery_sub_type(value: object) -> str | None:
@@ -4757,19 +4755,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return None
         return normalized or None
 
-    @staticmethod
-    def _battery_grid_mode_label(mode: str | None) -> str | None:
-        if not mode:
-            return None
-        key = EnphaseCoordinator._battery_grid_mode_key(mode)
-        if key in BATTERY_GRID_MODE_LABELS:
-            return BATTERY_GRID_MODE_LABELS[key]
-        try:
-            return (
-                str(mode).replace("_", " ").replace("-", " ").replace("  ", " ").title()
-            )
-        except Exception:  # noqa: BLE001
-            return None
+    def _battery_grid_mode_label(self, mode: str | None) -> str | None:
+        return battery_grid_mode_label(mode, hass=self.hass)
 
     @staticmethod
     def _normalize_minutes_of_day(value: object) -> int | None:

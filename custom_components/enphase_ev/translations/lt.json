@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Šilumos siurblio SG-Ready šliuzo būsena"
+      },
+      "shared_labels": {
+        "name": "Bendros žymos",
+        "state": {
+          "self_consumption": "Savarankiškas vartojimas",
+          "cost_savings": "Taupymas",
+          "ai_optimisation": "DI optimizavimas",
+          "backup_only": "Visiška atsarga",
+          "importexport": "Importas ir eksportas",
+          "importonly": "Tik importas",
+          "exportonly": "Tik eksportas",
+          "manual_charging": "Rankinis",
+          "scheduled_charging": "Suplanuota",
+          "green_charging": "Žalias",
+          "smart_charging": "Išmanus",
+          "online": "Prisijungęs",
+          "offline": "Neprisijungęs",
+          "degraded": "Pablogėjęs",
+          "not_reporting": "Nepraneša",
+          "inactive": "Neaktyvus",
+          "normal": "Normalus",
+          "warning": "Įspėjimas",
+          "error": "Klaida",
+          "unknown": "Nežinoma",
+          "unpaired": "Nesuporuotas",
+          "pairing": "Poravimas"
+        }
       }
     },
     "number": {
