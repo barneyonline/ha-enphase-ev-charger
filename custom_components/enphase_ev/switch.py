@@ -35,6 +35,22 @@ def _switch_entity_id_migrations(coord: EnphaseCoordinator) -> dict[str, str]:
     }
 
 
+def _migrate_storm_guard_evse_entity_id(current_entity_id: str) -> str | None:
+    """Return canonical EVSE storm guard entity_id preserving numeric suffixes."""
+    base_entity_id = current_entity_id
+    numeric_suffix = ""
+    base, _, suffix = current_entity_id.rpartition("_")
+    if base and _AUTO_SUFFIX_RE.fullmatch(suffix):
+        base_entity_id = base
+        numeric_suffix = f"_{suffix}"
+    if not base_entity_id.endswith("_storm_guard_ev_charge"):
+        return None
+    return (
+        f"{base_entity_id[: -len('_storm_guard_ev_charge')]}"
+        f"_storm_guard_evse_charge{numeric_suffix}"
+    )
+
+
 def _migrated_switch_entity_id(
     current_entity_id: str, target_entity_id: str
 ) -> str | None:
@@ -91,11 +107,18 @@ async def async_setup_entry(
     rename_by_unique = _switch_entity_id_migrations(coord)
     for registry_entry in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
         target_entity_id = rename_by_unique.get(registry_entry.unique_id)
-        if target_entity_id is None:
+        if target_entity_id is not None:
+            migrated_entity_id = _migrated_switch_entity_id(
+                registry_entry.entity_id, target_entity_id
+            )
+        elif getattr(registry_entry, "unique_id", "").endswith(
+            "_storm_guard_evse_charge"
+        ):
+            migrated_entity_id = _migrate_storm_guard_evse_entity_id(
+                registry_entry.entity_id
+            )
+        else:
             continue
-        migrated_entity_id = _migrated_switch_entity_id(
-            registry_entry.entity_id, target_entity_id
-        )
         if migrated_entity_id is None:
             continue
         try:
@@ -105,7 +128,7 @@ async def async_setup_entry(
             )
         except ValueError:
             _LOGGER.debug(
-                "Could not rename schedule switch during migration (%s -> %s)",
+                "Could not rename switch during migration (%s -> %s)",
                 redact_identifier(registry_entry.entity_id),
                 redact_identifier(migrated_entity_id),
             )

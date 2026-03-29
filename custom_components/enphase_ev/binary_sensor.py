@@ -23,6 +23,10 @@ from .sensor import (
 )
 
 PARALLEL_UPDATES = 0
+HISTORICAL_CHARGER_BINARY_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
+    "_commissioned",
+    "_charger_problem",
+)
 
 
 def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
@@ -43,6 +47,33 @@ async def async_setup_entry(
     site_entity_added = False
     heatpump_sg_ready_entity_added = False
     known_serials: set[str] = set()
+
+    @callback
+    def _async_prune_historical_charger_binary_sensor_entities() -> None:
+        entities = getattr(ent_reg, "entities", None)
+        if not isinstance(entities, dict):
+            return
+        unique_prefix = f"{DOMAIN}_"
+        for reg_entry in list(entities.values()):
+            entry_domain = getattr(reg_entry, "domain", None)
+            if entry_domain is None:
+                entry_domain = reg_entry.entity_id.partition(".")[0]
+            if entry_domain != "binary_sensor":
+                continue
+            entry_platform = getattr(reg_entry, "platform", None)
+            if entry_platform is not None and entry_platform != DOMAIN:
+                continue
+            entry_config_id = getattr(reg_entry, "config_entry_id", None)
+            if entry_config_id is not None and entry_config_id != entry.entry_id:
+                continue
+            unique_id = getattr(reg_entry, "unique_id", None)
+            if not isinstance(unique_id, str) or not unique_id.startswith(
+                unique_prefix
+            ):
+                continue
+            if not unique_id.endswith(HISTORICAL_CHARGER_BINARY_SENSOR_UNIQUE_SUFFIXES):
+                continue
+            ent_reg.async_remove(reg_entry.entity_id)
 
     def _site_binary_sensor_unique_id(key: str) -> str:
         return f"{DOMAIN}_site_{coord.site_id}_{key}"
@@ -95,6 +126,7 @@ async def async_setup_entry(
         add_listener = getattr(coord, "async_add_listener", None)
     if callable(add_listener):
         entry.async_on_unload(add_listener(_async_sync_chargers))
+    _async_prune_historical_charger_binary_sensor_entities()
     _async_sync_chargers()
 
 
