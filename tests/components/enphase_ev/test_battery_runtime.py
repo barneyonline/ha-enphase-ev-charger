@@ -26,10 +26,7 @@ def test_battery_runtime_normalizes_labels() -> None:
     assert runtime.normalize_battery_profile_key(None) is None
     assert runtime.battery_profile_label("ai_optimisation") == "AI Optimisation"
     assert runtime.battery_profile_label("backup_only") == "Full Backup"
-    assert (
-        runtime.battery_profile_label("regional-profile")
-        == "Unknown profile (regional profile)"
-    )
+    assert runtime.battery_profile_label("regional-profile") == "Regional Profile"
     assert runtime.battery_profile_label(None) is None
 
 
@@ -647,7 +644,7 @@ def test_battery_runtime_profile_option_passthrough_for_unknown_mode(
 
     assert "self-consumption" in options
     assert "regional_special" in options
-    assert labels["regional_special"] == "Unknown profile (regional special)"
+    assert labels["regional_special"] == "Regional Special"
     assert coord._target_reserve_for_profile("self-consumption") == 31  # noqa: SLF001
     assert (
         "regional_special" not in coord._battery_profile_reserve_memory

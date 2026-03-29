@@ -175,7 +175,7 @@ def test_parse_battery_settings_unknown_grid_mode_uses_none_permissions(
     )
 
     assert coord.battery_grid_mode == "RegionalSpecial"
-    assert coord.battery_mode_display == "Unknown mode (RegionalSpecial)"
+    assert coord.battery_mode_display == "RegionalSpecial"
     assert coord.battery_charge_from_grid_allowed is None
     assert coord.battery_discharge_to_grid_allowed is None
 
