@@ -2634,6 +2634,8 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     assert set_buckets.call_args.kwargs["authoritative"] is False
     assert coord._battery_storage_order == ["BAT-1"]  # noqa: SLF001
     assert coord._inverter_order == ["INV-1"]  # noqa: SLF001
+    assert coord.inventory_runtime.iter_inverter_serials() == ["INV-1"]
+    assert coord.inventory_runtime.inverter_data("INV-1") == {"name": "Inverter"}
     assert coord._restored_site_energy_channels == {"heat_pump"}  # noqa: SLF001
     assert coord._restored_gateway_iq_energy_router_records == [  # noqa: SLF001
         {"device-uid": "REST-1"}
