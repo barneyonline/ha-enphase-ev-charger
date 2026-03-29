@@ -11,14 +11,38 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Fixed battery reserve availability so non-EMEA sites can keep the reserve control when the dedicated reserve-visibility flag allows editing, while EMEA sites still fall back to `cfgControl.show`.
-- Added BatteryConfig parsing and profile selection support for US NEM3 `AI Optimisation` sites that expose `showAiOptiSavingsMode` / `ai_optimisation`.
+- None
 
 ### 🔧 Improvements
-- Expanded the service-status synthetic checks to group results by service category and cover the broader set of safe EVSE, BatteryConfig, dashboard, HEMS, timeseries, and inventory endpoints used by the integration.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v2.6.2 - 2026-03-29
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed battery reserve availability so non-EMEA sites can keep the reserve control when the dedicated reserve-visibility flag allows editing, while EMEA sites still fall back to `cfgControl.show`.
+- Added BatteryConfig parsing and profile selection support for US NEM3 `AI Optimisation` sites that expose `showAiOptiSavingsMode` and the `ai_optimisation` profile key.
+- Fixed BatteryConfig XSRF refresh handling so battery writes still succeed when Enphase returns the token via lowercase cookie names, response cookies, or the session cookie jar, without dropping the existing auth cookie state after the `isValid` preflight.
+- Added DTG and RBD battery schedule support for affected sites, including separate control-state parsing and create-or-update handling so those schedule families work even when no existing schedule row is present.
+- Fixed coordinator and runtime state mirroring regressions uncovered during the runtime-helper extraction, preserving summary caches, type-bucket state, and restored inverter discovery snapshots while moving shared helper logic out of the coordinator.
+- Switched dynamic battery, grid mode, and charge mode labels to Home Assistant's translation system so localized labels resolve correctly instead of falling back to ad hoc title-casing or direct file reads.
+- Fixed HEMS heat-pump daily energy totals so zero-consumption payloads with empty `details` arrays now keep the energy entities available at `0.0 kWh` instead of `Unavailable`.
+
+### 🔧 Improvements
+- Continued the runtime ownership cleanup by extracting shared runtime and system-dashboard helpers out of the coordinator, reducing coordinator complexity while keeping battery, inventory, and heat-pump refresh behavior aligned with the dedicated runtime modules.
+
+### 🔄 Other changes
+- Expanded the service-status synthetic checks to group results by service category and cover the broader set of safe EVSE, BatteryConfig, dashboard, HEMS, timeseries, and inventory endpoints used by the integration.
+- Refreshed the API reference with new endpoint captures and updated observed request and response notes.
+- Finished the runtime test ownership split so coordinator, runtime-helper, battery-settings, and inventory coverage now tracks the refactored module boundaries more cleanly.
 
 ## v2.6.1 - 2026-03-29
 
