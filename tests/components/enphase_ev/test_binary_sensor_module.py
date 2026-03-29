@@ -155,6 +155,74 @@ async def test_async_setup_entry_prunes_historical_charger_binary_sensor_entitie
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_historical_binary_prune_skips_nonmatching_entries(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    fake_registry = SimpleNamespace(
+        entities={
+            "binary_sensor.derived_wrong_domain": SimpleNamespace(
+                entity_id="sensor.derived_wrong_domain",
+                domain=None,
+                platform=DOMAIN,
+                unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_commissioned",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "binary_sensor.wrong_platform": SimpleNamespace(
+                entity_id="binary_sensor.wrong_platform",
+                domain="binary_sensor",
+                platform="other_domain",
+                unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_commissioned",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "binary_sensor.wrong_entry": SimpleNamespace(
+                entity_id="binary_sensor.wrong_entry",
+                domain="binary_sensor",
+                platform=DOMAIN,
+                unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_charger_problem",
+                config_entry_id="other-entry-id",
+            ),
+            "binary_sensor.invalid_unique": SimpleNamespace(
+                entity_id="binary_sensor.invalid_unique",
+                domain="binary_sensor",
+                platform=DOMAIN,
+                unique_id=object(),
+                config_entry_id=config_entry.entry_id,
+            ),
+            "binary_sensor.bad_prefix": SimpleNamespace(
+                entity_id="binary_sensor.bad_prefix",
+                domain="binary_sensor",
+                platform=DOMAIN,
+                unique_id=f"other_{RANDOM_SERIAL}_commissioned",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "binary_sensor.keep_connected": SimpleNamespace(
+                entity_id="binary_sensor.keep_connected",
+                domain="binary_sensor",
+                platform=DOMAIN,
+                unique_id=f"{DOMAIN}_{RANDOM_SERIAL}_connected",
+                config_entry_id=config_entry.entry_id,
+            ),
+        },
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.binary_sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+    monkeypatch.setattr(
+        coord, "async_add_topology_listener", lambda callback: _stub_listener()
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_falls_back_to_generic_listener_for_binary_sensors(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -733,6 +801,27 @@ def test_site_cloud_reachable_binary_sensor_metadata(
     assert info["manufacturer"] == "Enphase"
     assert info["model"] == "Cloud Service"
     assert info["name"] == "Enphase Cloud"
+
+
+def test_site_cloud_reachable_binary_sensor_metadata_includes_optional_failure_fields(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    monkeypatch.setattr(
+        coord, "async_add_topology_listener", lambda callback: _stub_listener()
+    )
+
+    sensor = SiteCloudReachableBinarySensor(coord)
+    coord.last_success_utc = datetime.now(timezone.utc)
+    coord.last_update_success = True
+    coord.last_failure_endpoint = "/ivp/meters"
+    coord.payload_failure_kind = "schema"
+    coord.payload_using_stale = True
+
+    attrs = sensor.extra_state_attributes
+    assert attrs["last_failure_endpoint"] == "/ivp/meters"
+    assert attrs["payload_failure_kind"] == "schema"
+    assert attrs["payload_using_stale"] is True
 
 
 def test_binary_sensor_helper_type_available_falls_back_to_has_type() -> None:
