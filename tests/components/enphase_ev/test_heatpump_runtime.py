@@ -1408,6 +1408,42 @@ def test_heatpump_daily_helper_and_property_edge_cases(
         "endpoint_type": None,
         "endpoint_timestamp": None,
     }
+    snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-2",
+                        "device_name": "Backup",
+                        "consumption": [
+                            {
+                                "solar": 0.0,
+                                "battery": 0.0,
+                                "grid": 0.0,
+                                "details": [],
+                            },
+                        ],
+                    }
+                ]
+            }
+        }
+    )
+    assert snapshot == {
+        "device_uid": "HP-2",
+        "device_name": "Backup",
+        "member_name": None,
+        "member_device_type": "ENERGY_METER",
+        "pairing_status": None,
+        "device_state": None,
+        "daily_energy_wh": pytest.approx(0.0),
+        "daily_solar_wh": pytest.approx(0.0),
+        "daily_battery_wh": pytest.approx(0.0),
+        "daily_grid_wh": pytest.approx(0.0),
+        "details": [],
+        "source": "hems_energy_consumption:HP-2",
+        "endpoint_type": None,
+        "endpoint_timestamp": None,
+    }
     assert (
         coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
             {"data": {"heat-pump": [{"device_uid": "HP-1", "consumption": ["bad"]}]}}
