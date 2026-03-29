@@ -575,6 +575,54 @@ def test_system_profile_select_options_and_current(coordinator_factory):
     assert sel.current_option == "Self-Consumption"
 
 
+def test_system_profile_select_current_option_labels_ai_optimization(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_ai_optimisation_mode = True  # noqa: SLF001
+    coord._battery_show_full_backup = True  # noqa: SLF001
+    coord._battery_profile = "ai_optimisation"  # noqa: SLF001
+
+    sel = SystemProfileSelect(coord)
+
+    assert sel.current_option == "AI Optimisation"
+
+
+def test_system_profile_select_options_include_ai_optimization(coordinator_factory):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_ai_optimisation_mode = True  # noqa: SLF001
+    coord._battery_show_full_backup = True  # noqa: SLF001
+    coord._battery_profile = "ai_optimisation"  # noqa: SLF001
+
+    sel = SystemProfileSelect(coord)
+
+    assert sel.options == ["Self-Consumption", "AI Optimisation", "Full Backup"]
+
+
+@pytest.mark.asyncio
+async def test_system_profile_select_sets_ai_optimization_profile(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_ai_optimisation_mode = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_system_profile = AsyncMock()
+
+    sel = SystemProfileSelect(coord)
+    await sel.async_select_option("AI Optimisation")
+
+    coord.async_set_system_profile.assert_awaited_once_with("ai_optimisation")
+
+
 def test_system_profile_select_unavailable_and_none_current(coordinator_factory):
     from custom_components.enphase_ev.select import SystemProfileSelect
 

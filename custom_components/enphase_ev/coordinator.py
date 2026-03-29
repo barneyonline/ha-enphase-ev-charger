@@ -4988,6 +4988,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return getattr(self, "_battery_show_battery_backup_percentage", None)
 
     @property
+    def battery_is_emea(self) -> bool | None:
+        return getattr(self, "_battery_is_emea", None)
+
+    @property
     def battery_show_storm_guard(self) -> bool | None:
         return getattr(self, "_battery_show_storm_guard", None)
 
@@ -5137,7 +5141,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             options.append("self-consumption")
         if getattr(self, "_battery_show_savings_mode", None):
             options.append("cost_savings")
-        if getattr(self, "_battery_show_ai_opti_savings_mode", None):
+        if getattr(self, "_battery_show_ai_optimisation_mode", None):
+            options.append("ai_optimisation")
+        elif getattr(self, "_battery_show_ai_opti_savings_mode", None):
             options.append("ai_optimisation")
         if getattr(self, "_battery_show_full_backup", None):
             options.append("backup_only")
@@ -5210,15 +5216,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_reserve_editable(self) -> bool:
         if not self.battery_profile_selection_available:
             return False
+        reserve_show = getattr(self, "_battery_show_battery_backup_percentage", None)
+        cfg_show = self.battery_cfg_control_show
+        is_emea = getattr(self, "_battery_is_emea", None)
         rbd_control = getattr(self, "_battery_rbd_control", None)
         rbd_show = self._battery_control_field(rbd_control, "show")
-        if rbd_show is not None:
-            if rbd_show is False:
-                return False
-        elif getattr(self, "_battery_show_battery_backup_percentage", None) is False:
+        if reserve_show is False:
             return False
         if self._battery_control_field(rbd_control, "locked") is True:
             return False
+        if is_emea is True:
+            if cfg_show is False:
+                return False
+            if cfg_show is None and rbd_show is False:
+                return False
+        else:
+            if reserve_show is None:
+                if rbd_show is False:
+                    return False
+                if rbd_show is None and cfg_show is False:
+                    return False
+            elif rbd_show is False and reserve_show is not True:
+                return False
         profile = self.battery_selected_profile
         if profile is None:
             return False
