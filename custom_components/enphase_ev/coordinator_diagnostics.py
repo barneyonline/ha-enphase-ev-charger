@@ -224,6 +224,10 @@ class CoordinatorDiagnostics:
             "battery_show_savings_mode": getattr(
                 coord, "_battery_show_savings_mode", None
             ),
+            "battery_show_ai_optimisation_mode": getattr(
+                coord, "_battery_show_ai_optimisation_mode", None
+            ),
+            "battery_is_emea": getattr(coord, "_battery_is_emea", None),
             "battery_show_storm_guard": getattr(
                 coord, "_battery_show_storm_guard", None
             ),

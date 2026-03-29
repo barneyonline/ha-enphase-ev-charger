@@ -607,6 +607,13 @@ class BatteryRuntime:
             normalized = str(value).strip().lower()
         except Exception:  # noqa: BLE001
             return None
+        if normalized in (
+            "ai_optimisation",
+            "ai_optimization",
+            "ai optimization",
+            "ai-optimization",
+        ):
+            return "ai_optimisation"
         return normalized or None
 
     @staticmethod
@@ -700,6 +707,16 @@ class BatteryRuntime:
         if not normalized or normalized not in BATTERY_PROFILE_DEFAULT_RESERVE:
             return
         self.battery_state._battery_profile_reserve_memory[normalized] = int(reserve)
+
+    def remember_previous_battery_reserves(self, value: object) -> None:
+        if not isinstance(value, dict):
+            return
+        for profile, reserve in value.items():
+            normalized = self.normalize_battery_profile_key(profile)
+            parsed_reserve = self._coerce_optional_int(reserve)
+            if normalized is None or parsed_reserve is None:
+                continue
+            self.remember_battery_reserve(normalized, parsed_reserve)
 
     def target_reserve_for_profile(self, profile: str) -> int:
         remembered = self.battery_state._battery_profile_reserve_memory.get(profile)
@@ -1013,6 +1030,9 @@ class BatteryRuntime:
         supports_mqtt = self._coerce_optional_bool(data.get("supportsMqtt"))
         evse_storm_enabled = self._coerce_optional_bool(data.get("evseStormEnabled"))
         storm_state = self.normalize_storm_guard_state(data.get("stormGuardState"))
+        self.remember_previous_battery_reserves(
+            data.get("previousBatteryBackupPercentage")
+        )
         cfg_control = data.get("cfgControl")
         if isinstance(cfg_control, dict):
             state._battery_cfg_control_show = self._coerce_optional_bool(
@@ -1297,6 +1317,10 @@ class BatteryRuntime:
         state._battery_show_savings_mode = self._coerce_optional_bool(
             data.get("showSavingsMode")
         )
+        state._battery_show_ai_optimisation_mode = self._coerce_optional_bool(
+            data.get("showAiOptiSavingsMode")
+        )
+        state._battery_is_emea = self._coerce_optional_bool(data.get("isEmea"))
         state._battery_show_storm_guard = self._coerce_optional_bool(
             data.get("showStormGuard")
         )
@@ -1403,6 +1427,9 @@ class BatteryRuntime:
         very_low_soc_max = self._coerce_optional_int(data.get("veryLowSocMax"))
         if very_low_soc_max is not None:
             state._battery_very_low_soc_max = very_low_soc_max
+        self.remember_previous_battery_reserves(
+            data.get("previousBatteryBackupPercentage")
+        )
         settings_profile = self.normalize_battery_profile_key(data.get("profile"))
         if settings_profile is not None:
             state._battery_profile = settings_profile

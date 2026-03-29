@@ -250,6 +250,8 @@ class BatteryState:
     _battery_show_consumption: bool | None = None
     _battery_show_charge_from_grid: bool | None = None
     _battery_show_savings_mode: bool | None = None
+    _battery_show_ai_optimisation_mode: bool | None = None
+    _battery_is_emea: bool | None = None
     _battery_show_storm_guard: bool | None = None
     _battery_show_full_backup: bool | None = None
     _battery_show_battery_backup_percentage: bool | None = None
