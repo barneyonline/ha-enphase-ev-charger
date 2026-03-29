@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Status des SG-Ready-Gateways der Wärmepumpe"
+      },
+      "shared_labels": {
+        "name": "Gemeinsame Bezeichnungen",
+        "state": {
+          "self_consumption": "Selbstverbrauch",
+          "cost_savings": "Einsparungen",
+          "ai_optimisation": "KI-Optimierung",
+          "backup_only": "Vollständige Reserve",
+          "importexport": "Import und Export",
+          "importonly": "Nur Import",
+          "exportonly": "Nur Export",
+          "manual_charging": "Manuell",
+          "scheduled_charging": "Geplant",
+          "green_charging": "Grün",
+          "smart_charging": "Smart",
+          "unknown_profile": "Unbekanntes Profil ({profile})",
+          "unknown_mode": "Unbekannter Modus ({mode})",
+          "unknown_option": "Unbekannte Option ({option})",
+          "unknown_status": "Unbekannter Status ({status})",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Eingeschränkt",
+          "not_reporting": "Meldet nicht",
+          "inactive": "Inaktiv",
+          "normal": "Normal",
+          "warning": "Warnung",
+          "error": "Fehler",
+          "unknown": "Unbekannt",
+          "unpaired": "Nicht gekoppelt",
+          "pairing": "Wird gekoppelt"
+        }
       }
     },
     "number": {

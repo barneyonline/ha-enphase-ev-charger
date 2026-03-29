@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Stato del gateway SG-Ready della pompa di calore"
+      },
+      "shared_labels": {
+        "name": "Etichette condivise",
+        "state": {
+          "self_consumption": "Autoconsumo",
+          "cost_savings": "Risparmio",
+          "ai_optimisation": "Ottimizzazione IA",
+          "backup_only": "Backup completo",
+          "importexport": "Importazione ed esportazione",
+          "importonly": "Solo importazione",
+          "exportonly": "Solo esportazione",
+          "manual_charging": "Manuale",
+          "scheduled_charging": "Programmato",
+          "green_charging": "Verde",
+          "smart_charging": "Intelligente",
+          "unknown_profile": "Profilo sconosciuto ({profile})",
+          "unknown_mode": "Modalità sconosciuta ({mode})",
+          "unknown_option": "Opzione sconosciuta ({option})",
+          "unknown_status": "Stato sconosciuto ({status})",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Degradato",
+          "not_reporting": "Nessuna segnalazione",
+          "inactive": "Inattivo",
+          "normal": "Normale",
+          "warning": "Avviso",
+          "error": "Errore",
+          "unknown": "Sconosciuto",
+          "unpaired": "Non associato",
+          "pairing": "Associazione in corso"
+        }
       }
     },
     "number": {

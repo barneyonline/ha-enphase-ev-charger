@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from datetime import timezone as _tz
 
+from .labels import friendly_status_text, status_label
+
 
 def coerce_optional_float(value: object) -> float | None:
     if value is None:
@@ -103,7 +105,7 @@ def heatpump_device_state(member: dict[str, object] | None) -> str | None:
 def _friendly_heatpump_status(value: str | None) -> str | None:
     if not value:
         return None
-    return value.replace("_", " ").replace("-", " ").title()
+    return status_label(value) or friendly_status_text(value)
 
 
 def heatpump_status_bucket(value: object) -> str:

@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Estado de la pasarela SG-Ready de la bomba de calor"
+      },
+      "shared_labels": {
+        "name": "Etiquetas compartidas",
+        "state": {
+          "self_consumption": "Autoconsumo",
+          "cost_savings": "Ahorro",
+          "ai_optimisation": "Optimización con IA",
+          "backup_only": "Respaldo total",
+          "importexport": "Importación y exportación",
+          "importonly": "Solo importación",
+          "exportonly": "Solo exportación",
+          "manual_charging": "Manual",
+          "scheduled_charging": "Programado",
+          "green_charging": "Verde",
+          "smart_charging": "Inteligente",
+          "unknown_profile": "Perfil desconocido ({profile})",
+          "unknown_mode": "Modo desconocido ({mode})",
+          "unknown_option": "Opción desconocida ({option})",
+          "unknown_status": "Estado desconocido ({status})",
+          "online": "En línea",
+          "offline": "Sin conexión",
+          "degraded": "Degradado",
+          "not_reporting": "Sin reportar",
+          "inactive": "Inactivo",
+          "normal": "Normal",
+          "warning": "Advertencia",
+          "error": "Error",
+          "unknown": "Desconocido",
+          "unpaired": "Sin emparejar",
+          "pairing": "Emparejamiento"
+        }
       }
     },
     "number": {

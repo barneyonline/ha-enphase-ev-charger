@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "État de la passerelle SG-Ready de la pompe à chaleur"
+      },
+      "shared_labels": {
+        "name": "Libellés partagés",
+        "state": {
+          "self_consumption": "Autoconsommation",
+          "cost_savings": "Économies",
+          "ai_optimisation": "Optimisation IA",
+          "backup_only": "Sauvegarde totale",
+          "importexport": "Importation et exportation",
+          "importonly": "Importation uniquement",
+          "exportonly": "Exportation uniquement",
+          "manual_charging": "Manuel",
+          "scheduled_charging": "Planifié",
+          "green_charging": "Vert",
+          "smart_charging": "Intelligent",
+          "unknown_profile": "Profil inconnu ({profile})",
+          "unknown_mode": "Mode inconnu ({mode})",
+          "unknown_option": "Option inconnue ({option})",
+          "unknown_status": "Statut inconnu ({status})",
+          "online": "En ligne",
+          "offline": "Hors ligne",
+          "degraded": "Dégradé",
+          "not_reporting": "Non signalé",
+          "inactive": "Inactif",
+          "normal": "Normal",
+          "warning": "Avertissement",
+          "error": "Erreur",
+          "unknown": "Inconnu",
+          "unpaired": "Non appairé",
+          "pairing": "Appairage"
+        }
       }
     },
     "number": {

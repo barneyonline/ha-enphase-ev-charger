@@ -15,14 +15,10 @@ from .api import SchedulerUnavailable
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
+from .labels import battery_profile_label, charge_mode_label
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
-
-BASE_LABELS = {
-    "MANUAL_CHARGING": "Manual",
-    "SCHEDULED_CHARGING": "Scheduled",
-}
 
 
 def _smart_charging_context(coord: EnphaseCoordinator, sn: str | None = None) -> bool:
@@ -58,8 +54,8 @@ def _smart_charging_context(coord: EnphaseCoordinator, sn: str | None = None) ->
 
 def _solar_mode(coord: EnphaseCoordinator, sn: str | None = None) -> tuple[str, str]:
     if _smart_charging_context(coord, sn):
-        return "SMART_CHARGING", "Smart"
-    return "GREEN_CHARGING", "Green"
+        return "SMART_CHARGING", charge_mode_label("SMART_CHARGING", hass=coord.hass)
+    return "GREEN_CHARGING", charge_mode_label("GREEN_CHARGING", hass=coord.hass)
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
@@ -186,8 +182,10 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
         selected = self._coord.battery_selected_profile
         if not selected:
             return None
-        fallback = selected.replace("_", " ").replace("-", " ").title()
-        return self._coord.battery_profile_option_labels.get(selected, fallback)
+        return battery_profile_label(
+            selected,
+            hass=getattr(self, "hass", None) or self._coord.hass,
+        )
 
     async def async_select_option(self, option: str) -> None:
         labels = self._coord.battery_profile_option_labels
@@ -245,9 +243,10 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
     @property
     def options(self) -> list[str]:
         _solar_mode_key, solar_label = _solar_mode(self._coord, self._sn)
+        hass = getattr(self, "hass", None) or self._coord.hass
         return [
-            BASE_LABELS["MANUAL_CHARGING"],
-            BASE_LABELS["SCHEDULED_CHARGING"],
+            charge_mode_label("MANUAL_CHARGING", hass=hass),
+            charge_mode_label("SCHEDULED_CHARGING", hass=hass),
             solar_label,
         ]
 
@@ -262,9 +261,13 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
         if not val:
             return None
         if val == "MANUAL_CHARGING":
-            return BASE_LABELS[val]
+            return charge_mode_label(
+                val, hass=getattr(self, "hass", None) or self._coord.hass
+            )
         if val == "SCHEDULED_CHARGING":
-            return BASE_LABELS[val]
+            return charge_mode_label(
+                val, hass=getattr(self, "hass", None) or self._coord.hass
+            )
         if val in {"GREEN_CHARGING", "SMART_CHARGING"}:
             return _solar_mode(self._coord, self._sn)[1]
         return None
@@ -275,9 +278,15 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 "Charging mode selection is unavailable while the Enphase scheduler service is down."
             )
         solar_mode_key, solar_label = _solar_mode(self._coord, self._sn)
-        if option == BASE_LABELS["MANUAL_CHARGING"]:
+        manual_label = charge_mode_label(
+            "MANUAL_CHARGING", hass=getattr(self, "hass", None) or self._coord.hass
+        )
+        scheduled_label = charge_mode_label(
+            "SCHEDULED_CHARGING", hass=getattr(self, "hass", None) or self._coord.hass
+        )
+        if option == manual_label:
             mode = "MANUAL_CHARGING"
-        elif option == BASE_LABELS["SCHEDULED_CHARGING"]:
+        elif option == scheduled_label:
             mode = "SCHEDULED_CHARGING"
         elif option == solar_label:
             mode = solar_mode_key

@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Status för SG-Ready-gateway för värmepump"
+      },
+      "shared_labels": {
+        "name": "Delade etiketter",
+        "state": {
+          "self_consumption": "Självförbrukning",
+          "cost_savings": "Besparing",
+          "ai_optimisation": "AI-optimering",
+          "backup_only": "Full backup",
+          "importexport": "Import och export",
+          "importonly": "Endast import",
+          "exportonly": "Endast export",
+          "manual_charging": "Manuell",
+          "scheduled_charging": "Schemalagd",
+          "green_charging": "Grön",
+          "smart_charging": "Smart",
+          "unknown_profile": "Okänd profil ({profile})",
+          "unknown_mode": "Okänt läge ({mode})",
+          "unknown_option": "Okänt alternativ ({option})",
+          "unknown_status": "Okänd status ({status})",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Nedsatt",
+          "not_reporting": "Rapporterar inte",
+          "inactive": "Inaktiv",
+          "normal": "Normal",
+          "warning": "Varning",
+          "error": "Fel",
+          "unknown": "Okänd",
+          "unpaired": "Inte parkopplad",
+          "pairing": "Parkoppling"
+        }
       }
     },
     "number": {

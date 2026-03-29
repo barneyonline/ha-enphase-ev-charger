@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Състояние на SG-Ready шлюза на термопомпата"
+      },
+      "shared_labels": {
+        "name": "Споделени етикети",
+        "state": {
+          "self_consumption": "Самопотребление",
+          "cost_savings": "Спестяване",
+          "ai_optimisation": "ИИ оптимизация",
+          "backup_only": "Пълен резерв",
+          "importexport": "Импорт и експорт",
+          "importonly": "Само импорт",
+          "exportonly": "Само експорт",
+          "manual_charging": "Ръчно",
+          "scheduled_charging": "По график",
+          "green_charging": "Зелено",
+          "smart_charging": "Умно",
+          "unknown_profile": "Неизвестен профил ({profile})",
+          "unknown_mode": "Неизвестен режим ({mode})",
+          "unknown_option": "Неизвестна опция ({option})",
+          "unknown_status": "Неизвестен статус ({status})",
+          "online": "Онлайн",
+          "offline": "Офлайн",
+          "degraded": "Влошен",
+          "not_reporting": "Не отчита",
+          "inactive": "Неактивен",
+          "normal": "Нормален",
+          "warning": "Предупреждение",
+          "error": "Грешка",
+          "unknown": "Неизвестен",
+          "unpaired": "Несдвоен",
+          "pairing": "Сдвояване"
+        }
       }
     },
     "number": {

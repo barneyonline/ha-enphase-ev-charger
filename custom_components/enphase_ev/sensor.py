@@ -40,6 +40,7 @@ from .device_types import is_dry_contact_type_key, member_is_retired
 from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
 from .entity import EnphaseBaseEntity
+from .labels import friendly_status_text, status_label
 from .parsing_helpers import heatpump_status_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
@@ -4293,14 +4294,8 @@ def _heatpump_daily_common_attrs(
     }
 
 
-def _title_case_status(value: object) -> str | None:
-    text = _gateway_clean_text(value)
-    if text is None:
-        return None
-    normalized = " ".join(text.replace("_", " ").replace("-", " ").strip().split())
-    if not normalized:
-        return None
-    return normalized.title()
+def _title_case_status(value: object, hass: object | None = None) -> str | None:
+    return status_label(value, hass=hass) or friendly_status_text(value)
 
 
 def _gateway_channel_type_kind(value: object) -> str | None:
@@ -4645,16 +4640,18 @@ def _gateway_meter_member(
     return dict(dashboard_detail) if isinstance(dashboard_detail, dict) else None
 
 
-def _gateway_meter_status_text(member: dict[str, object] | None) -> str | None:
+def _gateway_meter_status_text(
+    member: dict[str, object] | None, hass: object | None = None
+) -> str | None:
     if not isinstance(member, dict):
         return None
     status_text = _gateway_clean_text(member.get("statusText"))
     if status_text:
-        return status_text
+        return status_label(status_text, hass=hass) or status_text
     status_raw = _gateway_clean_text(member.get("status"))
     if not status_raw:
         return None
-    return status_raw.replace("_", " ").replace("-", " ").title()
+    return status_label(status_raw, hass=hass) or friendly_status_text(status_raw)
 
 
 def _gateway_meter_last_reported(member: dict[str, object] | None) -> datetime | None:
@@ -6197,7 +6194,9 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        return _gateway_meter_status_text(self._member())
+        return _gateway_meter_status_text(
+            self._member(), getattr(self, "hass", None) or self._coord.hass
+        )
 
     @property
     def extra_state_attributes(self):
@@ -6209,7 +6208,9 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
         terminal_descriptions = _gateway_terminal_descriptions(member)
         attrs = {
             "name": _gateway_clean_text(member.get("name")) or "System Controller",
-            "status_text": _gateway_meter_status_text(member),
+            "status_text": _gateway_meter_status_text(
+                member, getattr(self, "hass", None) or self._coord.hass
+            ),
             "status_raw": _gateway_clean_text(
                 member.get("statusText")
                 if member.get("statusText") is not None
@@ -6281,7 +6282,9 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
     def native_value(self):
         status_values: dict[str, str] = {}
         for member in self._members():
-            status_text = _gateway_meter_status_text(member)
+            status_text = _gateway_meter_status_text(
+                member, getattr(self, "hass", None) or self._coord.hass
+            )
             if status_text:
                 normalized = status_text.casefold()
                 if normalized not in status_values:
@@ -6370,7 +6373,9 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
                 "index": index,
                 "name": _gateway_clean_text(member.get("name"))
                 or f"Dry Contact {index}",
-                "status_text": _gateway_meter_status_text(member),
+                "status_text": _gateway_meter_status_text(
+                    member, getattr(self, "hass", None) or self._coord.hass
+                ),
                 "status_raw": status_raw,
                 "connected": _gateway_optional_bool(member.get("connected")),
                 "channel_type": _gateway_clean_text(
@@ -6546,7 +6551,9 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        return _gateway_meter_status_text(self._member())
+        return _gateway_meter_status_text(
+            self._member(), getattr(self, "hass", None) or self._coord.hass
+        )
 
     @property
     def extra_state_attributes(self):
@@ -6554,7 +6561,9 @@ class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
         if not isinstance(member, dict):
             return {}
         last_reported = _gateway_meter_last_reported(member)
-        status_text = _gateway_meter_status_text(member)
+        status_text = _gateway_meter_status_text(
+            member, getattr(self, "hass", None) or self._coord.hass
+        )
         attrs: dict[str, object] = {
             "meter_name": _gateway_clean_text(member.get("name")),
             "meter_type": self._meter_kind,
@@ -6684,14 +6693,18 @@ class EnphaseGatewayIQEnergyRouterSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        return _gateway_meter_status_text(self._member())
+        return _gateway_meter_status_text(
+            self._member(), getattr(self, "hass", None) or self._coord.hass
+        )
 
     @property
     def extra_state_attributes(self):
         member = self._member()
         if not isinstance(member, dict):
             return {}
-        status_text = _gateway_meter_status_text(member)
+        status_text = _gateway_meter_status_text(
+            member, getattr(self, "hass", None) or self._coord.hass
+        )
         last_reported = _gateway_iq_energy_router_last_reported(member)
         attrs: dict[str, object] = {
             "name": _gateway_clean_text(member.get("name"))
@@ -6805,7 +6818,8 @@ class EnphaseGatewayConnectivityStatusSensor(_SiteBaseEntity):
     @property
     def native_value(self):
         return _title_case_status(
-            _gateway_connectivity_state(_gateway_inventory_snapshot(self._coord))
+            _gateway_connectivity_state(_gateway_inventory_snapshot(self._coord)),
+            getattr(self, "hass", None) or self._coord.hass,
         )
 
     @property
@@ -6893,7 +6907,8 @@ class EnphaseMicroinverterConnectivityStatusSensor(_SiteBaseEntity):
     @property
     def native_value(self):
         return _title_case_status(
-            _microinverter_inventory_snapshot(self._coord).get("connectivity_state")
+            _microinverter_inventory_snapshot(self._coord).get("connectivity_state"),
+            getattr(self, "hass", None) or self._coord.hass,
         )
 
     @property
@@ -7077,7 +7092,10 @@ class EnphaseHeatPumpStatusSensor(_SiteBaseEntity):
 
     @property
     def native_value(self):
-        return _title_case_status(self._snapshot().get("heatpump_status"))
+        return _title_case_status(
+            self._snapshot().get("heatpump_status"),
+            getattr(self, "hass", None) or self._coord.hass,
+        )
 
     @property
     def extra_state_attributes(self):
@@ -7128,7 +7146,8 @@ class EnphaseHeatPumpConnectivityStatusSensor(_SiteBaseEntity):
     @property
     def native_value(self):
         return _title_case_status(
-            _heatpump_snapshot(self._coord).get("overall_status_text")
+            _heatpump_snapshot(self._coord).get("overall_status_text"),
+            getattr(self, "hass", None) or self._coord.hass,
         )
 
     @property

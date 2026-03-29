@@ -17,7 +17,6 @@ from .const import (
     BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
     BATTERY_MIN_SOC_FALLBACK,
     BATTERY_PROFILE_DEFAULT_RESERVE,
-    BATTERY_PROFILE_LABELS,
     BATTERY_PROFILE_WRITE_DEBOUNCE_S,
     BATTERY_SETTINGS_CACHE_TTL,
     BATTERY_SETTINGS_WRITE_DEBOUNCE_S,
@@ -36,6 +35,7 @@ from .const import (
     STORM_GUARD_PENDING_HOLD_S,
 )
 from .device_types import member_is_retired, sanitize_member
+from .labels import battery_profile_label as translated_battery_profile_label
 from .log_redaction import redact_identifier, redact_site_id, redact_text
 from .parsing_helpers import (
     coerce_optional_bool,
@@ -573,15 +573,10 @@ class BatteryRuntime:
         return normalized or None
 
     @staticmethod
-    def battery_profile_label(profile: str | None) -> str | None:
-        if not profile:
-            return None
-        if profile in BATTERY_PROFILE_LABELS:
-            return BATTERY_PROFILE_LABELS[profile]
-        try:
-            return str(profile).replace("_", " ").replace("-", " ").title()
-        except Exception:  # noqa: BLE001
-            return None
+    def battery_profile_label(
+        profile: str | None, hass: object | None = None
+    ) -> str | None:
+        return translated_battery_profile_label(profile, hass=hass)
 
     @staticmethod
     def _normalize_pending_sub_type(
