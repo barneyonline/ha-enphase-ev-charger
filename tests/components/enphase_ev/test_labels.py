@@ -61,6 +61,11 @@ def test_label_helpers_cover_translation_fallbacks_and_unknowns(monkeypatch) -> 
 
 def test_render_label_and_friendly_status_edge_cases() -> None:
     assert labels._render_label("{missing}", value="x") == "{missing}"  # noqa: SLF001
+    assert labels._display_raw_value(None) is None  # noqa: SLF001
+    assert labels._friendly_label_text(None) is None  # noqa: SLF001
+    assert (
+        labels._friendly_label_text("REGIONAL_SPECIAL") == "Regional Special"
+    )  # noqa: SLF001
     assert (
         labels._friendly_label_text("regional_special") == "Regional Special"
     )  # noqa: SLF001
@@ -69,9 +74,12 @@ def test_render_label_and_friendly_status_edge_cases() -> None:
     )  # noqa: SLF001
     assert labels.friendly_status_text("_") is None
     assert labels.friendly_status_text("RUNNING") == "Running"
+    assert labels.friendly_status_text("RegionalSpecial") == "RegionalSpecial"
 
 
 def test_unknown_label_paths_return_none_when_display_text_collapses() -> None:
     assert labels.battery_profile_label("_") is None
     assert labels.battery_grid_mode_label("_") is None
     assert labels.charge_mode_label("_") is None
+    assert labels.status_label(None) is None
+    assert labels.status_label("mystery_status") is None
