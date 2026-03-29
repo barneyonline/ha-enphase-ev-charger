@@ -11,7 +11,8 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed battery reserve availability so non-EMEA sites can keep the reserve control when the dedicated reserve-visibility flag allows editing, while EMEA sites still fall back to `cfgControl.show`.
+- Added BatteryConfig parsing and profile selection support for US NEM3 `AI Optimization` sites that expose `showAiOptiSavingsMode` / `ai_optimisation`.
 
 ### 🔧 Improvements
 - None

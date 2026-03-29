@@ -6254,6 +6254,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return getattr(self, "_battery_show_battery_backup_percentage", None)
 
     @property
+    def battery_is_emea(self) -> bool | None:
+        return getattr(self, "_battery_is_emea", None)
+
+    @property
     def battery_show_storm_guard(self) -> bool | None:
         return getattr(self, "_battery_show_storm_guard", None)
 
@@ -6373,6 +6377,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             options.append("self-consumption")
         if getattr(self, "_battery_show_savings_mode", None):
             options.append("cost_savings")
+        if getattr(self, "_battery_show_ai_optimisation_mode", None):
+            options.append("ai_optimisation")
         if getattr(self, "_battery_show_full_backup", None):
             options.append("backup_only")
         current = getattr(self, "_battery_profile", None)
@@ -6430,11 +6436,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_reserve_editable(self) -> bool:
         if not self.battery_controls_available:
             return False
+        reserve_show = getattr(self, "_battery_show_battery_backup_percentage", None)
         cfg_show = getattr(self, "_battery_cfg_control_show", None)
-        if cfg_show is not None:
+        is_emea = getattr(self, "_battery_is_emea", None)
+        if reserve_show is False:
+            return False
+        if is_emea is True:
             if cfg_show is False:
                 return False
-        elif getattr(self, "_battery_show_battery_backup_percentage", None) is False:
+            if cfg_show is None and reserve_show is False:
+                return False
+        elif reserve_show is None and cfg_show is False:
             return False
         owner = self.battery_user_is_owner
         installer = self.battery_user_is_installer
