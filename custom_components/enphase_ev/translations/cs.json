@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Stav brány SG-Ready tepelného čerpadla"
+      },
+      "shared_labels": {
+        "name": "Sdílené štítky",
+        "state": {
+          "self_consumption": "Vlastní spotřeba",
+          "cost_savings": "Úspory",
+          "ai_optimisation": "AI optimalizace",
+          "backup_only": "Plná záloha",
+          "importexport": "Import a export",
+          "importonly": "Pouze import",
+          "exportonly": "Pouze export",
+          "manual_charging": "Ruční",
+          "scheduled_charging": "Naplánováno",
+          "green_charging": "Zelené",
+          "smart_charging": "Chytré",
+          "unknown_profile": "Neznámý profil ({profile})",
+          "unknown_mode": "Neznámý režim ({mode})",
+          "unknown_option": "Neznámá možnost ({option})",
+          "unknown_status": "Neznámý stav ({status})",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Omezený",
+          "not_reporting": "Nehlásí",
+          "inactive": "Neaktivní",
+          "normal": "Normální",
+          "warning": "Varování",
+          "error": "Chyba",
+          "unknown": "Neznámý",
+          "unpaired": "Nespárováno",
+          "pairing": "Párování"
+        }
       }
     },
     "number": {

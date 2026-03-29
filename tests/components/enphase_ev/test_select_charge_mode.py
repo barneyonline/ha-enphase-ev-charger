@@ -265,6 +265,22 @@ def test_charge_mode_select_uses_smart_label_for_smart_mode(coordinator_factory)
 
 
 @pytest.mark.asyncio
+async def test_charge_mode_select_localizes_labels(coordinator_factory):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+    from custom_components.enphase_ev.labels import async_prime_label_translations
+
+    coord = coordinator_factory()
+    coord.hass.config.language = "fr"
+    coord.data[RANDOM_SERIAL]["charge_mode_pref"] = "SCHEDULED_CHARGING"
+    await async_prime_label_translations(coord.hass)
+
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+
+    assert sel.options == ["Manuel", "Planifié", "Vert"]
+    assert sel.current_option == "Planifié"
+
+
+@pytest.mark.asyncio
 async def test_charge_mode_select_sets_smart_mode_for_single_evse_profile_context(
     coordinator_factory,
 ):

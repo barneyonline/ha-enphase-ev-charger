@@ -69,6 +69,75 @@ def test_battery_profile_strings_localized_for_non_english_locales() -> None:
         ), f"{name} missing {{pending_timeout_minutes}} placeholder"
 
 
+def test_shared_label_translations_exist_for_all_locales() -> None:
+    """Ensure label catalogs backing translated runtime options exist everywhere."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.shared_labels.state.self_consumption",
+        "entity.sensor.shared_labels.state.cost_savings",
+        "entity.sensor.shared_labels.state.ai_optimisation",
+        "entity.sensor.shared_labels.state.backup_only",
+        "entity.sensor.shared_labels.state.importexport",
+        "entity.sensor.shared_labels.state.importonly",
+        "entity.sensor.shared_labels.state.exportonly",
+        "entity.sensor.shared_labels.state.manual_charging",
+        "entity.sensor.shared_labels.state.scheduled_charging",
+        "entity.sensor.shared_labels.state.green_charging",
+        "entity.sensor.shared_labels.state.smart_charging",
+        "entity.sensor.shared_labels.state.unknown_profile",
+        "entity.sensor.shared_labels.state.unknown_mode",
+        "entity.sensor.shared_labels.state.unknown_option",
+        "entity.sensor.shared_labels.state.unknown_status",
+        "entity.sensor.shared_labels.state.online",
+        "entity.sensor.shared_labels.state.offline",
+        "entity.sensor.shared_labels.state.degraded",
+        "entity.sensor.shared_labels.state.not_reporting",
+        "entity.sensor.shared_labels.state.inactive",
+    ]
+    localized_paths = [
+        "entity.sensor.shared_labels.state.self_consumption",
+        "entity.sensor.shared_labels.state.cost_savings",
+        "entity.sensor.shared_labels.state.ai_optimisation",
+        "entity.sensor.shared_labels.state.backup_only",
+        "entity.sensor.shared_labels.state.importexport",
+        "entity.sensor.shared_labels.state.importonly",
+        "entity.sensor.shared_labels.state.exportonly",
+        "entity.sensor.shared_labels.state.green_charging",
+        "entity.sensor.shared_labels.state.not_reporting",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if (
+                name != "en.json"
+                and not name.startswith("en-")
+                and path in localized_paths
+            ):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
+
+        for path, placeholder in (
+            ("entity.sensor.shared_labels.state.unknown_profile", "{profile}"),
+            ("entity.sensor.shared_labels.state.unknown_mode", "{mode}"),
+            ("entity.sensor.shared_labels.state.unknown_option", "{option}"),
+            ("entity.sensor.shared_labels.state.unknown_status", "{status}"),
+        ):
+            assert placeholder in _at_path(
+                data, path
+            ), f"{name} missing {placeholder} in {path}"
+
+
 def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
     """Ensure newly added battery settings entity labels exist in every locale."""
 

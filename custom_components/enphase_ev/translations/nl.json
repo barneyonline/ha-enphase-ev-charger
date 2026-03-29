@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Status van SG-Ready-gateway van warmtepomp"
+      },
+      "shared_labels": {
+        "name": "Gedeelde labels",
+        "state": {
+          "self_consumption": "Zelfverbruik",
+          "cost_savings": "Besparing",
+          "ai_optimisation": "AI-optimalisatie",
+          "backup_only": "Volledige back-up",
+          "importexport": "Import en export",
+          "importonly": "Alleen import",
+          "exportonly": "Alleen export",
+          "manual_charging": "Handmatig",
+          "scheduled_charging": "Gepland",
+          "green_charging": "Groen",
+          "smart_charging": "Slim",
+          "unknown_profile": "Onbekend profiel ({profile})",
+          "unknown_mode": "Onbekende modus ({mode})",
+          "unknown_option": "Onbekende optie ({option})",
+          "unknown_status": "Onbekende status ({status})",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Verlaagd",
+          "not_reporting": "Rapporteert niet",
+          "inactive": "Inactief",
+          "normal": "Normaal",
+          "warning": "Waarschuwing",
+          "error": "Fout",
+          "unknown": "Onbekend",
+          "unpaired": "Niet gekoppeld",
+          "pairing": "Koppelen"
+        }
       }
     },
     "number": {

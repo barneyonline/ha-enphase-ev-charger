@@ -174,9 +174,26 @@ def test_parse_battery_settings_unknown_grid_mode_uses_none_permissions(
     )
 
     assert coord.battery_grid_mode == "RegionalSpecial"
-    assert coord.battery_mode_display == "Regionalspecial"
+    assert coord.battery_mode_display == "Unknown mode (RegionalSpecial)"
     assert coord.battery_charge_from_grid_allowed is None
     assert coord.battery_discharge_to_grid_allowed is None
+
+
+@pytest.mark.asyncio
+async def test_parse_battery_settings_localizes_grid_mode_label(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.labels import async_prime_label_translations
+
+    coord = coordinator_factory()
+    coord.hass.config.language = "fr"
+    await async_prime_label_translations(coord.hass)
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {"data": {"batteryGridMode": "ImportExport"}}
+    )
+
+    assert coord.battery_mode_display == "Importation et exportation"
 
 
 @pytest.mark.asyncio

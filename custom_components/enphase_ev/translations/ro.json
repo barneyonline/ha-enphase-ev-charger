@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Starea gateway-ului SG-Ready al pompei de căldură"
+      },
+      "shared_labels": {
+        "name": "Etichete partajate",
+        "state": {
+          "self_consumption": "Autoconsum",
+          "cost_savings": "Economii",
+          "ai_optimisation": "Optimizare AI",
+          "backup_only": "Backup complet",
+          "importexport": "Import și export",
+          "importonly": "Doar import",
+          "exportonly": "Doar export",
+          "manual_charging": "Manual",
+          "scheduled_charging": "Programat",
+          "green_charging": "Verde",
+          "smart_charging": "Inteligent",
+          "unknown_profile": "Profil necunoscut ({profile})",
+          "unknown_mode": "Mod necunoscut ({mode})",
+          "unknown_option": "Opțiune necunoscută ({option})",
+          "unknown_status": "Stare necunoscută ({status})",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Degradat",
+          "not_reporting": "Fără raportare",
+          "inactive": "Inactiv",
+          "normal": "Normal",
+          "warning": "Avertizare",
+          "error": "Eroare",
+          "unknown": "Necunoscut",
+          "unpaired": "Neperecheat",
+          "pairing": "Împerechere"
+        }
       }
     },
     "number": {

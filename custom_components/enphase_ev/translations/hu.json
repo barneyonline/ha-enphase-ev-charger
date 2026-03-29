@@ -999,6 +999,37 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Hőszivattyú SG-Ready átjáró állapota"
+      },
+      "shared_labels": {
+        "name": "Megosztott címkék",
+        "state": {
+          "self_consumption": "Önfogyasztás",
+          "cost_savings": "Megtakarítás",
+          "ai_optimisation": "AI optimalizálás",
+          "backup_only": "Teljes tartalék",
+          "importexport": "Import és export",
+          "importonly": "Csak import",
+          "exportonly": "Csak export",
+          "manual_charging": "Kézi",
+          "scheduled_charging": "Ütemezett",
+          "green_charging": "Zöld",
+          "smart_charging": "Intelligens",
+          "unknown_profile": "Ismeretlen profil ({profile})",
+          "unknown_mode": "Ismeretlen mód ({mode})",
+          "unknown_option": "Ismeretlen lehetőség ({option})",
+          "unknown_status": "Ismeretlen állapot ({status})",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Csökkentett",
+          "not_reporting": "Nem jelent",
+          "inactive": "Inaktív",
+          "normal": "Normál",
+          "warning": "Figyelmeztetés",
+          "error": "Hiba",
+          "unknown": "Ismeretlen",
+          "unpaired": "Nincs párosítva",
+          "pairing": "Párosítás"
+        }
       }
     },
     "number": {
