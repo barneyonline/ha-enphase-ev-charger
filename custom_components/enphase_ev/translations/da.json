@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Status for SG-Ready-gateway til varmepumpe"
+      },
+      "shared_labels": {
+        "name": "Delte etiketter",
+        "state": {
+          "self_consumption": "Selvforbrug",
+          "cost_savings": "Besparelse",
+          "ai_optimisation": "AI-optimering",
+          "backup_only": "Fuld backup",
+          "importexport": "Import og eksport",
+          "importonly": "Kun import",
+          "exportonly": "Kun eksport",
+          "manual_charging": "Manuel",
+          "scheduled_charging": "Planlagt",
+          "green_charging": "Grøn",
+          "smart_charging": "Smart",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Nedsat",
+          "not_reporting": "Rapporterer ikke",
+          "inactive": "Inaktiv",
+          "normal": "Normal",
+          "warning": "Advarsel",
+          "error": "Fejl",
+          "unknown": "Ukendt",
+          "unpaired": "Ikke parret",
+          "pairing": "Parring"
+        }
       }
     },
     "number": {

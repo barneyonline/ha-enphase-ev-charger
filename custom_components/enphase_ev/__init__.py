@@ -1102,6 +1102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     )  # local import to avoid heavy deps during non-HA imports
     from .evse_firmware import EvseFirmwareDetailsManager
     from .firmware_catalog import FirmwareCatalogManager
+    from .labels import async_prime_label_translations
 
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     firmware_catalog = FirmwareCatalogManager(hass)
@@ -1116,6 +1117,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     restore_discovery_state = getattr(coord, "async_restore_discovery_state", None)
     if callable(restore_discovery_state):
         await restore_discovery_state()
+    await async_prime_label_translations(hass)
     await coord.async_config_entry_first_refresh()
     await async_prime_integration_version(hass)
 

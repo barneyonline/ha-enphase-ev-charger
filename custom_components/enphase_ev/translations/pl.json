@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Stan bramki SG-Ready pompy ciepła"
+      },
+      "shared_labels": {
+        "name": "Wspólne etykiety",
+        "state": {
+          "self_consumption": "Autokonsumpcja",
+          "cost_savings": "Oszczędzanie",
+          "ai_optimisation": "Optymalizacja AI",
+          "backup_only": "Pełne zasilanie awaryjne",
+          "importexport": "Import i eksport",
+          "importonly": "Tylko import",
+          "exportonly": "Tylko eksport",
+          "manual_charging": "Ręczny",
+          "scheduled_charging": "Zaplanowany",
+          "green_charging": "Zielony",
+          "smart_charging": "Inteligentny",
+          "online": "Online",
+          "offline": "Offline",
+          "degraded": "Zdegradowany",
+          "not_reporting": "Brak raportowania",
+          "inactive": "Nieaktywny",
+          "normal": "Normalny",
+          "warning": "Ostrzeżenie",
+          "error": "Błąd",
+          "unknown": "Nieznany",
+          "unpaired": "Nie sparowano",
+          "pairing": "Parowanie"
+        }
       }
     },
     "number": {

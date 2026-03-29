@@ -999,6 +999,33 @@
       },
       "heat_pump_sg_ready_gateway": {
         "name": "Siltumsūkņa SG-Ready vārtejas statuss"
+      },
+      "shared_labels": {
+        "name": "Koplietotās etiķetes",
+        "state": {
+          "self_consumption": "Pašpatēriņš",
+          "cost_savings": "Ietaupījums",
+          "ai_optimisation": "MI optimizācija",
+          "backup_only": "Pilna rezerve",
+          "importexport": "Imports un eksports",
+          "importonly": "Tikai imports",
+          "exportonly": "Tikai eksports",
+          "manual_charging": "Manuāli",
+          "scheduled_charging": "Plānots",
+          "green_charging": "Zaļš",
+          "smart_charging": "Vieds",
+          "online": "Tiešsaistē",
+          "offline": "Bezsaistē",
+          "degraded": "Pazemināts",
+          "not_reporting": "Neziņo",
+          "inactive": "Neaktīvs",
+          "normal": "Normāls",
+          "warning": "Brīdinājums",
+          "error": "Kļūda",
+          "unknown": "Nezināms",
+          "unpaired": "Nesapārots",
+          "pairing": "Sapārošana"
+        }
       }
     },
     "number": {

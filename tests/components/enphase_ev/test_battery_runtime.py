@@ -26,7 +26,6 @@ def test_battery_runtime_normalizes_labels() -> None:
     assert runtime.normalize_battery_profile_key(None) is None
     assert runtime.battery_profile_label("ai_optimisation") == "AI Optimisation"
     assert runtime.battery_profile_label("backup_only") == "Full Backup"
-    assert runtime.battery_profile_label("ai_optimisation") == "AI Optimisation"
     assert runtime.battery_profile_label("regional-profile") == "Regional Profile"
     assert runtime.battery_profile_label(None) is None
 
