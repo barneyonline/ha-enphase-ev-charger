@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 from multidict import CIMultiDict
+from yarl import URL
 
 from custom_components.enphase_ev import api
 from custom_components.enphase_ev.const import (
@@ -42,6 +43,7 @@ class _FakeResponse:
         self.history: tuple = ()
         self.reason = "reason"
         self.headers: dict[str, str] = {}
+        self.cookies: dict[str, object] = {}
 
     async def __aenter__(self) -> "_FakeResponse":
         return self
@@ -167,6 +169,56 @@ def test_extract_xsrf_token_branches(monkeypatch) -> None:
     assert api._extract_xsrf_token({"XSRF-TOKEN": "raw-token"}) == "raw-token"
 
 
+def test_extract_xsrf_token_handles_bad_and_empty_cookie_values() -> None:
+    class BadTokenValue:
+        def __str__(self) -> str:
+            raise ValueError("bad")
+
+    assert api._extract_xsrf_token({"XSRF-TOKEN": BadTokenValue()}) is None
+    assert api._extract_xsrf_token({"XSRF-TOKEN": '""'}) is None
+
+
+def test_coerce_cookie_map_handles_defensive_branches() -> None:
+    class _ItemsFail:
+        def items(self):
+            raise RuntimeError("boom")
+
+    class _BadName:
+        def __str__(self) -> str:
+            raise ValueError("bad-name")
+
+    class _BadValue:
+        def __str__(self) -> str:
+            raise ValueError("bad-value")
+
+    class _CookieMap:
+        def items(self):
+            return [
+                (_BadName(), "skip"),
+                ("", "skip"),
+                ("bad", _BadValue()),
+                ("good", SimpleNamespace(value="value")),
+            ]
+
+    assert api._coerce_cookie_map(SimpleNamespace(items="not-callable")) == {}
+    assert api._coerce_cookie_map(_ItemsFail()) == {}
+    assert api._coerce_cookie_map(_CookieMap()) == {"good": "value"}
+
+
+def test_cookie_map_from_header_handles_defensive_branches() -> None:
+    class _BadCookieHeader:
+        def __str__(self) -> str:
+            raise ValueError("bad-cookie-header")
+
+    assert api._cookie_map_from_header(_BadCookieHeader()) == {}
+    assert api._cookie_map_from_header("") == {}
+    assert api._cookie_map_from_header("session=1; ; invalid; other=2; blank=") == {
+        "session": "1",
+        "other": "2",
+        "blank": "",
+    }
+
+
 def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
     client = _make_client()
     client.update_credentials(cookie='XSRF-TOKEN=""; BP-XSRF-Token=bp%3Dtoken')
@@ -179,6 +231,16 @@ def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
     )
     client.update_credentials(cookie="XSRF-TOKEN=raw-token")
     assert client._xsrf_token() == "raw-token"
+
+
+def test_xsrf_helpers_accept_lower_case_cookie_names() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="bp-xsrf-token=bp%3Dtoken; other=1")
+
+    assert client._xsrf_token() == "bp=token"
+    assert client._battery_config_cookie(include_xsrf=True) == (
+        "other=1; BP-XSRF-Token=bp=token"
+    )
 
 
 def test_system_dashboard_should_fallback_rejects_unexpected_errors() -> None:
@@ -2699,6 +2761,59 @@ async def test_acquire_xsrf_token_returns_none_when_cookie_missing() -> None:
     client = _make_client(session)
 
     assert await client._acquire_xsrf_token() is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_returns_none_for_empty_decoded_cookie() -> None:
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=fresh-token; Path=/; Secure")]
+    )
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(api, "unquote", lambda _value: "")
+        assert await client._acquire_xsrf_token() is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_uses_response_cookies_when_header_missing() -> None:
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict()
+    response.cookies = {"bp-xsrf-token": SimpleNamespace(value="fresh-token")}
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    assert await client._acquire_xsrf_token() == "fresh-token"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_falls_back_to_session_cookie_jar() -> None:
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict()
+    session = _FakeSession([response])
+    request_url = URL(
+        f"{api.BASE_URL}/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
+    )
+    session.cookie_jar.update_cookies(
+        {"bp-xsrf-token": "jar-token"},
+        response_url=request_url,
+    )
+    client = _make_client(session)
+    client.update_credentials(
+        cookie="session=1; other=1; enlighten_manager_token_production=bearer"
+    )
+
+    assert await client._acquire_xsrf_token() == "jar-token"  # noqa: SLF001
+    assert (
+        client._cookie
+        == "session=1; other=1; enlighten_manager_token_production=bearer"
+    )  # noqa: SLF001
+    assert client._battery_config_headers(include_xsrf=True)["Cookie"] == (
+        "session=1; other=1; enlighten_manager_token_production=bearer; "
+        "BP-XSRF-Token=jar-token"
+    )
 
 
 @pytest.mark.asyncio
