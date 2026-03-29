@@ -44,6 +44,7 @@ def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
     assert runtime_helpers.coerce_optional_int(" 5 ") == 5
     assert runtime_helpers.coerce_optional_int(BadStr()) is None
     assert runtime_helpers.normalize_iso_date("2026-03-29") == "2026-03-29"
+    assert runtime_helpers.normalize_iso_date("   ") is None
     assert runtime_helpers.normalize_iso_date(BadStr()) is None
     assert (
         runtime_helpers.resolve_inverter_start_date(
@@ -77,7 +78,7 @@ def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
     )
     assert (
         runtime_helpers.resolve_site_local_current_date(
-            {"result": [{"curr_date_site": "2026-03-28"}]},
+            {"result": ["bad", {"curr_date_site": "2026-03-28"}]},
             None,
         )
         == "2026-03-28"
@@ -102,14 +103,22 @@ def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
 
 
 def test_system_dashboard_helpers_cover_core_paths(monkeypatch) -> None:
+    class BadText:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
     assert (
         system_dashboard_helpers.dashboard_key_token("System Controller")
         == "system_controller"
     )
+    assert system_dashboard_helpers.dashboard_key_token("   ") == ""
     assert system_dashboard_helpers.dashboard_key_matches("meter_type", "meter")
+    assert system_dashboard_helpers.dashboard_key_matches("   ", "meter") is False
     assert system_dashboard_helpers.dashboard_simple_value({"a": [1, "x", None]}) == {
         "a": [1, "x"]
     }
+    assert system_dashboard_helpers.dashboard_simple_value(True) is True
+    assert system_dashboard_helpers.dashboard_simple_value(BadText()) is None
     assert list(
         system_dashboard_helpers.iter_dashboard_mappings(
             [{"status": "ok"}, {"nested": {"mode": "dhcp"}}]
@@ -129,7 +138,7 @@ def test_system_dashboard_helpers_cover_core_paths(monkeypatch) -> None:
         is None
     )
     assert system_dashboard_helpers.system_dashboard_detail_records(
-        {"envoys": {"envoys": {"devices": [{"id": "dup"}, {"id": "dup"}]}}},
+        {"envoys": {"envoys": {"devices": ["bad", {"id": "dup"}, {"id": "dup"}]}}},
         "envoys",
     ) == [{"id": "dup"}]
 
@@ -221,6 +230,7 @@ def test_system_dashboard_helpers_cover_core_paths(monkeypatch) -> None:
         ]
     )
     assert merged_index["GW-1"]["name"] == "Gateway"
+    assert system_dashboard_helpers.index_dashboard_nodes("bad") == {}
     with monkeypatch.context() as nested:
         original_node_entry = system_dashboard_helpers.dashboard_node_entry
 
@@ -240,6 +250,146 @@ def test_system_dashboard_helpers_cover_core_paths(monkeypatch) -> None:
             ]
         )
         assert merged_with_none["GW-1"]["name"] == "Gateway"
+
+
+def test_system_dashboard_helpers_cover_field_and_summary_paths() -> None:
+    payload = {
+        "wrapper": {"meter_type": "consumption", "network": {"mode": "dhcp"}},
+        "serialNumber": "GW-1",
+        "id": "node-1",
+        "device_type": "envoy",
+        "children": [{"id": "child-1"}],
+    }
+    assert (
+        system_dashboard_helpers.dashboard_first_value(payload, "meter_type")
+        == "consumption"
+    )
+    assert system_dashboard_helpers.dashboard_first_mapping(payload, "network") == {
+        "mode": "dhcp"
+    }
+    assert system_dashboard_helpers.dashboard_field(payload, "meter_type") == (
+        "consumption"
+    )
+    assert system_dashboard_helpers.dashboard_field_map(
+        payload,
+        {"serial": ("serial_number", "serialNumber")},
+    ) == {"serial": "GW-1"}
+    assert system_dashboard_helpers.dashboard_aliases(payload) == ["GW-1", "node-1"]
+    assert system_dashboard_helpers.dashboard_primary_id({"id": "node-1"}) == "node-1"
+    assert system_dashboard_helpers.dashboard_raw_type({"device_type": "envoy"}) == (
+        "envoy"
+    )
+    assert system_dashboard_helpers.dashboard_child_containers(payload) == [
+        ([{"id": "child-1"}], "envoy")
+    ]
+
+    payloads = {
+        "envoys": {"envoys": [{"device_uid": "GW-1", "network": {"mode": "dhcp"}}]},
+        "encharges": {
+            "encharges": [
+                {
+                    "device_uid": "BAT-1",
+                    "serial_number": "BAT-1",
+                    "app_version": "1.2.3",
+                }
+            ]
+        },
+    }
+    envoy_index = system_dashboard_helpers.index_dashboard_nodes(
+        [{"device_uid": "GW-1", "type": "envoy"}]
+    )
+    encharge_index = system_dashboard_helpers.index_dashboard_nodes(
+        [{"device_uid": "BAT-1", "type": "encharge"}]
+    )
+    assert (
+        system_dashboard_helpers.system_dashboard_type_hierarchy(
+            "envoy",
+            envoy_index,
+            None,
+        )["count"]
+        == 1
+    )
+    assert (
+        system_dashboard_helpers.system_dashboard_envoy_summary(
+            payloads,
+            envoy_index,
+            None,
+        )["network"]["mode"]
+        == "dhcp"
+    )
+    assert (
+        system_dashboard_helpers.system_dashboard_encharge_summary(
+            payloads,
+            encharge_index,
+            None,
+        )["batteries"][0]["serial_number"]
+        == "BAT-1"
+    )
+    assert system_dashboard_helpers.system_dashboard_meter_summaries(
+        {
+            "meters": {
+                "meters": [
+                    {
+                        "id": "meter-1",
+                        "name": "Consumption Meter",
+                        "meter_type": "consumption",
+                        "status": "normal",
+                        "meter_state": "enabled",
+                        "configuration": {
+                            "phase_mode": "split",
+                            "wiring_type": "ct",
+                            "meter_mode": "net",
+                            "measurement_type": "consumption",
+                            "enabled": True,
+                        },
+                    },
+                    {
+                        "id": "meter-2",
+                        "name": "Consumption Meter",
+                        "meter_type": "consumption",
+                    },
+                ]
+            }
+        }
+    ) == [
+        {
+            "name": "Consumption Meter",
+            "meter_type": "consumption",
+            "status": "normal",
+            "meter_state": "enabled",
+            "config": {
+                "phase": "split",
+                "wiring": "ct",
+                "mode": "split",
+                "role": "consumption",
+                "enabled": True,
+            },
+        }
+    ]
+    assert (
+        system_dashboard_helpers.system_dashboard_microinverter_summary(
+            {"inverters": {"inverters": {"total": 0, "not_reporting": 0}}},
+            {},
+            None,
+        ).get("connectivity")
+        is None
+    )
+    assert (
+        system_dashboard_helpers.system_dashboard_microinverter_summary(
+            {"inverters": {"inverters": {"total": 2, "not_reporting": 0}}},
+            {},
+            None,
+        )["connectivity"]
+        == "online"
+    )
+    assert (
+        system_dashboard_helpers.system_dashboard_microinverter_summary(
+            {"inverters": {"inverters": {"total": 2, "not_reporting": 2}}},
+            {},
+            None,
+        )["connectivity"]
+        == "offline"
+    )
 
 
 class _DummySummaryClient:

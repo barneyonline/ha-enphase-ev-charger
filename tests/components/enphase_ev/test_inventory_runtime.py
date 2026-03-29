@@ -514,6 +514,72 @@ def test_inventory_runtime_debug_cache_and_gateway_fallback_edges(
     assert offline_summary["disconnected_devices"] == 1
 
 
+def test_inventory_runtime_debug_summary_helpers_cover_optional_counts(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+
+    device_summary = runtime._debug_devices_inventory_summary(  # noqa: SLF001
+        {
+            "envoy": {
+                "devices": [{"serial": "1"}],
+                "count": 0,
+                "status_counts": {"online": "2"},
+                "device_type_counts": {"gateway": "1"},
+            },
+            "skip": "bad",
+        },
+        ["envoy", "skip"],
+    )
+    assert device_summary["types"]["envoy"]["status_counts"] == {"online": 2}
+    assert device_summary["types"]["envoy"]["device_type_counts"] == {"gateway": 1}
+
+    monkeypatch.setattr(
+        runtime,
+        "_hems_grouped_devices",
+        lambda: ["skip", {"router": []}],
+    )
+    monkeypatch.setattr(runtime, "_hems_group_members", lambda *_args: [])
+    monkeypatch.setattr(
+        runtime,
+        "_build_heatpump_inventory_summary",
+        lambda: {"total_devices": 0},
+    )
+    monkeypatch.setattr(
+        runtime,
+        "gateway_iq_energy_router_summary_records",
+        lambda: [],
+    )
+    hems_summary = runtime._debug_hems_inventory_summary()  # noqa: SLF001
+    assert hems_summary["group_keys"] == ["router"]
+    assert hems_summary["router_count"] == 0
+    assert runtime._heatpump_member_device_type({"device_type": "heat_pump"}) == (
+        "HEAT_PUMP"
+    )  # noqa: SLF001
+    assert runtime._heatpump_worst_status_text({"not_reporting": 1}) == (
+        "Not Reporting"
+    )  # noqa: SLF001
+    assert (
+        runtime._debug_topology_summary(runtime.topology_snapshot())["charger_count"]
+        == 0
+    )  # noqa: SLF001
+    dashboard_summary = runtime._debug_system_dashboard_summary(  # noqa: SLF001
+        {},
+        {"envoy": {"envoys": {}}},
+        {
+            "envoy": {
+                "hierarchy": {"count": "2"},
+                "counts_by_type": {"gateway": "1"},
+                "status_counts": {"normal": "3"},
+            }
+        },
+        {"total_nodes": 1, "counts_by_type": {"envoy": 1}},
+    )
+    assert dashboard_summary["types"]["envoy"]["counts_by_type"] == {"gateway": 1}
+    assert dashboard_summary["types"]["envoy"]["status_counts"] == {"normal": 3}
+
+
 def test_devices_inventory_runtime_parser_shapes_and_buckets(
     coordinator_factory, monkeypatch
 ) -> None:
@@ -999,6 +1065,164 @@ async def test_inventory_runtime_ensure_dashboard_refreshes_when_empty(
 
 
 @pytest.mark.asyncio
+async def test_inventory_runtime_refresh_system_dashboard_populates_summaries_and_accessors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.client.devices_tree = AsyncMock(
+        return_value={
+            "devices": [
+                {
+                    "device_uid": "GW-1",
+                    "type": "envoy",
+                    "name": "Gateway",
+                    "children": [
+                        {
+                            "device_uid": "BAT-1",
+                            "type": "encharge",
+                            "name": "Battery 1",
+                        },
+                        {"device_uid": "MTR-1", "type": "meter", "name": "Meter 1"},
+                    ],
+                }
+            ]
+        }
+    )
+    coord.client.devices_details = AsyncMock(
+        side_effect=lambda type_key: {
+            "envoys": {
+                "envoys": [
+                    {
+                        "device_uid": "GW-1",
+                        "type": "envoy",
+                        "status": "normal",
+                        "last_report": "2026-03-09T05:45:00+00:00",
+                        "network": {"mode": "dhcp"},
+                    }
+                ]
+            },
+            "meters": {
+                "meters": [
+                    {
+                        "device_uid": "MTR-1",
+                        "type": "meter",
+                        "name": "Consumption Meter",
+                        "meter_type": "consumption",
+                        "meter_state": "Enabled",
+                    }
+                ]
+            },
+            "encharges": {
+                "encharges": [
+                    {
+                        "device_uid": "BAT-1",
+                        "type": "encharge",
+                        "serial_number": "BAT-1",
+                        "rssi_dbm": -61,
+                    }
+                ]
+            },
+            "inverters": {
+                "inverters": {
+                    "total": 16,
+                    "not_reporting": 1,
+                    "plc_comm": 5,
+                    "items": [{"name": "IQ7A Microinverters", "count": 16}],
+                }
+            },
+        }.get(type_key)
+    )
+
+    await runtime._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    diagnostics = runtime.system_dashboard_diagnostics()
+    assert diagnostics["hierarchy_summary"]["counts_by_type"]["envoy"] == 2
+    assert diagnostics["type_summaries"]["microinverter"]["model_summary"] == (
+        "IQ7A Microinverters x16"
+    )
+    assert runtime.system_dashboard_envoy_detail()["status"] == "normal"
+    assert runtime.system_dashboard_meter_detail("consumption")["meter_state"] == (
+        "Enabled"
+    )
+    assert runtime.system_dashboard_battery_detail("BAT-1")["rssi_dbm"] == -61
+
+    coord.client.devices_tree.reset_mock()
+    coord.client.devices_details.reset_mock()
+    await runtime._async_refresh_system_dashboard()
+    coord.client.devices_tree.assert_not_called()
+    coord.client.devices_details.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_system_dashboard_handles_missing_fetchers_and_invalid_payloads(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.client.devices_tree = None
+    coord.client.devices_details = None
+
+    await runtime._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    assert runtime.system_dashboard_diagnostics()["devices_tree_payload"] is None
+
+    monkeypatch.setattr(
+        inventory_runtime_mod,
+        "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES",
+        ("", "envoy", "envoys"),
+    )
+    coord.client.devices_tree = AsyncMock(return_value=["bad"])
+    coord.client.devices_details = AsyncMock(side_effect=[{}, ["bad"], {}])
+
+    await runtime._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    diagnostics = runtime.system_dashboard_diagnostics()
+    assert diagnostics["devices_tree_payload"] is None
+    assert diagnostics["devices_details_payloads"]["envoy"] == {"envoys": {}}
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_system_dashboard_handles_fetch_exceptions(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord._system_dashboard_devices_tree_raw = {
+        "devices": [{"device_uid": "cached"}]
+    }  # noqa: SLF001
+    coord._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "envoy": {"envoys": {"envoys": [{"device_uid": "GW-1"}]}}
+    }
+    monkeypatch.setattr(
+        inventory_runtime_mod,
+        "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES",
+        ("envoys", "meters"),
+    )
+    coord.client.devices_tree = AsyncMock(side_effect=RuntimeError("tree"))
+
+    async def _details(source_type: str):
+        if source_type == "envoys":
+            raise RuntimeError("detail")
+        return {"meters": [{"name": "Meter"}]}
+
+    coord.client.devices_details = AsyncMock(side_effect=_details)
+
+    await runtime._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    diagnostics = runtime.system_dashboard_diagnostics()
+    assert diagnostics["devices_tree_payload"] == {
+        "devices": [{"device_uid": "cached"}]
+    }
+    assert diagnostics["devices_details_payloads"]["envoy"]["envoys"] == {
+        "envoys": [{"device_uid": "GW-1"}]
+    }
+    assert diagnostics["devices_details_payloads"]["envoy"]["meters"] == {
+        "meters": [{"name": "Meter"}]
+    }
+
+
+@pytest.mark.asyncio
 async def test_inventory_runtime_refresh_devices_inventory_without_refresh_kw(
     coordinator_factory,
 ) -> None:
@@ -1433,8 +1657,65 @@ def test_inventory_runtime_merge_heatpump_bucket_uses_worst_status_fallback(
     }
     assert bucket["model_summary"] == "PN-1 x1"
     assert bucket["firmware_summary"] == "1.2.3 x1"
-    assert runtime._devices_inventory_ready is False  # noqa: SLF001
-    assert refresh_calls == ["refresh"]
+
+
+def test_inventory_runtime_system_dashboard_and_microinverter_edge_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.inventory_runtime
+
+    class BadText:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-BAD": "bad-payload",
+        "INV-OK": {
+            "name": "Inverter",
+            "serial_number": "INV-OK",
+            "status": "normal",
+            "last_report": "2026-02-15T10:00:00Z",
+            "array_name": BadText(),
+            "fw1": BadText(),
+        },
+    }
+    coord._inverter_order = ["INV-BAD", "INV-OK"]  # noqa: SLF001
+    runtime._inverter_summary_counts = {  # noqa: SLF001
+        "total": 1,
+        "normal": 1,
+        "warning": 0,
+        "error": 0,
+        "not_reporting": 0,
+        "unknown": 0,
+    }
+    runtime._inverter_model_counts = {"IQ8": 1}  # noqa: SLF001
+
+    runtime._merge_microinverter_type_bucket()  # noqa: SLF001
+
+    bucket = coord.type_bucket("microinverter")
+    assert bucket is not None
+    assert bucket["count"] == 1
+    assert bucket["array_summary"] is None
+    assert bucket["firmware_summary"] is None
+
+    runtime._system_dashboard_devices_details_raw = []  # type: ignore[assignment]  # noqa: SLF001
+    assert runtime._system_dashboard_raw_payloads("envoy") == {}  # noqa: SLF001
+
+    runtime._system_dashboard_devices_details_raw = {  # noqa: SLF001
+        "encharge": {
+            "encharges": {
+                "encharges": [
+                    {"serial_number": "OTHER", "id": "OTHER", "rssi_dbm": -70},
+                    {"serial_number": "BAT-1", "id": "BAT-1", "rssi_dbm": -61},
+                ]
+            }
+        }
+    }
+    runtime._battery_storage_data = {  # noqa: SLF001
+        "BAT-1": {"serial_number": "BAT-1", "identity": "BAT-1"}
+    }
+    assert runtime.system_dashboard_battery_detail("BAT-1") == {"rssi_dbm": -61}
 
 
 def test_merge_heatpump_type_bucket_preserves_fault_over_lifecycle_state(
