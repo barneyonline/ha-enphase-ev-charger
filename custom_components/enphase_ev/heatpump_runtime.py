@@ -531,6 +531,16 @@ class HeatpumpRuntime:
         if not isinstance(first_bucket, dict):
             return None
 
+        daily_solar_wh = coerce_optional_float(first_bucket.get("solar"))
+        daily_battery_wh = coerce_optional_float(first_bucket.get("battery"))
+        daily_grid_wh = coerce_optional_float(first_bucket.get("grid"))
+        daily_energy_wh = self._sum_optional_values(first_bucket.get("details"))
+        if daily_energy_wh is None and all(
+            value is not None
+            for value in (daily_solar_wh, daily_battery_wh, daily_grid_wh)
+        ):
+            daily_energy_wh = daily_solar_wh + daily_battery_wh + daily_grid_wh
+
         return {
             "device_uid": selected.get("device_uid"),
             "device_name": selected.get("device_name"),
@@ -548,10 +558,10 @@ class HeatpumpRuntime:
             "device_state": (
                 heatpump_device_state(member) if isinstance(member, dict) else None
             ),
-            "daily_energy_wh": self._sum_optional_values(first_bucket.get("details")),
-            "daily_solar_wh": coerce_optional_float(first_bucket.get("solar")),
-            "daily_battery_wh": coerce_optional_float(first_bucket.get("battery")),
-            "daily_grid_wh": coerce_optional_float(first_bucket.get("grid")),
+            "daily_energy_wh": daily_energy_wh,
+            "daily_solar_wh": daily_solar_wh,
+            "daily_battery_wh": daily_battery_wh,
+            "daily_grid_wh": daily_grid_wh,
             "details": (
                 list(first_bucket.get("details"))
                 if isinstance(first_bucket.get("details"), list)
