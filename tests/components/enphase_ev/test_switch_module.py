@@ -1531,6 +1531,39 @@ async def test_restrict_battery_discharge_schedule_switch_turn_on_off(
     )
 
 
+def test_base_battery_schedule_switch_fallbacks(coordinator_factory) -> None:
+    from custom_components.enphase_ev import switch as switch_mod
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord.type_device_info = None
+    coord.custom_schedule_available = True
+    coord.custom_schedule_enabled = None
+    coord.async_custom_schedule_enabled = AsyncMock()
+
+    switch = switch_mod._BaseBatteryScheduleSwitch(
+        coord,
+        unique_suffix="custom_schedule",
+        availability_attr="custom_schedule_available",
+        enabled_attr="custom_schedule_enabled",
+        setter_name="async_custom_schedule_enabled",
+        suggested_object_id="custom_schedule",
+    )
+
+    assert switch.suggested_object_id == "custom_schedule"
+    assert switch.is_on is False
+    assert switch.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.type_device_info = MagicMock(return_value=expected)
+    assert switch.device_info is expected
+
+    coord.last_update_success = False
+    assert switch.available is False
+
+
 def test_charge_from_grid_switches_unavailable_when_coordinator_unavailable(
     coordinator_factory,
 ) -> None:

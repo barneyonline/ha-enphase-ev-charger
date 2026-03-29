@@ -149,6 +149,8 @@ async def test_coordinator_public_runtime_commands_delegate(
     battery_runtime.async_set_grid_connection = AsyncMock()
     battery_runtime.async_set_storm_guard_enabled = AsyncMock()
     battery_runtime.async_set_storm_evse_enabled = AsyncMock()
+    battery_runtime.async_set_discharge_to_grid_schedule_limit = AsyncMock()
+    battery_runtime.async_set_restrict_battery_discharge_schedule_enabled = AsyncMock()
     inventory_runtime = MagicMock()
     inventory_runtime.async_ensure_system_dashboard_diagnostics = AsyncMock()
     coord.battery_runtime = battery_runtime
@@ -163,6 +165,8 @@ async def test_coordinator_public_runtime_commands_delegate(
     await coord.async_set_grid_connection(False, otp="123456")
     await coord.async_set_storm_guard_enabled(True)
     await coord.async_set_storm_evse_enabled(False)
+    await coord.async_set_discharge_to_grid_schedule_limit(25)
+    await coord.async_set_restrict_battery_discharge_schedule_enabled(True)
     await coord.async_ensure_system_dashboard_diagnostics()
 
     battery_runtime.async_set_charge_from_grid.assert_awaited_once_with(True)
@@ -184,6 +188,12 @@ async def test_coordinator_public_runtime_commands_delegate(
     )
     battery_runtime.async_set_storm_guard_enabled.assert_awaited_once_with(True)
     battery_runtime.async_set_storm_evse_enabled.assert_awaited_once_with(False)
+    battery_runtime.async_set_discharge_to_grid_schedule_limit.assert_awaited_once_with(
+        25
+    )
+    battery_runtime.async_set_restrict_battery_discharge_schedule_enabled.assert_awaited_once_with(
+        True
+    )
     inventory_runtime.async_ensure_system_dashboard_diagnostics.assert_awaited_once_with()
 
 
