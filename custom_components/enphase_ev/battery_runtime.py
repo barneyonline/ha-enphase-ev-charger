@@ -781,6 +781,21 @@ class BatteryRuntime:
 
     def _apply_battery_capability_blocks(self, data: dict[str, object]) -> None:
         state = self.battery_state
+        for schedule_type in ("dtg", "rbd"):
+            raw_control = data.get(f"{schedule_type}Control")
+            if isinstance(raw_control, dict):
+                start = self._normalize_minutes_of_day(raw_control.get("startTime"))
+                end = self._normalize_minutes_of_day(raw_control.get("endTime"))
+                setattr(
+                    state,
+                    self._battery_schedule_control_start_attr(schedule_type),
+                    start,
+                )
+                setattr(
+                    state,
+                    self._battery_schedule_control_end_attr(schedule_type),
+                    end,
+                )
         if "dtgControl" in data:
             self._apply_battery_control_state(
                 "_battery_dtg_control", data.get("dtgControl")
@@ -978,6 +993,107 @@ class BatteryRuntime:
             end = 300
         return begin, end
 
+    @staticmethod
+    def _battery_schedule_label(schedule_type: str) -> str:
+        labels = {
+            "cfg": "Charge from grid",
+            "dtg": "Discharge to grid",
+            "rbd": "Restrict battery discharge",
+        }
+        return labels.get(str(schedule_type).lower(), "Battery schedule")
+
+    @staticmethod
+    def _battery_schedule_start_attr(schedule_type: str) -> str:
+        if str(schedule_type).lower() == "cfg":
+            return "_battery_charge_begin_time"
+        return f"_battery_{str(schedule_type).lower()}_begin_time"
+
+    @staticmethod
+    def _battery_schedule_end_attr(schedule_type: str) -> str:
+        if str(schedule_type).lower() == "cfg":
+            return "_battery_charge_end_time"
+        return f"_battery_{str(schedule_type).lower()}_end_time"
+
+    @staticmethod
+    def _battery_schedule_control_start_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_control_begin_time"
+
+    @staticmethod
+    def _battery_schedule_control_end_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_control_end_time"
+
+    @staticmethod
+    def _battery_schedule_id_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_schedule_id"
+
+    @staticmethod
+    def _battery_schedule_days_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_schedule_days"
+
+    @staticmethod
+    def _battery_schedule_timezone_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_schedule_timezone"
+
+    @staticmethod
+    def _battery_schedule_limit_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_schedule_limit"
+
+    @staticmethod
+    def _battery_schedule_status_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_schedule_status"
+
+    @staticmethod
+    def _battery_schedule_enabled_attr(schedule_type: str) -> str:
+        return f"_battery_{str(schedule_type).lower()}_schedule_enabled"
+
+    def _normalize_schedule_minutes(self, value: object) -> int | None:
+        normalize = getattr(self.coordinator, "normalize_minutes_of_day", None)
+        if not callable(normalize):
+            normalize = getattr(self.coordinator, "_normalize_minutes_of_day", None)
+        if callable(normalize):
+            return normalize(value)
+        if value is None:
+            return None
+        try:
+            minutes = int(str(value).strip())
+        except Exception:
+            return None
+        if minutes < 0 or minutes >= 24 * 60:
+            return None
+        return minutes
+
+    def current_battery_schedule_window(
+        self, schedule_type: str
+    ) -> tuple[int | None, int | None]:
+        state = self.battery_state
+        begin = self._normalize_schedule_minutes(
+            getattr(state, self._battery_schedule_start_attr(schedule_type), None)
+        )
+        end = self._normalize_schedule_minutes(
+            getattr(state, self._battery_schedule_end_attr(schedule_type), None)
+        )
+        return begin, end
+
+    def current_battery_schedule_or_control_window(
+        self, schedule_type: str
+    ) -> tuple[int | None, int | None]:
+        begin, end = self.current_battery_schedule_window(schedule_type)
+        if begin is not None and end is not None:
+            return begin, end
+        state = self.battery_state
+        control_begin = self._normalize_schedule_minutes(
+            getattr(
+                state, self._battery_schedule_control_start_attr(schedule_type), None
+            )
+        )
+        control_end = self._normalize_schedule_minutes(
+            getattr(state, self._battery_schedule_control_end_attr(schedule_type), None)
+        )
+        return (
+            begin if begin is not None else control_begin,
+            end if end is not None else control_end,
+        )
+
     def battery_itc_disclaimer_value(self) -> str:
         current = getattr(self.battery_state, "_battery_accepted_itc_disclaimer", None)
         if current:
@@ -1000,21 +1116,26 @@ class BatteryRuntime:
         self,
         schedule_id: str,
         *,
+        schedule_type: str = "CFG",
         start_time: str,
         end_time: str,
-        limit: int,
+        limit: int | None,
         days: list[int],
         timezone: str,
+        is_enabled: bool | None = None,
+        is_deleted: bool | None = None,
     ) -> None:
         try:
             await self.coordinator.client.update_battery_schedule(
                 schedule_id,
-                schedule_type="CFG",
+                schedule_type=schedule_type,
                 start_time=start_time,
                 end_time=end_time,
                 limit=limit,
                 days=days,
                 timezone=timezone,
+                is_enabled=is_enabled,
+                is_deleted=is_deleted,
             )
         except aiohttp.ClientResponseError as err:
             self.raise_schedule_update_validation_error(err)
@@ -1639,69 +1760,119 @@ class BatteryRuntime:
 
     def parse_battery_schedules_payload(self, payload: object) -> None:
         state = self.battery_state
-        state._battery_cfg_schedule_limit = None
-        state._battery_cfg_schedule_id = None
-        state._battery_cfg_schedule_days = None
-        state._battery_cfg_schedule_timezone = None
-        state._battery_cfg_schedule_status = None
 
-        if not isinstance(payload, dict):
-            return
-        cfg = payload.get("cfg")
-        if not isinstance(cfg, dict):
-            return
-        family_status = cfg.get("scheduleStatus")
-        if isinstance(family_status, str) and family_status.strip():
-            state._battery_cfg_schedule_status = family_status.strip().lower()
+        def _reset_family(schedule_type: str) -> None:
+            setattr(state, self._battery_schedule_limit_attr(schedule_type), None)
+            setattr(state, self._battery_schedule_id_attr(schedule_type), None)
+            setattr(state, self._battery_schedule_days_attr(schedule_type), None)
+            setattr(state, self._battery_schedule_timezone_attr(schedule_type), None)
+            setattr(state, self._battery_schedule_status_attr(schedule_type), None)
+            setattr(state, self._battery_schedule_enabled_attr(schedule_type), None)
+            if str(schedule_type).lower() != "cfg":
+                setattr(state, self._battery_schedule_start_attr(schedule_type), None)
+                setattr(state, self._battery_schedule_end_attr(schedule_type), None)
 
-        details = cfg.get("details")
-        if not isinstance(details, list) or not details:
-            return
-        chosen = None
-        for entry in details:
-            if not isinstance(entry, dict):
-                continue
+        def _apply_family(schedule_type: str, family_payload: object) -> None:
+            _reset_family(schedule_type)
+            if not isinstance(family_payload, dict):
+                return
+            family_status = family_payload.get("scheduleStatus")
+            if isinstance(family_status, str) and family_status.strip():
+                setattr(
+                    state,
+                    self._battery_schedule_status_attr(schedule_type),
+                    family_status.strip().lower(),
+                )
+
+            details = family_payload.get("details")
+            if not isinstance(details, list) or not details:
+                return
+            chosen = None
+            for entry in details:
+                if not isinstance(entry, dict):
+                    continue
+                if chosen is None:
+                    chosen = entry
+                if entry.get("isEnabled") is True:
+                    chosen = entry
+                    break
             if chosen is None:
-                chosen = entry
-            if entry.get("isEnabled") is True:
-                chosen = entry
-                break
-        if chosen is None:
-            return
+                return
 
-        start_str = chosen.get("startTime")
-        end_str = chosen.get("endTime")
-        limit = chosen.get("limit")
-        schedule_id = chosen.get("scheduleId")
-        days = chosen.get("days")
-        if isinstance(start_str, str) and ":" in start_str:
-            try:
-                parts = start_str.split(":")
-                state._battery_charge_begin_time = int(parts[0]) * 60 + int(parts[1])
-            except (ValueError, IndexError):
-                pass
-        if isinstance(end_str, str) and ":" in end_str:
-            try:
-                parts = end_str.split(":")
-                state._battery_charge_end_time = int(parts[0]) * 60 + int(parts[1])
-            except (ValueError, IndexError):
-                pass
-        if schedule_id is not None:
-            state._battery_cfg_schedule_id = str(schedule_id)
-        if isinstance(days, list):
-            state._battery_cfg_schedule_days = [int(d) for d in days]
-        tz = chosen.get("timezone")
-        if not isinstance(tz, str) or not tz.strip():
-            tz = payload.get("timezone") if isinstance(payload, dict) else None
-        if isinstance(tz, str) and tz.strip():
-            state._battery_cfg_schedule_timezone = tz.strip()
-        if isinstance(limit, (int, float)):
-            state._battery_cfg_schedule_limit = int(limit)
-        entry_status = chosen.get("scheduleStatus")
-        family_status = cfg.get("scheduleStatus") if isinstance(cfg, dict) else None
-        status = entry_status or family_status
-        if isinstance(status, str) and status.strip():
-            state._battery_cfg_schedule_status = status.strip().lower()
+            start_str = chosen.get("startTime")
+            if isinstance(start_str, str) and ":" in start_str:
+                try:
+                    parts = start_str.split(":")
+                    setattr(
+                        state,
+                        self._battery_schedule_start_attr(schedule_type),
+                        int(parts[0]) * 60 + int(parts[1]),
+                    )
+                except (ValueError, IndexError):
+                    pass
+            end_str = chosen.get("endTime")
+            if isinstance(end_str, str) and ":" in end_str:
+                try:
+                    parts = end_str.split(":")
+                    setattr(
+                        state,
+                        self._battery_schedule_end_attr(schedule_type),
+                        int(parts[0]) * 60 + int(parts[1]),
+                    )
+                except (ValueError, IndexError):
+                    pass
+
+            schedule_id = chosen.get("scheduleId")
+            if schedule_id is not None:
+                setattr(
+                    state,
+                    self._battery_schedule_id_attr(schedule_type),
+                    str(schedule_id),
+                )
+            days = chosen.get("days")
+            if isinstance(days, list):
+                setattr(
+                    state,
+                    self._battery_schedule_days_attr(schedule_type),
+                    [int(d) for d in days],
+                )
+            tz = chosen.get("timezone")
+            if not isinstance(tz, str) or not tz.strip():
+                tz = payload.get("timezone") if isinstance(payload, dict) else None
+            if isinstance(tz, str) and tz.strip():
+                setattr(
+                    state,
+                    self._battery_schedule_timezone_attr(schedule_type),
+                    tz.strip(),
+                )
+            limit = chosen.get("limit")
+            if isinstance(limit, (int, float)):
+                setattr(
+                    state,
+                    self._battery_schedule_limit_attr(schedule_type),
+                    int(limit),
+                )
+            enabled = self._coerce_optional_bool(chosen.get("isEnabled"))
+            if enabled is not None:
+                setattr(
+                    state,
+                    self._battery_schedule_enabled_attr(schedule_type),
+                    enabled,
+                )
+            entry_status = chosen.get("scheduleStatus")
+            status = entry_status or family_status
+            if isinstance(status, str) and status.strip():
+                setattr(
+                    state,
+                    self._battery_schedule_status_attr(schedule_type),
+                    status.strip().lower(),
+                )
+
+        for schedule_type in ("cfg", "dtg", "rbd"):
+            family_payload = (
+                payload.get(schedule_type) if isinstance(payload, dict) else None
+            )
+            _apply_family(schedule_type, family_payload)
 
     def parse_dry_contact_settings_payload(self, payload: object) -> None:
         state = self.battery_state
@@ -2820,6 +2991,302 @@ class BatteryRuntime:
         state._battery_settings_cache_until = None
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()
+
+    def _schedule_supported_property_name(self, schedule_type: str) -> str:
+        names = {
+            "cfg": "charge_from_grid_schedule_supported",
+            "dtg": "discharge_to_grid_schedule_supported",
+            "rbd": "restrict_battery_discharge_schedule_supported",
+        }
+        return names[str(schedule_type).lower()]
+
+    def _schedule_pending_property_name(self, schedule_type: str) -> str:
+        names = {
+            "cfg": "battery_cfg_schedule_pending",
+            "dtg": "battery_dtg_schedule_pending",
+            "rbd": "battery_rbd_schedule_pending",
+        }
+        return names[str(schedule_type).lower()]
+
+    def _current_battery_schedule_window_for_type(
+        self, schedule_type: str
+    ) -> tuple[int | None, int | None]:
+        if str(schedule_type).lower() == "cfg":
+            start, end = self.current_charge_from_grid_schedule_window()
+            return start, end
+        return self.current_battery_schedule_or_control_window(schedule_type)
+
+    def _schedule_create_supported(self) -> bool:
+        coord = self.coordinator
+        return bool(
+            hasattr(coord.client, "create_battery_schedule")
+            and getattr(coord, "_battery_schedules_payload", None) is not None
+        )
+
+    def _schedule_default_limit_for_create(self, schedule_type: str) -> int | None:
+        normalized = str(schedule_type).lower()
+        if normalized == "cfg":
+            return 100
+        if normalized == "dtg":
+            shutdown_floor = self.coordinator.battery_shutdown_level
+            return max(5, int(shutdown_floor)) if shutdown_floor is not None else 5
+        return None
+
+    def _schedule_family_days(self, schedule_type: str) -> list[int]:
+        state = self.battery_state
+        days = getattr(state, self._battery_schedule_days_attr(schedule_type), None)
+        return list(days) if isinstance(days, list) and days else [1, 2, 3, 4, 5, 6, 7]
+
+    def _schedule_family_timezone(self, schedule_type: str) -> str:
+        state = self.battery_state
+        timezone = getattr(
+            state, self._battery_schedule_timezone_attr(schedule_type), None
+        )
+        if isinstance(timezone, str) and timezone.strip():
+            return timezone.strip()
+        site_timezone = getattr(state, "_battery_timezone", None)
+        if isinstance(site_timezone, str) and site_timezone.strip():
+            return site_timezone.strip()
+        return "UTC"
+
+    async def _async_create_or_update_schedule_family(
+        self,
+        schedule_type: str,
+        *,
+        start_minutes: int,
+        end_minutes: int,
+        limit: int | None,
+        is_enabled: bool | None,
+    ) -> None:
+        coord = self.coordinator
+        state = self.battery_state
+        schedule_id = getattr(
+            state, self._battery_schedule_id_attr(schedule_type), None
+        )
+        days = self._schedule_family_days(schedule_type)
+        timezone = self._schedule_family_timezone(schedule_type)
+        start_time = f"{start_minutes // 60:02d}:{start_minutes % 60:02d}"
+        end_time = f"{end_minutes // 60:02d}:{end_minutes % 60:02d}"
+        if schedule_id is not None and hasattr(coord.client, "update_battery_schedule"):
+            await self.async_update_battery_schedule(
+                schedule_id,
+                schedule_type=str(schedule_type).upper(),
+                start_time=start_time,
+                end_time=end_time,
+                limit=limit,
+                days=days,
+                timezone=timezone,
+                is_enabled=is_enabled,
+            )
+            return
+        if not self._schedule_create_supported():
+            raise ServiceValidationError(
+                f"No existing {self._battery_schedule_label(schedule_type).lower()} schedule is available."
+            )
+        create_limit = limit
+        if create_limit is None:
+            create_limit = self._schedule_default_limit_for_create(schedule_type)
+        await coord.client.create_battery_schedule(
+            schedule_type=str(schedule_type).upper(),
+            start_time=start_time,
+            end_time=end_time,
+            limit=create_limit,
+            days=days,
+            timezone=timezone,
+            is_enabled=is_enabled,
+        )
+
+    async def _async_set_schedule_family_enabled(
+        self, schedule_type: str, enabled: bool
+    ) -> None:
+        coord = self.coordinator
+        state = self.battery_state
+        label = self._battery_schedule_label(schedule_type)
+        self._assert_battery_settings_feature_writable(
+            f"{label} schedule is unavailable."
+        )
+        if not getattr(coord, self._schedule_supported_property_name(schedule_type)):
+            raise ServiceValidationError(f"{label} schedule is unavailable.")
+        if getattr(coord, self._schedule_pending_property_name(schedule_type)):
+            raise ServiceValidationError(
+                "A schedule change is pending Envoy sync. Please wait."
+            )
+        current_start, current_end = self._current_battery_schedule_window_for_type(
+            schedule_type
+        )
+        if current_start is None or current_end is None:
+            raise ServiceValidationError(f"{label} schedule time is invalid.")
+        if current_start == current_end:
+            raise ServiceValidationError(
+                f"{label} schedule start and end times must be different."
+            )
+        current_limit = getattr(
+            state, self._battery_schedule_limit_attr(schedule_type), None
+        )
+        next_limit = (
+            int(current_limit)
+            if current_limit is not None
+            else self._schedule_default_limit_for_create(schedule_type)
+        )
+        await self.async_assert_battery_settings_write_allowed()
+        async with state._battery_settings_write_lock:
+            state._battery_settings_last_write_mono = time.monotonic()
+            await self._async_create_or_update_schedule_family(
+                schedule_type,
+                start_minutes=current_start,
+                end_minutes=current_end,
+                limit=next_limit,
+                is_enabled=enabled,
+            )
+        setattr(state, self._battery_schedule_enabled_attr(schedule_type), enabled)
+        setattr(state, self._battery_schedule_start_attr(schedule_type), current_start)
+        setattr(state, self._battery_schedule_end_attr(schedule_type), current_end)
+        state._battery_settings_cache_until = None
+        coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await coord.async_request_refresh()
+
+    async def _async_set_schedule_family_time(
+        self,
+        schedule_type: str,
+        *,
+        start: dt_time | None = None,
+        end: dt_time | None = None,
+    ) -> None:
+        coord = self.coordinator
+        state = self.battery_state
+        label = self._battery_schedule_label(schedule_type)
+        self._assert_battery_settings_feature_writable(
+            f"{label} schedule is unavailable."
+        )
+        if not getattr(coord, self._schedule_supported_property_name(schedule_type)):
+            raise ServiceValidationError(f"{label} schedule is unavailable.")
+        if getattr(coord, self._schedule_pending_property_name(schedule_type)):
+            raise ServiceValidationError(
+                "A schedule change is pending Envoy sync. Please wait."
+            )
+
+        current_start, current_end = self._current_battery_schedule_window_for_type(
+            schedule_type
+        )
+        next_start = (
+            coord.time_to_minutes_of_day(start) if start is not None else current_start
+        )
+        next_end = coord.time_to_minutes_of_day(end) if end is not None else current_end
+        if next_start is None or next_end is None:
+            raise ServiceValidationError(f"{label} schedule time is invalid.")
+        if next_start == next_end:
+            raise ServiceValidationError(
+                f"{label} schedule start and end times must be different."
+            )
+        current_limit = getattr(
+            state, self._battery_schedule_limit_attr(schedule_type), None
+        )
+        next_limit = (
+            int(current_limit)
+            if current_limit is not None
+            else self._schedule_default_limit_for_create(schedule_type)
+        )
+        current_enabled = getattr(
+            state, self._battery_schedule_enabled_attr(schedule_type), None
+        )
+        await self.async_assert_battery_settings_write_allowed()
+        async with state._battery_settings_write_lock:
+            state._battery_settings_last_write_mono = time.monotonic()
+            await self._async_create_or_update_schedule_family(
+                schedule_type,
+                start_minutes=next_start,
+                end_minutes=next_end,
+                limit=next_limit,
+                is_enabled=current_enabled,
+            )
+        setattr(state, self._battery_schedule_start_attr(schedule_type), next_start)
+        setattr(state, self._battery_schedule_end_attr(schedule_type), next_end)
+        state._battery_settings_cache_until = None
+        coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await coord.async_request_refresh()
+
+    async def _async_set_schedule_family_limit(
+        self, schedule_type: str, limit: int
+    ) -> None:
+        coord = self.coordinator
+        state = self.battery_state
+        label = self._battery_schedule_label(schedule_type)
+        self._assert_battery_settings_feature_writable(
+            f"{label} schedule is unavailable."
+        )
+        if not getattr(coord, self._schedule_supported_property_name(schedule_type)):
+            raise ServiceValidationError(f"{label} schedule is unavailable.")
+        if getattr(coord, self._schedule_pending_property_name(schedule_type)):
+            raise ServiceValidationError(
+                "A schedule change is pending Envoy sync. Please wait."
+            )
+        current_start, current_end = self._current_battery_schedule_window_for_type(
+            schedule_type
+        )
+        if current_start is None or current_end is None:
+            raise ServiceValidationError(
+                f"Current {label.lower()} schedule time is invalid."
+            )
+        if not 5 <= int(limit) <= 100:
+            raise ServiceValidationError(
+                f"{label} schedule limit must be between 5 and 100."
+            )
+        shutdown_floor = coord.battery_shutdown_level
+        if shutdown_floor is not None and int(limit) < shutdown_floor:
+            raise ServiceValidationError(
+                f"{label} schedule limit must be at least {shutdown_floor}%."
+            )
+        current_enabled = getattr(
+            state, self._battery_schedule_enabled_attr(schedule_type), None
+        )
+        await self.async_assert_battery_settings_write_allowed()
+        async with state._battery_settings_write_lock:
+            state._battery_settings_last_write_mono = time.monotonic()
+            await self._async_create_or_update_schedule_family(
+                schedule_type,
+                start_minutes=current_start,
+                end_minutes=current_end,
+                limit=int(limit),
+                is_enabled=current_enabled,
+            )
+        setattr(state, self._battery_schedule_limit_attr(schedule_type), int(limit))
+        setattr(state, self._battery_schedule_start_attr(schedule_type), current_start)
+        setattr(state, self._battery_schedule_end_attr(schedule_type), current_end)
+        state._battery_settings_cache_until = None
+        coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await coord.async_request_refresh()
+
+    async def async_set_discharge_to_grid_schedule_enabled(self, enabled: bool) -> None:
+        await self._async_set_schedule_family_enabled("dtg", enabled)
+
+    async def async_set_discharge_to_grid_schedule_time(
+        self,
+        *,
+        start: dt_time | None = None,
+        end: dt_time | None = None,
+    ) -> None:
+        await self._async_set_schedule_family_time("dtg", start=start, end=end)
+
+    async def async_set_discharge_to_grid_schedule_limit(self, limit: int) -> None:
+        await self._async_set_schedule_family_limit("dtg", limit)
+
+    async def async_set_restrict_battery_discharge_schedule_enabled(
+        self, enabled: bool
+    ) -> None:
+        await self._async_set_schedule_family_enabled("rbd", enabled)
+
+    async def async_set_restrict_battery_discharge_schedule_time(
+        self,
+        *,
+        start: dt_time | None = None,
+        end: dt_time | None = None,
+    ) -> None:
+        await self._async_set_schedule_family_time("rbd", start=start, end=end)
+
+    async def async_set_restrict_battery_discharge_schedule_limit(
+        self, limit: int
+    ) -> None:
+        await self._async_set_schedule_family_limit("rbd", limit)
 
     async def async_update_cfg_schedule(
         self,

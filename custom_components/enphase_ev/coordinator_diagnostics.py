@@ -313,6 +313,31 @@ class CoordinatorDiagnostics:
             "battery_cfg_schedule_limit": getattr(
                 coord, "_battery_cfg_schedule_limit", None
             ),
+            "battery_cfg_schedule_enabled": getattr(
+                coord, "_battery_cfg_schedule_enabled", None
+            ),
+            "battery_dtg_schedule_enabled": getattr(
+                coord, "_battery_dtg_schedule_enabled", None
+            ),
+            "battery_dtg_begin_time": getattr(coord, "_battery_dtg_begin_time", None),
+            "battery_dtg_end_time": getattr(coord, "_battery_dtg_end_time", None),
+            "battery_dtg_schedule_limit": getattr(
+                coord, "_battery_dtg_schedule_limit", None
+            ),
+            "battery_dtg_schedule_status": getattr(
+                coord, "_battery_dtg_schedule_status", None
+            ),
+            "battery_rbd_schedule_enabled": getattr(
+                coord, "_battery_rbd_schedule_enabled", None
+            ),
+            "battery_rbd_begin_time": getattr(coord, "_battery_rbd_begin_time", None),
+            "battery_rbd_end_time": getattr(coord, "_battery_rbd_end_time", None),
+            "battery_rbd_schedule_limit": getattr(
+                coord, "_battery_rbd_schedule_limit", None
+            ),
+            "battery_rbd_schedule_status": getattr(
+                coord, "_battery_rbd_schedule_status", None
+            ),
             "battery_schedules_payload": getattr(
                 coord, "_battery_schedules_payload", None
             ),

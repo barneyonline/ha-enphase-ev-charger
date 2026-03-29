@@ -1083,6 +1083,12 @@
       },
       "charging_amps": {
         "name": "Charging Amps"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Discharge To Grid Limit"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Restrict Battery Discharge Limit"
       }
     },
     "binary_sensor": {
@@ -1154,6 +1160,12 @@
       },
       "storm_guard_evse_charge": {
         "name": "Storm Guard EV Charge"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Discharge To Grid Schedule"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Restrict Battery Discharge Schedule"
       }
     },
     "time": {
@@ -1162,6 +1174,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Charge From Grid End Time"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Discharge To Grid Start Time"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Discharge To Grid End Time"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Restrict Battery Discharge Start Time"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Restrict Battery Discharge End Time"
       }
     },
     "calendar": {

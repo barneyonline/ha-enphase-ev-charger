@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Akumulatora uzlādes limits"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Izlādes tīklā limits"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Akumulatora izlādes ierobežošanas limits"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Uzlādes no tīkla grafiks"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Izlādes tīklā grafiks"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Akumulatora izlādes ierobežošanas grafiks"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Uzlādes no tīkla beigu laiks"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Izlādes tīklā sākuma laiks"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Izlādes tīklā beigu laiks"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Akumulatora izlādes ierobežošanas sākuma laiks"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Akumulatora izlādes ierobežošanas beigu laiks"
       }
     },
     "calendar": {

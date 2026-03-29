@@ -55,6 +55,42 @@ def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
     return False
 
 
+def _dtg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
+    if getattr(coord, "discharge_to_grid_schedule_available", False):
+        return True
+    if not getattr(coord, "discharge_to_grid_schedule_supported", False):
+        return False
+    start_time = getattr(coord, "battery_discharge_to_grid_start_time", None)
+    end_time = getattr(coord, "battery_discharge_to_grid_end_time", None)
+    if start_time is not None and end_time is not None:
+        return True
+    begin = getattr(coord, "_battery_dtg_begin_time", None)
+    end = getattr(coord, "_battery_dtg_end_time", None)
+    if begin is None:
+        begin = getattr(coord, "_battery_dtg_control_begin_time", None)
+    if end is None:
+        end = getattr(coord, "_battery_dtg_control_end_time", None)
+    return begin is not None and end is not None
+
+
+def _rbd_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
+    if getattr(coord, "restrict_battery_discharge_schedule_available", False):
+        return True
+    if not getattr(coord, "restrict_battery_discharge_schedule_supported", False):
+        return False
+    start_time = getattr(coord, "battery_restrict_battery_discharge_start_time", None)
+    end_time = getattr(coord, "battery_restrict_battery_discharge_end_time", None)
+    if start_time is not None and end_time is not None:
+        return True
+    begin = getattr(coord, "_battery_rbd_begin_time", None)
+    end = getattr(coord, "_battery_rbd_end_time", None)
+    if begin is None:
+        begin = getattr(coord, "_battery_rbd_control_begin_time", None)
+    if end is None:
+        end = getattr(coord, "_battery_rbd_control_end_time", None)
+    return begin is not None and end is not None
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -78,6 +114,8 @@ async def async_setup_entry(
                     BatteryReserveNumber(coord),
                     BatteryShutdownLevelNumber(coord),
                     BatteryCfgScheduleLimitNumber(coord),
+                    BatteryDischargeToGridScheduleLimitNumber(coord),
+                    BatteryRestrictBatteryDischargeScheduleLimitNumber(coord),
                 ],
                 update_before_add=False,
             )
@@ -339,4 +377,94 @@ class BatteryCfgScheduleLimitNumber(CoordinatorEntity, NumberEntity):
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
+        )
+
+
+class _BaseBatteryScheduleLimitNumber(CoordinatorEntity, NumberEntity):
+    _attr_has_entity_name = True
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 100.0
+    _attr_native_step = 1.0
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_mode = NumberMode.SLIDER
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        *,
+        unique_suffix: str,
+        limit_attr: str,
+        availability_check,
+        setter_name: str,
+    ) -> None:
+        super().__init__(coord)
+        self._coord = coord
+        self._limit_attr = limit_attr
+        self._availability_check = availability_check
+        self._setter_name = setter_name
+        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{unique_suffix}"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        if not super().available:
+            return False
+        return (
+            _type_available(self._coord, "encharge")
+            and _battery_write_access_confirmed(self._coord)
+            and self._availability_check(self._coord)
+            and getattr(self._coord, self._limit_attr, None) is not None
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        value = getattr(self._coord, self._limit_attr, None)
+        if value is None:
+            return None
+        return float(value)
+
+    @property
+    def native_min_value(self) -> float:
+        level = self._coord.battery_shutdown_level
+        return float(level) if level is not None else 0.0
+
+    async def async_set_native_value(self, value: float) -> None:
+        await getattr(self._coord, self._setter_name)(int(value))
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        type_device_info = getattr(self._coord, "type_device_info", None)
+        info = type_device_info("encharge") if callable(type_device_info) else None
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
+            manufacturer="Enphase",
+        )
+
+
+class BatteryDischargeToGridScheduleLimitNumber(_BaseBatteryScheduleLimitNumber):
+    _attr_translation_key = "battery_dtg_schedule_limit"
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            unique_suffix="battery_dtg_schedule_limit",
+            limit_attr="battery_dtg_schedule_limit",
+            availability_check=_dtg_schedule_edit_available,
+            setter_name="async_set_discharge_to_grid_schedule_limit",
+        )
+
+
+class BatteryRestrictBatteryDischargeScheduleLimitNumber(
+    _BaseBatteryScheduleLimitNumber
+):
+    _attr_translation_key = "battery_rbd_schedule_limit"
+
+    def __init__(self, coord: EnphaseCoordinator) -> None:
+        super().__init__(
+            coord,
+            unique_suffix="battery_rbd_schedule_limit",
+            limit_attr="battery_rbd_schedule_limit",
+            availability_check=_rbd_schedule_edit_available,
+            setter_name="async_set_restrict_battery_discharge_schedule_limit",
         )

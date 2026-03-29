@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Akun latausraja"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Verkkoon purkamisen raja"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Akun purkauksen rajoitusraja"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Sähköverkkolatauksen aikataulu"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Aikataulu verkkoon purkamiselle"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Akun purkauksen rajoitusaikataulu"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Sähköverkkolatauksen lopetusaika"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Verkkoon purkamisen aloitusaika"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Verkkoon purkamisen päättymisaika"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Akun purkauksen rajoituksen aloitusaika"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Akun purkauksen rajoituksen päättymisaika"
       }
     },
     "calendar": {

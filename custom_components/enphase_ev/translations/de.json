@@ -1040,6 +1040,12 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Batterie-Ladelimit"
+      },
+      "battery_dtg_schedule_limit": {
+        "name": "Netzeinspeisegrenze"
+      },
+      "battery_rbd_schedule_limit": {
+        "name": "Grenzwert für eingeschränkte Batterieentladung"
       }
     },
     "binary_sensor": {
@@ -1111,6 +1117,12 @@
       },
       "charge_from_grid_schedule": {
         "name": "Zeitplan für Laden aus dem Netz"
+      },
+      "discharge_to_grid_schedule": {
+        "name": "Zeitplan für Netzeinspeisung"
+      },
+      "restrict_battery_discharge_schedule": {
+        "name": "Zeitplan für eingeschränkte Batterieentladung"
       }
     },
     "select": {
@@ -1144,6 +1156,18 @@
       },
       "charge_from_grid_end_time": {
         "name": "Endzeit für Laden aus dem Netz"
+      },
+      "discharge_to_grid_start_time": {
+        "name": "Startzeit für Netzeinspeisung"
+      },
+      "discharge_to_grid_end_time": {
+        "name": "Endzeit für Netzeinspeisung"
+      },
+      "restrict_battery_discharge_start_time": {
+        "name": "Startzeit für eingeschränkte Batterieentladung"
+      },
+      "restrict_battery_discharge_end_time": {
+        "name": "Endzeit für eingeschränkte Batterieentladung"
       }
     },
     "calendar": {
