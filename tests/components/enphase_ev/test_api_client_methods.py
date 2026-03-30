@@ -305,6 +305,7 @@ def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
 
     assert client._battery_config_auth_token() == token  # noqa: SLF001
     assert client._xsrf_token() == "dynamic-token"  # noqa: SLF001
+    assert headers["e-auth-token"] == token
     assert headers["Cookie"] == "BP-XSRF-Token=dynamic-token"
 
 
@@ -330,6 +331,20 @@ def test_battery_config_headers_preserve_original_eauth_and_replace_stale_xsrf()
         "session=1; other=1; "
         f"enlighten_manager_token_production={bearer}; BP-XSRF-Token=fresh-token"
     )
+
+
+def test_battery_config_headers_use_bearer_cookie_for_eauth_when_missing() -> None:
+    bearer = _make_token({"user_id": "77"})
+    client = _make_client()
+    client.update_credentials(
+        eauth="",
+        cookie=f"session=1; enlighten_manager_token_production={bearer}",
+    )
+
+    headers = client._battery_config_headers()  # noqa: SLF001
+
+    assert headers["Authorization"] == f"Bearer {bearer}"
+    assert headers["e-auth-token"] == bearer
 
 
 def test_battery_config_headers_drop_cookie_when_none_available() -> None:

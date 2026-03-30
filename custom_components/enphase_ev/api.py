@@ -1968,6 +1968,10 @@ class EnphaseEVClient:
         token, user_id = self._battery_config_auth_context()
         if token:
             headers["Authorization"] = f"Bearer {token}"
+        if self._eauth:
+            headers["e-auth-token"] = self._eauth
+        elif token:
+            headers["e-auth-token"] = token
         if user_id:
             headers["Username"] = user_id
         headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
