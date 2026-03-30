@@ -2125,6 +2125,47 @@ async def test_status_rejects_non_dict_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_status_raises_optional_endpoint_unavailable_for_html_json_payload() -> (
+    None
+):
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=api.InvalidPayloadError(
+            "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+            endpoint="/service/evse_controller/SITE/ev_chargers/status",
+            status=200,
+            content_type="application/json; charset=utf-8",
+            failure_kind="json_decode",
+            decode_error="JSONDecodeError",
+            body_preview_redacted="<!DOCTYPE html><html lang='fr'>",
+        )
+    )
+
+    with pytest.raises(api.OptionalEndpointUnavailable, match="Invalid JSON response"):
+        await client.status()
+
+
+@pytest.mark.asyncio
+async def test_status_reraises_non_optional_invalid_payload() -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)",
+        endpoint="/service/evse_controller/SITE/ev_chargers/status",
+        status=200,
+        content_type="application/json; charset=utf-8",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_preview_redacted='{"bad":true}',
+    )
+    client._json = AsyncMock(side_effect=err)
+
+    with pytest.raises(api.InvalidPayloadError) as raised:
+        await client.status()
+
+    assert raised.value is err
+
+
+@pytest.mark.asyncio
 async def test_get_schedules_normalizes_payload() -> None:
     client = _make_client()
     payload = {
@@ -5658,6 +5699,47 @@ async def test_summary_v2_handles_exception() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value="not-a-dict")
     assert await client.summary_v2() is None
+
+
+@pytest.mark.asyncio
+async def test_summary_v2_raises_optional_endpoint_unavailable_for_html_json_payload() -> (
+    None
+):
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=api.InvalidPayloadError(
+            "Invalid JSON response (status=200, endpoint=/service/evse_controller/api/v2/SITE/ev_chargers/summary)",
+            endpoint="/service/evse_controller/api/v2/SITE/ev_chargers/summary",
+            status=200,
+            content_type="application/json; charset=utf-8",
+            failure_kind="json_decode",
+            decode_error="JSONDecodeError",
+            body_preview_redacted="<!DOCTYPE html><html lang='fr'>",
+        )
+    )
+
+    with pytest.raises(api.OptionalEndpointUnavailable, match="Invalid JSON response"):
+        await client.summary_v2()
+
+
+@pytest.mark.asyncio
+async def test_summary_v2_reraises_non_optional_invalid_payload() -> None:
+    client = _make_client()
+    err = api.InvalidPayloadError(
+        "Invalid JSON response (status=200, endpoint=/service/evse_controller/api/v2/SITE/ev_chargers/summary)",
+        endpoint="/service/evse_controller/api/v2/SITE/ev_chargers/summary",
+        status=200,
+        content_type="application/json; charset=utf-8",
+        failure_kind="json_decode",
+        decode_error="JSONDecodeError",
+        body_preview_redacted='{"bad":true}',
+    )
+    client._json = AsyncMock(side_effect=err)
+
+    with pytest.raises(api.InvalidPayloadError) as raised:
+        await client.summary_v2()
+
+    assert raised.value is err
 
 
 @pytest.mark.asyncio

@@ -2589,8 +2589,13 @@ class EnphaseEVClient:
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
-        data = await self._json("GET", url)
         endpoint = f"/service/evse_controller/{self._site}/ev_chargers/status"
+        try:
+            data = await self._json("GET", url)
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
+                raise OptionalEndpointUnavailable(err.summary) from err
+            raise
         if not isinstance(data, dict):
             raise self._invalid_payload_error(
                 endpoint=endpoint,
@@ -5026,7 +5031,12 @@ class EnphaseEVClient:
         Returns a list of charger objects with serialNumber and other properties.
         """
         url = f"{BASE_URL}/service/evse_controller/api/v2/{self._site}/ev_chargers/summary?filter_retired=true"
-        data = await self._json("GET", url)
+        try:
+            data = await self._json("GET", url)
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
+                raise OptionalEndpointUnavailable(err.summary) from err
+            raise
         try:
             return data.get("data") or []
         except Exception:

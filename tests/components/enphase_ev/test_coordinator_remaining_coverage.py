@@ -26,7 +26,11 @@ from custom_components.enphase_ev.const import (
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
 )
-from custom_components.enphase_ev.api import AuthTokens, InvalidPayloadError
+from custom_components.enphase_ev.api import (
+    AuthTokens,
+    InvalidPayloadError,
+    OptionalEndpointUnavailable,
+)
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 pytest.importorskip("homeassistant")
@@ -299,6 +303,47 @@ async def test_async_update_data_success_clears_status_stale_flags(
     assert coord._payload_health["status"]["using_stale"] is False  # noqa: SLF001
     assert coord._payload_health["status"]["failures"] == 0  # noqa: SLF001
     assert coord._payload_health["status"]["available"] is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_optional_status_unavailable_reuses_cached_status(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    cached_status = {
+        "evChargerData": [
+            {
+                "sn": RANDOM_SERIAL,
+                "name": "Cached Charger",
+                "connectors": [{}],
+                "pluggedIn": True,
+                "charging": False,
+            }
+        ],
+        "ts": "1700000123",
+    }
+    coord._status_payload_cache = dict(cached_status)
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord.client.status = AsyncMock(
+        side_effect=OptionalEndpointUnavailable(
+            "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)"
+        )
+    )
+
+    result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in result
+    assert result[RANDOM_SERIAL]["sn"] == RANDOM_SERIAL
+    assert coord.payload_using_stale is True
+    assert coord._payload_health["status"]["using_stale"] is True  # noqa: SLF001
+    assert (
+        coord._payload_health["status"]["last_payload_signature"] is None
+    )  # noqa: SLF001
 
 
 @pytest.mark.asyncio

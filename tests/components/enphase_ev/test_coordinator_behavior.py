@@ -2404,6 +2404,27 @@ async def test_first_refresh_defers_session_history(hass, monkeypatch, config_en
 
 
 @pytest.mark.asyncio
+async def test_first_refresh_soft_fails_optional_evse_status_endpoint(
+    hass, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import api
+
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.client.status = AsyncMock(
+        side_effect=api.OptionalEndpointUnavailable(
+            "Invalid JSON response (status=200, endpoint=/service/evse_controller/SITE/ev_chargers/status)"
+        )
+    )
+
+    await coord.async_refresh()
+
+    assert coord.last_update_success is True
+    assert coord.data == {}
+    assert coord._has_successful_refresh is True  # noqa: SLF001
+    assert coord.payload_using_stale is False
+
+
+@pytest.mark.asyncio
 async def test_first_refresh_defers_warmup_only_calls(
     hass, monkeypatch, config_entry
 ) -> None:
