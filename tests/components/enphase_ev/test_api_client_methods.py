@@ -219,6 +219,51 @@ def test_cookie_map_from_header_handles_defensive_branches() -> None:
     }
 
 
+def test_cookie_names_from_header_returns_sorted_names() -> None:
+    assert api._cookie_names_from_header("z=1; a=2; invalid; c=3") == [
+        "a",
+        "c",
+        "z",
+    ]
+
+
+def test_request_failure_debug_family_matches_curated_endpoint_families() -> None:
+    assert (
+        api._request_failure_debug_family(
+            "PUT",
+            "/service/batteryConfig/api/v1/batterySettings/SITE",
+        )
+        == "BatteryConfig write"
+    )
+    assert (
+        api._request_failure_debug_family(
+            "PATCH",
+            "/service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/"
+            "SITE/SN/schedules",
+        )
+        == "EVSE control write"
+    )
+    assert (
+        api._request_failure_debug_family(
+            "POST",
+            "/pv/settings/grid_state.json",
+        )
+        == "Grid control toggle"
+    )
+    assert api._request_failure_debug_family("GET", "/systems/SITE/summary") is None
+
+
+def test_request_failure_debug_family_handles_bad_inputs() -> None:
+    class _BadText:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert (
+        api._request_failure_debug_family(_BadText(), "/systems/SITE/summary") is None
+    )
+    assert api._request_failure_debug_family("GET", _BadText()) is None
+
+
 def test_xsrf_token_handles_empty_and_decode_fallback(monkeypatch) -> None:
     client = _make_client()
     client.update_credentials(cookie='XSRF-TOKEN=""; BP-XSRF-Token=bp%3Dtoken')
@@ -404,11 +449,17 @@ def test_redact_headers_masks_sensitive_fields() -> None:
         "Authorization": "Bearer secret",
         "X-Test": "value",
         "e-auth-token": "token",
+        "X-CSRF-Token": "csrf",
+        "X-XSRF-Token": "xsrf",
+        "Username": "123456",
     }
     redacted = api.EnphaseEVClient._redact_headers(headers)
     assert redacted["Cookie"] == "[redacted]"
     assert redacted["Authorization"] == "[redacted]"
     assert redacted["e-auth-token"] == "[redacted]"
+    assert redacted["X-CSRF-Token"] == "[redacted]"
+    assert redacted["X-XSRF-Token"] == "[redacted]"
+    assert redacted["Username"] == "[redacted]"
     assert redacted["X-Test"] == "value"
 
 
@@ -1053,6 +1104,154 @@ async def test_json_truncates_long_error_messages() -> None:
     with pytest.raises(aiohttp.ClientResponseError) as err:
         await client._json("GET", "https://example.test")
     assert len(err.value.message) == 513  # 512 chars + ellipsis
+
+
+@pytest.mark.asyncio
+async def test_json_logs_batteryconfig_write_failure_details(caplog) -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=403,
+                json_body={},
+                text_body="forbidden for site SITE and user 123456",
+            )
+        ]
+    )
+    client = api.EnphaseEVClient(
+        session,
+        "SITE",
+        "EAUTH",
+        "session=1; bp-xsrf-token=secret-xsrf; other=1",
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(aiohttp.ClientResponseError):
+            await client._json(
+                "PUT",
+                "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/"
+                "batterySettings/SITE",
+                headers={
+                    "Authorization": "Bearer secret-auth",
+                    "e-auth-token": "secret-eauth",
+                    "Username": "123456",
+                    "X-XSRF-Token": "secret-xsrf",
+                    "Cookie": ("session=1; bp-xsrf-token=secret-xsrf; other=1"),
+                },
+                params={"userId": "123456", "source": "enho"},
+                json={"veryLowSoc": 15},
+            )
+
+    assert (
+        "BatteryConfig write failed for PUT "
+        "/service/batteryConfig/api/v1/batterySettings/SITE: status=403" in caplog.text
+    )
+    assert "payload={'json_keys': ['veryLowSoc']}" in caplog.text
+    assert "cookie_names=['bp-xsrf-token', 'other', 'session']" in caplog.text
+    assert "'has_authorization': True" in caplog.text
+    assert "'has_e_auth_token': True" in caplog.text
+    assert "'has_username': True" in caplog.text
+    assert "'has_x_xsrf_token': True" in caplog.text
+    assert "'source': 'enho'" in caplog.text
+    assert "'userId': '[redacted]'" in caplog.text
+    assert "headers={'Accept': 'application/json, text/plain, */*'" in caplog.text
+    assert "'Cookie': '[redacted]'" in caplog.text
+    assert "'Authorization': '[redacted]'" in caplog.text
+    assert "'e-auth-token': '[redacted]'" in caplog.text
+    assert "'X-CSRF-Token': '[redacted]'" in caplog.text
+    assert "'X-XSRF-Token': '[redacted]'" in caplog.text
+    assert "'Username': '[redacted]'" in caplog.text
+    assert "secret-auth" not in caplog.text
+    assert "secret-eauth" not in caplog.text
+    assert "secret-xsrf" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_json_logs_batteryconfig_write_failure_without_params(caplog) -> None:
+    session = _FakeSession([_FakeResponse(status=403, json_body={}, text_body="deny")])
+    client = _make_client(session)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(aiohttp.ClientResponseError):
+            await client._json(
+                "POST",
+                "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/"
+                "battery/sites/SITE/schedules",
+            )
+
+    assert "BatteryConfig write failed for POST" in caplog.text
+    assert "params=None" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_json_logs_batteryconfig_write_failure_with_non_dict_params(
+    caplog,
+) -> None:
+    session = _FakeSession(
+        [_FakeResponse(status=403, json_body={}, text_body="forbidden site SITE")]
+    )
+    client = _make_client(session)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(aiohttp.ClientResponseError):
+            await client._json(
+                "PUT",
+                "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/"
+                "profile/SITE",
+                params="userId=123456&source=enho",
+            )
+
+    assert "BatteryConfig write failed for PUT" in caplog.text
+    assert "params=userId=[redacted]" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_json_logs_evse_control_write_failure_details(caplog) -> None:
+    session = _FakeSession([_FakeResponse(status=403, json_body={}, text_body="deny")])
+    client = _make_client(session)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(aiohttp.ClientResponseError):
+            await client._json(
+                "PUT",
+                "https://enlighten.enphaseenergy.com/service/evse_controller/api/v1/"
+                "SITE/ev_chargers/EV1/ev_charger_config",
+                headers={
+                    "Authorization": "Bearer secret-auth",
+                    "Cookie": "session=1; other=1",
+                },
+                json=[{"key": "sessionAuthentication", "value": "enabled"}],
+            )
+
+    assert "EVSE control write failed for PUT" in caplog.text
+    assert (
+        "payload={'json_item_count': 1, 'json_keys': ['key', 'value']}" in caplog.text
+    )
+    assert "'has_authorization': True" in caplog.text
+    assert "cookie_names=['other', 'session']" in caplog.text
+    assert "secret-auth" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_json_logs_grid_control_toggle_failure_details(caplog) -> None:
+    session = _FakeSession([_FakeResponse(status=403, json_body={}, text_body="deny")])
+    client = _make_client(session)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(aiohttp.ClientResponseError):
+            await client._json(
+                "POST",
+                "https://enlighten.enphaseenergy.com/pv/settings/grid_state.json",
+                headers={"Authorization": "Bearer secret-auth"},
+                data={"envoy_serial_number": "ENV123", "state": 1},
+            )
+
+    assert (
+        "Grid control toggle failed for POST /pv/settings/grid_state.json"
+        in caplog.text
+    )
+    assert "payload={'data_keys': ['envoy_serial_number', 'state']}" in caplog.text
+    assert "'has_authorization': True" in caplog.text
+    assert "secret-auth" not in caplog.text
 
 
 @pytest.mark.asyncio
