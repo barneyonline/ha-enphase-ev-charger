@@ -19,6 +19,24 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.6.3 - 2026-03-30
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Added debug logging around control-write failures so failed EVSE and battery write attempts capture more actionable response details without changing the existing exception flow.
+- Cleaned up stale legacy entity migration handling so old migration maps no longer linger once the corresponding entity registry entries have been migrated or removed.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
 ## v2.6.2 - 2026-03-29
 
 ### 🚧 Breaking changes
