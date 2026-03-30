@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.6.5 - 2026-03-31
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Restored the `e-auth-token` header on BatteryConfig requests when auth is derived from the manager bearer cookie, fixing battery settings and related BatteryConfig writes that could still be rejected with `403 Forbidden` after the XSRF refresh succeeded.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
 ## v2.6.4 - 2026-03-30
 
 ### 🚧 Breaking changes
