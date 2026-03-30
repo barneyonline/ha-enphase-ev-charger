@@ -33,6 +33,7 @@ from .api import (
     EnlightenAuthUnavailable,
     EnphaseEVClient,
     InvalidPayloadError,
+    OptionalEndpointUnavailable,
     Unauthorized,
     async_authenticate,
     is_scheduler_unavailable_error,
@@ -3191,6 +3192,46 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise
         except Unauthorized as err:
             raise ConfigEntryAuthFailed from err
+        except OptionalEndpointUnavailable as err:
+            reason = (str(err) or "EVSE status endpoint unavailable").strip()
+            can_reuse_status = (
+                not first_refresh
+                and isinstance(self._status_payload_cache, dict)
+                and self._payload_endpoint_reusable(
+                    "status", self._status_stale_window_s()
+                )
+            )
+            _LOGGER.debug(
+                "EVSE status endpoint unavailable for site %s: %s",
+                redact_site_id(self.site_id),
+                redact_text(reason, site_ids=(self.site_id,)),
+            )
+            if can_reuse_status:
+                self.payload_using_stale = True
+                self._note_payload_endpoint_failure(
+                    "status",
+                    error=reason,
+                    signature=None,
+                    using_stale=True,
+                )
+                phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
+                data = dict(self._status_payload_cache)
+                status_used_stale = True
+            else:
+                self.payload_using_stale = False
+                self._note_payload_endpoint_failure(
+                    "status",
+                    error=reason,
+                    signature=None,
+                    using_stale=False,
+                )
+                phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
+                data = {"evChargerData": [], "ts": None}
+            self._unauth_errors = 0
+            self._payload_errors = 0
+            self._network_errors = 0
+            self._http_errors = 0
+            self.diagnostics.clear_reauth_issue()
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
             signature = err.signature_dict()
