@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-03-30T22:25:38.527765Z",
+  "checked_at": "2026-03-30T23:27:18.035183Z",
   "checks": [
     {
       "affects": true,
@@ -308,7 +308,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=0c744284-a89e-4785-8d15-14b8c3af4279&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=8caf8ba6-d8a3-40f0-8e3c-cf7c4b2e1d47&username=2999024"
     },
     {
       "affects_status": true,
@@ -373,7 +373,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=0c744284-a89e-4785-8d15-14b8c3af4279&start_date=2026-03-30&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=8caf8ba6-d8a3-40f0-8e3c-cf7c4b2e1d47&start_date=2026-03-30&username=2999024"
     },
     {
       "affects_status": false,
@@ -386,7 +386,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=0c744284-a89e-4785-8d15-14b8c3af4279&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=8caf8ba6-d8a3-40f0-8e3c-cf7c4b2e1d47&username=2999024"
     },
     {
       "affects_status": false,
@@ -445,12 +445,12 @@
       "category": "battery_config",
       "check_group": "battery_config",
       "check_mode": "all",
-      "error": null,
+      "error": "The read operation timed out",
       "group": "degraded",
       "method": "GET",
       "name": "battery_settings",
-      "ok": true,
-      "status": 200,
+      "ok": false,
+      "status": null,
       "url": "/service/batteryConfig/api/v1/batterySettings/{site_id}?userId=2999024&source=enho"
     },
     {
@@ -680,8 +680,8 @@
     "checks_failed": 1,
     "checks_ok": 16,
     "checks_total": 17,
-    "endpoints_failed": 1,
-    "endpoints_ok": 36,
+    "endpoints_failed": 2,
+    "endpoints_ok": 35,
     "endpoints_total": 37
   }
 }
