@@ -651,6 +651,44 @@ def _cookie_map_from_header(cookie_header: object) -> dict[str, str]:
     return cookies
 
 
+def _cookie_names_from_header(cookie_header: object) -> list[str]:
+    """Return sorted cookie names parsed from a Cookie header string."""
+
+    return sorted(_cookie_map_from_header(cookie_header).keys())
+
+
+def _request_failure_debug_family(method: object, path_or_url: object) -> str | None:
+    """Return the debug-log label for curated opaque request failures."""
+
+    try:
+        method_text = str(method).strip().upper()
+    except Exception:  # noqa: BLE001 - defensive casting
+        method_text = ""
+    try:
+        target = str(path_or_url).strip()
+    except Exception:  # noqa: BLE001 - defensive casting
+        target = ""
+
+    if method_text in {"PUT", "POST"} and "/service/batteryConfig/api/v1/" in target:
+        return "BatteryConfig write"
+    if method_text in {"PUT", "POST", "PATCH"} and (
+        "/service/evse_controller/" in target
+        or "/service/evse_scheduler/api/v1/" in target
+    ):
+        return "EVSE control write"
+    if (
+        method_text in {"GET", "POST"}
+        and "grid_toggle_otp.json" in target
+        or method_text == "POST"
+        and (
+            "/pv/settings/grid_state.json" in target
+            or "/pv/settings/log_grid_change.json" in target
+        )
+    ):
+        return "Grid control toggle"
+    return None
+
+
 def _seed_cookie_jar(session: aiohttp.ClientSession, cookies: dict[str, str]) -> None:
     """Ensure the session cookie jar contains the supplied cookies."""
 
@@ -2077,7 +2115,14 @@ class EnphaseEVClient:
 
         redacted: dict[str, str] = {}
         for key, value in headers.items():
-            if key.lower() in {"cookie", "authorization", "e-auth-token"}:
+            if key.lower() in {
+                "cookie",
+                "authorization",
+                "e-auth-token",
+                "x-csrf-token",
+                "x-xsrf-token",
+                "username",
+            }:
                 redacted[key] = "[redacted]"
             else:
                 redacted[key] = value
@@ -2434,6 +2479,74 @@ class EnphaseEVClient:
                         message = (body_text or r.reason or "").strip()
                         if len(message) > 512:
                             message = f"{message[:512]}…"
+                        family = _request_failure_debug_family(
+                            method,
+                            endpoint or url,
+                        )
+                        if family is not None:
+                            params = kwargs.get("params")
+                            if isinstance(params, dict):
+                                params_summary: object = _redact_debug_json_body(
+                                    params,
+                                    site_ids=(self._site,),
+                                )
+                            elif params is None:
+                                params_summary = None
+                            else:
+                                params_summary = redact_text(
+                                    params,
+                                    site_ids=(self._site,),
+                                    max_length=256,
+                                )
+                            payload_summary: object = None
+                            json_payload = kwargs.get("json")
+                            data_payload = kwargs.get("data")
+                            if isinstance(json_payload, dict):
+                                payload_summary = {
+                                    "json_keys": sorted(
+                                        str(key) for key in json_payload.keys()
+                                    )
+                                }
+                            elif isinstance(json_payload, list):
+                                key_union: set[str] = set()
+                                for item in json_payload:
+                                    if isinstance(item, dict):
+                                        key_union.update(
+                                            str(key) for key in item.keys()
+                                        )
+                                payload_summary = {
+                                    "json_item_count": len(json_payload),
+                                    "json_keys": sorted(key_union),
+                                }
+                            elif isinstance(data_payload, dict):
+                                payload_summary = {
+                                    "data_keys": sorted(
+                                        str(key) for key in data_payload.keys()
+                                    )
+                                }
+                            header_flags = {
+                                "has_authorization": "Authorization" in base_headers,
+                                "has_e_auth_token": "e-auth-token" in base_headers,
+                                "has_username": "Username" in base_headers,
+                                "has_x_xsrf_token": "X-XSRF-Token" in base_headers,
+                            }
+                            _LOGGER.debug(
+                                "%s failed for %s: status=%s params=%s payload=%s "
+                                "header_flags=%s cookie_names=%s headers=%s response=%s",
+                                family,
+                                request_label,
+                                r.status,
+                                params_summary,
+                                payload_summary,
+                                header_flags,
+                                _cookie_names_from_header(base_headers.get("Cookie")),
+                                self._redact_headers(base_headers),
+                                redact_text(
+                                    message,
+                                    site_ids=(self._site,),
+                                    max_length=256,
+                                ),
+                            )
                         raise aiohttp.ClientResponseError(
                             r.request_info,
                             r.history,
