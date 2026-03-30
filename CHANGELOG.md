@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Soft-failed EV charger setup when Enphase returns an HTML interstitial from the EVSE status endpoints, allowing the integration to keep loading instead of getting stuck retrying on an invalid JSON payload.
 
 ### 🔧 Improvements
 - None
