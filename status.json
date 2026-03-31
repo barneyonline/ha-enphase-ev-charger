@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-03-31T10:46:06.379311Z",
+  "checked_at": "2026-03-31T11:41:08.444253Z",
   "checks": [
     {
       "affects": true,
@@ -167,7 +167,7 @@
       ],
       "group": "degraded",
       "name": "battery_runtime",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -179,7 +179,7 @@
       ],
       "group": "degraded",
       "name": "microinverters",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -308,7 +308,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=db3789e1-a1ab-4fd6-aa48-25b5540d2683&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=2040e813-0832-40aa-a472-9f32feef1324&username=2999024"
     },
     {
       "affects_status": true,
@@ -373,7 +373,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=db3789e1-a1ab-4fd6-aa48-25b5540d2683&start_date=2026-03-31&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=2040e813-0832-40aa-a472-9f32feef1324&start_date=2026-03-31&username=2999024"
     },
     {
       "affects_status": false,
@@ -386,7 +386,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=db3789e1-a1ab-4fd6-aa48-25b5540d2683&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=2040e813-0832-40aa-a472-9f32feef1324&username=2999024"
     },
     {
       "affects_status": false,
@@ -601,12 +601,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_status",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/pv/settings/{site_id}/battery_status.json"
     },
     {
@@ -627,12 +627,12 @@
       "category": "microinverters",
       "check_group": "microinverters",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "inverters_inventory",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/inverters.json?limit=1000&offset=0&search="
     },
     {
@@ -677,11 +677,11 @@
   ],
   "status": "Fully Operational",
   "summary": {
-    "checks_failed": 3,
-    "checks_ok": 14,
+    "checks_failed": 1,
+    "checks_ok": 16,
     "checks_total": 17,
-    "endpoints_failed": 3,
-    "endpoints_ok": 34,
+    "endpoints_failed": 1,
+    "endpoints_ok": 36,
     "endpoints_total": 37
   }
 }

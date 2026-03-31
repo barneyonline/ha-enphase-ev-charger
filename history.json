@@ -1,6 +1,6 @@
 {
   "current_status": "Fully Operational",
-  "generated_at": "2026-03-31T10:46:06.379311Z",
+  "generated_at": "2026-03-31T11:41:08.444253Z",
   "retention_days": 30,
   "samples": [
     {
@@ -3011,6 +3011,14 @@
         "battery_config",
         "battery_runtime",
         "microinverters"
+      ],
+      "status": "Fully Operational"
+    },
+    {
+      "checked_at": "2026-03-31T11:41:08.444253Z",
+      "checks_failed": 1,
+      "failed_check_names": [
+        "battery_config"
       ],
       "status": "Fully Operational"
     }
