@@ -621,6 +621,29 @@ def test_system_profile_select_options_include_ai_optimization(coordinator_facto
     assert sel.options == ["Self-Consumption", "AI Optimisation", "Full Backup"]
 
 
+def test_system_profile_select_includes_self_consumption_when_grid_charge_hidden(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord._battery_show_charge_from_grid = False  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_show_ai_optimisation_mode = True  # noqa: SLF001
+    coord._battery_show_full_backup = True  # noqa: SLF001
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+
+    sel = SystemProfileSelect(coord)
+
+    assert sel.options == [
+        "Self-Consumption",
+        "Savings",
+        "AI Optimisation",
+        "Full Backup",
+    ]
+    assert sel.current_option == "Full Backup"
+
+
 @pytest.mark.asyncio
 async def test_system_profile_select_sets_ai_optimization_profile(
     coordinator_factory,
