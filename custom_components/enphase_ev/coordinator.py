@@ -5074,9 +5074,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_profile_option_keys(self) -> list[str]:
-        options: list[str] = []
-        if getattr(self, "_battery_show_charge_from_grid", None):
-            options.append("self-consumption")
+        options: list[str] = ["self-consumption"]
         if getattr(self, "_battery_show_savings_mode", None):
             options.append("cost_savings")
         if getattr(self, "_battery_show_ai_optimisation_mode", None):
