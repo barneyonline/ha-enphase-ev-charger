@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Kept `Self-Consumption` available in the system profile selector even on sites where Enphase reports `showChargeFromGrid: false`, fixing automations that switch away from `Full Backup`.
 
 ### 🔧 Improvements
 - None
