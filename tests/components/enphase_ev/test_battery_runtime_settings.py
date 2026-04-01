@@ -2170,7 +2170,7 @@ async def test_dtg_schedule_enabled_uses_in_place_put(
 
 
 @pytest.mark.asyncio
-async def test_dtg_schedule_time_update_uses_existing_enabled_state(
+async def test_dtg_schedule_time_update_omits_enabled_flag(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -2183,8 +2183,22 @@ async def test_dtg_schedule_time_update_uses_existing_enabled_state(
     assert call.kwargs["schedule_type"] == "DTG"
     assert call.kwargs["start_time"] == "17:30"
     assert call.kwargs["end_time"] == "23:00"
-    assert call.kwargs["is_enabled"] is True
+    assert call.kwargs["is_enabled"] is None
     assert coord._battery_dtg_begin_time == 1050  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_dtg_schedule_time_update_preserves_disabled_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord._battery_dtg_schedule_enabled = False  # noqa: SLF001
+
+    await coord.async_set_discharge_to_grid_schedule_time(start=dt_time(17, 30))
+
+    call = coord.client.update_battery_schedule.await_args
+    assert call.kwargs["is_enabled"] is False
 
 
 @pytest.mark.asyncio
@@ -2203,8 +2217,22 @@ async def test_rbd_schedule_limit_update_uses_in_place_put(
     assert call.kwargs["end_time"] == "16:00"
     assert call.kwargs["limit"] == 80
     assert call.kwargs["timezone"] == "Europe/London"
-    assert call.kwargs["is_enabled"] is True
+    assert call.kwargs["is_enabled"] is None
     assert coord._battery_rbd_schedule_limit == 80  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_rbd_schedule_limit_update_preserves_disabled_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "rbd")
+    coord._battery_rbd_schedule_enabled = False  # noqa: SLF001
+
+    await coord.async_set_restrict_battery_discharge_schedule_limit(80)
+
+    call = coord.client.update_battery_schedule.await_args
+    assert call.kwargs["is_enabled"] is False
 
 
 @pytest.mark.asyncio

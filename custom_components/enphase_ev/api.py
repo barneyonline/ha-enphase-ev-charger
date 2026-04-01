@@ -2034,7 +2034,7 @@ class EnphaseEVClient:
                 return token
         return None
 
-    async def _acquire_xsrf_token(self) -> str | None:
+    async def _acquire_xsrf_token(self, schedule_type: str = "cfg") -> str | None:
         """Acquire a BP-XSRF-Token by POSTing to the schedules isValid endpoint.
 
         The Enphase BatteryConfig API requires an XSRF token for write operations.
@@ -2063,7 +2063,7 @@ class EnphaseEVClient:
         if cookie:
             headers["Cookie"] = cookie
         payload = {
-            "scheduleType": "cfg",
+            "scheduleType": str(schedule_type).lower(),
             "forceScheduleOpted": True,
         }
 
@@ -2507,9 +2507,10 @@ class EnphaseEVClient:
                             data_payload = kwargs.get("data")
                             if isinstance(json_payload, dict):
                                 payload_summary = {
+                                    "scheduleType": json_payload.get("scheduleType"),
                                     "json_keys": sorted(
                                         str(key) for key in json_payload.keys()
-                                    )
+                                    ),
                                 }
                             elif isinstance(json_payload, list):
                                 key_union: set[str] = set()
@@ -3347,7 +3348,7 @@ class EnphaseEVClient:
             timezone: IANA timezone string.
         """
 
-        await self._acquire_xsrf_token()
+        await self._acquire_xsrf_token(schedule_type)
 
         try:
             url = (
@@ -3399,7 +3400,7 @@ class EnphaseEVClient:
             timezone: IANA timezone string.
         """
 
-        await self._acquire_xsrf_token()
+        await self._acquire_xsrf_token(schedule_type)
 
         try:
             url = (
@@ -3425,13 +3426,18 @@ class EnphaseEVClient:
         finally:
             self._bp_xsrf_token = None
 
-    async def delete_battery_schedule(self, schedule_id: str | int) -> dict:
+    async def delete_battery_schedule(
+        self,
+        schedule_id: str | int,
+        *,
+        schedule_type: str = "cfg",
+    ) -> dict:
         """Delete a battery schedule by ID.
 
         POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/{id}/delete
         """
 
-        await self._acquire_xsrf_token()
+        await self._acquire_xsrf_token(schedule_type)
 
         try:
             url = (
