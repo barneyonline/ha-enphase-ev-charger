@@ -466,16 +466,15 @@ class DummyCoordinator(SimpleNamespace):
                 {
                     "requested_device_ref": "H...1",
                     "resolved_device_ref": "H...1",
-                    "bucket_count": 3,
-                    "non_null_bucket_count": 1,
-                    "latest_sample_w": 550.0,
+                    "detail_count": 1,
+                    "detail_value_w": 550.0,
                 }
             ],
             "selected_payload": {
                 "resolved_device_ref": "H...1",
-                "latest_sample_w": 550.0,
+                "detail_value_w": 550.0,
             },
-            "selected_source": "hems_power_timeseries:H...1",
+            "selected_source": "hems_energy_consumption:H...1",
             "selected_sample_at_utc": "2026-03-01T00:05:00+00:00",
             "last_error": None,
             "outcome": "selected_sample",
@@ -747,13 +746,13 @@ async def test_config_entry_diagnostics_includes_coordinator(
     )
     assert (
         diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["selected_payload"][
-            "latest_sample_w"
+            "detail_value_w"
         ]
         == 550.0
     )
     assert (
         diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["selected_source"]
-        == "hems_power_timeseries:H...1"
+        == "hems_energy_consumption:H...1"
     )
     assert diag["coordinator"]["battery_config"]["devices_inventory_payload"] == {
         "result": [{"type": "encharge"}]
@@ -1281,7 +1280,7 @@ async def test_device_diagnostics_heatpump_includes_runtime_payloads(
     )
     assert (
         result["heatpump_runtime"]["power_snapshot"]["selected_source"]
-        == "hems_power_timeseries:H...1"
+        == "hems_energy_consumption:H...1"
     )
 
 
