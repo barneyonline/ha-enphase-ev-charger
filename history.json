@@ -1,6 +1,6 @@
 {
-  "current_status": "Fully Operational",
-  "generated_at": "2026-03-31T23:26:21.629625Z",
+  "current_status": "Down",
+  "generated_at": "2026-04-01T01:45:09.897248Z",
   "retention_days": 30,
   "samples": [
     {
@@ -3109,6 +3109,16 @@
         "battery_config"
       ],
       "status": "Fully Operational"
+    },
+    {
+      "checked_at": "2026-04-01T01:45:09.897248Z",
+      "checks_failed": 3,
+      "failed_check_names": [
+        "battery_config",
+        "evse_runtime",
+        "evse_scheduler"
+      ],
+      "status": "Down"
     }
   ]
 }
