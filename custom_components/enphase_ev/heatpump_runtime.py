@@ -14,8 +14,6 @@ from .const import (
     HEMS_SUPPORT_PREFLIGHT_CACHE_TTL,
     HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL,
     HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S,
-    HEATPUMP_POWER_CACHE_TTL,
-    HEATPUMP_POWER_FAILURE_BACKOFF_S,
     HEATPUMP_RUNTIME_DIAGNOSTICS_CACHE_TTL,
     HEATPUMP_RUNTIME_STATE_CACHE_TTL,
     HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S,
@@ -492,9 +490,25 @@ class HeatpumpRuntime:
             found = True
         return total if found else None
 
-    def _build_heatpump_daily_consumption_snapshot(
+    @staticmethod
+    def _first_optional_numeric_value(values: object) -> float | None:
+        if not isinstance(values, list):
+            return None
+        for item in values:
+            if item is None:
+                continue
+            try:
+                numeric = float(item)
+            except Exception:
+                continue
+            if numeric != numeric or numeric in (float("inf"), float("-inf")):
+                continue
+            return numeric
+        return None
+
+    def _select_heatpump_energy_consumption_entry(
         self, payload: object
-    ) -> dict[str, object] | None:
+    ) -> tuple[dict[str, object], dict[str, object] | None, dict[str, object]] | None:
         if not isinstance(payload, dict):
             return None
         families = payload.get("data")
@@ -530,6 +544,16 @@ class HeatpumpRuntime:
                     break
         if not isinstance(first_bucket, dict):
             return None
+
+        return selected, member, first_bucket
+
+    def _build_heatpump_daily_consumption_snapshot(
+        self, payload: object
+    ) -> dict[str, object] | None:
+        selection = self._select_heatpump_energy_consumption_entry(payload)
+        if selection is None:
+            return None
+        selected, member, first_bucket = selection
 
         daily_solar_wh = coerce_optional_float(first_bucket.get("solar"))
         daily_battery_wh = coerce_optional_float(first_bucket.get("battery"))
@@ -581,6 +605,50 @@ class HeatpumpRuntime:
                 payload.get("endpoint_timestamp")
                 if payload.get("endpoint_timestamp") is not None
                 else payload.get("timestamp")
+            ),
+        }
+
+    def _heatpump_power_summary_from_daily_snapshot(
+        self, snapshot: object
+    ) -> tuple[float, dict[str, object]] | None:
+        if not isinstance(snapshot, dict):
+            return None
+        details = snapshot.get("details")
+        power_w = self._first_optional_numeric_value(details)
+        if power_w is None:
+            power_w = 0.0
+        device_uid = coerce_optional_text(snapshot.get("device_uid"))
+        return power_w, {
+            "requested_device_ref": (
+                self._debug_truncate_identifier(device_uid) if device_uid else None
+            ),
+            "payload_device_ref": (
+                self._debug_truncate_identifier(device_uid) if device_uid else None
+            ),
+            "resolved_device_ref": (
+                self._debug_truncate_identifier(device_uid) if device_uid else None
+            ),
+            "member_device_type": snapshot.get("member_device_type"),
+            "pairing_status": snapshot.get("pairing_status"),
+            "device_state": snapshot.get("device_state"),
+            "status": (
+                heatpump_status_text(self._heatpump_member_for_uid(device_uid))
+                if device_uid
+                else None
+            ),
+            "recommended": self._heatpump_power_candidate_is_recommended(device_uid),
+            "detail_count": len(details) if isinstance(details, list) else 0,
+            "detail_value_w": round(power_w, 3),
+            "daily_energy_wh": snapshot.get("daily_energy_wh"),
+            "daily_solar_wh": snapshot.get("daily_solar_wh"),
+            "daily_battery_wh": snapshot.get("daily_battery_wh"),
+            "daily_grid_wh": snapshot.get("daily_grid_wh"),
+            "endpoint_timestamp": snapshot.get("endpoint_timestamp"),
+            "endpoint_type": snapshot.get("endpoint_type"),
+            "source": (
+                f"hems_energy_consumption:{self._debug_truncate_identifier(device_uid)}"
+                if device_uid
+                else "hems_energy_consumption"
             ),
         }
 
@@ -639,7 +707,14 @@ class HeatpumpRuntime:
             )
         except Exception as err:  # noqa: BLE001
             self._heatpump_daily_consumption_last_error = (
-                redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=self._heatpump_power_redaction_identifiers(
+                        self._heatpump_runtime_device_uid()
+                    ),
+                )
+                or err.__class__.__name__
             )
             self._heatpump_daily_consumption_backoff_until = (
                 now + HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S
@@ -1112,23 +1187,17 @@ class HeatpumpRuntime:
                 "force": force,
                 "outcome": "unsupported_site",
             }
-            self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
+            self._heatpump_power_cache_until = (
+                now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
+            )
             self._heatpump_power_backoff_until = None
             self._heatpump_power_last_error = None
             self._heatpump_power_selection_marker = None
             return
 
-        fetcher = getattr(self.client, "hems_power_timeseries", None)
-        if not callable(fetcher):
-            self._heatpump_power_snapshot = {
-                "site_date": self._site_local_current_date(),
-                "force": force,
-                "outcome": "fetcher_unavailable",
-            }
-            return
-
         site_date = self._site_local_current_date()
         candidate_uids, compare_all, marker = self._heatpump_power_fetch_plan()
+        previous_device_uid = self._heatpump_power_device_uid
         candidate_summaries = [
             self._heatpump_power_debug_candidate_summary(candidate_uid)
             for candidate_uid in candidate_uids
@@ -1137,9 +1206,7 @@ class HeatpumpRuntime:
             "site_date": site_date,
             "force": force,
             "compare_all": compare_all,
-            "previous_device_ref": self._debug_truncate_identifier(
-                self._heatpump_power_device_uid
-            ),
+            "previous_device_ref": self._debug_truncate_identifier(previous_device_uid),
             "candidates": candidate_summaries,
             "attempts": [],
             "selected_payload": None,
@@ -1149,6 +1216,11 @@ class HeatpumpRuntime:
             "outcome": "pending",
         }
         self._heatpump_power_snapshot = power_snapshot
+        self._heatpump_power_w = None
+        self._heatpump_power_sample_utc = None
+        self._heatpump_power_start_utc = None
+        self._heatpump_power_device_uid = None
+        self._heatpump_power_source = None
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
                 "Heat pump power fetch plan for site %s: site_date=%s force=%s compare_all=%s previous_device_uid=%s candidates=%s",
@@ -1156,203 +1228,127 @@ class HeatpumpRuntime:
                 site_date,
                 force,
                 compare_all,
-                self._debug_truncate_identifier(self._heatpump_power_device_uid)
-                or "[redacted]",
+                self._debug_truncate_identifier(previous_device_uid) or "[redacted]",
                 candidate_summaries,
             )
-        payload: dict[str, object] | None = None
-        sample: tuple[int, float] | None = None
-        requested_uid: str | None = None
-        selected_key: tuple[int, int, int, int, float, int, int] | None = None
-        last_error: Exception | None = None
-        for candidate_uid in candidate_uids:
-            try:
-                current_payload = await fetcher(
-                    device_uid=candidate_uid,
-                    site_date=site_date,
+
+        try:
+            await self._async_refresh_heatpump_daily_consumption(force=force)
+        except Exception as err:  # noqa: BLE001
+            last_error_text = (
+                redact_text(
+                    err,
+                    site_ids=(self.site_id,),
+                    identifiers=self._heatpump_power_redaction_identifiers(),
                 )
-            except Exception as err:  # noqa: BLE001
-                last_error = err
-                redacted_error = (
-                    redact_text(
-                        err,
-                        site_ids=(self.site_id,),
-                        identifiers=self._heatpump_power_redaction_identifiers(
-                            candidate_uid
-                        ),
-                    )
-                    or err.__class__.__name__
-                )
-                attempts = power_snapshot.setdefault("attempts", [])
-                if isinstance(attempts, list):
-                    attempts.append(
-                        {
-                            "requested_device_ref": self._debug_truncate_identifier(
-                                candidate_uid
-                            ),
-                            "error": redacted_error,
-                        }
-                    )
-                _LOGGER.debug(
-                    "Heat pump power fetch failed (requested_device_uid=%s): %s",
-                    self._debug_truncate_identifier(candidate_uid) or "[redacted]",
-                    redacted_error,
-                )
-                continue
-            if not isinstance(current_payload, dict):
-                attempts = power_snapshot.setdefault("attempts", [])
-                if isinstance(attempts, list):
-                    attempts.append(
-                        {
-                            "requested_device_ref": self._debug_truncate_identifier(
-                                candidate_uid
-                            ),
-                            "payload_type": type(current_payload).__name__,
-                            "usable_payload": False,
-                        }
-                    )
-                if _LOGGER.isEnabledFor(logging.DEBUG):
-                    _LOGGER.debug(
-                        "Heat pump power fetch returned unusable payload for site %s: requested_device_uid=%s payload_type=%s",
-                        redact_site_id(self.site_id),
-                        self._debug_truncate_identifier(candidate_uid) or "[redacted]",
-                        type(current_payload).__name__,
-                    )
-                continue
-            current_sample = self._heatpump_latest_power_sample(current_payload)
-            current_key = self._heatpump_power_selection_key(
-                current_payload,
-                requested_uid=candidate_uid,
-                sample=current_sample,
-            )
-            current_summary = self._heatpump_power_debug_payload_summary(
-                current_payload,
-                requested_uid=candidate_uid,
-                sample=current_sample,
-                selection_key=current_key,
+                or err.__class__.__name__
             )
             attempts = power_snapshot.setdefault("attempts", [])
             if isinstance(attempts, list):
-                attempts.append(current_summary)
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "Heat pump power candidate payload for site %s: %s",
-                    redact_site_id(self.site_id),
-                    current_summary,
+                attempts.append(
+                    {
+                        "source": "hems_energy_consumption",
+                        "error": last_error_text,
+                    }
                 )
-            if selected_key is None or current_key > selected_key:
-                payload = current_payload
-                requested_uid = candidate_uid
-                sample = current_sample
-                selected_key = current_key
-
-        if payload is None and last_error is not None:
-            last_error_text = (
-                redact_text(
-                    last_error,
-                    site_ids=(self.site_id,),
-                    identifiers=self._heatpump_power_redaction_identifiers(
-                        requested_uid
-                    ),
-                )
-                or last_error.__class__.__name__
-            )
-            self._heatpump_power_last_error = last_error_text
             power_snapshot["last_error"] = last_error_text
             power_snapshot["outcome"] = "fetch_error"
-            self._heatpump_power_backoff_until = now + HEATPUMP_POWER_FAILURE_BACKOFF_S
+            self._heatpump_power_last_error = last_error_text
+            self._heatpump_power_backoff_until = (
+                now + HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S
+            )
             self._heatpump_power_cache_until = None
-            return
-
-        self._heatpump_power_cache_until = now + HEATPUMP_POWER_CACHE_TTL
-        self._heatpump_power_backoff_until = None
-        self._heatpump_power_last_error = None
-        if payload is not None:
-            self._heatpump_power_selection_marker = marker
-        self._heatpump_power_w = None
-        self._heatpump_power_sample_utc = None
-        self._heatpump_power_start_utc = None
-        self._heatpump_power_device_uid = requested_uid
-        self._heatpump_power_source = "hems_power_timeseries"
-
-        if not isinstance(payload, dict):
-            power_snapshot["outcome"] = "no_usable_payload"
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug(
-                    "Heat pump power refresh found no usable payload for site %s: site_date=%s candidates=%s",
-                    redact_site_id(self.site_id),
-                    site_date,
-                    candidate_summaries,
-                )
-            return
-
-        payload_uid = type_member_text(payload, "device_uid", "uid")
-        if payload_uid:
-            self._heatpump_power_device_uid = payload_uid
-        if self._heatpump_power_device_uid:
-            self._heatpump_power_source = (
-                f"hems_power_timeseries:{self._heatpump_power_device_uid}"
-            )
-        selected_summary = self._heatpump_power_debug_payload_summary(
-            payload,
-            requested_uid=requested_uid,
-            sample=sample,
-            selection_key=selected_key,
-        )
-        power_snapshot["selected_payload"] = selected_summary
-        if self._heatpump_power_device_uid:
-            power_snapshot["selected_source"] = (
-                "hems_power_timeseries:"
-                f"{self._debug_truncate_identifier(self._heatpump_power_device_uid)}"
-            )
-        else:
-            power_snapshot["selected_source"] = self._heatpump_power_source
-        if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
-                "Heat pump power selected payload for site %s: %s",
+                "Heat pump power daily-consumption refresh failed for site %s: %s",
                 redact_site_id(self.site_id),
-                selected_summary,
+                last_error_text,
             )
-        if sample is None:
-            power_snapshot["outcome"] = "no_usable_sample"
             return
-        sample_index, sample_value = sample
-        self._heatpump_power_w = sample_value
-        power_snapshot["outcome"] = "selected_sample"
 
-        start_utc = parse_inverter_last_report(payload.get("start_date"))
-        self._heatpump_power_start_utc = start_utc
-        interval_minutes = coerce_optional_float(payload.get("interval_minutes"))
-        if interval_minutes is None:
-            values = payload.get("heat_pump_consumption")
-            if isinstance(values, list):
-                now_utc = dt_util.utcnow()
-                if now_utc.tzinfo is None:
-                    now_utc = now_utc.replace(tzinfo=_tz.utc)
-                interval_minutes = self._infer_heatpump_interval_minutes(
-                    start_utc,
-                    len(values),
-                    now_utc,
+        last_error_text = coerce_optional_text(
+            getattr(self, "_heatpump_daily_consumption_last_error", None)
+        )
+        if last_error_text:
+            attempts = power_snapshot.setdefault("attempts", [])
+            if isinstance(attempts, list):
+                attempts.append(
+                    {
+                        "source": "hems_energy_consumption",
+                        "error": last_error_text,
+                    }
                 )
-        if (
-            start_utc is not None
-            and interval_minutes is not None
-            and interval_minutes > 0
-            and sample_index is not None
-        ):
-            try:
-                self._heatpump_power_sample_utc = start_utc + timedelta(
-                    minutes=interval_minutes * sample_index
-                )
-            except Exception:
-                self._heatpump_power_sample_utc = None
-        elif sample_index is not None:
-            self._heatpump_power_sample_utc = dt_util.utcnow()
-        power_snapshot["selected_sample_at_utc"] = (
-            self._heatpump_power_sample_utc.isoformat()
-            if self._heatpump_power_sample_utc is not None
+            power_snapshot["last_error"] = last_error_text
+            power_snapshot["outcome"] = "fetch_error"
+            self._heatpump_power_last_error = last_error_text
+            self._heatpump_power_backoff_until = getattr(
+                self, "_heatpump_daily_consumption_backoff_until", None
+            )
+            self._heatpump_power_cache_until = None
+            _LOGGER.debug(
+                "Heat pump power daily-consumption path unavailable for site %s: %s",
+                redact_site_id(self.site_id),
+                last_error_text,
+            )
+            return
+
+        primary_power = self._heatpump_power_summary_from_daily_snapshot(
+            getattr(self, "_heatpump_daily_consumption", None)
+        )
+        if primary_power is None:
+            power_snapshot["outcome"] = "no_usable_payload"
+            self._heatpump_power_last_error = None
+            self._heatpump_power_backoff_until = None
+            self._heatpump_power_cache_until = getattr(
+                self, "_heatpump_daily_consumption_cache_until", None
+            ) or (now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL)
+            return
+
+        power_value, daily_summary = primary_power
+        attempts = power_snapshot.setdefault("attempts", [])
+        if isinstance(attempts, list):
+            attempts.append(dict(daily_summary))
+        self._heatpump_power_w = power_value
+        self._heatpump_power_device_uid = coerce_optional_text(
+            getattr(self, "_heatpump_daily_consumption", {}).get("device_uid")
+            if isinstance(getattr(self, "_heatpump_daily_consumption", None), dict)
             else None
         )
+        self._heatpump_power_source = (
+            str(getattr(self, "_heatpump_daily_consumption", {}).get("source")).strip()
+            if isinstance(getattr(self, "_heatpump_daily_consumption", None), dict)
+            and getattr(self, "_heatpump_daily_consumption", {}).get("source")
+            is not None
+            else "hems_energy_consumption"
+        )
+        endpoint_timestamp = parse_inverter_last_report(
+            daily_summary.get("endpoint_timestamp")
+        )
+        self._heatpump_power_sample_utc = endpoint_timestamp
+        self._heatpump_power_start_utc = None
+        if self._heatpump_power_device_uid:
+            self._heatpump_power_selection_marker = marker
+        power_snapshot["selected_payload"] = dict(daily_summary)
+        power_snapshot["selected_source"] = (
+            f"hems_energy_consumption:{self._debug_truncate_identifier(self._heatpump_power_device_uid)}"
+            if self._heatpump_power_device_uid
+            else "hems_energy_consumption"
+        )
+        power_snapshot["selected_sample_at_utc"] = (
+            endpoint_timestamp.isoformat() if endpoint_timestamp is not None else None
+        )
+        power_snapshot["outcome"] = "selected_sample"
+        self._heatpump_power_cache_until = getattr(
+            self, "_heatpump_daily_consumption_cache_until", None
+        ) or (now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL)
+        self._heatpump_power_backoff_until = None
+        self._heatpump_power_last_error = None
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "Heat pump power selected daily-consumption payload for site %s: %s",
+                redact_site_id(self.site_id),
+                daily_summary,
+            )
+        return
 
     async def async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         await self._async_refresh_heatpump_power(force=force)
