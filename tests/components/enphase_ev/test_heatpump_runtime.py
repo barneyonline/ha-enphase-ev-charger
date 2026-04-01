@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -151,15 +151,7 @@ async def test_heatpump_runtime_diagnostics_logs_power_refresh_failures(
 async def test_heatpump_runtime_power_failure_logs_truncated_device_uid(
     coordinator_factory, caplog
 ) -> None:
-    client = type(
-        "Client",
-        (),
-        {
-            "hems_site_supported": True,
-            "hems_power_timeseries": AsyncMock(side_effect=RuntimeError("boom")),
-        },
-    )()
-    coord = coordinator_factory(client=client, serials=[])
+    coord = coordinator_factory(serials=[])
     coord._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
@@ -171,17 +163,19 @@ async def test_heatpump_runtime_power_failure_logs_truncated_device_uid(
         ["heatpump"],
     )
     coord.heatpump_runtime._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
-    coord.heatpump_runtime._heatpump_power_fetch_plan = lambda: (["DEVICE-UID-123456789"], False, ())  # type: ignore[assignment]  # noqa: SLF001
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
+    coord.client.hems_energy_consumption = AsyncMock(
+        side_effect=RuntimeError("fetch failed for HP-1")
+    )
 
     with caplog.at_level(logging.DEBUG):
         await coord.heatpump_runtime._async_refresh_heatpump_power(
             force=True
         )  # noqa: SLF001
 
-    assert "Heat pump power fetch failed" in caplog.text
-    assert "DEVICE-UID-123456789" not in caplog.text
-    assert "DEVI...6789" in caplog.text
+    assert "Heat pump power daily-consumption path unavailable for site" in caplog.text
+    assert "HP-1" not in caplog.text
+    assert "H...1" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -213,22 +207,25 @@ async def test_heatpump_runtime_power_logs_fetch_plan_and_selection_summary(
         },
         ["heatpump"],
     )
-    coord.client.hems_power_timeseries = AsyncMock(
-        side_effect=[
-            {
-                "device_uid": primary_uid,
-                "heat_pump_consumption": [None, 25.0],
-                "start_date": "2026-03-13T00:00:00Z",
-                "interval_minutes": 5,
+    coord.client.hems_energy_consumption = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-03-13T00:05:00Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": primary_uid,
+                        "device_name": "Primary",
+                        "consumption": [{"details": [550.0]}],
+                    },
+                    {
+                        "device_uid": meter_uid,
+                        "device_name": "Meter",
+                        "consumption": [{"details": [25.0]}],
+                    },
+                ]
             },
-            {
-                "device_uid": meter_uid,
-                "heat_pump_consumption": [None, 550.0],
-                "start_date": "2026-03-13T00:00:00Z",
-                "interval_minutes": 5,
-            },
-            "bad",
-        ]
+        }
     )
 
     with caplog.at_level(logging.DEBUG):
@@ -237,26 +234,23 @@ async def test_heatpump_runtime_power_logs_fetch_plan_and_selection_summary(
         )
 
     assert "Heat pump power fetch plan for site" in caplog.text
-    assert "Heat pump power candidate payload for site" in caplog.text
-    assert "Heat pump power selected payload for site" in caplog.text
-    assert "Heat pump power fetch returned unusable payload for site" in caplog.text
+    assert "Heat pump power selected daily-consumption payload for site" in caplog.text
     assert primary_uid not in caplog.text
     assert meter_uid not in caplog.text
     assert "DEVI...6789" in caplog.text
-    assert "METE...4321" in caplog.text
-    assert "'latest_sample_w': 550.0" in caplog.text
-    assert coord.heatpump_power_device_uid == meter_uid
+    assert "'detail_value_w': 550.0" in caplog.text
+    assert coord.heatpump_power_device_uid == primary_uid
     power_snapshot = coord.heatpump_runtime.heatpump_runtime_diagnostics()[
         "power_snapshot"
     ]
     assert power_snapshot["compare_all"] is True
     assert power_snapshot["previous_device_ref"] is None
     assert power_snapshot["outcome"] == "selected_sample"
-    assert power_snapshot["selected_source"] == "hems_power_timeseries:METE...4321"
-    assert power_snapshot["selected_payload"]["resolved_device_ref"] == "METE...4321"
-    assert power_snapshot["selected_payload"]["latest_sample_w"] == pytest.approx(550.0)
+    assert power_snapshot["selected_source"] == "hems_energy_consumption:DEVI...6789"
+    assert power_snapshot["selected_payload"]["resolved_device_ref"] == "DEVI...6789"
+    assert power_snapshot["selected_payload"]["detail_value_w"] == pytest.approx(550.0)
     assert power_snapshot["selected_sample_at_utc"] is not None
-    assert len(power_snapshot["attempts"]) == 3
+    assert len(power_snapshot["attempts"]) == 1
 
 
 @pytest.mark.asyncio
@@ -275,31 +269,19 @@ async def test_heatpump_runtime_power_logs_when_no_candidate_payload_is_usable(
         },
         ["heatpump"],
     )
-    coord.client.hems_power_timeseries = AsyncMock(return_value="bad")
+    coord.client.hems_energy_consumption = AsyncMock(return_value=None)
 
     with caplog.at_level(logging.DEBUG):
         await coord.heatpump_runtime._async_refresh_heatpump_power(  # noqa: SLF001
             force=True
         )
 
-    assert "Heat pump power refresh found no usable payload for site" in caplog.text
     assert coord.heatpump_power_w is None
     power_snapshot = coord.heatpump_runtime.heatpump_runtime_diagnostics()[
         "power_snapshot"
     ]
     assert power_snapshot["outcome"] == "no_usable_payload"
-    assert power_snapshot["attempts"] == [
-        {
-            "requested_device_ref": "H...1",
-            "payload_type": "str",
-            "usable_payload": False,
-        },
-        {
-            "requested_device_ref": None,
-            "payload_type": "str",
-            "usable_payload": False,
-        },
-    ]
+    assert power_snapshot["attempts"] == []
 
 
 @pytest.mark.asyncio
@@ -318,11 +300,11 @@ async def test_heatpump_runtime_power_snapshot_handles_selected_payload_without_
         },
         ["heatpump"],
     )
-    coord.client.hems_power_timeseries = AsyncMock(
+    coord.client.hems_energy_consumption = AsyncMock(
         return_value={
-            "heat_pump_consumption": [125.0],
-            "start_date": "2026-03-13T00:00:00Z",
-            "interval_minutes": 5,
+            "type": "hems-device-details",
+            "timestamp": "2026-03-13T00:05:00Z",
+            "data": {"heat-pump": [{"consumption": [{"details": [125.0]}]}]},
         }
     )
 
@@ -332,11 +314,11 @@ async def test_heatpump_runtime_power_snapshot_handles_selected_payload_without_
 
     assert coord.heatpump_power_w == pytest.approx(125.0)
     assert coord.heatpump_power_device_uid is None
-    assert coord.heatpump_power_source == "hems_power_timeseries"
+    assert coord.heatpump_power_source == "hems_energy_consumption"
     power_snapshot = coord.heatpump_runtime.heatpump_runtime_diagnostics()[
         "power_snapshot"
     ]
-    assert power_snapshot["selected_source"] == "hems_power_timeseries"
+    assert power_snapshot["selected_source"] == "hems_energy_consumption"
 
 
 @pytest.mark.asyncio
@@ -363,10 +345,12 @@ async def test_heatpump_runtime_power_snapshot_redacts_identifier_bearing_errors
         ["heatpump"],
     )
 
-    async def _raise_fetch_error(*, device_uid=None, site_date=None):
+    async def _raise_fetch_error(
+        *, start_at=None, end_at=None, timezone=None, step=None
+    ):
         raise RuntimeError(f"fetch failed for {raw_uid} serial SERIAL-123456")
 
-    coord.client.hems_power_timeseries = _raise_fetch_error  # type: ignore[method-assign]
+    coord.client.hems_energy_consumption = _raise_fetch_error  # type: ignore[method-assign]
     coord.heatpump_runtime._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
 
     await coord.heatpump_runtime._async_refresh_heatpump_power(
@@ -432,7 +416,7 @@ async def test_coordinator_heatpump_runtime_wrapper_delegation(
     runtime.heatpump_power_sample_utc = datetime(2026, 3, 27, tzinfo=timezone.utc)
     runtime.heatpump_power_start_utc = datetime(2026, 3, 27, tzinfo=timezone.utc)
     runtime.heatpump_power_device_uid = "HP-1"
-    runtime.heatpump_power_source = "hems_power_timeseries:HP-1"
+    runtime.heatpump_power_source = "hems_energy_consumption:HP-1"
     runtime.heatpump_power_last_error = "power boom"
     coord.heatpump_runtime = runtime
 
@@ -503,7 +487,7 @@ async def test_coordinator_heatpump_runtime_wrapper_delegation(
     assert coord.heatpump_power_sample_utc == datetime(2026, 3, 27, tzinfo=timezone.utc)
     assert coord.heatpump_power_start_utc == datetime(2026, 3, 27, tzinfo=timezone.utc)
     assert coord.heatpump_power_device_uid == "HP-1"
-    assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
+    assert coord.heatpump_power_source == "hems_energy_consumption:HP-1"
     assert coord.heatpump_power_last_error == "power boom"
 
     runtime._heatpump_primary_member.assert_called_once_with()
@@ -753,6 +737,132 @@ def test_heatpump_runtime_power_helper_edge_branches(monkeypatch) -> None:
     )
 
 
+def test_heatpump_runtime_power_helper_additional_coverage(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 4,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "pairing-status": "PAIRED",
+                        "device-state": "ACTIVE",
+                        "statusText": "Normal",
+                    },
+                    {"device_type": "ENERGY_METER", "device_uid": "MTR-1"},
+                    {"device_type": "SG_READY_GATEWAY", "device_uid": "SG-1"},
+                    {"device_type": "OTHER", "device_uid": "OT-1"},
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+    monkeypatch.setattr(
+        heatpump_runtime_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 3, 27, 2, 5, tzinfo=timezone.utc),
+    )
+    assert HeatpumpRuntime._heatpump_latest_power_sample(
+        {
+            "start_date": "2026-03-27T00:00:00Z",
+            "heat_pump_consumption": [1.0, 2.0],
+        }
+    ) == (1, 2.0)
+
+    assert (
+        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
+            {},
+            "MTR-1",
+            is_recommended=False,
+        )
+        == 0
+    )
+    assert (
+        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
+            {},
+            "MTR-1",
+            is_recommended=True,
+        )
+        == 3
+    )
+    assert (
+        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
+            {},
+            "HP-1",
+            is_recommended=True,
+        )
+        == 2
+    )
+    assert (
+        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
+            {},
+            "SG-1",
+            is_recommended=True,
+        )
+        == 1
+    )
+    assert (
+        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
+            {},
+            "OT-1",
+            is_recommended=True,
+        )
+        == 0
+    )
+
+    assert coord._heatpump_power_selection_key(  # noqa: SLF001
+        {"device_uid": "HP-1"},
+        requested_uid="REQ-1",
+        sample=None,
+    ) == (0, 0, 0, 0, float("-inf"), 1, -1)
+    assert coord._heatpump_power_selection_key(  # noqa: SLF001
+        {"uid": "MTR-1"},
+        requested_uid=None,
+        sample=(2, 0.0),
+    ) == (1, 0, 0, 0, 0.0, 1, 2)
+
+    summary = runtime._heatpump_power_debug_payload_summary(  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "heat_pump_consumption": [None, "bad", 1.0, 2.0, float("inf")],
+            "start_date": "2026-03-27T00:00:00Z",
+            "interval_minutes": "15",
+        },
+        requested_uid="REQ-1",
+        sample=(3, 2.0),
+        selection_key=(1, 1, 1, 2, 2.0, 1, 3),
+    )
+    assert summary == {
+        "requested_device_ref": "R...1",
+        "payload_device_ref": "H...1",
+        "resolved_device_ref": "H...1",
+        "member_device_type": "HEAT_PUMP",
+        "pairing_status": "PAIRED",
+        "device_state": "ACTIVE",
+        "status": "Normal",
+        "recommended": False,
+        "bucket_count": 5,
+        "non_null_bucket_count": 3,
+        "sample_tail": [
+            {"index": 4, "value_w": float("inf")},
+            {"index": 3, "value_w": 2.0},
+            {"index": 2, "value_w": 1.0},
+        ],
+        "latest_sample_index": 3,
+        "latest_sample_w": 2.0,
+        "start_date": "2026-03-27T00:00:00Z",
+        "interval_minutes": 15.0,
+        "selection_key": [1, 1, 1, 2, 2.0, 1, 3],
+    }
+
+
 @pytest.mark.asyncio
 async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
     coordinator_factory, monkeypatch
@@ -815,17 +925,21 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
     assert coord.heatpump_runtime_diagnostics()["show_livestream_payload"] is None
     assert coord.heatpump_runtime_diagnostics()["last_error"] == "live boom"
 
+    runtime._async_refresh_heatpump_daily_consumption = HeatpumpRuntime._async_refresh_heatpump_daily_consumption.__get__(  # type: ignore[method-assign]  # noqa: SLF001
+        runtime, HeatpumpRuntime
+    )
+
     runtime._heatpump_power_cache_until = time.monotonic() + 60  # noqa: SLF001
-    coord.client.hems_power_timeseries = AsyncMock(
+    coord.client.hems_energy_consumption = AsyncMock(
         side_effect=AssertionError("no fetch")
     )
     await runtime.async_refresh_heatpump_power()
-    coord.client.hems_power_timeseries.assert_not_awaited()
+    coord.client.hems_energy_consumption.assert_not_awaited()
 
     runtime._heatpump_power_cache_until = None  # noqa: SLF001
     runtime._heatpump_power_backoff_until = time.monotonic() + 60  # noqa: SLF001
     await runtime.async_refresh_heatpump_power()
-    coord.client.hems_power_timeseries.assert_not_awaited()
+    coord.client.hems_energy_consumption.assert_not_awaited()
 
     runtime._heatpump_power_backoff_until = None  # noqa: SLF001
     coord.client._hems_site_supported = False  # noqa: SLF001
@@ -833,51 +947,31 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
     assert coord.heatpump_power_source is None
 
     coord.client._hems_site_supported = True  # noqa: SLF001
-    coord.client.hems_power_timeseries = None
-    await runtime.async_refresh_heatpump_power(force=True)
-
-    coord.client.hems_power_timeseries = AsyncMock(return_value="bad")
+    coord.client.hems_energy_consumption = None
     await runtime.async_refresh_heatpump_power(force=True)
     assert coord.heatpump_power_w is None
 
-    coord.client.hems_power_timeseries = AsyncMock(
-        return_value={"device_uid": "HP-1", "heat_pump_consumption": [None]}
-    )
+    coord.client.hems_energy_consumption = AsyncMock(return_value=None)
     await runtime.async_refresh_heatpump_power(force=True)
     assert coord.heatpump_power_w is None
 
-    monkeypatch.setattr(
-        heatpump_runtime_mod.dt_util, "utcnow", lambda: datetime(2026, 3, 27, 12, 0)
-    )
-    monkeypatch.setattr(
-        heatpump_runtime_mod,
-        "timedelta",
-        lambda **kwargs: (_ for _ in ()).throw(OverflowError("boom")),
-    )
-    coord.client.hems_power_timeseries = AsyncMock(
+    coord.client.hems_energy_consumption = AsyncMock(
         return_value={
-            "device_uid": "HP-1",
-            "start_date": "2026-03-27T00:00:00Z",
-            "interval_minutes": 60,
-            "heat_pump_consumption": [1.0],
+            "type": "hems-device-details",
+            "timestamp": "bad",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-1",
+                        "consumption": [{"details": [None]}],
+                    }
+                ]
+            },
         }
     )
     await runtime.async_refresh_heatpump_power(force=True)
+    assert coord.heatpump_power_w == pytest.approx(0.0)
     assert coord.heatpump_power_sample_utc is None
-
-    monkeypatch.setattr(
-        heatpump_runtime_mod.dt_util, "utcnow", lambda: datetime(2026, 3, 27, 12, 0)
-    )
-    monkeypatch.setattr(heatpump_runtime_mod, "timedelta", timedelta)
-    coord.client.hems_power_timeseries = AsyncMock(
-        return_value={
-            "device_uid": "HP-1",
-            "start_date": "2026-03-27T00:00:00Z",
-            "heat_pump_consumption": [1.0],
-        }
-    )
-    await runtime.async_refresh_heatpump_power(force=True)
-    assert coord.heatpump_power_sample_utc is not None
 
     class BadFloat:
         def __float__(self) -> float:
@@ -897,6 +991,16 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
     assert coerce_optional_bool("disabled") is False
     assert coerce_optional_bool(None) is None
     assert type_member_text(None, "name") is None
+    assert HeatpumpRuntime._first_optional_numeric_value("bad") is None
+    assert (
+        HeatpumpRuntime._first_optional_numeric_value(
+            [None, "bad", float("inf"), float("nan")]
+        )
+        is None
+    )
+    assert HeatpumpRuntime._first_optional_numeric_value(
+        [None, "2.5"]
+    ) == pytest.approx(2.5)
 
 
 def test_heatpump_runtime_recommended_parent_matching(coordinator_factory) -> None:
@@ -1008,6 +1112,7 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
+    coord._battery_timezone = "UTC"  # noqa: SLF001
     coord._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
@@ -1024,11 +1129,19 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
         },
         ["heatpump"],
     )
-    coord.client.hems_power_timeseries = AsyncMock(
+    coord.client.hems_energy_consumption = AsyncMock(
         return_value={
-            "heat_pump_consumption": [None, 400.0, "500.5", None],
-            "start_date": "2026-02-27T00:00:00Z",
-            "interval_minutes": 5,
+            "type": "hems-device-details",
+            "timestamp": "2026-02-27T00:10:00Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-1",
+                        "device_name": "Waermepumpe",
+                        "consumption": [{"details": [500.5, None]}],
+                    }
+                ]
+            },
         }
     )
 
@@ -1038,17 +1151,21 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
 
     assert coord.heatpump_power_w == pytest.approx(500.5)
     assert coord.heatpump_power_device_uid == "HP-1"
-    assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
-    assert coord.heatpump_power_start_utc is not None
+    assert coord.heatpump_power_source == "hems_energy_consumption:HP-1"
+    assert coord.heatpump_power_start_utc is None
     assert coord.heatpump_power_sample_utc is not None
     assert coord.heatpump_power_last_error is None
     assert coord._heatpump_power_cache_until is not None  # noqa: SLF001
-    first_call = coord.client.hems_power_timeseries.await_args_list[0]
-    assert first_call.kwargs["device_uid"] == "HP-1"
-    assert first_call.kwargs["site_date"] == "2026-03-13"
+    assert (
+        coord._heatpump_power_cache_until
+        == coord._heatpump_daily_consumption_cache_until
+    )  # noqa: SLF001
+    first_call = coord.client.hems_energy_consumption.await_args_list[0]
+    assert first_call.kwargs["timezone"] == "UTC"
+    assert first_call.kwargs["step"] == "P1D"
 
     coord._heatpump_power_cache_until = None  # noqa: SLF001
-    coord.client.hems_power_timeseries = AsyncMock(side_effect=RuntimeError("boom"))
+    coord.client.hems_energy_consumption = AsyncMock(side_effect=RuntimeError("boom"))
     await coord.heatpump_runtime._async_refresh_heatpump_power(
         force=True
     )  # noqa: SLF001
@@ -1061,6 +1178,83 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
     )  # noqa: SLF001
     assert coord.heatpump_power_w is None
     assert coord.heatpump_power_source is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_prefers_energy_consumption_details(
+    coordinator_factory, caplog
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_payload = {"curr_date_site": "2026-04-02"}  # noqa: SLF001
+    coord._battery_timezone = "Europe/Berlin"  # noqa: SLF001
+    coord._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "statusText": "Normal",
+                    }
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.hems_energy_consumption = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-04-01T22:31:12.407610009Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-1",
+                        "device_name": "Waermepumpe",
+                        "consumption": [
+                            {
+                                "solar": 0,
+                                "battery": 0,
+                                "grid": 0,
+                                "details": [3],
+                            }
+                        ],
+                    }
+                ]
+            },
+        }
+    )
+    coord.client.hems_power_timeseries = AsyncMock(
+        side_effect=AssertionError("timeseries should not be used")
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        await coord.heatpump_runtime._async_refresh_heatpump_power(
+            force=True
+        )  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(3.0)
+    assert coord.heatpump_power_device_uid == "HP-1"
+    assert coord.heatpump_power_source == "hems_energy_consumption:HP-1"
+    assert coord.heatpump_power_sample_utc == datetime(
+        2026, 4, 1, 22, 31, 12, 407610, tzinfo=timezone.utc
+    )
+    coord.client.hems_power_timeseries.assert_not_awaited()
+    power_snapshot = coord.heatpump_runtime.heatpump_runtime_diagnostics()[
+        "power_snapshot"
+    ]
+    assert power_snapshot["outcome"] == "selected_sample"
+    assert power_snapshot["selected_source"] == "hems_energy_consumption:H...1"
+    assert power_snapshot["selected_payload"]["detail_value_w"] == pytest.approx(3.0)
+    assert "Heat pump power selected daily-consumption payload for site" in caplog.text
+
+    coord._heatpump_daily_consumption = {"details": ["bad", None]}  # noqa: SLF001
+    summary = coord.heatpump_runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        coord._heatpump_daily_consumption  # noqa: SLF001
+    )
+    assert summary is not None
+    assert summary[0] == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio
@@ -1770,34 +1964,48 @@ async def test_heatpump_runtime_power_and_diagnostics_paths(
         },
         ["heatpump"],
     )
-
-    coord.client.hems_power_timeseries = AsyncMock(
-        side_effect=[
-            {"device_uid": "HP-CTRL", "heat_pump_consumption": [610.0]},
-            {"device_uid": "HP-METER", "heat_pump_consumption": [550.0]},
-            {"device_uid": "HP-SG", "heat_pump_consumption": [None]},
-            {"heat_pump_consumption": [725.0]},
-        ]
+    coord.client.hems_energy_consumption = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-03-13T00:05:00Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-CTRL",
+                        "device_name": "Primary",
+                        "consumption": [{"details": [610.0]}],
+                    }
+                ]
+            },
+        }
     )
     await runtime._async_refresh_heatpump_power(force=True)  # noqa: SLF001
-    assert coord.heatpump_power_w == pytest.approx(550.0)
-    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_w == pytest.approx(610.0)
+    assert coord.heatpump_power_device_uid == "HP-CTRL"
 
     runtime._heatpump_power_cache_until = None  # noqa: SLF001
     runtime._heatpump_power_selection_marker = (
         runtime._heatpump_power_inventory_marker()
     )  # noqa: SLF001
     runtime._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
-    coord.client.hems_power_timeseries = AsyncMock(
-        side_effect=[
-            {"device_uid": "HP-CTRL", "heat_pump_consumption": [0.0]},
-            {"device_uid": "HP-METER", "heat_pump_consumption": [140.0]},
-            {"heat_pump_consumption": [360.0]},
-        ]
+    coord.client.hems_energy_consumption = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-03-13T00:10:00Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-CTRL",
+                        "device_name": "Primary",
+                        "consumption": [{"details": [0.0]}],
+                    }
+                ]
+            },
+        }
     )
     await runtime._async_refresh_heatpump_power(force=True)  # noqa: SLF001
-    assert coord.heatpump_power_w == pytest.approx(140.0)
-    assert coord.heatpump_power_device_uid == "HP-METER"
+    assert coord.heatpump_power_w == pytest.approx(0.0)
+    assert coord.heatpump_power_device_uid == "HP-CTRL"
 
     runtime._heatpump_runtime_diagnostics_cache_until = (
         time.monotonic() + 60

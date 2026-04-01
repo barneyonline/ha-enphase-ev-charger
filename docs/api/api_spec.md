@@ -3101,9 +3101,9 @@ Inference:
 ```
 GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=P1D
 Headers:
-  Accept: application/json
+  Accept: application/json or */*
   Authorization: Bearer <jwt>
-  Cookie: ...; XSRF-TOKEN=<token>; ...
+  Cookie: ...; XSRF-TOKEN=<token>; BP-XSRF-Token=<token>; ...
   Origin: https://enlighten.enphaseenergy.com
   username: <user_id>
   requestId: <uuid>
@@ -3140,12 +3140,15 @@ Observed structure:
 - `type` was `hems-device-details` in the captured responses.
 - Results are grouped by HEMS family (`heat-pump`, `evse`, `water-heater`).
 - The `consumption[]` item exposes source-split totals (`solar`, `battery`, `grid`) plus a `details[]` numeric array.
-- The supplied March 28 capture returned `solar=0`, `battery=0`, `grid=0`, and `details=[987]`; earlier captures used decimal-looking values (`47.0`, `201.0`, `211.0`, `220.0`, `230.0`), so clients should treat these as generic numbers rather than fixed-format floats.
+- The supplied March 28 capture returned `solar=0`, `battery=0`, `grid=0`, and `details=[987]`; earlier captures used decimal-looking values (`47.0`, `201.0`, `211.0`, `220.0`, `230.0`), and a later idle browser capture returned `details=[3]`, so clients should treat these as generic numeric values rather than fixed-format floats.
 - In active-heating captures the `details[]` value increased across polls (`201.0`, `211.0`, `220.0`, `230.0`) while `/heatpump/<device_uid>/state` reported `heatpump-status: RUNNING`.
-- Mobile captures also included `username` and `requestId` headers; `step` was observed as `P1D`.
+- Browser captures also used `Authorization: Bearer <jwt>` together with Enlighten cookies, `username`, and `requestId`; one Safari capture additionally included `BP-XSRF-Token` and `Accept: */*`.
+- Captured browser requests used local-day bounds encoded as UTC strings, for example `from=2026-04-02T00:00:00.000Z`, `to=2026-04-02T23:59:59.999Z`, `timezone=Europe/Berlin`, `step=P1D`.
 
 Inference:
-- In the "not running" capture, `details: [47.0]` was still present even though the runtime endpoint reported `heatpump-status: IDLE`, so this endpoint should be treated as daily aggregate consumption, not instantaneous on/off state.
+- In the "not running" capture, `details: [47.0]` was still present even though the runtime endpoint reported `heatpump-status: IDLE`, so clients should not treat this endpoint as a strict on/off signal.
+- A later idle browser capture returned `details: [3]` while runtime-state still reported `IDLE`, which suggests this payload may carry a small instantaneous or near-live device reading rather than a strict zeroed idle state.
+- Running-state browser captures are still inconsistent: some observations align with current watts-style values, while others resemble larger day-accumulating totals. Consumers should therefore treat the semantics of `details[]` as observed-but-not-fully-stable and verify behavior against runtime-state and UI captures when changing parsing logic.
 
 ### 2.17.3 HEMS Supported Models Catalog
 ```
