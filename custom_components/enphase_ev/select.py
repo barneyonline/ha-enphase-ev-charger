@@ -7,6 +7,7 @@ import aiohttp
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -15,6 +16,7 @@ from .api import SchedulerUnavailable
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
+from .entity_cleanup import prune_managed_entities
 from .labels import battery_profile_label, charge_mode_label
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
@@ -80,6 +82,23 @@ def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
     return owner is True or installer is True
 
 
+def _retain_system_profile(coord: EnphaseCoordinator) -> bool:
+    if not _site_has_battery(coord):
+        return False
+    if not _type_available(coord, "envoy"):
+        return False
+    available = getattr(coord, "battery_profile_selection_available", None)
+    if available is not None:
+        return bool(available and _battery_write_access_confirmed(coord))
+    if not getattr(coord, "battery_controls_available", False):
+        return False
+    owner = getattr(coord, "battery_user_is_owner", None)
+    installer = getattr(coord, "battery_user_is_installer", None)
+    if owner is False and installer is False:
+        return False
+    return _battery_write_access_confirmed(coord)
+
+
 def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
     if not message:
         return None, None
@@ -103,12 +122,21 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ):
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
+    ent_reg = er.async_get(hass)
     known_serials: set[str] = set()
     site_entity_added = False
+
+    def _system_profile_unique_id() -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_system_profile"
+
+    def _charge_mode_unique_id(sn: str) -> str:
+        return f"{DOMAIN}_{sn}_charge_mode_select"
 
     @callback
     def _async_sync_site_entities() -> None:
         nonlocal site_entity_added
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
+        retain_system_profile = _retain_system_profile(coord)
         if (
             not site_entity_added
             and _site_has_battery(coord)
@@ -117,15 +145,40 @@ async def async_setup_entry(
         ):
             async_add_entities([SystemProfileSelect(coord)], update_before_add=False)
             site_entity_added = True
+        if not retain_system_profile:
+            site_entity_added = False
+        if not inventory_ready:
+            return
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="select",
+            active_unique_ids={_system_profile_unique_id()} if retain_system_profile else set(),
+            is_managed=lambda unique_id: unique_id == _system_profile_unique_id(),
+        )
 
     @callback
     def _async_sync_chargers() -> None:
-        serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
+        current_serials = {sn for sn in coord.iter_serials() if sn}
+        serials = [sn for sn in current_serials if sn not in known_serials]
         if not serials:
-            return
-        entities: list[SelectEntity] = [ChargeModeSelect(coord, sn) for sn in serials]
-        async_add_entities(entities, update_before_add=False)
+            entities: list[SelectEntity] = []
+        else:
+            entities = [ChargeModeSelect(coord, sn) for sn in serials]
+        if entities:
+            async_add_entities(entities, update_before_add=False)
+        known_serials.intersection_update(current_serials)
         known_serials.update(serials)
+        if not inventory_ready:
+            return
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="select",
+            active_unique_ids={_charge_mode_unique_id(sn) for sn in current_serials},
+            is_managed=lambda unique_id: unique_id.endswith("_charge_mode_select"),
+        )
 
     topology_listener = getattr(coord, "async_add_topology_listener", None)
     generic_listener = getattr(coord, "async_add_listener", None)

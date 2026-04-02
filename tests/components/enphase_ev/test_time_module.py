@@ -489,6 +489,44 @@ async def test_async_setup_entry_skips_site_time_entities_without_battery(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_time_entities_when_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    coord = coordinator_factory()
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    callbacks: list = []
+
+    def _capture_listener(callback):
+        callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = _capture_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "time",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_charge_from_grid_start_time",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    coord._battery_has_encharge = False  # noqa: SLF001
+    callbacks[0]()
+
+    assert remove_spy.call_count == 1
+    removed_entity_id = remove_spy.call_args.args[0]
+    assert removed_entity_id in {
+        stale.entity_id,
+        "time.charge_from_grid_schedule_from_time",
+    }
+
+
+@pytest.mark.asyncio
 async def test_charge_from_grid_time_entity_availability_and_values(
     coordinator_factory,
 ) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -10,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
+from .entity_cleanup import prune_managed_entities
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -91,18 +93,50 @@ def _rbd_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
     return begin is not None and end is not None
 
 
+def _retained_site_number_unique_ids(coord: EnphaseCoordinator) -> set[str]:
+    unique_ids: set[str] = set()
+    if _type_available(coord, "encharge") and _battery_write_access_confirmed(coord):
+        if getattr(coord, "battery_reserve_editable", False):
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_reserve")
+        if getattr(coord, "battery_shutdown_level_available", False):
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level")
+        if _cfg_schedule_edit_available(coord):
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit")
+        if _dtg_schedule_edit_available(coord):
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit")
+        if _rbd_schedule_edit_available(coord):
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit")
+    return unique_ids
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ):
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
+    ent_reg = er.async_get(hass)
     known_serials: set[str] = set()
     site_entities_added = False
+
+    def _site_number_unique_ids() -> set[str]:
+        return {
+            f"{DOMAIN}_site_{coord.site_id}_battery_reserve",
+            f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level",
+            f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit",
+            f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit",
+            f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit",
+        }
+
+    def _charger_number_unique_id(sn: str) -> str:
+        return f"{DOMAIN}_{sn}_amps_number"
 
     @callback
     def _async_sync_chargers() -> None:
         nonlocal site_entities_added
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
+        current_serials = {sn for sn in coord.iter_serials() if sn}
+        retained_site_number_unique_ids = _retained_site_number_unique_ids(coord)
         if (
             not site_entities_added
             and _site_has_battery(coord)
@@ -120,12 +154,34 @@ async def async_setup_entry(
                 update_before_add=False,
             )
             site_entities_added = True
-        serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
+        serials = [sn for sn in current_serials if sn not in known_serials]
         if not serials:
-            return
-        entities: list[NumberEntity] = [ChargingAmpsNumber(coord, sn) for sn in serials]
-        async_add_entities(entities, update_before_add=False)
+            entities: list[NumberEntity] = []
+        else:
+            entities = [ChargingAmpsNumber(coord, sn) for sn in serials]
+        if entities:
+            async_add_entities(entities, update_before_add=False)
+        if not retained_site_number_unique_ids:
+            site_entities_added = False
+        known_serials.intersection_update(current_serials)
         known_serials.update(serials)
+
+        if not inventory_ready:
+            return
+
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="number",
+            active_unique_ids={
+                *retained_site_number_unique_ids,
+                *(_charger_number_unique_id(sn) for sn in current_serials),
+            },
+            is_managed=lambda unique_id: (
+                unique_id in _site_number_unique_ids()
+                or unique_id.endswith("_amps_number")
+            ),
+        )
 
     unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)
