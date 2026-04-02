@@ -75,6 +75,41 @@ def test_migrate_storm_guard_evse_entity_id_handles_legacy_suffixes() -> None:
     )
 
 
+def test_switch_helper_fallbacks_and_retained_site_keys() -> None:
+    from custom_components.enphase_ev import switch as switch_mod
+
+    coord = SimpleNamespace(
+        battery_has_encharge=True,
+        has_type=lambda type_key: type_key in {"envoy", "encharge"},
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_show_storm_guard=True,
+        storm_guard_state="enabled",
+        storm_evse_enabled=True,
+        savings_use_battery_switch_available=True,
+        charge_from_grid_control_available=True,
+        charge_from_grid_force_schedule_available=True,
+        discharge_to_grid_schedule_available=True,
+        restrict_battery_discharge_schedule_available=True,
+    )
+
+    assert switch_mod._type_available(coord, "envoy") is True
+    assert switch_mod._battery_write_access_confirmed(coord) is True
+    assert switch_mod._retained_site_switch_keys(coord) == {
+        "storm_guard",
+        "savings_use_battery_after_peak",
+        "charge_from_grid",
+        "charge_from_grid_schedule",
+        "discharge_to_grid_schedule",
+        "restrict_battery_discharge_schedule",
+    }
+
+    coord.battery_write_access_confirmed = False
+    assert switch_mod._battery_write_access_confirmed(coord) is False
+    assert switch_mod._retained_site_switch_keys(coord) == set()
+
+
 @pytest.fixture
 def coordinator_factory(hass, config_entry, monkeypatch):
     """Create a configured coordinator with controllable client behavior."""
@@ -411,6 +446,51 @@ async def test_async_setup_entry_migrates_storm_guard_evse_switch_entity_id(
         "switch.iq_ev_charger_1707_storm_guard_ev_charge",
         new_entity_id="switch.iq_ev_charger_1707_storm_guard_evse_charge",
     )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_switch_cleanup_waits_for_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "switch",
+        "enphase_ev",
+        f"enphase_ev_{RANDOM_SERIAL}_app_authentication",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    remove_spy.assert_not_called()
+    assert ent_reg.async_get(stale.entity_id) is not None
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_switch_ignores_blank_serials_in_feature_loops(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "app_auth_supported": True}
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.iter_serials = lambda: [RANDOM_SERIAL, "", None]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    prune_spy = MagicMock()
+    monkeypatch.setattr("custom_components.enphase_ev.switch.prune_managed_entities", prune_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    active_unique_ids = list(prune_spy.call_args_list[-1].kwargs["active_unique_ids"])
+    assert f"enphase_ev_{RANDOM_SERIAL}_green_battery" in active_unique_ids
+    assert all("None" not in unique_id for unique_id in active_unique_ids)
 
 
 @pytest.mark.asyncio
@@ -1653,6 +1733,47 @@ def test_base_battery_schedule_switch_fallbacks(coordinator_factory) -> None:
 
     coord.last_update_success = False
     assert switch.available is False
+
+
+def test_site_switch_device_info_fallbacks(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.type_device_info = None
+
+    assert StormGuardSwitch(coord).device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:envoy")
+    }
+    assert SavingsUseBatteryAfterPeakSwitch(coord).device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+    assert ChargeFromGridSwitch(coord).device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+    assert ChargeFromGridScheduleSwitch(coord).device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+
+def test_site_switch_device_info_prefers_type_info_and_storm_guard_envoy_gate(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    expected_envoy = {"identifiers": {("enphase_ev", "envoy")}}
+    expected_encharge = {"identifiers": {("enphase_ev", "encharge")}}
+    coord.type_device_info = MagicMock(
+        side_effect=[expected_envoy, expected_encharge, expected_encharge, expected_encharge]
+    )
+
+    assert StormGuardSwitch(coord).device_info is expected_envoy
+    assert SavingsUseBatteryAfterPeakSwitch(coord).device_info is expected_encharge
+    assert ChargeFromGridSwitch(coord).device_info is expected_encharge
+    assert ChargeFromGridScheduleSwitch(coord).device_info is expected_encharge
+
+    coord.type_device_info = None
+    coord.has_type = lambda _type_key: False
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    assert StormGuardSwitch(coord).available is False
 
 
 def test_charge_from_grid_switches_unavailable_when_coordinator_unavailable(
