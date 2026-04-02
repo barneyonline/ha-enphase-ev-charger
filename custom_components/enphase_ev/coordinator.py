@@ -3823,6 +3823,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 snapshot.update(previous)
                 snapshot.update(
                     {
+                        "derived_sampled_at_utc": sample_iso,
+                        "derived_last_sample_ts": sample_ts,
                         "derived_power_max_throughput_w": max_watts,
                         "derived_power_max_throughput_unbounded_w": max_unbounded,
                         "derived_power_max_throughput_source": max_source,
@@ -3834,6 +3836,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         ),
                     }
                 )
+                if not is_charging:
+                    snapshot["derived_power_w"] = 0
+                    snapshot["derived_power_method"] = "idle"
+                    snapshot["derived_power_window_seconds"] = None
                 self.evse_state._evse_power_snapshots[serial] = snapshot
                 return snapshot
 

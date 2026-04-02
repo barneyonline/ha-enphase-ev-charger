@@ -158,6 +158,101 @@ async def test_missing_report_time_does_not_synthesize_sampled_at_utc(
 
 
 @pytest.mark.asyncio
+async def test_same_sample_timestamp_still_drops_power_when_charging_stops(
+    hass, monkeypatch
+):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class DummyEntry:
+        options = {}
+
+        def async_on_unload(self, cb):
+            return None
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg, config_entry=DummyEntry())
+
+    class StubClient:
+        def __init__(self, payloads):
+            self._payloads = list(payloads)
+
+        async def status(self):
+            return self._payloads.pop(0)
+
+    sample_time = "2024-01-01T00:05:00+00:00"
+    coord.client = StubClient(
+        [
+            {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": True,
+                        "pluggedIn": True,
+                        "lastReportedAt": sample_time,
+                    }
+                ]
+            },
+            {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": False,
+                        "pluggedIn": True,
+                        "lastReportedAt": sample_time,
+                    }
+                ]
+            },
+        ]
+    )
+    coord.summary.prepare_refresh = lambda **kwargs: False
+    coord.summary.async_fetch = AsyncMock(
+        return_value=[
+            {
+                "serialNumber": RANDOM_SERIAL,
+                "lifeTimeConsumption": 2.0,
+                "lastReportedAt": sample_time,
+            }
+        ]
+    )
+    coord.evse_state._evse_power_snapshots[RANDOM_SERIAL] = {  # noqa: SLF001
+        "derived_last_sample_ts": sample_time,
+        "derived_last_energy_ts": sample_time,
+        "derived_last_lifetime_kwh": 2.0,
+        "derived_power_w": 7200,
+        "derived_power_method": "lifetime_energy_window",
+        "derived_power_window_seconds": 300.0,
+    }
+
+    await coord._async_update_data()
+    result = await coord._async_update_data()
+
+    assert result[RANDOM_SERIAL]["derived_power_w"] == 0
+    assert result[RANDOM_SERIAL]["derived_power_method"] == "idle"
+    assert result[RANDOM_SERIAL]["derived_power_window_seconds"] is None
+
+
+@pytest.mark.asyncio
 async def test_site_only_refresh_accepts_naive_utcnow(
     coordinator_factory, monkeypatch
 ) -> None:
