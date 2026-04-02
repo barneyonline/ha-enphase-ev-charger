@@ -203,6 +203,43 @@ def test_coordinator_init_handles_single_serial(monkeypatch, hass):
     assert coord._serial_order == ["EV42"]
 
 
+def test_inventory_view_iter_type_keys_uses_bucket_keys_when_present(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._type_device_order = None  # noqa: SLF001
+    coord._selected_type_keys = {"envoy"}  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "envoy": {"count": 1},
+        "iqevse": {"count": 1},
+    }
+
+    assert coord.inventory_view.iter_type_keys() == ["envoy"]
+
+
+def test_inventory_view_iter_type_keys_uses_selected_keys_when_no_order_or_buckets(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._type_device_order = None  # noqa: SLF001
+    coord._type_device_buckets = None  # noqa: SLF001
+    coord._selected_type_keys = ("envoy", "iqevse")  # noqa: SLF001
+
+    assert coord.inventory_view.iter_type_keys() == ["envoy", "iqevse"]
+
+
+def test_inventory_view_type_identifier_requires_present_type(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
+    coord._type_device_order = None  # noqa: SLF001
+    coord._type_device_buckets = {}  # noqa: SLF001
+
+    assert coord.inventory_view.iter_type_keys() == ["iqevse"]
+    assert coord.inventory_view.type_identifier("iqevse") is None
+
+
 def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
     coord = _make_coordinator(hass, monkeypatch)
     coord._type_device_buckets = {  # noqa: SLF001

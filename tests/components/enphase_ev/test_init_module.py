@@ -2243,6 +2243,26 @@ def test_sync_type_devices_skips_dry_contact_types(config_entry) -> None:
     dev_reg.async_get_or_create.assert_called_once()
 
 
+def test_sync_type_devices_skips_selected_type_without_bucket(config_entry) -> None:
+    from custom_components.enphase_ev.inventory_view import InventoryView
+
+    dev_reg = SimpleNamespace(async_get_device=Mock(), async_get_or_create=Mock())
+    coord = SimpleNamespace(
+        site_id="site-1",
+        inventory_runtime=SimpleNamespace(),
+        heatpump_runtime=SimpleNamespace(),
+        _selected_type_keys={"iqevse"},
+        _type_device_order=None,
+        _type_device_buckets={},
+    )
+    coord.inventory_view = InventoryView(coord)
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, "site-1")
+
+    assert type_devices == {}
+    dev_reg.async_get_or_create.assert_not_called()
+
+
 def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:

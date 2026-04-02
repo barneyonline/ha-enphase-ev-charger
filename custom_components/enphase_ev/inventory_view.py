@@ -160,6 +160,8 @@ class InventoryView:
             return None
         if not self._type_is_selected(normalized):
             return None
+        if not self.has_type(normalized):
+            return None
         return type_identifier(self.site_id, normalized)
 
     def _type_bucket_members(self, type_key: object) -> list[dict[str, object]]:
