@@ -228,6 +228,7 @@ class EVSEState:
     _desired_charging: dict[str, bool] = field(default_factory=dict)
     _auto_resume_attempts: dict[str, float] = field(default_factory=dict)
     _session_end_fix: dict[str, int] = field(default_factory=dict)
+    _evse_power_snapshots: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -368,6 +369,7 @@ class BatteryState:
     _battery_aggregate_charge_pct: float | None = None
     _battery_aggregate_status: str | None = None
     _battery_aggregate_status_details: dict[str, object] = field(default_factory=dict)
+    _battery_summary_sample_utc: datetime | None = None
 
 
 STATE_MODELS = {

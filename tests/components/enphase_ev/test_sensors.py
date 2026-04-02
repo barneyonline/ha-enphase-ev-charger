@@ -763,6 +763,7 @@ def test_battery_storage_detail_sensors_state_and_attributes():
 
 def test_battery_site_summary_sensors_state_and_attributes():
     from types import SimpleNamespace
+    from datetime import datetime, timezone
 
     from custom_components.enphase_ev.sensor import (
         EnphaseBatteryAvailableEnergySensor,
@@ -792,6 +793,7 @@ def test_battery_site_summary_sensors_state_and_attributes():
         backoff_ends_utc=None,
         latency_ms=None,
         last_update_success=True,
+        battery_summary_sample_utc=datetime(2026, 3, 11, 5, 40, tzinfo=timezone.utc),
     )
 
     energy = EnphaseBatteryAvailableEnergySensor(coord)
@@ -801,10 +803,14 @@ def test_battery_site_summary_sensors_state_and_attributes():
     assert energy.available is True
     assert energy.native_value == 4.75
     assert energy.extra_state_attributes["site_max_capacity_kwh"] == 10.0
+    assert (
+        energy.extra_state_attributes["sampled_at_utc"] == "2026-03-11T05:40:00+00:00"
+    )
 
     assert power.available is True
     assert power.native_value == 7.68
     assert power.extra_state_attributes["site_max_power_kw"] == 7.68
+    assert power.extra_state_attributes["sampled_at_utc"] == "2026-03-11T05:40:00+00:00"
 
     coord.battery_status_summary = {}
     assert energy.available is False
@@ -2047,6 +2053,27 @@ def test_lifetime_energy_falls_back_to_evse_timeseries():
     sensor = EnphaseLifetimeEnergySensor(coord, sn)
 
     assert sensor.native_value == pytest.approx(45.6)
+
+
+def test_lifetime_energy_exposes_sampled_at_utc():
+    from custom_components.enphase_ev.sensor import EnphaseLifetimeEnergySensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "lifetime_kwh": 45.6,
+            "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+        },
+    )
+
+    sensor = EnphaseLifetimeEnergySensor(coord, sn)
+
+    assert (
+        sensor.extra_state_attributes["sampled_at_utc"] == "2026-03-11T05:40:00+00:00"
+    )
 
 
 def test_lifetime_energy_ignores_bad_evse_timeseries_fallback():

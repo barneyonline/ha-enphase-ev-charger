@@ -606,6 +606,18 @@ class HeatpumpRuntime:
                 if payload.get("endpoint_timestamp") is not None
                 else payload.get("timestamp")
             ),
+            "sampled_at_utc": (
+                parsed.isoformat()
+                if (
+                    parsed := parse_inverter_last_report(
+                        payload.get("endpoint_timestamp")
+                        if payload.get("endpoint_timestamp") is not None
+                        else payload.get("timestamp")
+                    )
+                )
+                is not None
+                else None
+            ),
         }
 
     def _heatpump_power_summary_from_daily_snapshot(

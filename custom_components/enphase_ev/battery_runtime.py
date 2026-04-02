@@ -1398,6 +1398,7 @@ class BatteryRuntime:
             state._battery_aggregate_charge_pct = None
             state._battery_aggregate_status = None
             state._battery_aggregate_status_details = {}
+            state._battery_summary_sample_utc = None
             self._refresh_cached_topology()
             return
 
@@ -1513,6 +1514,7 @@ class BatteryRuntime:
         state._battery_storage_order = list(dict.fromkeys(order))
         state._battery_aggregate_charge_pct = aggregate_charge
         state._battery_aggregate_status = aggregate_status
+        state._battery_summary_sample_utc = dt_util.utcnow()
         state._battery_aggregate_status_details = {
             "status": aggregate_status,
             "worst_storage_key": worst_key,
