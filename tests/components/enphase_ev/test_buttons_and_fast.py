@@ -756,7 +756,8 @@ def test_storm_alert_opt_out_button_device_info_fallback() -> None:
         has_type=lambda key: key == "envoy",
     )
     button = StormAlertOptOutButton(coord)
-    info = button.device_info
+    assert button.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
+    assert button.device_info["manufacturer"] == "Enphase"
 
 
 def test_cancel_pending_profile_button_device_info_fallback_and_override() -> None:
@@ -778,7 +779,9 @@ def test_cancel_pending_profile_button_device_info_fallback_and_override() -> No
     assert button.device_info is expected
 
 
-def test_request_grid_toggle_otp_button_device_info_prefers_enpower_then_envoy() -> None:
+def test_request_grid_toggle_otp_button_device_info_prefers_enpower_then_envoy() -> (
+    None
+):
     from custom_components.enphase_ev.button import RequestGridToggleOtpButton
 
     coord = SimpleNamespace(
@@ -789,7 +792,9 @@ def test_request_grid_toggle_otp_button_device_info_prefers_enpower_then_envoy()
         has_type=lambda _key: True,
         grid_control_supported=True,
         grid_toggle_allowed=True,
-        type_device_info=MagicMock(side_effect=[None, {"identifiers": {("enphase_ev", "envoy")}}]),
+        type_device_info=MagicMock(
+            side_effect=[None, {"identifiers": {("enphase_ev", "envoy")}}]
+        ),
     )
     button = RequestGridToggleOtpButton(coord)
 

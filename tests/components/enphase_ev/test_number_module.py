@@ -949,7 +949,9 @@ async def test_async_setup_entry_number_prune_active_ids_include_charger_numbers
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     prune_spy = MagicMock()
-    monkeypatch.setattr("custom_components.enphase_ev.number.prune_managed_entities", prune_spy)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.number.prune_managed_entities", prune_spy
+    )
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 

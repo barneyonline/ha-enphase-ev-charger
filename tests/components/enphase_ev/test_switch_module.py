@@ -484,7 +484,9 @@ async def test_async_setup_entry_switch_ignores_blank_serials_in_feature_loops(
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     prune_spy = MagicMock()
-    monkeypatch.setattr("custom_components.enphase_ev.switch.prune_managed_entities", prune_spy)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.prune_managed_entities", prune_spy
+    )
 
     await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
@@ -1760,7 +1762,12 @@ def test_site_switch_device_info_prefers_type_info_and_storm_guard_envoy_gate(
     expected_envoy = {"identifiers": {("enphase_ev", "envoy")}}
     expected_encharge = {"identifiers": {("enphase_ev", "encharge")}}
     coord.type_device_info = MagicMock(
-        side_effect=[expected_envoy, expected_encharge, expected_encharge, expected_encharge]
+        side_effect=[
+            expected_envoy,
+            expected_encharge,
+            expected_encharge,
+            expected_encharge,
+        ]
     )
 
     assert StormGuardSwitch(coord).device_info is expected_envoy

@@ -409,7 +409,7 @@ async def test_async_setup_entry_time_cleanup_waits_for_inventory_ready(
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     ent_reg = er.async_get(hass)
-    stale = ent_reg.async_get_or_create(
+    ent_reg.async_get_or_create(
         "time",
         "enphase_ev",
         f"enphase_ev_site_{coord.site_id}_charge_from_grid_start_time",
