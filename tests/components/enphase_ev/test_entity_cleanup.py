@@ -23,15 +23,15 @@ def test_iter_entity_registry_entries_handles_edge_shapes() -> None:
     class _DictWithNonCallableValues(dict):
         values = 1
 
+    assert iter_entity_registry_entries(
+        SimpleNamespace(entities=_DictWithNonCallableValues({"one": 1}))
+    ) == [1]
     assert (
         iter_entity_registry_entries(
-            SimpleNamespace(entities=_DictWithNonCallableValues({"one": 1}))
+            SimpleNamespace(entities=SimpleNamespace(values=1))
         )
-        == [1]
+        == []
     )
-    assert iter_entity_registry_entries(
-        SimpleNamespace(entities=SimpleNamespace(values=1))
-    ) == []
 
 
 def test_is_owned_entity_filters_domain_platform_and_entry() -> None:
