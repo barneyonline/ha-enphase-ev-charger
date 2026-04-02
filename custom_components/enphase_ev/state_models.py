@@ -229,6 +229,9 @@ class EVSEState:
     _auto_resume_attempts: dict[str, float] = field(default_factory=dict)
     _session_end_fix: dict[str, int] = field(default_factory=dict)
     _evse_power_snapshots: dict[str, dict[str, object]] = field(default_factory=dict)
+    _evse_transition_snapshots: dict[str, list[dict[str, object]]] = field(
+        default_factory=dict
+    )
 
 
 @dataclass(slots=True)

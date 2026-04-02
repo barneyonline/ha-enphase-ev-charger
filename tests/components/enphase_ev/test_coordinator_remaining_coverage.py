@@ -1041,7 +1041,8 @@ async def test_async_resolve_charge_modes_skips_empty_serials(coordinator_factor
         return_value="IDLE"
     )
     result = await coord.evse_runtime.async_resolve_charge_modes(["", RANDOM_SERIAL])
-    assert result.get(RANDOM_SERIAL) == "IDLE"
+    assert result.get(RANDOM_SERIAL).mode == "IDLE"
+    assert result.get(RANDOM_SERIAL).source == "scheduler_endpoint"
 
 
 def test_has_embedded_charge_mode_for_non_dict(coordinator_factory):

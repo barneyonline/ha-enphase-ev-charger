@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
@@ -53,6 +54,7 @@ from custom_components.enphase_ev.evse_runtime import (
     AUTH_SETTINGS_CACHE_TTL,
     CHARGER_CONFIG_CACHE_TTL,
     CHARGE_MODE_CACHE_TTL,
+    ChargeModeResolution,
     FAST_TOGGLE_POLL_HOLD_S,
     GREEN_BATTERY_CACHE_TTL,
     STREAMING_DEFAULT_DURATION_S,
@@ -565,7 +567,9 @@ async def test_async_resolve_charge_modes_backoff_uses_cache(
 
     result = await coord.evse_runtime.async_resolve_charge_modes(["", SERIAL_ONE])
 
-    assert result == {SERIAL_ONE: "MANUAL_CHARGING"}
+    assert result == {
+        SERIAL_ONE: ChargeModeResolution("MANUAL_CHARGING", "cache_backoff")
+    }
 
 
 def test_scheduler_note_default_reason_and_backoff_error(
@@ -949,6 +953,10 @@ def test_prune_runtime_caches_removes_stale_serial_state(coordinator_factory):
         "EV1": (True, False, True, True, 1.0),
         "EV3": (False, False, True, True, 1.0),
     }
+    coord._evse_transition_snapshots = {  # noqa: SLF001
+        "EV1": [{"to_connector_status": "CHARGING"}],
+        "EV2": [{"to_connector_status": "SUSPENDED_EVSE"}],
+    }
     coord._desired_charging = {"EV1": True, "EV2": False}  # noqa: SLF001
     coord._session_history_cache_shim = {  # noqa: SLF001
         ("EV1", "2020-01-02"): (1.0, [{"session_id": "keep"}]),
@@ -968,6 +976,9 @@ def test_prune_runtime_caches_removes_stale_serial_state(coordinator_factory):
     assert "EV2" not in coord._charge_mode_cache  # noqa: SLF001
     assert "EV2" not in coord._green_battery_cache  # noqa: SLF001
     assert "EV3" not in coord._auth_settings_cache  # noqa: SLF001
+    assert coord._evse_transition_snapshots == {  # noqa: SLF001
+        "EV1": [{"to_connector_status": "CHARGING"}]
+    }
     assert coord._desired_charging == {"EV1": True}  # noqa: SLF001
     assert coord._session_history_cache_shim == {  # noqa: SLF001
         ("EV1", "2020-01-02"): (1.0, [{"session_id": "keep"}])
@@ -1029,12 +1040,197 @@ def test_prune_helpers_cover_edge_branches(monkeypatch):
     coord._desired_charging = {}  # noqa: SLF001
     coord._auto_resume_attempts = {}  # noqa: SLF001
     coord._session_end_fix = {}  # noqa: SLF001
+    coord._evse_transition_snapshots = {}  # noqa: SLF001
     coord._streaming_targets = {}  # noqa: SLF001
 
     keep = coord._prune_serial_runtime_state(["EV1"])  # noqa: SLF001
     assert keep == {"EV1"}
     assert coord.serials == {"EV1"}
     assert coord._serial_order == ["EV1"]  # noqa: SLF001
+
+
+def test_evse_diagnostics_payloads_include_runtime_sources_and_history(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.data = {
+        SERIAL_ONE: {
+            "charge_mode_supported_source": "feature_flag",
+            "charge_mode_source": "cache_backoff",
+            "charge_mode_pref_source": "cache_backoff",
+            "charging_level_source": "last_set_amps",
+            "charging_level": 32,
+        }
+    }
+    coord.last_set_amps = {SERIAL_ONE: 16}
+    coord._evse_transition_snapshots = {  # noqa: SLF001
+        SERIAL_ONE: [
+            {
+                "from_connector_status": "SUSPENDED_EVSE",
+                "to_connector_status": "CHARGING",
+                "charge_mode_source": "schedule_type_fallback",
+            }
+        ]
+    }
+
+    diagnostics = coord.evse_diagnostics_payloads()
+
+    assert diagnostics["charger_runtime_sources"] == [
+        {
+            "serial": SERIAL_ONE,
+            "sources": {
+                "charge_mode_source": "cache_backoff",
+                "charge_mode_pref_source": "cache_backoff",
+                "charging_level_source": "last_set_amps",
+                "charging_level": 32,
+                "last_set_amps": 16,
+            },
+        }
+    ]
+    assert diagnostics["charger_transition_history"] == [
+        {
+            "serial": SERIAL_ONE,
+            "transitions": [
+                {
+                    "from_connector_status": "SUSPENDED_EVSE",
+                    "to_connector_status": "CHARGING",
+                    "charge_mode_source": "schedule_type_fallback",
+                }
+            ],
+        }
+    ]
+
+
+def test_record_evse_transition_snapshot_ignores_missing_or_unchanged_status(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    coord._record_evse_transition_snapshot(  # noqa: SLF001
+        SERIAL_ONE,
+        None,
+        {"connector_status": "CHARGING"},
+    )
+    coord._record_evse_transition_snapshot(  # noqa: SLF001
+        SERIAL_ONE,
+        {"connector_status": "CHARGING"},
+        {"connector_status": "CHARGING"},
+    )
+
+    assert coord._evse_transition_snapshots == {}  # noqa: SLF001
+
+
+def test_snapshot_text_handles_bad_str(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert coord._snapshot_text(BadStr()) is None  # noqa: SLF001
+
+
+def test_charge_mode_resolution_parts_supports_legacy_string(coordinator_factory):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+
+    assert coord._charge_mode_resolution_parts("SCHEDULED") == (  # noqa: SLF001
+        "SCHEDULED",
+        None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_records_evse_transition_snapshot(
+    coordinator_factory, monkeypatch, caplog
+):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.data = {
+        SERIAL_ONE: {
+            "sn": SERIAL_ONE,
+            "name": "Charger",
+            "connector_status": "SUSPENDED_EVSE",
+            "charging": False,
+        }
+    }
+    coord.last_set_amps = {SERIAL_ONE: 16}
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": SERIAL_ONE,
+                    "name": "Garage EV",
+                    "pluggedIn": True,
+                    "charging": False,
+                    "chargingLevel": 32,
+                    "connectors": [{"connectorStatusType": "CHARGING"}],
+                    "sch_d": {"info": [{"type": "greencharging"}]},
+                }
+            ]
+        }
+    )
+    timestamp = datetime(2026, 4, 3, 1, 2, 3, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: timestamp)
+
+    with caplog.at_level(logging.DEBUG):
+        result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["charge_mode"] == "GREEN_CHARGING"
+    assert result[SERIAL_ONE]["charge_mode_source"] == "schedule_type_fallback"
+    assert result[SERIAL_ONE]["charge_mode_pref_source"] == "schedule_type_fallback"
+    assert result[SERIAL_ONE]["charging_level"] == 32
+    assert result[SERIAL_ONE]["charging_level_source"] == "status_payload"
+
+    assert coord._evse_transition_snapshots[SERIAL_ONE] == [  # noqa: SLF001
+        {
+            "recorded_at_utc": timestamp.isoformat(),
+            "from_connector_status": "SUSPENDED_EVSE",
+            "to_connector_status": "CHARGING",
+            "charging": True,
+            "previous_charging": False,
+            "charge_mode": "GREEN_CHARGING",
+            "charge_mode_source": "schedule_type_fallback",
+            "charge_mode_pref": "GREEN_CHARGING",
+            "charge_mode_pref_source": "schedule_type_fallback",
+            "charging_level": 32,
+            "charging_level_source": "status_payload",
+            "last_set_amps": 16,
+            "green_battery_enabled": None,
+            "safe_limit_state": None,
+            "schedule_type": "greencharging",
+            "sampled_at_utc": None,
+            "fetched_at_utc": result[SERIAL_ONE]["fetched_at_utc"],
+            "scheduler_available": True,
+            "scheduler_backoff_active": False,
+        }
+    ]
+    assert "EVSE connector transition for charger" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_invalid_charging_level_uses_last_set_amps(
+    coordinator_factory,
+):
+    coord = coordinator_factory(serials=[SERIAL_ONE])
+    coord.last_set_amps = {SERIAL_ONE: 16}
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": SERIAL_ONE,
+                    "name": "Garage EV",
+                    "pluggedIn": True,
+                    "charging": False,
+                    "chargingLevel": [],
+                    "connectors": [{"connectorStatusType": "SUSPENDED_EVSE"}],
+                }
+            ]
+        }
+    )
+
+    result = await coord._async_update_data()
+
+    assert result[SERIAL_ONE]["charging_level"] == 16
+    assert result[SERIAL_ONE]["charging_level_source"] == "last_set_amps"
 
 
 def _make_minimal_history() -> SimpleNamespace:
@@ -2049,9 +2245,9 @@ async def test_async_resolve_charge_modes_uses_cache_and_handles_errors(
         side_effect=fake_get
     )
     result = await coord.evse_runtime.async_resolve_charge_modes(["EV1", "EV2", "EV3"])
-    assert result["EV1"] == "SCHEDULED_CHARGING"
-    assert result["EV2"] == "GREEN_CHARGING"
-    assert "EV3" not in result
+    assert result["EV1"] == ChargeModeResolution("SCHEDULED_CHARGING", "cache")
+    assert result["EV2"] == ChargeModeResolution("GREEN_CHARGING", "scheduler_endpoint")
+    assert result["EV3"] == ChargeModeResolution(None, "lookup_failed")
 
 
 def test_amp_helpers_and_expectation_management(coordinator_factory, monkeypatch):
