@@ -217,6 +217,31 @@ def test_parse_site_energy_timestamp_error_branches(
         assert parsed.date().isoformat() == "2024-01-02"
 
 
+def test_site_energy_sampled_at_utc_requires_parseable_timestamp(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.energy.site_energy = {
+        "consumption": SiteEnergyFlow(
+            value_kwh=1.25,
+            start_date="2024-01-01",
+            last_report_date="soon",
+            bucket_count=1,
+            fields_used=["consumption"],
+            source_unit="Wh",
+            update_pending=False,
+        )
+    }
+
+    sensor = EnphaseSiteEnergySensor(
+        coord, "consumption", "site_consumption", "Consumption"
+    )
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["last_report_date"] == "soon"
+    assert attrs["sampled_at_utc"] is None
+
+
 def test_diff_energy_fields_when_neg_exceeds(coordinator_factory) -> None:
     coord = coordinator_factory()
     payload = {"consumption": [100], "solar_home": [200]}
@@ -2700,12 +2725,14 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
     coord.energy.site_energy = {}
     attrs = sensor.extra_state_attributes
     assert attrs["last_report_date"] is None
+    assert attrs["sampled_at_utc"] is None
     assert sensor.native_value == 1.0
 
     coord.energy.site_energy = {
         "grid_import": {"value_kwh": 3.0, "last_report_date": "soon"}
     }
     assert sensor.extra_state_attributes["last_report_date"] == "soon"
+    assert sensor.extra_state_attributes["sampled_at_utc"] is None
 
     sensor2 = EnphaseSiteEnergySensor(
         coord, "grid_export", "site_grid_export", "Grid Export"
@@ -2824,6 +2851,36 @@ def test_site_energy_sensor_available_not_gated_by_envoy(coordinator_factory) ->
         coord, "grid_import", "site_grid_import", "Grid Import"
     )
     assert sensor.available is True
+
+
+def test_site_grid_power_exposes_sampled_at_utc(coordinator_factory):
+    coord = coordinator_factory()
+    base_ts = datetime(2024, 1, 2, tzinfo=timezone.utc)
+    sensor = EnphaseGridPowerSensor(coord)
+    coord.energy.site_energy = {
+        "grid_import": SiteEnergyFlow(
+            value_kwh=1.0,
+            bucket_count=1,
+            fields_used=["grid_import"],
+            start_date="2024-01-02",
+            last_report_date=base_ts,
+            interval_minutes=5,
+            update_pending=False,
+        ),
+        "grid_export": SiteEnergyFlow(
+            value_kwh=0.0,
+            bucket_count=1,
+            fields_used=["grid_export"],
+            start_date="2024-01-02",
+            last_report_date=base_ts,
+            interval_minutes=5,
+            update_pending=False,
+        ),
+    }
+
+    sensor.native_value
+
+    assert sensor.extra_state_attributes["sampled_at_utc"] == base_ts.isoformat()
 
 
 @pytest.mark.asyncio
