@@ -1,6 +1,10 @@
 name: Device support request
 description: Request support for a device model, site-specific capability, or missing Enphase surface
 title: "[Device support]: "
+labels:
+  - enhancement
+  - type/device-support
+  - status/needs-triage
 body:
   - type: markdown
     attributes:
