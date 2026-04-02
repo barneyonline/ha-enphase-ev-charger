@@ -114,7 +114,10 @@ def _retained_site_switch_keys(coord: EnphaseCoordinator) -> set[str]:
             retained.add("savings_use_battery_after_peak")
         if getattr(coord, "charge_from_grid_control_available", None) is not False:
             retained.add("charge_from_grid")
-        if getattr(coord, "charge_from_grid_force_schedule_available", None) is not False:
+        if (
+            getattr(coord, "charge_from_grid_force_schedule_available", None)
+            is not False
+        ):
             retained.add("charge_from_grid_schedule")
         if getattr(coord, "discharge_to_grid_schedule_available", None) is not False:
             retained.add("discharge_to_grid_schedule")
@@ -214,9 +217,11 @@ async def async_setup_entry(
             entry.entry_id,
             domain="switch",
             active_unique_ids={
-                f"{DOMAIN}_site_{coord.site_id}_{key}" for key in retain_site_entity_keys
+                f"{DOMAIN}_site_{coord.site_id}_{key}"
+                for key in retain_site_entity_keys
             },
-            is_managed=lambda unique_id: unique_id in {
+            is_managed=lambda unique_id: unique_id
+            in {
                 f"{DOMAIN}_site_{coord.site_id}_storm_guard",
                 f"{DOMAIN}_site_{coord.site_id}_savings_use_battery_after_peak",
                 f"{DOMAIN}_site_{coord.site_id}_charge_from_grid",
@@ -295,7 +300,9 @@ async def async_setup_entry(
             active_unique_ids.update(
                 f"{DOMAIN}_{sn}_storm_guard_evse_charge" for sn in current_serials
             )
-        active_unique_ids.update(f"{DOMAIN}_{sn}_green_battery" for sn in retain_green_battery)
+        active_unique_ids.update(
+            f"{DOMAIN}_{sn}_green_battery" for sn in retain_green_battery
+        )
         active_unique_ids.update(
             f"{DOMAIN}_{sn}_app_authentication" for sn in retain_app_auth
         )
