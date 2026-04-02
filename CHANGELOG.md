@@ -11,13 +11,33 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Aligned EVSE, site energy, heat-pump, inverter, and battery power/energy entities around stable sample timestamps, stopped synthesizing EVSE measurement time from poll time when the upstream sample time is missing, and moved EVSE power derivation onto refresh-time coordinator snapshots so power and energy readings stay internally consistent.
+- None
 
 ### 🔧 Improvements
-- Added targeted EVSE diagnostics for charger connector transitions, including charge-mode source, charge-current source, and recent transition snapshots to make Green-mode resume issues easier to capture from a single diagnostics export.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v2.6.8 - 2026-04-03
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Aligned EVSE, site energy, heat-pump, inverter, and battery power/energy entities around stable sample timestamps, stopped synthesizing EVSE measurement time from poll time when the upstream sample time is missing, and moved EVSE power derivation onto refresh-time coordinator snapshots so power and energy readings stay internally consistent.
+- Added targeted EVSE diagnostics for charger connector transitions, including charge-mode source, charge-current source, and recent transition snapshots to make Green-mode resume issues easier to capture from a single diagnostics export.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Removed coordinator facade shims and introduced the new inventory view plumbing to simplify internal entity wiring and coordinator state handling without changing supported functionality.
+- Added GitHub issue triage workflows for automatic labeling, missing-diagnostics follow-up comments, and stale blocked issue handling.
+- Updated `docs/api/api_spec.md` so the documented authentication requirements match the current implementation.
 
 ## v2.6.7 - 2026-04-02
 
