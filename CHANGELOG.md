@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 - Kept `Self-Consumption` available in the system profile selector even on sites where Enphase reports `showChargeFromGrid: false`, fixing automations that switch away from `Full Backup`.
 - Preserved Green mode from the live EVSE schedule summary when Enphase temporarily omits the scheduler preference, keeping `preferred_mode` and the charge-mode select stable instead of dropping to `null`/`unknown`.
 - Switched heat-pump power to use the HEMS `energy-consumption` device reading as the sole source, aligned its refresh cadence to the existing 300-second HEMS daily-consumption cache, and treated missing or null `details[]` values as `0 W`.
+- Made BatteryConfig schedule XSRF preflight family-aware for create, update, and delete flows so DTG/RBD schedule writes do not validate against the CFG family first.
+- Preserved explicitly disabled DTG/RBD schedule state during ordinary time/limit edits while still avoiding unnecessary `isEnabled` writes for other schedule edit flows.
 
 ### 🔧 Improvements
 - None

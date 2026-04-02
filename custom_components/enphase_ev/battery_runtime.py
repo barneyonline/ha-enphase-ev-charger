@@ -3197,7 +3197,7 @@ class BatteryRuntime:
                 start_minutes=next_start,
                 end_minutes=next_end,
                 limit=next_limit,
-                is_enabled=current_enabled,
+                is_enabled=False if current_enabled is False else None,
             )
         setattr(state, self._battery_schedule_start_attr(schedule_type), next_start)
         setattr(state, self._battery_schedule_end_attr(schedule_type), next_end)
@@ -3247,7 +3247,7 @@ class BatteryRuntime:
                 start_minutes=current_start,
                 end_minutes=current_end,
                 limit=int(limit),
-                is_enabled=current_enabled,
+                is_enabled=False if current_enabled is False else None,
             )
         setattr(state, self._battery_schedule_limit_attr(schedule_type), int(limit))
         setattr(state, self._battery_schedule_start_attr(schedule_type), current_start)

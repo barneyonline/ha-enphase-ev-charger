@@ -1160,7 +1160,7 @@ async def test_json_logs_batteryconfig_write_failure_details(caplog) -> None:
         "BatteryConfig write failed for PUT "
         "/service/batteryConfig/api/v1/batterySettings/SITE: status=403" in caplog.text
     )
-    assert "payload={'json_keys': ['veryLowSoc']}" in caplog.text
+    assert "payload={'scheduleType': None, 'json_keys': ['veryLowSoc']}" in caplog.text
     assert "cookie_names=['bp-xsrf-token', 'other', 'session']" in caplog.text
     assert "'has_authorization': True" in caplog.text
     assert "'has_e_auth_token': True" in caplog.text
@@ -1195,6 +1195,34 @@ async def test_json_logs_batteryconfig_write_failure_without_params(caplog) -> N
 
     assert "BatteryConfig write failed for POST" in caplog.text
     assert "params=None" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_json_logs_battery_schedule_write_failure_includes_schedule_type(
+    caplog,
+) -> None:
+    session = _FakeSession([_FakeResponse(status=403, json_body={}, text_body="deny")])
+    client = _make_client(session)
+
+    with caplog.at_level(logging.DEBUG):
+        with pytest.raises(aiohttp.ClientResponseError):
+            await client._json(
+                "PUT",
+                "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/"
+                "battery/sites/SITE/schedules/sched-1",
+                json={
+                    "scheduleType": "DTG",
+                    "startTime": "07:15",
+                    "endTime": "09:45",
+                    "days": [2, 6],
+                },
+            )
+
+    assert "BatteryConfig write failed for PUT" in caplog.text
+    assert (
+        "payload={'scheduleType': 'DTG', 'json_keys': ['days', 'endTime', 'scheduleType', 'startTime']}"
+        in caplog.text
+    )
 
 
 @pytest.mark.asyncio
@@ -2930,7 +2958,7 @@ async def test_set_battery_settings_payload_and_xsrf() -> None:
 
 
 @pytest.mark.asyncio
-async def test_acquire_xsrf_token_uses_cfg_validation_payload() -> None:
+async def test_acquire_xsrf_token_uses_requested_validation_payload() -> None:
     token = _make_token({"user_id": "88"})
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict(
@@ -2943,7 +2971,7 @@ async def test_acquire_xsrf_token_uses_cfg_validation_payload() -> None:
         cookie="session=1; BP-XSRF-Token=stale-token; other=1",
     )
 
-    out = await client._acquire_xsrf_token()  # noqa: SLF001
+    out = await client._acquire_xsrf_token("dtg")  # noqa: SLF001
 
     assert out == "fresh-token"
     method, url, kwargs = session.calls[0]
@@ -2952,7 +2980,7 @@ async def test_acquire_xsrf_token_uses_cfg_validation_payload() -> None:
         "/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
     )
     assert kwargs["json"] == {
-        "scheduleType": "cfg",
+        "scheduleType": "dtg",
         "forceScheduleOpted": True,
     }
     assert kwargs["headers"]["Cookie"] == "session=1; other=1"
@@ -3076,7 +3104,7 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire() -> str:
+    async def _acquire(*_args: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -3091,7 +3119,7 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
         timezone="Europe/Lisbon",
     )
     client._bp_xsrf_token = None  # noqa: SLF001
-    await client.delete_battery_schedule("sched-1")
+    await client.delete_battery_schedule("sched-1", schedule_type="rbd")
     await client.validate_battery_schedule("dtg")
 
     create_call, delete_call, validate_call = client._json.await_args_list
@@ -3107,11 +3135,13 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
         "scheduleType": "CFG",
         "days": [1, 7],
     }
+    assert client._acquire_xsrf_token.await_args_list[0].args == ("cfg",)
     assert delete_call.args == (
         "POST",
         "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/sched-1/delete",
     )
     assert delete_call.kwargs["json"] == {}
+    assert client._acquire_xsrf_token.await_args_list[1].args == ("rbd",)
     assert validate_call.args == (
         "POST",
         "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid",
@@ -3130,7 +3160,7 @@ async def test_create_battery_schedule_omits_optional_limit_and_sets_is_enabled(
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire() -> str:
+    async def _acquire(*_args: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -3147,6 +3177,7 @@ async def test_create_battery_schedule_omits_optional_limit_and_sets_is_enabled(
     )
 
     call = client._json.await_args
+    client._acquire_xsrf_token.assert_awaited_once_with("rbd")
     assert call.kwargs["json"] == {
         "timezone": "Europe/London",
         "startTime": "01:00",
@@ -3164,7 +3195,7 @@ async def test_update_battery_schedule_sets_optional_is_enabled_and_is_deleted()
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire() -> str:
+    async def _acquire(*_args: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -3183,6 +3214,7 @@ async def test_update_battery_schedule_sets_optional_is_enabled_and_is_deleted()
     )
 
     call = client._json.await_args
+    client._acquire_xsrf_token.assert_awaited_once_with("rbd")
     assert call.kwargs["json"] == {
         "timezone": "Europe/London",
         "startTime": "01:00",
@@ -3199,7 +3231,7 @@ async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire() -> str:
+    async def _acquire(*_args: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -3216,7 +3248,7 @@ async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
     )
 
     assert out == {"message": "success"}
-    client._acquire_xsrf_token.assert_awaited_once_with()
+    client._acquire_xsrf_token.assert_awaited_once_with("dtg")
     args, kwargs = client._json.await_args
     assert args == (
         "PUT",
