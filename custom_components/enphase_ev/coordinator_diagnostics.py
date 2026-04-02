@@ -101,10 +101,10 @@ class CoordinatorDiagnostics:
         backoff_until = coord._backoff_until or 0.0
         backoff_active = bool(backoff_until and backoff_until > time.monotonic())
         scheduler_backoff_active = coord._scheduler_backoff_active()
-        type_keys = coord.iter_type_keys()
+        type_keys = coord.inventory_view.iter_type_keys()
         type_counts: dict[str, int] = {}
         for key in type_keys:
-            bucket = coord.type_bucket(key)
+            bucket = coord.inventory_view.type_bucket(key)
             if not bucket:
                 continue
             try:

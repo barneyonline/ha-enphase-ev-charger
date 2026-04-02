@@ -1143,12 +1143,13 @@ async def test_battery_runtime_refresh_status_wraps_non_dict_redacted_payload(
 
 
 @pytest.mark.asyncio
-async def test_battery_runtime_async_set_grid_connection_delegates_to_coordinator() -> (
+async def test_battery_runtime_async_set_grid_connection_uses_runtime_grid_mode() -> (
     None
 ):
-    coordinator = SimpleNamespace(async_set_grid_mode=AsyncMock())
+    coordinator = SimpleNamespace()
     runtime = BatteryRuntime(coordinator)
+    runtime.async_set_grid_mode = AsyncMock()  # type: ignore[assignment]
 
     await runtime.async_set_grid_connection(True, otp="1234")
 
-    coordinator.async_set_grid_mode.assert_awaited_once_with("on_grid", "1234")
+    runtime.async_set_grid_mode.assert_awaited_once_with("on_grid", "1234")

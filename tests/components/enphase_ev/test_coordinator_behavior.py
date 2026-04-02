@@ -168,7 +168,7 @@ def test_coordinator_init_handles_invalid_selected_type_keys(monkeypatch, hass):
     coord = EnphaseCoordinator(hass, config)
 
     assert coord._selected_type_keys is None  # noqa: SLF001
-    assert coord._type_is_selected(None) is False  # noqa: SLF001
+    assert coord.inventory_view._type_is_selected(None) is False  # noqa: SLF001
 
     config[CONF_SELECTED_TYPE_KEYS] = "iqevse"
     coord_with_string = EnphaseCoordinator(hass, config)
@@ -223,19 +223,19 @@ def test_type_bucket_includes_extra_summary_fields(hass, monkeypatch) -> None:
     }
     coord._type_device_order = ["microinverter"]  # noqa: SLF001
 
-    bucket = coord.type_bucket("microinverter")
+    bucket = coord.inventory_view.type_bucket("microinverter")
     assert bucket is not None
     assert bucket["model_summary"] == "IQ7A x1"
     assert "status_counts" in bucket
-    assert coord.type_device_model("microinverter") == "IQ7A-SKU"
-    assert coord.type_device_hw_version("microinverter") == "IQ7A-SKU"
+    assert coord.inventory_view.type_device_model("microinverter") == "IQ7A-SKU"
+    assert coord.inventory_view.type_device_hw_version("microinverter") == "IQ7A-SKU"
 
 
 def test_type_device_envoy_prefers_system_controller_metadata(
     hass, monkeypatch
 ) -> None:
     coord = _make_coordinator(hass, monkeypatch)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -265,13 +265,15 @@ def test_type_device_envoy_prefers_system_controller_metadata(
         ["envoy"],
     )
 
-    assert coord.type_device_name("envoy") == "IQ Gateway"
-    assert coord.type_device_model("envoy") == "IQ System Controller 3 INT"
-    assert coord.type_device_serial_number("envoy") == "SC-123"
-    assert coord.type_device_model_id("envoy") == "SC-SKU"
-    assert coord.type_device_sw_version("envoy") == "8.2.1"
+    assert coord.inventory_view.type_device_name("envoy") == "IQ Gateway"
+    assert (
+        coord.inventory_view.type_device_model("envoy") == "IQ System Controller 3 INT"
+    )
+    assert coord.inventory_view.type_device_serial_number("envoy") == "SC-123"
+    assert coord.inventory_view.type_device_model_id("envoy") == "SC-SKU"
+    assert coord.inventory_view.type_device_sw_version("envoy") == "8.2.1"
 
-    info = coord.type_device_info("envoy")
+    info = coord.inventory_view.type_device_info("envoy")
     assert info is not None
     assert info["name"] == "IQ Gateway"
     assert info["model"] == "IQ System Controller 3 INT"
@@ -279,7 +281,7 @@ def test_type_device_envoy_prefers_system_controller_metadata(
     assert info["model_id"] == "SC-SKU"
     assert info["sw_version"] == "8.2.1"
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -290,25 +292,29 @@ def test_type_device_envoy_prefers_system_controller_metadata(
         },
         ["envoy"],
     )
-    assert coord.type_device_name("envoy") == "IQ Gateway"
-    assert coord.type_device_model("envoy") == "IQ Gateway"
+    assert coord.inventory_view.type_device_name("envoy") == "IQ Gateway"
+    assert coord.inventory_view.type_device_model("envoy") == "IQ Gateway"
     assert (
-        coord._envoy_member_kind({"name": "System Controller Main"}) == "controller"
+        coord.inventory_view._envoy_member_kind({"name": "System Controller Main"})
+        == "controller"
     )  # noqa: SLF001
     assert (
-        coord._envoy_member_kind(
+        coord.inventory_view._envoy_member_kind(
             {"channel_type": "system_controller_3"}
         )  # noqa: SLF001
         == "controller"
     )
     assert (
-        coord._envoy_member_kind({"name": "Main Controller"}) == "controller"
+        coord.inventory_view._envoy_member_kind({"name": "Main Controller"})
+        == "controller"
     )  # noqa: SLF001
     assert (
-        coord._envoy_member_kind({"name": "Production Meter"}) == "production"
+        coord.inventory_view._envoy_member_kind({"name": "Production Meter"})
+        == "production"
     )  # noqa: SLF001
     assert (
-        coord._envoy_member_kind({"name": "Consumption Meter"}) == "consumption"
+        coord.inventory_view._envoy_member_kind({"name": "Consumption Meter"})
+        == "consumption"
     )  # noqa: SLF001
 
 
@@ -316,7 +322,7 @@ def test_type_device_envoy_falls_back_to_gateway_member_metadata(
     hass, monkeypatch
 ) -> None:
     coord = _make_coordinator(hass, monkeypatch)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -345,13 +351,13 @@ def test_type_device_envoy_falls_back_to_gateway_member_metadata(
         ["envoy"],
     )
 
-    assert coord.type_device_name("envoy") == "IQ Gateway"
-    assert coord.type_device_model("envoy") == "IQ Gateway"
-    assert coord.type_device_serial_number("envoy") == "GW-123"
-    assert coord.type_device_model_id("envoy") == "SC100G-M230ROW"
-    assert coord.type_device_sw_version("envoy") == "D8.3.5167"
+    assert coord.inventory_view.type_device_name("envoy") == "IQ Gateway"
+    assert coord.inventory_view.type_device_model("envoy") == "IQ Gateway"
+    assert coord.inventory_view.type_device_serial_number("envoy") == "GW-123"
+    assert coord.inventory_view.type_device_model_id("envoy") == "SC100G-M230ROW"
+    assert coord.inventory_view.type_device_sw_version("envoy") == "D8.3.5167"
 
-    info = coord.type_device_info("envoy")
+    info = coord.inventory_view.type_device_info("envoy")
     assert info is not None
     assert info["name"] == "IQ Gateway"
     assert info["model"] == "IQ Gateway"
@@ -364,7 +370,7 @@ def test_type_device_envoy_does_not_promote_localized_meters_to_gateway(
     hass, monkeypatch
 ) -> None:
     coord = _make_coordinator(hass, monkeypatch)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -387,13 +393,13 @@ def test_type_device_envoy_does_not_promote_localized_meters_to_gateway(
         ["envoy"],
     )
 
-    assert coord.type_device_name("envoy") == "IQ Gateway"
-    assert coord.type_device_model("envoy") == "IQ Gateway"
-    assert coord.type_device_serial_number("envoy") is None
-    assert coord.type_device_model_id("envoy") is None
-    assert coord.type_device_sw_version("envoy") is None
+    assert coord.inventory_view.type_device_name("envoy") == "IQ Gateway"
+    assert coord.inventory_view.type_device_model("envoy") == "IQ Gateway"
+    assert coord.inventory_view.type_device_serial_number("envoy") is None
+    assert coord.inventory_view.type_device_model_id("envoy") is None
+    assert coord.inventory_view.type_device_sw_version("envoy") is None
 
-    info = coord.type_device_info("envoy")
+    info = coord.inventory_view.type_device_info("envoy")
     assert info is not None
     assert info["name"] == "IQ Gateway"
     assert info["model"] == "IQ Gateway"
@@ -406,7 +412,7 @@ def test_type_device_summary_helpers_for_battery_and_microinverter(
     hass, monkeypatch
 ) -> None:
     coord = _make_coordinator(hass, monkeypatch)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "encharge": {
                 "type_key": "encharge",
@@ -444,12 +450,12 @@ def test_type_device_summary_helpers_for_battery_and_microinverter(
         ["encharge", "microinverter"],
     )
 
-    assert coord.type_device_serial_number("encharge") is None
-    assert coord.type_device_model_id("encharge") is None
-    assert coord.type_device_sw_version("encharge") is None
-    assert coord.type_device_model_id("microinverter") is None
-    assert coord.type_device_hw_version("microinverter") is None
-    assert coord.type_device_sw_version("microinverter") is None
+    assert coord.inventory_view.type_device_serial_number("encharge") is None
+    assert coord.inventory_view.type_device_model_id("encharge") is None
+    assert coord.inventory_view.type_device_sw_version("encharge") is None
+    assert coord.inventory_view.type_device_model_id("microinverter") is None
+    assert coord.inventory_view.type_device_hw_version("microinverter") is None
+    assert coord.inventory_view.type_device_sw_version("microinverter") is None
 
 
 def test_type_device_helper_branches_for_mac_and_labels(hass, monkeypatch) -> None:
@@ -458,26 +464,39 @@ def test_type_device_helper_branches_for_mac_and_labels(hass, monkeypatch) -> No
     coord = _make_coordinator(hass, monkeypatch)
 
     assert (
-        coord._type_member_summary([{"name": "A"}, {"name": "A"}], "name") == "A x2"
+        coord.inventory_view._type_member_summary(
+            [{"name": "A"}, {"name": "A"}], "name"
+        )
+        == "A x2"
     )  # noqa: SLF001
 
     class BadStr:
         def __str__(self) -> str:
             raise ValueError("bad")
 
-    assert coord._normalize_mac(BadStr()) is None  # noqa: SLF001
-    assert coord._normalize_mac("   ") is None  # noqa: SLF001
-    assert coord._normalize_mac("aa:bb:cc") is None  # noqa: SLF001
-    assert coord._normalize_mac("001:bb:cc:dd:ee:ff") is None  # noqa: SLF001
-    assert coord._normalize_mac("zz:bb:cc:dd:ee:ff") is None  # noqa: SLF001
-    assert coord._normalize_mac("a:b:c:d:e:f") == "0a:0b:0c:0d:0e:0f"  # noqa: SLF001
-    assert coord._normalize_mac("AABBCCDDEEFF") == "aa:bb:cc:dd:ee:ff"  # noqa: SLF001
-    assert coord._normalize_mac("aabb.ccdd.eeff") == "aa:bb:cc:dd:ee:ff"  # noqa: SLF001
-    assert coord._normalize_mac("aabb.ccdd") is None  # noqa: SLF001
-    assert coord._normalize_mac("aabb.ccdd.eefg") is None  # noqa: SLF001
-    assert coord._normalize_mac("abcdef") is None  # noqa: SLF001
+    assert coord.inventory_view._normalize_mac(BadStr()) is None  # noqa: SLF001
+    assert coord.inventory_view._normalize_mac("   ") is None  # noqa: SLF001
+    assert coord.inventory_view._normalize_mac("aa:bb:cc") is None  # noqa: SLF001
+    assert (
+        coord.inventory_view._normalize_mac("001:bb:cc:dd:ee:ff") is None
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_view._normalize_mac("zz:bb:cc:dd:ee:ff") is None
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_view._normalize_mac("a:b:c:d:e:f") == "0a:0b:0c:0d:0e:0f"
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_view._normalize_mac("AABBCCDDEEFF") == "aa:bb:cc:dd:ee:ff"
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_view._normalize_mac("aabb.ccdd.eeff") == "aa:bb:cc:dd:ee:ff"
+    )  # noqa: SLF001
+    assert coord.inventory_view._normalize_mac("aabb.ccdd") is None  # noqa: SLF001
+    assert coord.inventory_view._normalize_mac("aabb.ccdd.eefg") is None  # noqa: SLF001
+    assert coord.inventory_view._normalize_mac("abcdef") is None  # noqa: SLF001
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -495,15 +514,19 @@ def test_type_device_helper_branches_for_mac_and_labels(hass, monkeypatch) -> No
         },
         ["envoy"],
     )
-    assert coord._envoy_controller_mac() == "aa:bb:cc:dd:ee:ff"  # noqa: SLF001
-    assert coord.type_device_info("envoy")["connections"] == {
+    assert (
+        coord.inventory_view._envoy_controller_mac() == "aa:bb:cc:dd:ee:ff"
+    )  # noqa: SLF001
+    assert coord.inventory_view.type_device_info("envoy")["connections"] == {
         (CONNECTION_NETWORK_MAC, "aa:bb:cc:dd:ee:ff")
     }
     assert (
-        coord._envoy_member_kind({"channel_type": "production_meter"}) == "production"
+        coord.inventory_view._envoy_member_kind({"channel_type": "production_meter"})
+        == "production"
     )  # noqa: SLF001
     assert (
-        coord._envoy_member_kind({"channel_type": "site_load"}) == "consumption"
+        coord.inventory_view._envoy_member_kind({"channel_type": "site_load"})
+        == "consumption"
     )  # noqa: SLF001
 
     coord._type_device_buckets = {  # noqa: SLF001
@@ -511,16 +534,16 @@ def test_type_device_helper_branches_for_mac_and_labels(hass, monkeypatch) -> No
         "wind_turbine": {"count": 1, "devices": [], "type_label": 1},
     }
     coord._type_device_order = ["envoy", "wind_turbine"]  # noqa: SLF001
-    assert coord._envoy_controller_mac() is None  # noqa: SLF001
-    assert coord.type_device_name("wind_turbine") is None
-    assert coord.type_device_info(None) is None
+    assert coord.inventory_view._envoy_controller_mac() is None  # noqa: SLF001
+    assert coord.inventory_view.type_device_name("wind_turbine") is None
+    assert coord.inventory_view.type_device_info(None) is None
 
 
 def test_type_device_model_prefers_model_identifiers_over_display_name(
     hass, monkeypatch
 ) -> None:
     coord = _make_coordinator(hass, monkeypatch)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "iqevse": {
                 "type_key": "iqevse",
@@ -541,12 +564,14 @@ def test_type_device_model_prefers_model_identifiers_over_display_name(
         ["iqevse"],
     )
 
-    assert coord.type_device_model("iqevse") == "IQ-EVSE-EU-3032-0105-1300"
+    assert (
+        coord.inventory_view.type_device_model("iqevse") == "IQ-EVSE-EU-3032-0105-1300"
+    )
 
 
 def test_type_device_model_id_omits_redundant_variants(hass, monkeypatch) -> None:
     coord = _make_coordinator(hass, monkeypatch)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "iqevse": {
                 "type_key": "iqevse",
@@ -569,8 +594,8 @@ def test_type_device_model_id_omits_redundant_variants(hass, monkeypatch) -> Non
         ["iqevse", "encharge"],
     )
 
-    assert coord.type_device_model_id("iqevse") is None
-    assert coord.type_device_model_id("encharge") is None
+    assert coord.inventory_view.type_device_model_id("iqevse") is None
+    assert coord.inventory_view.type_device_model_id("encharge") is None
 
 
 def test_sum_session_energy_rounds_to_two_decimals_without_session_manager(
@@ -610,7 +635,7 @@ async def test_async_update_data_site_only_handles_heatpump_refresh_failure(
     coord._async_refresh_battery_site_settings = AsyncMock(
         return_value=None
     )  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(
         return_value=None
     )  # noqa: SLF001
@@ -619,13 +644,13 @@ async def test_async_update_data_site_only_handles_heatpump_refresh_failure(
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         return_value=None
     )  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock(
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]
         return_value=None
     )  # noqa: SLF001
-    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock(
         side_effect=RuntimeError("boom")
@@ -640,10 +665,10 @@ async def test_update_data_ignores_grid_control_and_hems_refresh_errors_site_onl
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord.site_only = True
-    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError("boom")
     )
-    coord._async_refresh_hems_devices = AsyncMock(
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError("boom")
     )  # noqa: SLF001
 
@@ -664,7 +689,7 @@ async def test_async_update_data_site_only_refreshes_hems_before_heatpump_power(
     coord._async_refresh_battery_site_settings = AsyncMock(
         return_value=None
     )  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(
         return_value=None
     )  # noqa: SLF001
@@ -673,13 +698,13 @@ async def test_async_update_data_site_only_refreshes_hems_before_heatpump_power(
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         return_value=None
     )  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=lambda: order.append("devices")
     )
-    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=lambda: order.append("hems")
     )
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
@@ -717,7 +742,7 @@ async def test_async_update_data_site_only_ignores_runtime_and_daily_refresh_err
     coord._async_refresh_battery_site_settings = AsyncMock(  # noqa: SLF001
         return_value=None
     )
-    coord._async_refresh_battery_status = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
         return_value=None
     )
@@ -726,13 +751,13 @@ async def test_async_update_data_site_only_ignores_runtime_and_daily_refresh_err
         return_value=None
     )
     coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         return_value=None
     )
-    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=lambda: order.append("devices")
     )
-    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=lambda: order.append("hems")
     )
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
@@ -786,7 +811,7 @@ async def test_async_update_data_continues_when_heatpump_refresh_raises(
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock(
         side_effect=RuntimeError("boom")
     )  # noqa: SLF001
@@ -832,7 +857,7 @@ async def test_async_update_data_continues_when_runtime_and_daily_refresh_raise(
         return_value=None
     )
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_heatpump_runtime_state = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("runtime")
     )
@@ -858,10 +883,10 @@ async def test_update_data_clears_success_issues_and_ignores_grid_control_and_he
     )
     coord._unauth_errors = 1  # noqa: SLF001
     coord._dns_issue_reported = True  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError("boom")
     )
-    coord._async_refresh_hems_devices = AsyncMock(
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError("boom")
     )  # noqa: SLF001
 
@@ -911,7 +936,7 @@ async def test_update_data_success_clears_reauth_and_converts_millisecond_timest
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_hems_devices = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
 
     result = await coord._async_update_data()  # noqa: SLF001
 
@@ -988,8 +1013,12 @@ async def test_refresh_helper_wrappers_cover_stage_and_topology_paths(
 def test_summary_type_bucket_source_guards_invalid_inputs(coordinator_factory) -> None:
     coord = coordinator_factory(serials=[])
     coord._type_device_buckets = "bad"  # type: ignore[assignment]  # noqa: SLF001
-    assert coord._summary_type_bucket_source("envoy") is None  # noqa: SLF001
-    assert coord._summary_type_bucket_source(None) is None  # noqa: SLF001
+    assert (
+        coord.inventory_runtime._summary_type_bucket_source("envoy") is None
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_runtime._summary_type_bucket_source(None) is None
+    )  # noqa: SLF001
 
 
 def test_publish_internal_state_update_copies_current_data(coordinator_factory) -> None:
@@ -1035,11 +1064,13 @@ def test_topology_listener_and_summary_helpers_cover_edge_paths(
     assert coord.topology_snapshot() == coord._topology_snapshot_cache  # noqa: SLF001
     assert len(coord._topology_listeners) == 1  # noqa: SLF001
 
-    coord._build_heatpump_type_summaries = Mock(return_value={})  # type: ignore[assignment]  # noqa: SLF001
+    coord.inventory_runtime._build_heatpump_type_summaries = Mock(return_value={})  # type: ignore[assignment]  # noqa: SLF001
     assert coord.heatpump_type_summary(BadStr()) == {}
 
-    original_router_marker = coord._gateway_iq_energy_router_records_marker
-    coord._gateway_iq_energy_router_records_marker = lambda: ("stable",)  # type: ignore[assignment]  # noqa: SLF001
+    original_router_marker = (
+        coord.inventory_runtime._gateway_iq_energy_router_records_marker
+    )
+    coord.inventory_runtime._gateway_iq_energy_router_records_marker = lambda: ("stable",)  # type: ignore[assignment]  # noqa: SLF001
     coord._gateway_iq_energy_router_records_cache = [
         {"key": "router_1", "name": "Router"}
     ]  # noqa: SLF001
@@ -1048,27 +1079,36 @@ def test_topology_listener_and_summary_helpers_cover_edge_paths(
         "router_1": {"key": "router_1", "name": "Router"}
     }
 
-    assert coord._router_record_key("bad") is None  # noqa: SLF001
-    assert coord._router_record_key({"key": None}) is None  # noqa: SLF001
-    assert coord._router_record_key({"key": BadStr()}) is None  # noqa: SLF001
-    assert coord.gateway_iq_energy_router_record(BadStr()) is None
-    assert coord.gateway_iq_energy_router_record(" ") is None
-    assert coord.gateway_iq_energy_router_record("router_1") == {
+    assert coord.inventory_runtime._router_record_key("bad") is None  # noqa: SLF001
+    assert (
+        coord.inventory_runtime._router_record_key({"key": None}) is None
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_runtime._router_record_key({"key": BadStr()}) is None
+    )  # noqa: SLF001
+    assert coord.inventory_view.gateway_iq_energy_router_record(BadStr()) is None
+    assert coord.inventory_view.gateway_iq_energy_router_record(" ") is None
+    assert coord.inventory_view.gateway_iq_energy_router_record("router_1") == {
         "key": "router_1",
         "name": "Router",
     }
-    coord._gateway_iq_energy_router_records_marker = original_router_marker  # type: ignore[assignment]  # noqa: SLF001
+    coord.inventory_runtime._gateway_iq_energy_router_records_marker = original_router_marker  # type: ignore[assignment]  # noqa: SLF001
 
-    assert coord._summary_text(BadStr()) is None  # noqa: SLF001
-    assert coord._summary_identity("Router Main") == "router_main"  # noqa: SLF001
-    assert coord._gateway_iq_energy_router_records_marker() == (  # noqa: SLF001
-        id(getattr(coord, "_hems_devices_payload", None)),
-        id(getattr(coord, "_devices_inventory_payload", None)),
-        id(getattr(coord, "_restored_gateway_iq_energy_router_records", None)),
+    assert coord.inventory_runtime._summary_text(BadStr()) is None  # noqa: SLF001
+    assert (
+        coord.inventory_runtime._summary_identity("Router Main") == "router_main"
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_runtime._gateway_iq_energy_router_records_marker()
+        == (  # noqa: SLF001
+            id(getattr(coord, "_hems_devices_payload", None)),
+            id(getattr(coord, "_devices_inventory_payload", None)),
+            id(getattr(coord, "_restored_gateway_iq_energy_router_records", None)),
+        )
     )
-    assert coord._heatpump_status_text(None) is None  # noqa: SLF001
+    assert coord.inventory_runtime._heatpump_status_text(None) is None  # noqa: SLF001
 
-    records = coord._gateway_iq_energy_router_summary_records(  # noqa: SLF001
+    records = coord.inventory_runtime._gateway_iq_energy_router_summary_records(  # noqa: SLF001
         [
             {"name": "Router Main"},
             {"name": "Router Main"},
@@ -1081,7 +1121,7 @@ def test_topology_listener_and_summary_helpers_cover_edge_paths(
         "index_3",
     ]
 
-    records = coord._gateway_iq_energy_router_summary_records(  # noqa: SLF001
+    records = coord.inventory_runtime._gateway_iq_energy_router_summary_records(  # noqa: SLF001
         [
             {"device_uid": "router-uid", "uid": "fallback-uid", "name": "Router UID"},
         ]
@@ -1154,8 +1194,12 @@ async def test_refresh_devices_inventory_logs_sanitized_discovery_summary(
     coord = coordinator_factory(client=client, serials=[])
 
     with caplog.at_level(logging.DEBUG):
-        await coord._async_refresh_devices_inventory(force=True)  # noqa: SLF001
-        await coord._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+        await coord.inventory_runtime._async_refresh_devices_inventory(
+            force=True
+        )  # noqa: SLF001
+        await coord.inventory_runtime._async_refresh_devices_inventory(
+            force=True
+        )  # noqa: SLF001
 
     matches = [
         record
@@ -1205,7 +1249,9 @@ async def test_refresh_hems_devices_logs_sanitized_discovery_summary(
     coord._async_refresh_hems_support_preflight = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
 
     with caplog.at_level(logging.DEBUG):
-        await coord._async_refresh_hems_devices(force=True)  # noqa: SLF001
+        await coord.inventory_runtime._async_refresh_hems_devices(
+            force=True
+        )  # noqa: SLF001
 
     matches = [
         record
@@ -1260,7 +1306,7 @@ async def test_update_data_ignores_devices_inventory_refresh_errors(
 ) -> None:
     coord = coordinator_factory()
     coord.site_only = True
-    coord._async_refresh_devices_inventory = AsyncMock(
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError()
     )  # noqa: SLF001
     result = await coord._async_update_data()
@@ -1268,7 +1314,7 @@ async def test_update_data_ignores_devices_inventory_refresh_errors(
 
     coord = coordinator_factory()
     coord.client.status = AsyncMock(return_value={"evChargerData": [], "ts": 0})
-    coord._async_refresh_devices_inventory = AsyncMock(
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError()
     )  # noqa: SLF001
     await coord._async_update_data()
@@ -2491,7 +2537,27 @@ async def test_first_refresh_defers_warmup_only_calls(
         "_async_resolve_auth_settings": AsyncMock(return_value={}),
     }
     for name, mock in deferred_methods.items():
-        monkeypatch.setattr(coord, name, mock)
+        owner = coord
+        attr = name
+        if name in {
+            "_async_refresh_battery_status",
+            "_async_refresh_grid_control_check",
+        }:
+            owner = coord.battery_runtime
+            attr = name.removeprefix("_")
+        elif name in {
+            "_async_refresh_devices_inventory",
+            "_async_refresh_hems_devices",
+        }:
+            owner = coord.inventory_runtime
+        elif name in {
+            "_async_resolve_charge_modes",
+            "_async_resolve_green_battery_settings",
+            "_async_resolve_auth_settings",
+        }:
+            owner = coord.evse_runtime
+            attr = name.removeprefix("_")
+        monkeypatch.setattr(owner, attr, mock)
 
     monkeypatch.setattr(coord.energy, "_async_refresh_site_energy", AsyncMock())
     monkeypatch.setattr(coord.evse_timeseries, "async_refresh", AsyncMock())
@@ -2570,7 +2636,7 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
         "custom_flow",
     }
 
-    coord._hems_group_members = lambda *_args: [  # type: ignore[assignment]  # noqa: SLF001
+    coord.inventory_runtime._hems_group_members = lambda *_args: [  # type: ignore[assignment]  # noqa: SLF001
         None,
         {"device-type": None},
         {"device-type": BadStr()},
@@ -2580,7 +2646,7 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     live_records = coord._live_gateway_iq_energy_router_records()  # noqa: SLF001
     assert live_records == [{"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE-1"}]
 
-    coord._hems_group_members = lambda *_args: []  # type: ignore[assignment]  # noqa: SLF001
+    coord.inventory_runtime._hems_group_members = lambda *_args: []  # type: ignore[assignment]  # noqa: SLF001
     coord.energy = SimpleNamespace(
         site_energy={}, site_energy_meta={"bucket_lengths": {}}
     )
@@ -2604,7 +2670,7 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     ]
 
     coord._hems_inventory_ready = True  # noqa: SLF001
-    assert coord.gateway_iq_energy_router_records() == []
+    assert coord.inventory_view.gateway_iq_energy_router_records() == []
 
 
 @pytest.mark.asyncio
@@ -2620,7 +2686,7 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     ensure_serial = Mock()
     set_buckets = Mock()
     coord._ensure_serial_tracked = ensure_serial  # type: ignore[assignment]  # noqa: SLF001
-    coord._set_type_device_buckets = set_buckets  # type: ignore[assignment]  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets = set_buckets  # type: ignore[assignment]  # noqa: SLF001
 
     coord._apply_discovery_snapshot(  # noqa: SLF001
         {
@@ -2664,7 +2730,7 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
 
     coord = _make_coordinator(hass, monkeypatch)
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {"envoy": {"count": 1, "devices": [{"serial_number": "GW-1"}]}},
         ["envoy"],
         authoritative=False,
@@ -2905,16 +2971,16 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
     await coord._async_refresh_session_state_for_warmup()  # noqa: SLF001
 
     coord.iter_serials = lambda: [RANDOM_SERIAL, "SECONDARY"]  # type: ignore[assignment]
-    coord._async_resolve_charge_modes = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+    coord.evse_runtime.async_resolve_charge_modes = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         return_value={RANDOM_SERIAL: "SCHEDULED"}
     )
-    coord._async_resolve_green_battery_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+    coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         return_value={RANDOM_SERIAL: (True, True)}
     )
-    coord._async_resolve_auth_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+    coord.evse_runtime.async_resolve_auth_settings = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         return_value={RANDOM_SERIAL: (True, False, True, True)}
     )
-    coord._async_resolve_charger_config = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+    coord.evse_runtime.async_resolve_charger_config = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         return_value={
             RANDOM_SERIAL: {
                 "phase_switch_config": "auto",
@@ -2972,8 +3038,8 @@ async def test_charge_mode_lookup_skipped_when_embedded(
         return {}
 
     monkeypatch.setattr(
-        coord_mod.EnphaseCoordinator,
-        "_async_resolve_charge_modes",
+        coord_mod.EvseRuntime,
+        "async_resolve_charge_modes",
         fake_resolve,
         raising=False,
     )
@@ -3064,13 +3130,13 @@ async def test_restore_discovery_state_applies_snapshot_topology(
     await coord.async_restore_discovery_state()
 
     assert coord.iter_serials() == [RANDOM_SERIAL, "RESTORED123"]
-    assert coord.type_bucket("heatpump")["count"] == 1
+    assert coord.inventory_view.type_bucket("heatpump")["count"] == 1
     assert coord._battery_storage_order == ["BAT-1"]  # noqa: SLF001
     assert coord._inverter_order == ["INV-1"]  # noqa: SLF001
     assert coord._devices_inventory_ready is False  # noqa: SLF001
     assert coord.site_energy_channel_known("heat_pump") is True
     assert coord.site_energy_channel_known("water_heater") is True
-    router_records = coord.gateway_iq_energy_router_records()
+    router_records = coord.inventory_view.gateway_iq_energy_router_records()
     assert router_records[0]["device-uid"] == "ROUTER-1"
 
 
@@ -3091,14 +3157,17 @@ def test_restored_site_energy_and_router_hints_expire_after_authoritative_refres
     ]
 
     assert coord.site_energy_channel_known("heat_pump") is True
-    assert coord.gateway_iq_energy_router_records()[0]["device-uid"] == "ROUTER-1"
+    assert (
+        coord.inventory_view.gateway_iq_energy_router_records()[0]["device-uid"]
+        == "ROUTER-1"
+    )
 
     coord._site_energy_discovery_ready = True  # noqa: SLF001
     coord._hems_inventory_ready = True  # noqa: SLF001
 
     assert coord.site_energy_channel_known("heat_pump") is False
     assert coord.site_energy_channel_known("water_heater") is False
-    assert coord.gateway_iq_energy_router_records() == []
+    assert coord.inventory_view.gateway_iq_energy_router_records() == []
 
 
 @pytest.mark.asyncio
@@ -4658,17 +4727,17 @@ async def test_update_data_site_only_refreshes_battery_status(
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
 
     await coord._async_update_data()  # noqa: SLF001
 
-    coord._async_refresh_battery_status.assert_awaited_once()
+    coord.battery_runtime.async_refresh_battery_status.assert_awaited_once()
     coord._async_refresh_battery_backup_history.assert_awaited_once()
 
 
@@ -4684,14 +4753,14 @@ async def test_update_data_site_only_continues_when_backup_history_refresh_fails
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("boom")
     )
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
 
     await coord._async_update_data()  # noqa: SLF001
@@ -4714,7 +4783,7 @@ async def test_update_data_site_only_ignores_optional_refresh_failures(
     coord._async_refresh_battery_site_settings = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("site settings")
     )
-    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
@@ -4726,16 +4795,16 @@ async def test_update_data_site_only_ignores_optional_refresh_failures(
     coord._async_refresh_storm_alert = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("storm alert")
     )
-    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError("grid")
     )
-    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=RuntimeError("inventory")
     )
     coord._async_refresh_dry_contact_settings = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("dry contact")
     )
-    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=RuntimeError("hems")
     )
     coord._async_refresh_inverters = AsyncMock(  # noqa: SLF001
@@ -4761,22 +4830,22 @@ async def test_update_data_normal_refreshes_battery_status(
     coord._has_successful_refresh = True  # noqa: SLF001
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
-    coord._async_resolve_green_battery_settings = AsyncMock(
+    coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(  # type: ignore[method-assign]
         return_value={}
     )  # noqa: SLF001
-    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord.evse_runtime.async_resolve_auth_settings = AsyncMock(return_value={})  # type: ignore[method-assign]  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
 
     await coord._async_update_data()  # noqa: SLF001
 
-    coord._async_refresh_battery_status.assert_awaited_once()
+    coord.battery_runtime.async_refresh_battery_status.assert_awaited_once()
     coord._async_refresh_battery_backup_history.assert_awaited_once()
 
 
@@ -4788,19 +4857,19 @@ async def test_update_data_normal_continues_when_backup_history_refresh_fails(
     coord._has_successful_refresh = True  # noqa: SLF001
     coord.client.status = AsyncMock(return_value={"evChargerData": []})
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("boom")
     )
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
-    coord._async_resolve_green_battery_settings = AsyncMock(
+    coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(  # type: ignore[method-assign]
         return_value={}
     )  # noqa: SLF001
-    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord.evse_runtime.async_resolve_auth_settings = AsyncMock(return_value={})  # type: ignore[method-assign]  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
 
     await coord._async_update_data()  # noqa: SLF001
@@ -4840,7 +4909,7 @@ async def test_update_data_normal_ignores_optional_refresh_failures(
         side_effect=RuntimeError("timeseries")
     )
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
@@ -4848,16 +4917,16 @@ async def test_update_data_normal_ignores_optional_refresh_failures(
     )
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(  # noqa: SLF001
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         side_effect=RuntimeError("grid")
     )
-    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=RuntimeError("inventory")
     )
     coord._async_refresh_dry_contact_settings = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("dry contact")
     )
-    coord._async_refresh_hems_devices = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=RuntimeError("hems")
     )
     coord._async_refresh_inverters = AsyncMock(  # noqa: SLF001
@@ -4868,10 +4937,10 @@ async def test_update_data_normal_ignores_optional_refresh_failures(
         side_effect=RuntimeError("heatpump")
     )
     coord._get_charge_mode = AsyncMock(return_value="IMMEDIATE")  # type: ignore[assignment]  # noqa: SLF001
-    coord._async_resolve_green_battery_settings = AsyncMock(
+    coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(  # type: ignore[method-assign]
         return_value={}
     )  # noqa: SLF001
-    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord.evse_runtime.async_resolve_auth_settings = AsyncMock(return_value={})  # type: ignore[method-assign]  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
 
     await coord._async_update_data()  # noqa: SLF001
@@ -4920,24 +4989,24 @@ async def test_update_data_normal_ignores_merge_charger_payload_failures(
         side_effect=RuntimeError("boom")
     )  # noqa: SLF001
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_schedules = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_dry_contact_settings = AsyncMock()  # noqa: SLF001
-    coord._async_refresh_hems_devices = AsyncMock()  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
     coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock()  # noqa: SLF001
     coord._get_charge_mode = AsyncMock(return_value="IMMEDIATE")  # type: ignore[assignment]  # noqa: SLF001
-    coord._async_resolve_green_battery_settings = AsyncMock(
+    coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(  # type: ignore[method-assign]
         return_value={}
     )  # noqa: SLF001
-    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord.evse_runtime.async_resolve_auth_settings = AsyncMock(return_value={})  # type: ignore[method-assign]  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
 
     result = await coord._async_update_data()  # noqa: SLF001
@@ -4997,7 +5066,7 @@ async def test_update_data_site_only_orders_topology_mutations_deterministically
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock(return_value=None)  # noqa: SLF001
-    coord._async_refresh_grid_control_check = AsyncMock(
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_dry_contact_settings = AsyncMock(
@@ -5006,13 +5075,13 @@ async def test_update_data_site_only_orders_topology_mutations_deterministically
     coord._async_refresh_current_power_consumption = AsyncMock(
         return_value=None
     )  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock(
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock(  # type: ignore[method-assign]
         side_effect=_record_battery_status
     )  # noqa: SLF001
-    coord._async_refresh_devices_inventory = AsyncMock(  # noqa: SLF001
+    coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=_record_devices_inventory
     )
-    coord._async_refresh_hems_devices = AsyncMock(
+    coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]
         side_effect=_record_hems_devices
     )  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(

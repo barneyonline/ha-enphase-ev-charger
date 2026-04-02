@@ -55,6 +55,23 @@ def method_task(
     )
 
 
+def object_method_task(
+    timing_key: str,
+    log_label: str,
+    object_name: str,
+    method_name: str,
+    /,
+    **kwargs: object,
+) -> RefreshTask:
+    return RefreshTask(
+        timing_key=timing_key,
+        log_label=log_label,
+        callback_factory=lambda owner: getattr(
+            getattr(owner, object_name), method_name
+        )(**kwargs),
+    )
+
+
 def callback_task(
     timing_key: str,
     log_label: str,
@@ -106,15 +123,24 @@ WARMUP_DISCOVERY_STAGE = RefreshStage(
         ),
     ),
     ordered_tasks=(
-        method_task(
-            "battery_status_s", "battery status", "_async_refresh_battery_status"
+        object_method_task(
+            "battery_status_s",
+            "battery status",
+            "battery_runtime",
+            "async_refresh_battery_status",
         ),
-        method_task(
+        object_method_task(
             "devices_inventory_s",
             "device inventory",
+            "inventory_runtime",
             "_async_refresh_devices_inventory",
         ),
-        method_task("hems_devices_s", "HEMS inventory", "_async_refresh_hems_devices"),
+        object_method_task(
+            "hems_devices_s",
+            "HEMS inventory",
+            "inventory_runtime",
+            "_async_refresh_hems_devices",
+        ),
         method_task("inverters_s", "inverters", "_async_refresh_inverters"),
     ),
 )
@@ -139,10 +165,11 @@ WARMUP_STATE_STAGE = RefreshStage(
             "storm_guard_s", "storm guard", "_async_refresh_storm_guard_profile"
         ),
         method_task("storm_alert_s", "storm alert", "_async_refresh_storm_alert"),
-        method_task(
+        object_method_task(
             "grid_control_check_s",
             "grid control",
-            "_async_refresh_grid_control_check",
+            "battery_runtime",
+            "async_refresh_grid_control_check",
         ),
         method_task(
             "dry_contact_settings_s",
@@ -187,10 +214,11 @@ SITE_ONLY_FOLLOWUP_STAGE = RefreshStage(
             "storm_guard_s", "storm guard", "_async_refresh_storm_guard_profile"
         ),
         method_task("storm_alert_s", "storm alert", "_async_refresh_storm_alert"),
-        method_task(
+        object_method_task(
             "grid_control_check_s",
             "grid control",
-            "_async_refresh_grid_control_check",
+            "battery_runtime",
+            "async_refresh_grid_control_check",
         ),
         method_task(
             "dry_contact_settings_s",
@@ -204,15 +232,24 @@ SITE_ONLY_FOLLOWUP_STAGE = RefreshStage(
         ),
     ),
     ordered_tasks=(
-        method_task(
-            "battery_status_s", "battery status", "_async_refresh_battery_status"
+        object_method_task(
+            "battery_status_s",
+            "battery status",
+            "battery_runtime",
+            "async_refresh_battery_status",
         ),
-        method_task(
+        object_method_task(
             "devices_inventory_s",
             "device inventory",
+            "inventory_runtime",
             "_async_refresh_devices_inventory",
         ),
-        method_task("hems_devices_s", "HEMS inventory", "_async_refresh_hems_devices"),
+        object_method_task(
+            "hems_devices_s",
+            "HEMS inventory",
+            "inventory_runtime",
+            "_async_refresh_hems_devices",
+        ),
         method_task("inverters_s", "inverters", "_async_refresh_inverters"),
     ),
 )
@@ -221,15 +258,24 @@ FOLLOWUP_STAGE = RefreshStage(
     defer_topology=True,
     parallel_tasks=SITE_ONLY_FOLLOWUP_STAGE.parallel_tasks,
     ordered_tasks=(
-        method_task(
-            "battery_status_s", "battery status", "_async_refresh_battery_status"
+        object_method_task(
+            "battery_status_s",
+            "battery status",
+            "battery_runtime",
+            "async_refresh_battery_status",
         ),
-        method_task(
+        object_method_task(
             "devices_inventory_s",
             "device inventory",
+            "inventory_runtime",
             "_async_refresh_devices_inventory",
         ),
-        method_task("hems_devices_s", "HEMS inventory", "_async_refresh_hems_devices"),
+        object_method_task(
+            "hems_devices_s",
+            "HEMS inventory",
+            "inventory_runtime",
+            "_async_refresh_hems_devices",
+        ),
     ),
 )
 

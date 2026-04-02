@@ -430,7 +430,7 @@ def test_battery_overall_charge_sensor_states():
     assert sensor.native_value == 47.8
     assert sensor.device_info["identifiers"] == {("enphase_ev", "type:site:encharge")}
     provided = {"identifiers": {("enphase_ev", "type:site:encharge")}}
-    coord.type_device_info = lambda _key: provided
+    coord.inventory_view.type_device_info = lambda _key: provided
     assert sensor.device_info is provided
     attrs = sensor.extra_state_attributes
     assert attrs["aggregate_status"] == "normal"
@@ -544,7 +544,10 @@ def test_battery_storage_charge_sensor_snapshot():
         site_id="site",
         last_update_success=True,
         battery_storage=lambda _serial: snapshot,
-        type_device_info=lambda _key: None,
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda _key: None,
+            has_type_for_entities=lambda _key: True,
+        ),
     )
 
     sensor = EnphaseBatteryStorageChargeSensor(coord, "BAT-1")
@@ -567,7 +570,10 @@ def test_battery_storage_charge_sensor_edge_paths():
         site_id="site",
         last_update_success=True,
         battery_storage="not-callable",
-        type_device_info=lambda _key: None,
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda _key: None,
+            has_type_for_entities=lambda _key: True,
+        ),
     )
     sensor = EnphaseBatteryStorageChargeSensor(coord, "BAT-EDGE")
     assert sensor.available is False
@@ -589,11 +595,11 @@ def test_battery_storage_charge_sensor_edge_paths():
     coord.battery_storage = lambda _serial: ["bad"]
     assert sensor.available is False
 
-    coord.has_type_for_entities = lambda _key: False
+    coord.inventory_view.has_type_for_entities = lambda _key: False
     assert sensor.available is False
 
     expected_info = {"identifiers": {("enphase_ev", "type:site:encharge")}}
-    coord.type_device_info = lambda _key: expected_info
+    coord.inventory_view.type_device_info = lambda _key: expected_info
     assert sensor.device_info == expected_info
 
 
@@ -623,7 +629,10 @@ def test_battery_storage_detail_sensors_state_and_attributes():
         site_id="site",
         last_update_success=True,
         battery_storage=lambda _serial: snapshot,
-        type_device_info=lambda _key: None,
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda _key: None,
+            has_type_for_entities=lambda _key: True,
+        ),
     )
 
     status = EnphaseBatteryStorageStatusSensor(coord, "BAT-1")

@@ -2832,7 +2832,7 @@ def test_site_energy_sensor_device_info_uses_coordinator_cloud_info(
 ) -> None:
     coord = coordinator_factory()
     provided = {"identifiers": {("enphase_ev", "type:site-provided:cloud")}}
-    coord.type_device_info = lambda key: (
+    coord.inventory_view.type_device_info = lambda key: (
         provided if key == "cloud" else None
     )  # type: ignore[assignment]
     sensor = EnphaseSiteEnergySensor(
@@ -2843,7 +2843,7 @@ def test_site_energy_sensor_device_info_uses_coordinator_cloud_info(
 
 def test_site_energy_sensor_available_not_gated_by_envoy(coordinator_factory) -> None:
     coord = coordinator_factory()
-    coord.has_type_for_entities = lambda _type_key: False
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False
     coord.last_update_success = True
     coord.last_success_utc = None
     coord.energy.site_energy = {"grid_import": {"value_kwh": 1.0}}

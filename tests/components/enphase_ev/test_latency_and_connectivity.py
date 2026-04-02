@@ -75,7 +75,7 @@ def test_cloud_site_sensors_are_not_gated_by_envoy_type():
     )
 
     coord = _make_site_coord()
-    coord.has_type_for_entities = lambda _type_key: False
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False
     coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
     coord.latency_ms = 123
     coord._current_power_consumption_w = 752.0
@@ -448,7 +448,7 @@ def test_cloud_site_sensors_device_info_prefers_coordinator_info():
 
     coord = _make_site_coord()
     provided = {"identifiers": {("enphase_ev", "type:site-x:cloud")}}
-    coord.type_device_info = lambda _key: provided  # type: ignore[assignment]
+    coord.inventory_view.type_device_info = lambda _key: provided  # type: ignore[assignment]
 
     assert EnphaseSiteLastUpdateSensor(coord).device_info is provided
     assert EnphaseCloudLatencySensor(coord).device_info is provided

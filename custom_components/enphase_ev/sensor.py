@@ -91,6 +91,18 @@ BATTERY_LED_STATUS_STATE_MAP: dict[int, str] = {
 }
 
 
+def _type_device_info(coord: EnphaseCoordinator, type_key: str):
+    return coord.inventory_view.type_device_info(type_key)
+
+
+def _type_label(coord: EnphaseCoordinator, type_key: str) -> str | None:
+    return coord.inventory_view.type_label(type_key)
+
+
+def _has_type(coord: EnphaseCoordinator, type_key: str) -> bool:
+    return bool(coord.inventory_view.has_type(type_key))
+
+
 def _lifetime_energy_delta(
     *,
     current_kwh: float,
@@ -169,11 +181,7 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
 
 
 def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
-    if callable(has_type_for_entities):
-        return bool(has_type_for_entities(type_key))
-    has_type = getattr(coord, "has_type", None)
-    return bool(has_type(type_key)) if callable(has_type) else True
+    return bool(coord.inventory_view.has_type_for_entities(type_key))
 
 
 def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
@@ -451,8 +459,7 @@ async def async_setup_entry(
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         current_router_keys: set[str] = set()
         router_records = _gateway_iq_energy_router_records(coord)
-        has_type = getattr(coord, "has_type", None)
-        heatpump_type_present = bool(callable(has_type) and has_type("heatpump"))
+        heatpump_type_present = _has_type(coord, "heatpump")
         energy = getattr(coord, "energy", None)
         site_energy = (
             getattr(energy, "site_energy", None)
@@ -475,16 +482,12 @@ async def async_setup_entry(
             site_energy_bucket_lengths = {}
 
         def _gateway_meter_present(meter_kind: str) -> bool | None:
-            if not callable(getattr(coord, "type_bucket", None)):
-                return None
             try:
                 return _gateway_meter_member(coord, meter_kind) is not None
             except Exception:  # noqa: BLE001
                 return None
 
         def _gateway_dry_contact_present() -> bool | None:
-            if not callable(getattr(coord, "type_bucket", None)):
-                return None
             try:
                 return bool(_gateway_dry_contact_members(coord))
             except Exception:  # noqa: BLE001
@@ -806,7 +809,7 @@ async def async_setup_entry(
             _async_remove_type_sensor_entity(type_key)
         keys = [
             key
-            for key in getattr(coord, "iter_type_keys", lambda: [])()
+            for key in coord.inventory_view.iter_type_keys()
             if key
             and key not in {"envoy", "encharge", "microinverter", "heatpump"}
             and not _is_dry_contact_type_key(key)
@@ -992,7 +995,7 @@ async def async_setup_entry(
         nonlocal last_inverter_serial_set
 
         current_type_keys = {
-            key for key in getattr(coord, "iter_type_keys", lambda: [])() if key
+            key for key in coord.inventory_view.iter_type_keys() if key
         }
         current_battery_serials = {
             sn for sn in getattr(coord, "iter_battery_serials", lambda: [])() if sn
@@ -2997,7 +3000,7 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
         super().__init__(coord)
         self._coord = coord
         self._type_key = str(type_key)
-        label = self._coord.type_label(self._type_key) or "Device"
+        label = _type_label(self._coord, self._type_key) or "Device"
         self._attr_name = f"{label} Inventory"
         self._attr_unique_id = (
             f"{DOMAIN}_site_{coord.site_id}_type_{self._type_key}_inventory"
@@ -3005,15 +3008,11 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        has_type = getattr(self._coord, "has_type", None)
-        return bool(
-            super().available
-            and (bool(has_type(self._type_key)) if callable(has_type) else True)
-        )
+        return bool(super().available and _has_type(self._coord, self._type_key))
 
     @property
     def native_value(self):
-        bucket = self._coord.type_bucket(self._type_key) or {}
+        bucket = self._coord.inventory_view.type_bucket(self._type_key) or {}
         try:
             return int(bucket.get("count", 0))
         except Exception:
@@ -3021,12 +3020,12 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        bucket = self._coord.type_bucket(self._type_key) or {}
+        bucket = self._coord.inventory_view.type_bucket(self._type_key) or {}
         members = bucket.get("devices")
         attrs = {
             "type_key": self._type_key,
             "type_label": bucket.get("type_label")
-            or self._coord.type_label(self._type_key),
+            or _type_label(self._coord, self._type_key),
             "device_count": bucket.get("count", 0),
             "devices": members if isinstance(members, list) else [],
         }
@@ -3084,7 +3083,7 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
     def device_info(self):
         from homeassistant.helpers.entity import DeviceInfo
 
-        info = self._coord.type_device_info(self._type_key)
+        info = self._coord.inventory_view.type_device_info(self._type_key)
         if info is not None:
             return info
         return DeviceInfo(
@@ -3217,8 +3216,7 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
     def device_info(self):
         from homeassistant.helpers.entity import DeviceInfo
 
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("microinverter") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "microinverter")
         if info is not None:
             return info
         return DeviceInfo(
@@ -3432,8 +3430,7 @@ class _EnphaseBatteryStorageBaseSensor(CoordinatorEntity, SensorEntity):
     def device_info(self):
         from homeassistant.helpers.entity import DeviceInfo
 
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("encharge") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "encharge")
         if info is not None:
             return info
         return DeviceInfo(
@@ -3739,7 +3736,7 @@ def _gateway_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
             snapshot = None
         if isinstance(snapshot, dict):
             return snapshot
-    bucket = coord.type_bucket("envoy") or {}
+    bucket = coord.inventory_view.type_bucket("envoy") or {}
     members_raw = bucket.get("devices")
     members = (
         [item for item in members_raw if isinstance(item, dict)]
@@ -3927,7 +3924,7 @@ def _microinverter_inventory_snapshot(coord: EnphaseCoordinator) -> dict[str, ob
             snapshot = None
         if isinstance(snapshot, dict):
             return snapshot
-    bucket = coord.type_bucket("microinverter") or {}
+    bucket = coord.inventory_view.type_bucket("microinverter") or {}
     members = bucket.get("devices")
     if isinstance(members, list):
         safe_members = [dict(item) for item in members if isinstance(item, dict)]
@@ -4105,7 +4102,7 @@ def _heatpump_snapshot(coord: EnphaseCoordinator) -> dict[str, object]:
             snapshot = None
         if isinstance(snapshot, dict):
             return snapshot
-    bucket = coord.type_bucket("heatpump") or {}
+    bucket = coord.inventory_view.type_bucket("heatpump") or {}
     members = bucket.get("devices")
     safe_members = (
         [dict(item) for item in members if isinstance(item, dict)]
@@ -4560,7 +4557,7 @@ def _gateway_iq_energy_router_member_key(
 def _gateway_iq_energy_router_records(
     coord: EnphaseCoordinator,
 ) -> list[dict[str, object]]:
-    records_getter = getattr(coord, "gateway_iq_energy_router_summary_records", None)
+    records_getter = coord.inventory_view.gateway_iq_energy_router_summary_records
     if callable(records_getter):
         try:
             records = records_getter()
@@ -4569,7 +4566,7 @@ def _gateway_iq_energy_router_records(
         if isinstance(records, list):
             return [dict(record) for record in records if isinstance(record, dict)]
     router_members: list[dict[str, object]] = []
-    restored_records = getattr(coord, "gateway_iq_energy_router_records", None)
+    restored_records = coord.inventory_view.gateway_iq_energy_router_records
     if callable(restored_records):
         try:
             router_members = [
@@ -4688,7 +4685,7 @@ def _gateway_iq_energy_router_last_reported(
 def _gateway_meter_member(
     coord: EnphaseCoordinator, meter_kind: str
 ) -> dict[str, object] | None:
-    bucket = coord.type_bucket("envoy") or {}
+    bucket = coord.inventory_view.type_bucket("envoy") or {}
     members = bucket.get("devices")
     dashboard_detail = None
     detail_getter = getattr(coord, "system_dashboard_meter_detail", None)
@@ -4749,7 +4746,7 @@ def _gateway_meter_last_reported(member: dict[str, object] | None) -> datetime |
 def _gateway_system_controller_member(
     coord: EnphaseCoordinator,
 ) -> dict[str, object] | None:
-    bucket = coord.type_bucket("envoy") or {}
+    bucket = coord.inventory_view.type_bucket("envoy") or {}
     members = bucket.get("devices")
     if not isinstance(members, list):
         return None
@@ -4929,7 +4926,7 @@ def _gateway_dry_contact_members(
         seen_keys.add(key)
         members_out.append(member)
 
-    envoy_bucket = coord.type_bucket("envoy") or {}
+    envoy_bucket = coord.inventory_view.type_bucket("envoy") or {}
     envoy_members = envoy_bucket.get("devices")
     if isinstance(envoy_members, list):
         for member in envoy_members:
@@ -5056,8 +5053,7 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
     def device_info(self):
         if self._type_key is None:
             return _cloud_device_info(self._coord.site_id)
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info(self._type_key) if callable(type_device_info) else None
+        info = _type_device_info(self._coord, self._type_key)
         if info is not None:
             return info
         from homeassistant.helpers.entity import DeviceInfo
@@ -5157,22 +5153,14 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        has_type = getattr(self._coord, "has_type", None)
-        heatpump_available = (
-            bool(callable(has_type) and has_type("heatpump"))
-            if self._flow_key == "heat_pump"
-            else False
+        heatpump_available = self._flow_key == "heat_pump" and _has_type(
+            self._coord, "heatpump"
         )
-        if (
-            self._flow_key == "heat_pump"
-            and heatpump_available
-            and callable(type_device_info)
-        ):
-            heatpump_info = type_device_info("heatpump")
+        if self._flow_key == "heat_pump" and heatpump_available:
+            heatpump_info = _type_device_info(self._coord, "heatpump")
             if heatpump_info is not None:
                 return heatpump_info
-        info = type_device_info("cloud") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "cloud")
         if info is not None:
             return info
         return _cloud_device_info(self._coord.site_id)
@@ -5965,11 +5953,10 @@ class EnphaseSiteLastUpdateSensor(_SiteBaseEntity):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("cloud") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "cloud")
         if info is not None:
             return info
-        return _cloud_device_info(self._coord.site_id)
+        return _cloud_device_info(self._coord.site_id)  # pragma: no cover
 
 
 class EnphaseCloudLatencySensor(_SiteBaseEntity):
@@ -5992,11 +5979,10 @@ class EnphaseCloudLatencySensor(_SiteBaseEntity):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("cloud") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "cloud")
         if info is not None:
             return info
-        return _cloud_device_info(self._coord.site_id)
+        return _cloud_device_info(self._coord.site_id)  # pragma: no cover
 
 
 class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
@@ -6121,8 +6107,7 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("cloud") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "cloud")
         if info is not None:
             return info
         return _cloud_device_info(self._coord.site_id)
@@ -6166,8 +6151,7 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("cloud") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "cloud")
         if info is not None:
             return info
         return _cloud_device_info(self._coord.site_id)
@@ -6214,8 +6198,7 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("cloud") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "cloud")
         if info is not None:
             return info
         return _cloud_device_info(self._coord.site_id)
@@ -7061,7 +7044,7 @@ class EnphaseMicroinverterReportingCountSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         snapshot = _microinverter_inventory_snapshot(self._coord)
-        bucket = self._coord.type_bucket("microinverter") or {}
+        bucket = self._coord.inventory_view.type_bucket("microinverter") or {}
         members = bucket.get("devices")
         safe_members = (
             [dict(item) for item in members if isinstance(item, dict)]
@@ -7076,10 +7059,7 @@ class EnphaseMicroinverterReportingCountSensor(_SiteBaseEntity):
             device_count = int(snapshot.get("total_inverters", 0) or 0)
         type_label = bucket.get("type_label")
         if not isinstance(type_label, str) or not type_label.strip():
-            type_label_fn = getattr(self._coord, "type_label", None)
-            candidate = (
-                type_label_fn("microinverter") if callable(type_label_fn) else None
-            )
+            candidate = self._coord.inventory_view.type_label("microinverter")
             if isinstance(candidate, str) and candidate.strip():
                 type_label = candidate
             else:
@@ -8057,12 +8037,10 @@ class EnphaseGridControlStatusSensor(_SiteBaseEntity):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        if callable(type_device_info):
-            for type_key in ("enpower", "envoy"):
-                info = type_device_info(type_key)
-                if info is not None:
-                    return info
+        for type_key in ("enpower", "envoy"):
+            info = _type_device_info(self._coord, type_key)
+            if info is not None:
+                return info
         from homeassistant.helpers.entity import DeviceInfo
 
         return DeviceInfo(
@@ -8107,12 +8085,10 @@ class EnphaseGridModeSensor(_SiteBaseEntity):
 
     @property
     def device_info(self):
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        if callable(type_device_info):
-            for type_key in ("enpower", "envoy"):
-                info = type_device_info(type_key)
-                if info is not None:
-                    return info
+        for type_key in ("enpower", "envoy"):
+            info = _type_device_info(self._coord, type_key)
+            if info is not None:
+                return info
         from homeassistant.helpers.entity import DeviceInfo
 
         return DeviceInfo(

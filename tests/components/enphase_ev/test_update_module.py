@@ -86,6 +86,13 @@ class DummyCoordinator:
                 "display_name": "Driveway Charger",
             }
         }
+        self.inventory_view = SimpleNamespace(
+            has_type_for_entities=self.has_type_for_entities,
+            has_type=self.has_type,
+            type_bucket=self.type_bucket,
+            type_device_info=self.type_device_info,
+            type_device_sw_version=self.type_device_sw_version,
+        )
 
     def async_add_listener(self, callback):
         self._listeners.append(callback)
@@ -616,26 +623,77 @@ async def test_refresh_from_catalog_none_and_locale_fallback_paths(hass) -> None
 
 
 def test_helper_functions_cover_edge_paths() -> None:
-    assert _type_available(object(), "envoy") is True
-    assert _type_available(
-        SimpleNamespace(has_type=lambda key: key == "envoy"), "envoy"
+    assert (
+        _type_available(
+            SimpleNamespace(
+                inventory_view=SimpleNamespace(has_type_for_entities=lambda _key: True)
+            ),
+            "envoy",
+        )
+        is True
     )
-    assert not _type_available(SimpleNamespace(has_type=lambda key: False), "envoy")
+    assert _type_available(
+        SimpleNamespace(
+            inventory_view=SimpleNamespace(
+                has_type_for_entities=lambda key: key == "envoy"
+            )
+        ),
+        "envoy",
+    )
+    assert not _type_available(
+        SimpleNamespace(
+            inventory_view=SimpleNamespace(has_type_for_entities=lambda key: False)
+        ),
+        "envoy",
+    )
 
-    assert _gateway_installed_version(object()) is None
+    assert (
+        _gateway_installed_version(
+            SimpleNamespace(
+                inventory_view=SimpleNamespace(
+                    type_device_sw_version=lambda _type: None
+                )
+            )
+        )
+        is None
+    )
 
     coord = SimpleNamespace(
         data={"SN1": {"firmware_version": "1.2.3"}},
-        type_device_sw_version=lambda _type: None,
-        type_bucket=lambda _type: {"firmware_summary": "v1.2.3"},
+        inventory_view=SimpleNamespace(
+            type_device_sw_version=lambda _type: None,
+            type_bucket=lambda _type: {"firmware_summary": "v1.2.3"},
+        ),
     )
     assert _microinverter_installed_version(coord) == "v1.2.3"
-    assert _microinverter_installed_version(SimpleNamespace()) is None
+    assert (
+        _microinverter_installed_version(
+            SimpleNamespace(
+                inventory_view=SimpleNamespace(
+                    type_device_sw_version=lambda _type: None,
+                    type_bucket=lambda _type: None,
+                )
+            )
+        )
+        is None
+    )
     assert _charger_serials(SimpleNamespace()) == []
     assert _charger_installed_version(coord, "SN1") == "1.2.3"
-    fallback_coord = SimpleNamespace(type_device_sw_version=lambda _type: "2.0")
+    fallback_coord = SimpleNamespace(
+        inventory_view=SimpleNamespace(type_device_sw_version=lambda _type: "2.0")
+    )
     assert _charger_installed_version(fallback_coord, "SN2") == "2.0"
-    assert _charger_installed_version(SimpleNamespace(), "SN3") is None
+    assert (
+        _charger_installed_version(
+            SimpleNamespace(
+                inventory_view=SimpleNamespace(
+                    type_device_sw_version=lambda _type: None
+                )
+            ),
+            "SN3",
+        )
+        is None
+    )
     assert _as_bool(True) is True
     assert _as_bool(1) is True
     assert _as_bool("0") is False
@@ -655,7 +713,7 @@ def test_helper_functions_cover_edge_paths() -> None:
 
 def test_device_info_none_when_coordinator_does_not_supply_info() -> None:
     coord = DummyCoordinator()
-    coord.type_device_info = lambda _type: None
+    coord.inventory_view.type_device_info = lambda _type: None
     entity = FirmwareUpdateEntity(
         coordinator=coord,
         manager=DummyCatalogManager(_catalog_payload()),

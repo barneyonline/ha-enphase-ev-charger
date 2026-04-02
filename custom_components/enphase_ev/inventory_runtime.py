@@ -114,13 +114,13 @@ class InventoryRuntime:
         return self.coordinator.iter_battery_serials()
 
     def iter_type_keys(self) -> list[str]:
-        return self.coordinator.iter_type_keys()
+        return self.coordinator.inventory_view.iter_type_keys()
 
     def gateway_iq_energy_router_records(self) -> list[dict[str, object]]:
-        return self.coordinator.gateway_iq_energy_router_records()
+        return self.coordinator.inventory_view.gateway_iq_energy_router_records()
 
     def type_bucket(self, type_key: object) -> dict[str, object] | None:
-        return self.coordinator.type_bucket(type_key)
+        return self.coordinator.inventory_view.type_bucket(type_key)
 
     def _type_member_text(self, member: dict[str, object], *keys: str) -> str | None:
         return type_member_text(member, *keys)

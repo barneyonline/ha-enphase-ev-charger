@@ -19,15 +19,16 @@ from custom_components.enphase_ev.time import (
 )
 
 
-def test_time_type_available_falls_back_to_has_type() -> None:
+def test_time_type_available_uses_inventory_view() -> None:
     from custom_components.enphase_ev import time as time_mod
 
-    coord = SimpleNamespace(has_type=lambda type_key: type_key == "encharge")
+    coord = SimpleNamespace(
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key == "encharge"
+        )
+    )
     assert time_mod._type_available(coord, "encharge") is True
     assert time_mod._type_available(coord, "envoy") is False
-
-    coord_no_helpers = SimpleNamespace()
-    assert time_mod._type_available(coord_no_helpers, "encharge") is True
 
 
 def test_cfg_schedule_edit_available_handles_supported_and_existing_windows() -> None:
@@ -145,7 +146,7 @@ def test_retained_site_time_unique_ids_cover_each_schedule_family() -> None:
         "enphase_ev_site_site_restrict_battery_discharge_end_time",
     }
 
-    coord.has_type = lambda _type_key: False
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False
     assert time_mod._retained_site_time_unique_ids(coord) == set()
 
 
@@ -683,7 +684,7 @@ async def test_base_named_battery_schedule_time_entity_fallbacks(
 
     coord = coordinator_factory()
     coord._battery_has_encharge = True  # noqa: SLF001
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
     coord.async_custom_schedule_time = AsyncMock()
     coord.custom_schedule_time = dt_time(3, 15)
 
@@ -706,7 +707,7 @@ async def test_base_named_battery_schedule_time_entity_fallbacks(
     }
 
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
     assert entity.device_info is expected
 
     coord.last_update_success = False
@@ -715,7 +716,7 @@ async def test_base_named_battery_schedule_time_entity_fallbacks(
 
 def test_charge_from_grid_time_entity_device_info_fallback(coordinator_factory) -> None:
     coord = coordinator_factory()
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
 
     entity = ChargeFromGridStartTimeEntity(coord)
 
@@ -729,7 +730,7 @@ def test_charge_from_grid_time_entity_uses_type_device_info(
 ) -> None:
     coord = coordinator_factory()
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
 
     assert ChargeFromGridStartTimeEntity(coord).device_info is expected
 
