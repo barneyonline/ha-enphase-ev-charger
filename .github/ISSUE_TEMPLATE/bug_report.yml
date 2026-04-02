@@ -1,6 +1,9 @@
 name: Bug report
 description: Report a reproducible problem in the Enphase Energy integration
 title: "[Bug]: "
+labels:
+  - bug
+  - status/needs-triage
 body:
   - type: markdown
     attributes:
