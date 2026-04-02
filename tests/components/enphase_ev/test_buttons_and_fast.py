@@ -33,15 +33,16 @@ from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 
 
-def test_button_type_available_falls_back_to_has_type() -> None:
+def test_button_type_available_uses_inventory_view() -> None:
     from custom_components.enphase_ev import button as button_mod
 
-    coord = SimpleNamespace(has_type=lambda type_key: type_key == "envoy")
+    coord = SimpleNamespace(
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key == "envoy"
+        )
+    )
     assert button_mod._type_available(coord, "envoy") is True
     assert button_mod._type_available(coord, "encharge") is False
-
-    coord_no_helpers = SimpleNamespace()
-    assert button_mod._type_available(coord_no_helpers, "envoy") is True
 
 
 def test_button_site_has_battery_branches() -> None:
@@ -53,14 +54,16 @@ def test_button_site_has_battery_branches() -> None:
     coord_false = SimpleNamespace(
         battery_has_encharge=False,
         battery_has_enpower=False,
-        has_type=lambda _key: True,
+        inventory_view=SimpleNamespace(has_type_for_entities=lambda _key: True),
     )
     assert button_mod._site_has_battery(coord_false) is False
 
     coord_unknown_gateway_only = SimpleNamespace(
         battery_has_encharge=None,
         battery_has_enpower=None,
-        has_type=lambda key: key == "envoy",
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda key: key == "envoy"
+        ),
     )
     assert button_mod._site_has_battery(coord_unknown_gateway_only) is False
 
@@ -557,7 +560,7 @@ async def test_cancel_pending_profile_button(hass, monkeypatch) -> None:
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
     coord = EnphaseCoordinator(hass, cfg)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -604,7 +607,7 @@ async def test_request_grid_toggle_otp_button(hass, monkeypatch) -> None:
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
     coord = EnphaseCoordinator(hass, cfg)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -666,7 +669,7 @@ async def test_storm_alert_opt_out_button(hass, monkeypatch) -> None:
         coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
     coord = EnphaseCoordinator(hass, cfg)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -715,7 +718,7 @@ def test_request_grid_toggle_otp_button_availability_guards() -> None:
     assert button.available is False
 
     coord.battery_has_encharge = True
-    coord.has_type = lambda _key: False
+    coord.inventory_view.has_type_for_entities = lambda _key: False
     assert button.available is False
 
 
@@ -740,7 +743,7 @@ def test_storm_alert_opt_out_button_availability_guards() -> None:
     assert button.available is False
 
     coord.battery_show_storm_guard = True
-    coord.has_type = lambda _key: False
+    coord.inventory_view.has_type_for_entities = lambda _key: False
     assert button.available is False
 
 
@@ -753,7 +756,10 @@ def test_storm_alert_opt_out_button_device_info_fallback() -> None:
         battery_has_encharge=True,
         battery_has_enpower=True,
         battery_show_storm_guard=True,
-        has_type=lambda key: key == "envoy",
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda key: key == "envoy",
+            type_device_info=lambda _key: None,
+        ),
     )
     button = StormAlertOptOutButton(coord)
     assert button.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
@@ -767,15 +773,17 @@ def test_cancel_pending_profile_button_device_info_fallback_and_override() -> No
         site_id="site",
         last_update_success=True,
         battery_profile_pending=True,
-        has_type=lambda key: key == "envoy",
-        type_device_info=None,
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda key: key == "envoy",
+            type_device_info=lambda _key: None,
+        ),
     )
     button = CancelPendingProfileChangeButton(coord)
 
     assert button.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
 
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
     assert button.device_info is expected
 
 
@@ -789,11 +797,13 @@ def test_request_grid_toggle_otp_button_device_info_prefers_enpower_then_envoy()
         last_update_success=True,
         battery_has_encharge=True,
         battery_has_enpower=True,
-        has_type=lambda _key: True,
         grid_control_supported=True,
         grid_toggle_allowed=True,
-        type_device_info=MagicMock(
-            side_effect=[None, {"identifiers": {("enphase_ev", "envoy")}}]
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda _key: True,
+            type_device_info=MagicMock(
+                side_effect=[None, {"identifiers": {("enphase_ev", "envoy")}}]
+            ),
         ),
     )
     button = RequestGridToggleOtpButton(coord)
@@ -809,10 +819,12 @@ def test_request_grid_toggle_otp_button_device_info_falls_back_when_missing() ->
         last_update_success=True,
         battery_has_encharge=True,
         battery_has_enpower=True,
-        has_type=lambda _key: True,
         grid_control_supported=True,
         grid_toggle_allowed=True,
-        type_device_info=MagicMock(side_effect=[None, None]),
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda _key: True,
+            type_device_info=MagicMock(side_effect=[None, None]),
+        ),
     )
     button = RequestGridToggleOtpButton(coord)
 
@@ -834,7 +846,10 @@ async def test_async_setup_entry_button_cleanup_waits_for_inventory_ready(
         battery_has_enpower=True,
         iter_serials=lambda: [],
         async_add_listener=MagicMock(return_value=lambda: None),
-        has_type=lambda key: key == "envoy",
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda key: key == "envoy",
+            type_device_info=lambda _key: None,
+        ),
     )
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
@@ -868,8 +883,10 @@ def test_storm_alert_opt_out_button_device_info_prefers_type_info() -> None:
         battery_has_encharge=True,
         battery_has_enpower=True,
         battery_show_storm_guard=True,
-        has_type=lambda key: key == "envoy",
-        type_device_info=lambda key: expected if key == "envoy" else None,
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda key: key == "envoy",
+            type_device_info=lambda key: expected if key == "envoy" else None,
+        ),
     )
     button = StormAlertOptOutButton(coord)
 

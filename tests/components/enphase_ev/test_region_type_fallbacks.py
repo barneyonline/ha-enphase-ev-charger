@@ -38,21 +38,21 @@ def test_has_type_for_entities_uses_battery_site_settings_fallback(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         _inventory_without_battery(RANDOM_SERIAL),
         ["envoy", "iqevse"],
     )
     coord._battery_has_encharge = True  # noqa: SLF001
 
-    assert coord.has_type("encharge") is False
-    assert coord.has_type_for_entities("encharge") is True
+    assert coord.inventory_view.has_type("encharge") is False
+    assert coord.inventory_view.has_type_for_entities("encharge") is True
 
 
 def test_battery_mode_sensor_available_when_inventory_omits_encharge(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         _inventory_without_battery(RANDOM_SERIAL),
         ["envoy", "iqevse"],
     )
@@ -73,7 +73,7 @@ async def test_number_setup_adds_battery_entities_when_site_settings_confirm_bat
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         _inventory_without_battery(RANDOM_SERIAL),
         ["envoy", "iqevse"],
     )

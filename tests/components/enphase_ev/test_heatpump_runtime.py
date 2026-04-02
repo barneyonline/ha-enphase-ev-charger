@@ -152,7 +152,7 @@ async def test_heatpump_runtime_power_failure_logs_truncated_device_uid(
     coordinator_factory, caplog
 ) -> None:
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -186,7 +186,7 @@ async def test_heatpump_runtime_power_logs_fetch_plan_and_selection_summary(
     meter_uid = "METER-UID-987654321"
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -259,7 +259,7 @@ async def test_heatpump_runtime_power_logs_when_no_candidate_payload_is_usable(
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -290,7 +290,7 @@ async def test_heatpump_runtime_power_snapshot_handles_selected_payload_without_
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -328,7 +328,7 @@ async def test_heatpump_runtime_power_snapshot_redacts_identifier_bearing_errors
     raw_uid = "DEVICE-UID-123456789"
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -371,9 +371,7 @@ async def test_heatpump_runtime_power_snapshot_redacts_identifier_bearing_errors
 
 
 @pytest.mark.asyncio
-async def test_coordinator_heatpump_runtime_wrapper_delegation(
-    coordinator_factory,
-) -> None:
+async def test_heatpump_runtime_public_api_access(coordinator_factory) -> None:
     coord = coordinator_factory()
     runtime = MagicMock()
     runtime._heatpump_primary_member.return_value = {"device_uid": "HP-1"}
@@ -390,6 +388,8 @@ async def test_coordinator_heatpump_runtime_wrapper_delegation(
     }
     runtime._heatpump_power_candidate_device_uids.return_value = ["HP-1", None]
     runtime._heatpump_member_for_uid.return_value = {"device_uid": "HP-1"}
+    runtime._heatpump_member_primary_id.return_value = "PRIMARY-1"
+    runtime._heatpump_member_parent_id.return_value = "PARENT-1"
     runtime._heatpump_member_alias_map.return_value = {"HP-1": "HP-1"}
     runtime._heatpump_power_inventory_marker.return_value = ()
     runtime._heatpump_power_fetch_plan.return_value = (["HP-1"], False, ())
@@ -420,75 +420,79 @@ async def test_coordinator_heatpump_runtime_wrapper_delegation(
     runtime.heatpump_power_last_error = "power boom"
     coord.heatpump_runtime = runtime
 
-    assert coord._heatpump_primary_member() == {"device_uid": "HP-1"}  # noqa: SLF001
-    assert coord._heatpump_primary_device_uid() == "HP-1"  # noqa: SLF001
-    assert coord._heatpump_runtime_device_uid() == "HP-RUNTIME"  # noqa: SLF001
-    assert coord._heatpump_daily_window() == (  # noqa: SLF001
+    assert runtime._heatpump_primary_member() == {"device_uid": "HP-1"}  # noqa: SLF001
+    assert runtime._heatpump_primary_device_uid() == "HP-1"  # noqa: SLF001
+    assert runtime._heatpump_runtime_device_uid() == "HP-RUNTIME"  # noqa: SLF001
+    assert runtime._heatpump_daily_window() == (  # noqa: SLF001
         "2026-03-27T00:00:00.000Z",
         "2026-03-27T23:59:59.999Z",
         "UTC",
         ("2026-03-27", "UTC"),
     )
-    assert coord._build_heatpump_daily_consumption_snapshot(
+    assert runtime._build_heatpump_daily_consumption_snapshot(
         {"data": {}}
     ) == {  # noqa: SLF001
         "daily_energy_wh": 123.0
     }
-    assert coord._heatpump_power_candidate_device_uids() == [
+    assert runtime._heatpump_power_candidate_device_uids() == [
         "HP-1",
         None,
     ]  # noqa: SLF001
-    assert coord._heatpump_member_for_uid("HP-1") == {
+    assert runtime._heatpump_member_for_uid("HP-1") == {
         "device_uid": "HP-1"
     }  # noqa: SLF001
     assert (
-        coord._heatpump_member_primary_id({"device_uid": "PRIMARY-1"})  # noqa: SLF001
+        runtime._heatpump_member_primary_id({"device_uid": "PRIMARY-1"})  # noqa: SLF001
         == "PRIMARY-1"
     )
     assert (
-        coord._heatpump_member_parent_id({"parent": "PARENT-1"}) == "PARENT-1"
+        runtime._heatpump_member_parent_id({"parent": "PARENT-1"}) == "PARENT-1"
     )  # noqa: SLF001
-    assert coord._heatpump_member_alias_map() == {"HP-1": "HP-1"}  # noqa: SLF001
-    assert coord._heatpump_power_inventory_marker() == ()  # noqa: SLF001
-    assert coord._heatpump_power_fetch_plan() == (["HP-1"], False, ())  # noqa: SLF001
+    assert runtime._heatpump_member_alias_map() == {"HP-1": "HP-1"}  # noqa: SLF001
+    assert runtime._heatpump_power_inventory_marker() == ()  # noqa: SLF001
+    assert runtime._heatpump_power_fetch_plan() == (["HP-1"], False, ())  # noqa: SLF001
     assert (
-        coord._heatpump_power_candidate_is_recommended("HP-1") is True
+        runtime._heatpump_power_candidate_is_recommended("HP-1") is True
     )  # noqa: SLF001
     assert (
-        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
+        runtime._heatpump_power_candidate_type_rank(  # noqa: SLF001
             {},
             "HP-1",
             is_recommended=True,
         )
         == 3
     )
-    assert coord._heatpump_power_selection_key(  # noqa: SLF001
+    assert runtime._heatpump_power_selection_key(  # noqa: SLF001
         {},
         requested_uid="HP-1",
         sample=(0, 500.0),
     ) == (1, 1, 1, 3, 500.0, 1, 0)
 
-    await coord._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
-    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
-    await coord._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
-    await coord._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
-    await coord._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+    await runtime.async_refresh_hems_support_preflight(force=True)
+    await runtime.async_ensure_heatpump_runtime_diagnostics(force=True)
+    await runtime.async_refresh_heatpump_runtime_state(force=True)
+    await runtime.async_refresh_heatpump_daily_consumption(force=True)
+    await runtime.async_refresh_heatpump_power(force=True)
 
-    assert coord.heatpump_runtime_diagnostics()["runtime_state"] == {}
-    assert coord.heatpump_runtime_diagnostics()["event_summary"] == {
+    assert runtime.heatpump_runtime_diagnostics()["runtime_state"] == {}
+    assert runtime.heatpump_runtime_diagnostics()["event_summary"] == {
         "known_event_counts": {},
         "unknown_event_keys": [],
     }
-    assert coord.heatpump_runtime_state == {"device_uid": "HP-1"}
-    assert coord.heatpump_runtime_state_last_error == "runtime boom"
-    assert coord.heatpump_daily_consumption == {"daily_energy_wh": 123.0}
-    assert coord.heatpump_daily_consumption_last_error == "daily boom"
-    assert coord.heatpump_power_w == 640.0
-    assert coord.heatpump_power_sample_utc == datetime(2026, 3, 27, tzinfo=timezone.utc)
-    assert coord.heatpump_power_start_utc == datetime(2026, 3, 27, tzinfo=timezone.utc)
-    assert coord.heatpump_power_device_uid == "HP-1"
-    assert coord.heatpump_power_source == "hems_energy_consumption:HP-1"
-    assert coord.heatpump_power_last_error == "power boom"
+    assert runtime.heatpump_runtime_state == {"device_uid": "HP-1"}
+    assert runtime.heatpump_runtime_state_last_error == "runtime boom"
+    assert runtime.heatpump_daily_consumption == {"daily_energy_wh": 123.0}
+    assert runtime.heatpump_daily_consumption_last_error == "daily boom"
+    assert runtime.heatpump_power_w == 640.0
+    assert runtime.heatpump_power_sample_utc == datetime(
+        2026, 3, 27, tzinfo=timezone.utc
+    )
+    assert runtime.heatpump_power_start_utc == datetime(
+        2026, 3, 27, tzinfo=timezone.utc
+    )
+    assert runtime.heatpump_power_device_uid == "HP-1"
+    assert runtime.heatpump_power_source == "hems_energy_consumption:HP-1"
+    assert runtime.heatpump_power_last_error == "power boom"
 
     runtime._heatpump_primary_member.assert_called_once_with()
     runtime._heatpump_primary_device_uid.assert_called_once_with()
@@ -742,7 +746,7 @@ def test_heatpump_runtime_power_helper_additional_coverage(
 ) -> None:
     coord = coordinator_factory(serials=[])
     runtime = coord.heatpump_runtime
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -869,7 +873,7 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
 ) -> None:
     coord = coordinator_factory(serials=[])
     runtime = coord.heatpump_runtime
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1113,7 +1117,7 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
     coord._battery_timezone = "UTC"  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1172,7 +1176,7 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
     assert coord.heatpump_power_last_error == "boom"
     assert coord._heatpump_power_backoff_until is not None  # noqa: SLF001
 
-    coord._set_type_device_buckets({}, [])  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets({}, [])  # noqa: SLF001
     await coord.heatpump_runtime._async_refresh_heatpump_power(
         force=True
     )  # noqa: SLF001
@@ -1187,7 +1191,7 @@ async def test_refresh_heatpump_power_prefers_energy_consumption_details(
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-04-02"}  # noqa: SLF001
     coord._battery_timezone = "Europe/Berlin"  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1262,7 +1266,7 @@ async def test_refresh_heatpump_runtime_state_uses_dedicated_heatpump_uid(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1321,7 +1325,7 @@ async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
     from custom_components.enphase_ev import coordinator as coord_mod
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1364,7 +1368,7 @@ async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
     assert coord.heatpump_runtime_state_last_error is None
 
     coord.client._hems_site_supported = None  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1379,7 +1383,7 @@ async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
     )  # noqa: SLF001
     assert coord.heatpump_runtime_state == {}
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1416,7 +1420,7 @@ async def test_refresh_heatpump_daily_consumption_tracks_site_day(
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-20"}  # noqa: SLF001
     coord._battery_timezone = "Europe/Berlin"  # noqa: SLF001
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1525,7 +1529,7 @@ def test_heatpump_daily_helper_and_property_edge_cases(
         is None
     )
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1559,7 +1563,7 @@ def test_heatpump_daily_helper_and_property_edge_cases(
     )
     assert snapshot is None
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1709,7 +1713,7 @@ async def test_refresh_heatpump_daily_consumption_covers_cache_and_error_paths(
     from custom_components.enphase_ev import coordinator as coord_mod
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1792,7 +1796,7 @@ def test_heatpump_runtime_inventory_merge_and_helper_paths(
         inventory._heatpump_worst_status_text({"normal": 1}) == "Normal"
     )  # noqa: SLF001
 
-    coord._set_type_device_buckets(
+    coord.inventory_runtime._set_type_device_buckets(
         {
             "envoy": {
                 "type_key": "envoy",
@@ -1838,13 +1842,13 @@ def test_heatpump_runtime_inventory_merge_and_helper_paths(
         }
     }  # noqa: SLF001
     inventory._merge_heatpump_type_bucket()  # noqa: SLF001
-    bucket = coord.type_bucket("heatpump")
+    bucket = coord.inventory_view.type_bucket("heatpump")
     assert bucket is not None
     assert bucket["count"] == 3
     assert bucket["status_counts"]["warning"] == 1
     assert bucket["latest_reported_device"]["device_uid"] == "HP-EM-1"
-    assert coord.type_device_model("heatpump") == "Europa Mini WP"
-    assert coord.type_device_model_id("heatpump") == "HP-SKU-1"
+    assert coord.inventory_view.type_device_model("heatpump") == "Europa Mini WP"
+    assert coord.inventory_view.type_device_model_id("heatpump") == "HP-SKU-1"
 
     inventory._hems_devices_payload = None  # noqa: SLF001
     inventory._devices_inventory_payload = {
@@ -1882,7 +1886,7 @@ def test_heatpump_runtime_power_helper_paths(coordinator_factory, monkeypatch) -
     assert runtime._heatpump_primary_member() is None  # noqa: SLF001
     assert runtime._heatpump_primary_device_uid() is None  # noqa: SLF001
 
-    coord._set_type_device_buckets(
+    coord.inventory_runtime._set_type_device_buckets(
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1943,7 +1947,7 @@ async def test_heatpump_runtime_power_and_diagnostics_paths(
     coord = coordinator_factory(serials=[])
     runtime = coord.heatpump_runtime
     coord._devices_inventory_payload = {"curr_date_site": "2026-03-13"}  # noqa: SLF001
-    coord._set_type_device_buckets(
+    coord.inventory_runtime._set_type_device_buckets(
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2066,7 +2070,7 @@ async def test_heatpump_runtime_power_and_diagnostics_paths(
     }
     assert coord.heatpump_daily_consumption_last_error is None
 
-    coord._set_type_device_buckets(
+    coord.inventory_runtime._set_type_device_buckets(
         {
             "heatpump": {
                 "type_key": "heatpump",

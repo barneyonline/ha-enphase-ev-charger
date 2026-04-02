@@ -563,7 +563,7 @@ async def test_async_resolve_charge_modes_backoff_uses_cache(
     coord._scheduler_backoff_until = now + 60  # noqa: SLF001
     coord._charge_mode_cache[SERIAL_ONE] = ("MANUAL_CHARGING", now)
 
-    result = await coord._async_resolve_charge_modes(["", SERIAL_ONE])
+    result = await coord.evse_runtime.async_resolve_charge_modes(["", SERIAL_ONE])
 
     assert result == {SERIAL_ONE: "MANUAL_CHARGING"}
 
@@ -2048,7 +2048,7 @@ async def test_async_resolve_charge_modes_uses_cache_and_handles_errors(
     coord.evse_runtime.async_get_charge_mode = AsyncMock(  # type: ignore[method-assign]
         side_effect=fake_get
     )
-    result = await coord._async_resolve_charge_modes(["EV1", "EV2", "EV3"])
+    result = await coord.evse_runtime.async_resolve_charge_modes(["EV1", "EV2", "EV3"])
     assert result["EV1"] == "SCHEDULED_CHARGING"
     assert result["EV2"] == "GREEN_CHARGING"
     assert "EV3" not in result

@@ -157,7 +157,7 @@ async def test_coordinator_public_runtime_commands_delegate(
     coord.inventory_runtime = inventory_runtime
 
     await coord.async_set_charge_from_grid(True)
-    await coord.async_refresh_grid_control_check(force=True)
+    await coord.battery_runtime.async_refresh_grid_control_check(force=True)
     await coord.async_refresh_storm_guard_profile(force=True)
     await coord.async_refresh_storm_alert(force=False)
     await coord.async_opt_out_all_storm_alerts()
@@ -248,14 +248,14 @@ async def test_coordinator_diagnostics_and_gateway_summary_delegation(
         _build_gateway_inventory_summary=lambda: {"gateway": 1},
     )
     coord._battery_status_payload = {"status": "cached"}  # noqa: SLF001
-    coord._async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # type: ignore[method-assign]  # noqa: SLF001
 
     await coord.async_ensure_battery_status_diagnostics()
-    coord._async_refresh_battery_status.assert_not_awaited()  # noqa: SLF001
+    coord.battery_runtime.async_refresh_battery_status.assert_not_awaited()  # noqa: SLF001
 
     coord._battery_status_payload = None  # noqa: SLF001
     await coord.async_ensure_battery_status_diagnostics()
-    coord._async_refresh_battery_status.assert_awaited_once_with(
+    coord.battery_runtime.async_refresh_battery_status.assert_awaited_once_with(
         force=True
     )  # noqa: SLF001
 
@@ -273,6 +273,14 @@ class _RefreshOwner:
         self.energy = MagicMock()
         self.energy._async_refresh_site_energy.side_effect = lambda: self._record(
             "site_energy"
+        )
+        self.battery_runtime = SimpleNamespace(
+            async_refresh_grid_control_check=self._async_refresh_grid_control_check,
+            async_refresh_battery_status=self._async_refresh_battery_status,
+        )
+        self.inventory_runtime = SimpleNamespace(
+            _async_refresh_devices_inventory=self._async_refresh_devices_inventory,
+            _async_refresh_hems_devices=self._async_refresh_hems_devices,
         )
 
     def _record(self, value: str) -> str:

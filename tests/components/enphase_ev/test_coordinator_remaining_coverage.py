@@ -18,6 +18,7 @@ from yarl import URL
 from custom_components.enphase_ev import coordinator as coord_mod
 from custom_components.enphase_ev.coordinator import (
     ChargeModeStartPreferences,
+    EnphaseCoordinator,
     ServiceValidationError,
 )
 from custom_components.enphase_ev.const import (
@@ -48,6 +49,101 @@ def _request_info() -> RequestInfo:
         headers=CIMultiDictProxy(CIMultiDict()),
         real_url=URL("https://enphase.example/status"),
     )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_runtime_delegate_helpers_cover_direct_runtime_calls(
+    coordinator_factory,
+):
+    coord = coordinator_factory()
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock()
+    coord.heatpump_runtime.async_ensure_heatpump_runtime_diagnostics = AsyncMock()
+    coord.heatpump_runtime._heatpump_primary_device_uid = MagicMock(
+        return_value="HP-PRIMARY"
+    )
+    coord.heatpump_runtime._heatpump_daily_window = MagicMock(
+        return_value=("2026-01-01", "2026-01-02", "Australia/Melbourne", ("a", "b"))
+    )
+    coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot = MagicMock(
+        return_value={"daily_energy_wh": 123.0}
+    )
+    coord.heatpump_runtime._heatpump_power_candidate_device_uids = MagicMock(
+        return_value=["HP-PRIMARY", None]
+    )
+    coord.heatpump_runtime._heatpump_member_for_uid = MagicMock(
+        return_value={"device_uid": "HP-PRIMARY"}
+    )
+    coord.heatpump_runtime._heatpump_member_alias_map = MagicMock(
+        return_value={"HP-PRIMARY": "HP-PRIMARY"}
+    )
+    coord.heatpump_runtime._heatpump_power_inventory_marker = MagicMock(
+        return_value=(("idx:0", "HP-PRIMARY", "HEAT_PUMP", "ACTIVE"),)
+    )
+    coord.heatpump_runtime._heatpump_power_fetch_plan = MagicMock(
+        return_value=(["HP-PRIMARY"], False, ())
+    )
+    coord.heatpump_runtime._heatpump_power_candidate_is_recommended = MagicMock(
+        return_value=True
+    )
+    coord.battery_runtime.async_refresh_grid_control_check = AsyncMock()
+
+    await coord._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
+    await coord.async_ensure_heatpump_runtime_diagnostics(force=True)
+    await coord._async_refresh_grid_control_check(force=True)  # noqa: SLF001
+
+    assert coord._heatpump_primary_device_uid() == "HP-PRIMARY"  # noqa: SLF001
+    assert coord._heatpump_daily_window() == (  # noqa: SLF001
+        "2026-01-01",
+        "2026-01-02",
+        "Australia/Melbourne",
+        ("a", "b"),
+    )
+    assert coord._build_heatpump_daily_consumption_snapshot(
+        {"a": 1}
+    ) == {  # noqa: SLF001
+        "daily_energy_wh": 123.0
+    }
+    assert coord._heatpump_power_candidate_device_uids() == [  # noqa: SLF001
+        "HP-PRIMARY",
+        None,
+    ]
+    assert coord._heatpump_member_for_uid("HP-PRIMARY") == {  # noqa: SLF001
+        "device_uid": "HP-PRIMARY"
+    }
+    assert coord._heatpump_member_alias_map() == {  # noqa: SLF001
+        "HP-PRIMARY": "HP-PRIMARY"
+    }
+    assert coord._heatpump_power_inventory_marker() == (  # noqa: SLF001
+        ("idx:0", "HP-PRIMARY", "HEAT_PUMP", "ACTIVE"),
+    )
+    assert coord._heatpump_power_fetch_plan() == (
+        ["HP-PRIMARY"],
+        False,
+        (),
+    )  # noqa: SLF001
+    assert (
+        coord._heatpump_power_candidate_is_recommended("HP-PRIMARY") is True
+    )  # noqa: SLF001
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight.assert_awaited_once_with(
+        force=True
+    )
+    coord.heatpump_runtime.async_ensure_heatpump_runtime_diagnostics.assert_awaited_once_with(
+        force=True
+    )
+    coord.battery_runtime.async_refresh_grid_control_check.assert_awaited_once_with(
+        force=True
+    )
+
+
+def test_coordinator_static_and_class_runtime_helpers_cover_delegate_paths():
+    assert EnphaseCoordinator._format_inverter_model_summary({"IQ8": 2}) == "IQ8 x2"
+    assert (
+        EnphaseCoordinator._heatpump_member_primary_id({"device_uid": "HP-1"}) == "HP-1"
+    )  # noqa: SLF001
+    assert (
+        EnphaseCoordinator._heatpump_member_parent_id({"parent": "GW-1"}) == "GW-1"
+    )  # noqa: SLF001
 
 
 @pytest.fixture
@@ -944,7 +1040,7 @@ async def test_async_resolve_charge_modes_skips_empty_serials(coordinator_factor
     coord.evse_runtime.async_get_charge_mode = AsyncMock(  # type: ignore[method-assign]
         return_value="IDLE"
     )
-    result = await coord._async_resolve_charge_modes(["", RANDOM_SERIAL])
+    result = await coord.evse_runtime.async_resolve_charge_modes(["", RANDOM_SERIAL])
     assert result.get(RANDOM_SERIAL) == "IDLE"
 
 

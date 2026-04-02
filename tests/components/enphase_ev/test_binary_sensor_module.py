@@ -259,7 +259,7 @@ async def test_async_setup_entry_keeps_site_sensor_without_gateway_type(
             }
         }
     )
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "iqevse": {
                 "type_key": "iqevse",
@@ -328,7 +328,7 @@ async def test_async_setup_entry_skips_heatpump_sg_ready_binary_without_dedicate
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -384,7 +384,7 @@ async def test_async_setup_entry_does_not_duplicate_site_sensor_when_gateway_typ
             }
         }
     )
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "iqevse": {
                 "type_key": "iqevse",
@@ -415,7 +415,7 @@ async def test_async_setup_entry_does_not_duplicate_site_sensor_when_gateway_typ
         == 1
     )
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -457,7 +457,7 @@ async def test_async_setup_entry_adds_heatpump_sg_ready_binary_sensor_when_type_
             }
         }
     )
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -491,7 +491,7 @@ async def test_async_setup_entry_adds_heatpump_sg_ready_binary_sensor_when_type_
     await async_setup_entry(hass, config_entry, _collect)
     assert not any(isinstance(ent, HeatPumpSgReadyActiveBinarySensor) for ent in added)
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -535,7 +535,7 @@ async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_typ
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -586,7 +586,7 @@ async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_typ
     await async_setup_entry(hass, config_entry, _collect)
     assert any(isinstance(ent, HeatPumpSgReadyActiveBinarySensor) for ent in added)
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -614,7 +614,7 @@ async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_ded
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -676,7 +676,7 @@ async def test_async_setup_entry_prunes_heatpump_sg_ready_binary_sensor_when_ded
     await async_setup_entry(hass, config_entry, _collect)
     assert any(isinstance(ent, HeatPumpSgReadyActiveBinarySensor) for ent in added)
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -824,9 +824,11 @@ def test_site_cloud_reachable_binary_sensor_metadata_includes_optional_failure_f
     assert attrs["payload_using_stale"] is True
 
 
-def test_binary_sensor_helper_type_available_falls_back_to_has_type() -> None:
+def test_binary_sensor_helper_type_available_uses_inventory_view() -> None:
     coord = SimpleNamespace(
-        has_type=lambda type_key: type_key == "heatpump",
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key == "heatpump"
+        ),
     )
 
     assert binary_sensor._type_available(coord, "heatpump") is True
@@ -837,7 +839,7 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -906,7 +908,7 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
     }
     assert sensor.is_on is False
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -947,7 +949,7 @@ def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(
             }
         }
     }
-    coord._merge_heatpump_type_bucket()  # noqa: SLF001
+    coord.inventory_runtime._merge_heatpump_type_bucket()  # noqa: SLF001
     coord._heatpump_runtime_state = {  # noqa: SLF001
         "device_uid": "HP-CTRL-1",
         "heatpump_status": "RUNNING",
@@ -973,7 +975,7 @@ def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_status
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1025,7 +1027,7 @@ def test_heatpump_sg_ready_active_binary_sensor_helper_edge_cases(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1072,7 +1074,7 @@ def test_heatpump_sg_ready_active_binary_sensor_unavailable_without_type(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
     monkeypatch.setattr(
         coord, "async_add_topology_listener", lambda callback: _stub_listener()
     )
@@ -1085,7 +1087,7 @@ def test_heatpump_sg_ready_active_binary_sensor_handles_runtime_uid_errors(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory(serials=[], data={})
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1119,7 +1121,7 @@ def test_site_cloud_reachable_binary_sensor_fallback_paths(
     monkeypatch.setattr(
         coord, "async_add_topology_listener", lambda callback: _stub_listener()
     )
-    coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
     coord.last_update_success = False
 
     sensor = SiteCloudReachableBinarySensor(coord)
@@ -1136,5 +1138,5 @@ def test_site_cloud_reachable_binary_sensor_fallback_paths(
     assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:cloud")}
 
     custom_info = {"name": "Custom Cloud"}
-    coord.type_device_info = lambda _type_key: custom_info  # type: ignore[assignment]
+    coord.inventory_view.type_device_info = lambda _type_key: custom_info  # type: ignore[assignment]
     assert sensor.device_info is custom_info

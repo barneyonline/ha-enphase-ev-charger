@@ -555,9 +555,7 @@ async def async_get_device_diagnostics(hass, entry, device):
         except RuntimeError:
             pass
         bucket = (
-            coord.type_bucket(type_key)
-            if coord and hasattr(coord, "type_bucket")
-            else None
+            coord.inventory_view.type_bucket(type_key) if coord is not None else None
         )
         payload = {
             "site_id": type_site_id,
@@ -566,8 +564,8 @@ async def async_get_device_diagnostics(hass, entry, device):
                 bucket.get("type_label")
                 if isinstance(bucket, dict)
                 else (
-                    coord.type_label(type_key)
-                    if coord and hasattr(coord, "type_label")
+                    coord.inventory_view.type_label(type_key)
+                    if coord is not None
                     else None
                 )
             ),
