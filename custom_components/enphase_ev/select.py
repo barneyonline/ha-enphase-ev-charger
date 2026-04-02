@@ -153,7 +153,9 @@ async def async_setup_entry(
             ent_reg,
             entry.entry_id,
             domain="select",
-            active_unique_ids={_system_profile_unique_id()} if retain_system_profile else set(),
+            active_unique_ids=(
+                {_system_profile_unique_id()} if retain_system_profile else set()
+            ),
             is_managed=lambda unique_id: unique_id == _system_profile_unique_id(),
         )
 

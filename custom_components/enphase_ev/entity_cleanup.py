@@ -39,7 +39,11 @@ def is_owned_entity(reg_entry: object, entry_id: str | None, domain: str) -> boo
         return False
 
     config_entry_id = getattr(reg_entry, "config_entry_id", None)
-    if entry_id is not None and config_entry_id is not None and config_entry_id != entry_id:
+    if (
+        entry_id is not None
+        and config_entry_id is not None
+        and config_entry_id != entry_id
+    ):
         return False
     return True
 

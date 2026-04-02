@@ -137,7 +137,9 @@ def _retained_site_time_unique_ids(coord: EnphaseCoordinator) -> set[str]:
         return unique_ids
     cfg_supported = getattr(coord, "charge_from_grid_schedule_supported", None)
     dtg_supported = getattr(coord, "discharge_to_grid_schedule_supported", None)
-    rbd_supported = getattr(coord, "restrict_battery_discharge_schedule_supported", None)
+    rbd_supported = getattr(
+        coord, "restrict_battery_discharge_schedule_supported", None
+    )
     if _cfg_schedule_edit_available(coord) or cfg_supported is not False:
         unique_ids.update(
             {

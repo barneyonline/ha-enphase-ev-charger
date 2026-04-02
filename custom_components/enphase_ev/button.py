@@ -44,9 +44,8 @@ def _retain_cancel_pending_profile_change(coord: EnphaseCoordinator) -> bool:
 
 
 def _retain_request_grid_toggle_otp(coord: EnphaseCoordinator) -> bool:
-    return (
-        _site_has_battery(coord)
-        and (_type_available(coord, "enpower") or _type_available(coord, "envoy"))
+    return _site_has_battery(coord) and (
+        _type_available(coord, "enpower") or _type_available(coord, "envoy")
     )
 
 
@@ -141,7 +140,8 @@ async def async_setup_entry(
                 ),
             },
             is_managed=lambda unique_id: (
-                unique_id in {
+                unique_id
+                in {
                     _site_button_unique_id("cancel_pending_profile_change"),
                     _site_button_unique_id("request_grid_toggle_otp"),
                     _site_button_unique_id("storm_alert_opt_out"),
