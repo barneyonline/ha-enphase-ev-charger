@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
+from .entity_cleanup import prune_managed_entities
 from .log_redaction import redact_identifier
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
@@ -130,6 +131,39 @@ def _rbd_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
     return begin is not None and end is not None
 
 
+def _retained_site_time_unique_ids(coord: EnphaseCoordinator) -> set[str]:
+    unique_ids: set[str] = set()
+    if not _type_available(coord, "encharge"):
+        return unique_ids
+    cfg_supported = getattr(coord, "charge_from_grid_schedule_supported", None)
+    dtg_supported = getattr(coord, "discharge_to_grid_schedule_supported", None)
+    rbd_supported = getattr(
+        coord, "restrict_battery_discharge_schedule_supported", None
+    )
+    if _cfg_schedule_edit_available(coord) or cfg_supported is not False:
+        unique_ids.update(
+            {
+                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_start_time",
+                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_end_time",
+            }
+        )
+    if _dtg_schedule_edit_available(coord) or dtg_supported is not False:
+        unique_ids.update(
+            {
+                f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_start_time",
+                f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_end_time",
+            }
+        )
+    if _rbd_schedule_edit_available(coord) or rbd_supported is not False:
+        unique_ids.update(
+            {
+                f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_start_time",
+                f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_end_time",
+            }
+        )
+    return unique_ids
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -162,25 +196,47 @@ async def async_setup_entry(
                 redact_identifier(migrated_entity_id),
             )
 
+    def _site_time_unique_ids() -> set[str]:
+        return {
+            f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_start_time",
+            f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_end_time",
+            f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_start_time",
+            f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_end_time",
+            f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_start_time",
+            f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_end_time",
+        }
+
     @callback
     def _async_sync_site_entities() -> None:
         nonlocal site_entities_added
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
+        retained_site_time_unique_ids = _retained_site_time_unique_ids(coord)
         if site_entities_added:
-            return
+            pass
+        elif _site_has_battery(coord) and _type_available(coord, "encharge"):
+            async_add_entities(
+                [
+                    ChargeFromGridStartTimeEntity(coord),
+                    ChargeFromGridEndTimeEntity(coord),
+                    DischargeToGridStartTimeEntity(coord),
+                    DischargeToGridEndTimeEntity(coord),
+                    RestrictBatteryDischargeStartTimeEntity(coord),
+                    RestrictBatteryDischargeEndTimeEntity(coord),
+                ],
+                update_before_add=False,
+            )
+            site_entities_added = True
         if not _site_has_battery(coord) or not _type_available(coord, "encharge"):
+            site_entities_added = False
+        if not inventory_ready:
             return
-        async_add_entities(
-            [
-                ChargeFromGridStartTimeEntity(coord),
-                ChargeFromGridEndTimeEntity(coord),
-                DischargeToGridStartTimeEntity(coord),
-                DischargeToGridEndTimeEntity(coord),
-                RestrictBatteryDischargeStartTimeEntity(coord),
-                RestrictBatteryDischargeEndTimeEntity(coord),
-            ],
-            update_before_add=False,
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="time",
+            active_unique_ids=retained_site_time_unique_ids,
+            is_managed=lambda unique_id: unique_id in _site_time_unique_ids(),
         )
-        site_entities_added = True
 
     add_listener = getattr(coord, "async_add_topology_listener", None)
     if not callable(add_listener):
