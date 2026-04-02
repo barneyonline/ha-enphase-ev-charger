@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.enphase_ev.evse_runtime import (
     FAST_TOGGLE_POLL_HOLD_S,
+    ChargeModeResolution,
     ChargeModeStartPreferences,
     EvseRuntime,
 )
@@ -176,7 +177,7 @@ async def test_evse_runtime_resolvers_use_runtime_methods(
     )
 
     assert await runtime.async_resolve_charge_modes(["EV1"]) == {
-        "EV1": "GREEN_CHARGING"
+        "EV1": ChargeModeResolution("GREEN_CHARGING", "scheduler_endpoint")
     }
     assert await runtime.async_resolve_green_battery_settings(["EV1"]) == {
         "EV1": (True, True)
