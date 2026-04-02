@@ -104,6 +104,51 @@ def test_dtg_and_rbd_schedule_edit_available_cover_control_window_fallbacks() ->
     assert time_mod._rbd_schedule_edit_available(rbd) is True
 
 
+def test_retained_site_time_unique_ids_cover_each_schedule_family() -> None:
+    from custom_components.enphase_ev import time as time_mod
+
+    coord = SimpleNamespace(
+        site_id="site",
+        has_type=lambda type_key: type_key == "encharge",
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=True,
+        charge_from_grid_schedule_supported=True,
+        _battery_cfg_schedule_id="sched-cfg",
+        battery_charge_from_grid_start_time=dt_time(1, 0),
+        battery_charge_from_grid_end_time=dt_time(2, 0),
+        _battery_charge_begin_time=None,
+        _battery_charge_end_time=None,
+        discharge_to_grid_schedule_available=False,
+        discharge_to_grid_schedule_supported=True,
+        battery_discharge_to_grid_start_time=dt_time(3, 0),
+        battery_discharge_to_grid_end_time=dt_time(4, 0),
+        _battery_dtg_begin_time=None,
+        _battery_dtg_end_time=None,
+        _battery_dtg_control_begin_time=None,
+        _battery_dtg_control_end_time=None,
+        restrict_battery_discharge_schedule_available=False,
+        restrict_battery_discharge_schedule_supported=True,
+        battery_restrict_battery_discharge_start_time=dt_time(5, 0),
+        battery_restrict_battery_discharge_end_time=dt_time(6, 0),
+        _battery_rbd_begin_time=None,
+        _battery_rbd_end_time=None,
+        _battery_rbd_control_begin_time=None,
+        _battery_rbd_control_end_time=None,
+    )
+
+    assert time_mod._retained_site_time_unique_ids(coord) == {
+        "enphase_ev_site_site_charge_from_grid_start_time",
+        "enphase_ev_site_site_charge_from_grid_end_time",
+        "enphase_ev_site_site_discharge_to_grid_start_time",
+        "enphase_ev_site_site_discharge_to_grid_end_time",
+        "enphase_ev_site_site_restrict_battery_discharge_start_time",
+        "enphase_ev_site_site_restrict_battery_discharge_end_time",
+    }
+
+    coord.has_type = lambda _type_key: False
+    assert time_mod._retained_site_time_unique_ids(coord) == set()
+
+
 def test_migrated_time_entity_id_handles_strong_migration_and_auto_suffix() -> None:
     assert (
         _migrated_time_entity_id(
@@ -354,6 +399,31 @@ async def test_async_setup_entry_migration_renames_custom_entity_ids(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_time_cleanup_waits_for_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    coord = coordinator_factory()
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    ent_reg.async_get_or_create(
+        "time",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_charge_from_grid_start_time",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    remove_spy.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_migrates_auto_suffixed_legacy_entity_ids(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -489,6 +559,44 @@ async def test_async_setup_entry_skips_site_time_entities_without_battery(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_time_entities_when_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    coord = coordinator_factory()
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    callbacks: list = []
+
+    def _capture_listener(callback):
+        callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = _capture_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "time",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_charge_from_grid_start_time",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+    coord._battery_has_encharge = False  # noqa: SLF001
+    callbacks[0]()
+
+    assert remove_spy.call_count == 1
+    removed_entity_id = remove_spy.call_args.args[0]
+    assert removed_entity_id in {
+        stale.entity_id,
+        "time.charge_from_grid_schedule_from_time",
+    }
+
+
+@pytest.mark.asyncio
 async def test_charge_from_grid_time_entity_availability_and_values(
     coordinator_factory,
 ) -> None:
@@ -603,6 +711,27 @@ async def test_base_named_battery_schedule_time_entity_fallbacks(
 
     coord.last_update_success = False
     assert entity.available is False
+
+
+def test_charge_from_grid_time_entity_device_info_fallback(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.type_device_info = None
+
+    entity = ChargeFromGridStartTimeEntity(coord)
+
+    assert entity.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+
+def test_charge_from_grid_time_entity_uses_type_device_info(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.type_device_info = MagicMock(return_value=expected)
+
+    assert ChargeFromGridStartTimeEntity(coord).device_info is expected
 
 
 @pytest.mark.asyncio

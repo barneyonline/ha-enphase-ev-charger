@@ -1,7 +1,7 @@
 import asyncio
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
@@ -214,6 +214,41 @@ def test_parse_scheduler_error_handles_invalid_payloads() -> None:
     assert _parse_scheduler_error("not-json") == (None, None)
     assert _parse_scheduler_error(json.dumps(["bad"])) == (None, None)
     assert _parse_scheduler_error(json.dumps({"error": "bad"})) == (None, None)
+
+
+def test_select_helper_fallbacks() -> None:
+    from custom_components.enphase_ev import select as select_mod
+
+    coord = SimpleNamespace(
+        site_id="site",
+        battery_has_encharge=True,
+        has_type=lambda type_key: type_key == "envoy",
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_profile_selection_available=None,
+        battery_controls_available=True,
+    )
+
+    assert select_mod._type_available(coord, "envoy") is True
+    assert select_mod._battery_write_access_confirmed(coord) is True
+    assert select_mod._retain_system_profile(coord) is True
+
+    coord.battery_profile_selection_available = False
+    assert select_mod._retain_system_profile(coord) is False
+
+    coord.battery_profile_selection_available = None
+    coord.battery_controls_available = False
+    assert select_mod._retain_system_profile(coord) is False
+
+    coord.battery_controls_available = True
+    coord.battery_user_is_owner = False
+    coord.battery_user_is_installer = False
+    assert select_mod._retain_system_profile(coord) is False
+
+    coord.has_type = lambda _type_key: False
+    coord.battery_user_is_owner = True
+    assert select_mod._retain_system_profile(coord) is False
 
 
 def test_charge_mode_select_current_option_paths(coordinator_factory):
@@ -570,6 +605,62 @@ async def test_select_platform_adds_system_profile_after_permission_refresh(
     assert isinstance(added[1][0], SystemProfileSelect)
 
 
+@pytest.mark.asyncio
+async def test_select_platform_prunes_stale_entities_when_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.select import async_setup_entry
+
+    coord = coordinator_factory(serials=["1111"])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    added: list[list[object]] = []
+    topology_callbacks: list[object] = []
+    update_callbacks: list[object] = []
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    def capture_topology(callback, *, context=None):
+        topology_callbacks.append(callback)
+        return lambda: None
+
+    def capture_update(callback, *, context=None):
+        update_callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = capture_topology  # type: ignore[attr-defined]
+    coord.async_add_listener = capture_update  # type: ignore[attr-defined]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    stale_charge_mode = ent_reg.async_get_or_create(
+        "select",
+        "enphase_ev",
+        "enphase_ev_1111_charge_mode_select",
+        config_entry=config_entry,
+    )
+    stale_system_profile = ent_reg.async_get_or_create(
+        "select",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_system_profile",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, capture_add)
+
+    coord.data.pop("1111", None)
+    coord.iter_serials = lambda: []
+    coord._battery_has_encharge = False  # noqa: SLF001
+    topology_callbacks[0]()
+    update_callbacks[0]()
+
+    remove_spy.assert_any_call(stale_charge_mode.entity_id)
+    remove_spy.assert_any_call(stale_system_profile.entity_id)
+
+
 def test_system_profile_select_options_and_current(coordinator_factory):
     from custom_components.enphase_ev.select import SystemProfileSelect
 
@@ -857,3 +948,112 @@ async def test_system_profile_select_translates_timeout_error(
 
     with pytest.raises(ServiceValidationError, match="timed out"):
         await sel.async_select_option("Savings")
+
+
+def test_system_profile_select_availability_fallback_and_device_info(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = coordinator_factory()
+    coord.type_device_info = None
+    coord._battery_profile_selection_available = None  # noqa: SLF001
+    coord._battery_controls_available = False  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+
+    sel = SystemProfileSelect(coord)
+    assert sel.available is False
+    assert sel.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:envoy")
+    }
+
+    coord._battery_controls_available = True  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    assert sel.available is False
+
+    coord.has_type = lambda _type_key: False
+    assert sel.available is False
+
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.has_type = lambda type_key: type_key == "envoy"
+    coord.type_device_info = MagicMock(return_value=expected)
+    assert sel.device_info is expected
+
+
+def test_system_profile_select_available_with_legacy_fallback_controls() -> None:
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = SimpleNamespace(
+        site_id="site",
+        hass=None,
+        last_update_success=True,
+        battery_has_encharge=True,
+        has_type=lambda type_key: type_key == "envoy",
+        battery_profile_selection_available=None,
+        battery_controls_available=True,
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_profile_option_labels={"self-consumption": "Self-Consumption"},
+        battery_profile_option_keys=["self-consumption"],
+        battery_selected_profile="self-consumption",
+    )
+
+    sel = SystemProfileSelect(coord)
+    assert sel.available is True
+
+    coord.battery_user_is_owner = False
+    coord.battery_user_is_installer = False
+    assert sel.available is False
+
+
+def test_system_profile_select_unavailable_when_legacy_controls_absent() -> None:
+    from custom_components.enphase_ev.select import SystemProfileSelect
+
+    coord = SimpleNamespace(
+        site_id="site",
+        hass=None,
+        last_update_success=True,
+        battery_has_encharge=True,
+        has_type=lambda type_key: type_key == "envoy",
+        battery_profile_selection_available=None,
+        battery_controls_available=False,
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_profile_option_labels={"self-consumption": "Self-Consumption"},
+        battery_profile_option_keys=["self-consumption"],
+        battery_selected_profile="self-consumption",
+    )
+
+    assert SystemProfileSelect(coord).available is False
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_select_cleanup_waits_for_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.select import async_setup_entry
+
+    coord = coordinator_factory()
+    coord._devices_inventory_ready = False  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "select",
+        "enphase_ev",
+        f"enphase_ev_{RANDOM_SERIAL}_charge_mode_select",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    remove_spy.assert_not_called()
+    assert ent_reg.async_get(stale.entity_id) is not None
