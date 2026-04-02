@@ -168,6 +168,95 @@ def test_power_native_value_default_window(coordinator_factory):
     assert sensor._last_window_s == sensor._DEFAULT_WINDOW_S
 
 
+def test_power_uses_stable_sampled_at_when_report_time_missing(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 2.0,
+                "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+                "sampled_at_ts": 1_741_672_800.0,
+                "charging": True,
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+    sensor._last_lifetime_kwh = 1.0
+    sensor._last_energy_ts = None
+
+    value = sensor.native_value
+
+    assert value > 0
+    assert (
+        sensor.extra_state_attributes["sampled_at_utc"] == "2026-03-11T05:40:00+00:00"
+    )
+    assert sensor._last_sample_ts == pytest.approx(1_741_672_800.0)
+
+
+def test_power_uses_precomputed_snapshot_without_mutating_between_reads(
+    coordinator_factory,
+):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 2.0,
+                "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+                "derived_power_w": 7200,
+                "derived_power_method": "lifetime_energy_window",
+                "derived_power_window_seconds": 300.0,
+                "derived_last_lifetime_kwh": 2.0,
+                "derived_last_energy_ts": 1_741_672_800.0,
+                "derived_last_sample_ts": 1_741_672_800.0,
+                "derived_last_reset_at": None,
+                "derived_power_max_throughput_w": 7680,
+                "derived_power_max_throughput_unbounded_w": 7680,
+                "derived_power_max_throughput_source": "charging_level",
+                "derived_power_max_throughput_amps": 32.0,
+                "derived_power_max_throughput_voltage": 240.0,
+                "derived_power_max_throughput_topology": "single_phase",
+                "derived_power_max_throughput_phase_multiplier": 1.0,
+                "charging": True,
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+
+    first = sensor.native_value
+    second = sensor.native_value
+    attrs = sensor.extra_state_attributes
+
+    assert first == 7200
+    assert second == 7200
+    assert attrs["method"] == "lifetime_energy_window"
+    assert attrs["last_window_seconds"] == pytest.approx(300.0)
+    assert attrs["sampled_at_utc"] == "2026-03-11T05:40:00+00:00"
+
+
+def test_power_snapshot_uses_nominal_voltage_fallback_when_missing(
+    coordinator_factory,
+):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "derived_power_w": 0,
+                "derived_power_method": "idle",
+                "derived_power_max_throughput_w": 7680,
+                "derived_power_max_throughput_unbounded_w": 7680,
+                "derived_power_max_throughput_source": "charging_level",
+                "derived_power_max_throughput_amps": 32.0,
+                "derived_power_max_throughput_voltage": None,
+                "charging": False,
+            }
+        }
+    )
+    coord._nominal_v = 208
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+
+    assert sensor.native_value == 0
+    assert sensor.extra_state_attributes["max_throughput_voltage"] == pytest.approx(
+        208.0
+    )
+
+
 def test_power_native_value_suspended_connector_resets_power(coordinator_factory):
     coord = coordinator_factory(
         data={
