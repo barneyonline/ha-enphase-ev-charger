@@ -31,7 +31,10 @@ from custom_components.enphase_ev.const import (
     OPT_NOMINAL_VOLTAGE,
     OPT_SESSION_HISTORY_INTERVAL,
 )
-from custom_components.enphase_ev.evse_runtime import FAST_TOGGLE_POLL_HOLD_S
+from custom_components.enphase_ev.evse_runtime import (
+    FAST_TOGGLE_POLL_HOLD_S,
+    ChargeModeResolution,
+)
 from custom_components.enphase_ev.voltage import resolve_nominal_voltage_for_hass
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
@@ -3009,7 +3012,7 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
 
     coord.iter_serials = lambda: [RANDOM_SERIAL, "SECONDARY"]  # type: ignore[assignment]
     coord.evse_runtime.async_resolve_charge_modes = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
-        return_value={RANDOM_SERIAL: "SCHEDULED"}
+        return_value={RANDOM_SERIAL: ChargeModeResolution("SCHEDULED", "cache_backoff")}
     )
     coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         return_value={RANDOM_SERIAL: (True, True)}
@@ -3028,6 +3031,7 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
     await coord._async_refresh_secondary_evse_state_for_warmup()  # noqa: SLF001
     merged_secondary = set_updated.call_args_list[-1].args[0]
     assert merged_secondary[RANDOM_SERIAL]["charge_mode_pref"] == "SCHEDULED"
+    assert merged_secondary[RANDOM_SERIAL]["charge_mode_pref_source"] == "cache_backoff"
     assert merged_secondary[RANDOM_SERIAL]["green_battery_enabled"] is True
     assert merged_secondary[RANDOM_SERIAL]["app_auth_supported"] is True
     assert merged_secondary[RANDOM_SERIAL]["rfid_auth_supported"] is True

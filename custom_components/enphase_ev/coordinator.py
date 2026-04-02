@@ -765,6 +765,101 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 return False
         return None
 
+    @staticmethod
+    def _snapshot_text(value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    def _record_evse_transition_snapshot(
+        self,
+        serial: str,
+        previous: dict[str, object] | None,
+        current: dict[str, object],
+    ) -> None:
+        prev_status = self._snapshot_text(
+            previous.get("connector_status") if isinstance(previous, dict) else None
+        )
+        cur_status = self._snapshot_text(current.get("connector_status"))
+        if prev_status is None or cur_status is None or prev_status == cur_status:
+            return
+
+        snapshot = {
+            "recorded_at_utc": dt_util.utcnow().isoformat(),
+            "from_connector_status": prev_status,
+            "to_connector_status": cur_status,
+            "charging": self._snapshot_bool(current.get("charging")),
+            "previous_charging": self._snapshot_bool(
+                previous.get("charging") if isinstance(previous, dict) else None
+            ),
+            "charge_mode": self._snapshot_text(current.get("charge_mode")),
+            "charge_mode_source": self._snapshot_text(
+                current.get("charge_mode_source")
+            ),
+            "charge_mode_pref": self._snapshot_text(current.get("charge_mode_pref")),
+            "charge_mode_pref_source": self._snapshot_text(
+                current.get("charge_mode_pref_source")
+            ),
+            "charging_level": helper_coerce_optional_int(current.get("charging_level")),
+            "charging_level_source": self._snapshot_text(
+                current.get("charging_level_source")
+            ),
+            "last_set_amps": helper_coerce_optional_int(self.last_set_amps.get(serial)),
+            "green_battery_enabled": self._snapshot_bool(
+                current.get("green_battery_enabled")
+            ),
+            "safe_limit_state": helper_coerce_optional_int(
+                current.get("safe_limit_state")
+            ),
+            "schedule_type": self._snapshot_text(current.get("schedule_type")),
+            "sampled_at_utc": self._snapshot_text(current.get("sampled_at_utc")),
+            "fetched_at_utc": self._snapshot_text(current.get("fetched_at_utc")),
+            "scheduler_available": self.scheduler_available,
+            "scheduler_backoff_active": self.scheduler_backoff_active(),
+        }
+
+        history = list(self.evse_state._evse_transition_snapshots.get(serial, []))
+        history.append(snapshot)
+        self.evse_state._evse_transition_snapshots[serial] = history[-8:]
+
+        _LOGGER.debug(
+            "EVSE connector transition for charger %s: %s -> %s "
+            "(charging=%s, charge_mode=%s[%s], preferred_mode=%s[%s], "
+            "charging_level=%s[%s], green_battery_enabled=%s, safe_limit_state=%s, "
+            "scheduler_available=%s, scheduler_backoff_active=%s)",
+            self._debug_truncate_identifier(serial) or "[unknown]",
+            prev_status,
+            cur_status,
+            snapshot["charging"],
+            snapshot["charge_mode"],
+            snapshot["charge_mode_source"],
+            snapshot["charge_mode_pref"],
+            snapshot["charge_mode_pref_source"],
+            snapshot["charging_level"],
+            snapshot["charging_level_source"],
+            snapshot["green_battery_enabled"],
+            snapshot["safe_limit_state"],
+            snapshot["scheduler_available"],
+            snapshot["scheduler_backoff_active"],
+        )
+
+    @staticmethod
+    def _charge_mode_resolution_parts(
+        value: object,
+    ) -> tuple[str | None, str | None]:
+        mode = None
+        source = None
+        if value is not None:
+            mode = getattr(value, "mode", None)
+            source = getattr(value, "source", None)
+            if mode is None and source is None:
+                mode = value
+        return mode, source
+
     def site_energy_channel_known(self, flow_key: str) -> bool:
         try:
             key = str(flow_key).strip()
@@ -1324,8 +1419,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             payload = merged.get(sn)
             if payload is None:
                 continue
-            if charge_modes.get(sn):
-                payload["charge_mode_pref"] = charge_modes[sn]
+            charge_mode_resolution = charge_modes.get(sn)
+            charge_mode_value, charge_mode_source = self._charge_mode_resolution_parts(
+                charge_mode_resolution
+            )
+            if charge_mode_value:
+                payload["charge_mode_pref"] = charge_mode_value
+                if charge_mode_source is not None:
+                    payload["charge_mode_pref_source"] = charge_mode_source
             if green_settings.get(sn) is not None:
                 enabled, supported = green_settings[sn]
                 payload["green_battery_supported"] = supported
@@ -2117,6 +2218,35 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not sources:
                 continue
             charger_support_sources.append({"serial": serial, "sources": sources})
+        charger_runtime_sources = []
+        for serial, snapshot in sorted((self.data or {}).items()):
+            if not isinstance(snapshot, dict):
+                continue
+            runtime_sources = {
+                key: snapshot.get(key)
+                for key in (
+                    "charge_mode_source",
+                    "charge_mode_pref_source",
+                    "charging_level_source",
+                )
+                if snapshot.get(key) is not None
+            }
+            if snapshot.get("charging_level") is not None:
+                runtime_sources["charging_level"] = snapshot.get("charging_level")
+            last_set_amps = self.last_set_amps.get(serial)
+            if last_set_amps is not None:
+                runtime_sources["last_set_amps"] = last_set_amps
+            if runtime_sources:
+                charger_runtime_sources.append(
+                    {"serial": serial, "sources": runtime_sources}
+                )
+        charger_transition_history = [
+            {"serial": serial, "transitions": copy_diagnostics_value(transitions)}
+            for serial, transitions in sorted(
+                getattr(self, "_evse_transition_snapshots", {}).items()
+            )
+            if transitions
+        ]
         payload = getattr(self, "_evse_feature_flags_payload", None)
         payload_meta = payload.get("meta") if isinstance(payload, dict) else None
         payload_error = payload.get("error") if isinstance(payload, dict) else None
@@ -2132,6 +2262,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
             "charger_feature_flags": charger_feature_flags,
             "charger_support_sources": charger_support_sources,
+            "charger_runtime_sources": charger_runtime_sources,
+            "charger_transition_history": charger_transition_history,
             "timeseries": self.evse_timeseries_diagnostics(),
         }
 
@@ -3094,6 +3226,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         for sn, obj in records:
             conn0 = (obj.get("connectors") or [{}])[0]
+            previous_entry = None
+            if isinstance(self.data, dict):
+                previous_entry = self.data.get(sn)
             has_embedded_charge_mode = self._has_embedded_charge_mode(obj)
             raw_safe_limit = conn0.get("safeLimitState")
             if raw_safe_limit is None:
@@ -3105,12 +3240,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             else:
                 safe_limit_state = _as_int(raw_safe_limit)
             charging_level = None
+            charging_level_source = None
             for key in ("chargingLevel", "charging_level", "charginglevel"):
                 if key in obj and obj.get(key) is not None:
-                    charging_level = obj.get(key)
+                    coerced_level = _as_int(obj.get(key))
+                    if coerced_level is None:
+                        continue
+                    charging_level = coerced_level
+                    charging_level_source = "status_payload"
                     break
             if charging_level is None:
-                charging_level = self.last_set_amps.get(sn)
+                charging_level = _as_int(self.last_set_amps.get(sn))
+                if charging_level is not None:
+                    charging_level_source = "last_set_amps"
             # On initial load or after restart, seed the local last_set_amps
             # so UI controls (number entity) reflect the current setpoint
             # instead of defaulting to 0/min.
@@ -3205,30 +3347,51 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     charging_now_flag = target_state
 
             # Keep preference state stable when scheduler lookups temporarily omit it.
-            charge_mode_pref = self._normalize_charge_mode_preference(
-                charge_modes.get(sn)
+            charge_mode_pref_source = None
+            charge_mode_resolution = charge_modes.get(sn)
+            charge_mode_pref = None
+            charge_mode_value, charge_mode_source = self._charge_mode_resolution_parts(
+                charge_mode_resolution
             )
+            if charge_mode_value is not None:
+                charge_mode_pref = self._normalize_charge_mode_preference(
+                    charge_mode_value
+                )
+                if charge_mode_pref is not None:
+                    charge_mode_pref_source = charge_mode_source
             if charge_mode_pref is None:
                 charge_mode_pref = self._schedule_type_charge_mode_preference(
                     sch_info0.get("type")
                 )
+                if charge_mode_pref is not None:
+                    charge_mode_pref_source = "schedule_type_fallback"
             if charge_mode_pref is None:
                 charge_mode_pref = self._cached_charge_mode_preference(sn)
+                if charge_mode_pref is not None:
+                    charge_mode_pref_source = "cache"
             if charge_mode_pref is None:
                 charge_mode_pref = self._battery_profile_charge_mode_preference(sn)
+                if charge_mode_pref is not None:
+                    charge_mode_pref_source = "battery_profile_fallback"
 
+            charge_mode_source = None
             charge_mode = self._normalize_effective_charge_mode(
                 obj.get("chargeMode")
                 or obj.get("chargingMode")
                 or (obj.get("sch_d") or {}).get("mode")
             )
+            if charge_mode is not None:
+                charge_mode_source = "explicit_status"
             if charge_mode is None:
                 if charge_mode_pref:
                     charge_mode = charge_mode_pref
+                    charge_mode_source = charge_mode_pref_source
                 elif charging_now_flag:
                     charge_mode = "IMMEDIATE"
+                    charge_mode_source = "charging_inference"
                 else:
                     charge_mode = "IDLE"
+                    charge_mode_source = "idle_inference"
 
             green_setting = green_settings.get(sn)
             green_enabled: bool | None = None
@@ -3456,9 +3619,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "schedule_reminder_enabled": schedule_remind,
                 "schedule_reminder_min": _as_int(sch_info0.get("remindTime")),
                 "charge_mode": charge_mode,
+                "charge_mode_source": charge_mode_source,
                 # Expose scheduler preference explicitly for entities that care
                 "charge_mode_pref": charge_mode_pref,
+                "charge_mode_pref_source": charge_mode_pref_source,
                 "charging_level": charging_level,
+                "charging_level_source": charging_level_source,
                 "storm_guard_state": self._storm_guard_state,
                 "storm_evse_enabled": self._storm_evse_enabled,
                 "session_charge_level": session_charge_level,
@@ -3502,6 +3668,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 entry["app_auth_enabled"] = app_auth_enabled
                 entry["rfid_auth_enabled"] = rfid_auth_enabled
                 entry["auth_required"] = auth_required
+            self._record_evse_transition_snapshot(sn, previous_entry, entry)
 
             out[sn] = entry
 

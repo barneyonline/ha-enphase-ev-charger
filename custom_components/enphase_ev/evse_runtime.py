@@ -69,6 +69,12 @@ class ChargeModeStartPreferences:
     enforce_mode: str | None = None
 
 
+@dataclass(slots=True)
+class ChargeModeResolution:
+    mode: str | None = None
+    source: str | None = None
+
+
 class EvseRuntime:
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
@@ -282,6 +288,7 @@ class EvseRuntime:
             "_auto_resume_attempts",
             "_session_end_fix",
             "_streaming_targets",
+            "_evse_transition_snapshots",
         ):
             cache = getattr(coord, attr_name, None)
             if not isinstance(cache, dict):
@@ -466,9 +473,9 @@ class EvseRuntime:
 
     async def async_resolve_charge_modes(
         self, serials: Iterable[str]
-    ) -> dict[str, str | None]:
+    ) -> dict[str, ChargeModeResolution]:
         coord = self.coordinator
-        results: dict[str, str | None] = {}
+        results: dict[str, ChargeModeResolution] = {}
         pending: dict[str, asyncio.Task[str | None]] = {}
         if coord._scheduler_backoff_active():
             for sn in dict.fromkeys(serials):
@@ -476,14 +483,14 @@ class EvseRuntime:
                     continue
                 cached = self.cached_charge_mode_preference(sn)
                 if cached is not None:
-                    results[sn] = cached
+                    results[sn] = ChargeModeResolution(cached, "cache_backoff")
             return results
         for sn in dict.fromkeys(serials):
             if not sn:
                 continue
             cached = self.cached_charge_mode_preference(sn)
             if cached is not None:
-                results[sn] = cached
+                results[sn] = ChargeModeResolution(cached, "cache")
                 continue
             pending[sn] = asyncio.create_task(self.async_get_charge_mode(sn))
         if pending:
@@ -499,9 +506,10 @@ class EvseRuntime:
                             identifiers=(sn,),
                         ),
                     )
+                    results[sn] = ChargeModeResolution(source="lookup_failed")
                     continue
                 if response:
-                    results[sn] = response
+                    results[sn] = ChargeModeResolution(response, "scheduler_endpoint")
         return results
 
     async def async_start_charging(
