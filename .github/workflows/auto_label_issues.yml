@@ -200,13 +200,20 @@ jobs:
               return false;
             };
 
+            const currentLabels = issue.labels.map((label) =>
+              typeof label === "string" ? label : label.name,
+            );
             const desiredLabels = new Set();
 
             if (kind === "device_support") {
               desiredLabels.add("type/device-support");
             }
 
-            if (action === "opened" || action === "reopened") {
+            if (
+              action === "opened" ||
+              action === "reopened" ||
+              currentLabels.includes("status/needs-triage")
+            ) {
               desiredLabels.add("status/needs-triage");
             }
 
@@ -225,9 +232,6 @@ jobs:
               desiredLabels.add(areaLabel);
             }
 
-            const currentLabels = issue.labels.map((label) =>
-              typeof label === "string" ? label : label.name,
-            );
             const managedCurrent = currentLabels.filter((label) =>
               managedLabels.has(label) ||
               managedPrefixes.some((prefix) => label.startsWith(prefix)),
