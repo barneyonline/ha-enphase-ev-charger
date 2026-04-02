@@ -1,0 +1,88 @@
+name: Comment Missing Diagnostics
+
+on:
+  issues:
+    types:
+      - labeled
+      - unlabeled
+
+permissions:
+  issues: write
+
+jobs:
+  sync_comment:
+    if: github.event.label.name == 'status/needs-diagnostics'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or remove diagnostics guidance comment
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue = context.payload.issue;
+            const marker = "<!-- codex:needs-diagnostics-guidance -->";
+            const hasDiagnosticsLabel = issue.labels.some((label) =>
+              (typeof label === "string" ? label : label.name) === "status/needs-diagnostics",
+            );
+
+            const isBug = issue.title?.startsWith("[Bug]:");
+            const isDeviceSupport = issue.title?.startsWith("[Device support]:");
+            if (!isBug && !isDeviceSupport) {
+              return;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: issue.number,
+              per_page: 100,
+            });
+
+            const existing = comments.find((comment) =>
+              comment.body?.includes(marker),
+            );
+
+            if (!hasDiagnosticsLabel) {
+              if (existing) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                });
+              }
+              return;
+            }
+
+            const body = [
+              marker,
+              "Thanks for the report. This issue is currently blocked on additional diagnostics or evidence before triage can finish.",
+              "",
+              "Please attach the most relevant diagnostics you can provide:",
+              "- bug reports: config-entry diagnostics, and device diagnostics if the problem is device-specific",
+              "- device support requests: config-entry diagnostics, device diagnostics, and screenshots from the Enphase app if available",
+              "",
+              "In Home Assistant:",
+              "1. Open `Settings -> Devices & Services -> Integrations`",
+              "2. Select `Enphase Energy`",
+              "3. Use `Download diagnostics`",
+              "4. For device-specific issues, open the affected device page and download diagnostics there as well",
+              "",
+              "Add the files to this issue or reply here once they are attached. When the missing details are provided, the `status/needs-diagnostics` label can be removed and triage can continue.",
+            ].join("\\n");
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: issue.number,
+              body,
+            });
