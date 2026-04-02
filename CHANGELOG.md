@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Aligned EVSE, site energy, heat-pump, inverter, and battery power/energy entities around stable sample timestamps, stopped synthesizing EVSE measurement time from poll time when the upstream sample time is missing, and moved EVSE power derivation onto refresh-time coordinator snapshots so power and energy readings stay internally consistent.
 
 ### 🔧 Improvements
 - None
