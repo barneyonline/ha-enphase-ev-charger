@@ -120,7 +120,7 @@ async def test_async_setup_entry_restored_topology_adds_dynamic_entities(
             "name": "IQ Energy Router_1",
         }
     ]
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_label": "Gateway",
@@ -1326,7 +1326,7 @@ def test_inverter_lifetime_sensor_device_info_fallback(coordinator_factory) -> N
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord.site_id = "123456"
-    coord.type_device_info = lambda _key: None  # type: ignore[assignment]
+    coord.inventory_view.type_device_info = lambda _key: None  # type: ignore[assignment]
     coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
     coord._inverter_order = ["INV-A"]  # noqa: SLF001
     entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
@@ -1350,7 +1350,7 @@ def test_inverter_lifetime_sensor_device_info_prefers_coordinator_info(
         manufacturer="Enphase",
         name="Microinverters",
     )
-    coord.type_device_info = lambda _key: expected  # type: ignore[assignment]
+    coord.inventory_view.type_device_info = lambda _key: expected  # type: ignore[assignment]
     coord._inverter_data = {"INV-A": {"serial_number": "INV-A"}}  # noqa: SLF001
     coord._inverter_order = ["INV-A"]  # noqa: SLF001
     entity = EnphaseInverterLifetimeEnergySensor(coord, "INV-A")
@@ -1420,7 +1420,7 @@ def test_gateway_diagnostic_sensors_expose_inventory_summary(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -1499,7 +1499,7 @@ def test_microinverter_diagnostic_sensors_expose_inventory_summary(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "microinverter": {
                 "type_key": "microinverter",
@@ -1619,7 +1619,7 @@ def test_microinverter_snapshot_helper_handles_invalid_shapes(
             raise ValueError("bad")
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.type_bucket = lambda _type_key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _type_key: {  # type: ignore[assignment]
         "count": BadInt(),
         "devices": [{"serial_number": "INV-A", "last_report": "2026-02-15T10:00:00Z"}],
         "status_counts": {"total": BadInt(), "not_reporting": BadInt()},
@@ -1665,7 +1665,7 @@ def test_microinverter_snapshot_defaults_unknown_when_status_missing(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.type_bucket = lambda _type_key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _type_key: {  # type: ignore[assignment]
         "count": 2,
         "devices": [{"serial_number": "INV-A"}, {"serial_number": "INV-B"}],
     }
@@ -1682,7 +1682,7 @@ def test_microinverter_snapshot_clamps_unknown_overflow(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.type_bucket = lambda _type_key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _type_key: {  # type: ignore[assignment]
         "count": 1,
         "devices": [{"serial_number": "INV-A"}],
         "status_counts": {"total": 1, "not_reporting": 1, "unknown": 2},
@@ -1748,12 +1748,12 @@ def test_microinverter_reporting_count_attributes_fallbacks(
             raise ValueError("bad")
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.type_bucket = lambda _type_key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _type_key: {  # type: ignore[assignment]
         "count": BadInt(),
         "type_label": " ",
         "devices": [{"serial_number": "INV-A"}],
     }
-    coord.type_label = lambda _type_key: "Microinverters Fallback"  # type: ignore[assignment]
+    coord.inventory_view.type_label = lambda _type_key: "Microinverters Fallback"  # type: ignore[assignment]
 
     sensor = EnphaseMicroinverterReportingCountSensor(coord)
     attrs = sensor.extra_state_attributes
@@ -1762,7 +1762,7 @@ def test_microinverter_reporting_count_attributes_fallbacks(
     assert "devices" in sensor._unrecorded_attributes
     assert "panel_info" in sensor._unrecorded_attributes
 
-    coord.type_label = lambda _type_key: " "  # type: ignore[assignment]
+    coord.inventory_view.type_label = lambda _type_key: " "  # type: ignore[assignment]
     attrs = EnphaseMicroinverterReportingCountSensor(coord).extra_state_attributes
     assert attrs["type_label"] == "Microinverters"
 
@@ -1775,7 +1775,7 @@ def test_microinverter_sensor_available_branches(coordinator_factory) -> None:
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "microinverter": {
                 "type_key": "microinverter",
@@ -1812,7 +1812,7 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -1958,7 +1958,7 @@ def test_heatpump_power_sensor_unavailable_without_sample(coordinator_factory) -
     from custom_components.enphase_ev.sensor import EnphaseHeatPumpPowerSensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2079,7 +2079,7 @@ def test_heatpump_sensor_availability_edge_paths(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2105,7 +2105,7 @@ def test_heatpump_sensor_availability_edge_paths(
     coord._devices_inventory_ready = True  # noqa: SLF001
     assert EnphaseHeatPumpStatusSensor(coord).available is False
     assert EnphaseHeatPumpSgReadyModeSensor(coord).available is False
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2124,7 +2124,7 @@ def test_heatpump_sensor_availability_edge_paths(
         "sg_ready_mode_label": "Normal",
         "last_report_at": "2026-02-27T09:00:00Z",
     }
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2179,7 +2179,7 @@ def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord.last_update_success = True
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2210,7 +2210,7 @@ def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
     assert EnphaseHeatPumpStatusSensor(coord).available is True
     assert EnphaseHeatPumpSgReadyModeSensor(coord).available is True
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2229,7 +2229,7 @@ def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
     )
     assert _heatpump_sg_ready_semantics("unexpected") == {}
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2244,7 +2244,7 @@ def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
     monkeypatch.setattr(meter_sensor, "_snapshot", lambda: {"member_count": 0})
     assert meter_sensor.available is False
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2271,7 +2271,7 @@ def test_heatpump_connectivity_sensor_availability_paths(
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
     coord.last_update_success = True
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2286,7 +2286,7 @@ def test_heatpump_connectivity_sensor_availability_paths(
     sensor = EnphaseHeatPumpConnectivityStatusSensor(coord)
     assert sensor.available is True
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -2464,7 +2464,7 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -2560,7 +2560,7 @@ def test_gateway_meter_sensor_name_fallback_and_missing_member(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -2597,7 +2597,7 @@ def test_gateway_last_reported_sensor_uses_dashboard_fallback(
     from custom_components.enphase_ev.sensor import EnphaseGatewayLastReportedSensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -2913,7 +2913,7 @@ async def test_async_setup_entry_adds_gateway_iq_energy_router_entities_without_
 
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord._set_type_device_buckets({}, [])  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets({}, [])  # noqa: SLF001
     coord._hems_devices_payload = {  # noqa: SLF001
         "data": {
             "hems-devices": {
@@ -3131,7 +3131,7 @@ def test_gateway_iq_energy_router_records_prefers_restored_helper(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.gateway_iq_energy_router_records = lambda: [  # type: ignore[assignment]
+    coord.inventory_view.gateway_iq_energy_router_records = lambda: [  # type: ignore[assignment]
         {
             "device-type": "IQ_ENERGY_ROUTER",
             "device-uid": "RESTORED_ROUTER",
@@ -3149,7 +3149,7 @@ def test_gateway_iq_energy_router_records_reads_live_hems_members(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.gateway_iq_energy_router_records = None  # type: ignore[assignment]
+    coord.inventory_view.gateway_iq_energy_router_records = None  # type: ignore[assignment]
     coord._hems_group_members = lambda *_args: [  # type: ignore[assignment]  # noqa: SLF001
         {"device-type": "IQ_GATEWAY"},
         {"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE_ROUTER"},
@@ -3159,6 +3159,77 @@ def test_gateway_iq_energy_router_records_reads_live_hems_members(
 
     assert len(records) == 1
     assert records[0]["member"]["device-uid"] == "LIVE_ROUTER"
+
+
+def test_gateway_iq_energy_router_helpers_cover_remaining_fallback_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+
+    assert sensor_mod._gateway_iq_energy_router_inventory_buckets(
+        {"result": [None, {"type": "hemsDevices", "devices": []}]}
+    ) == [{"type": "hemsDevices", "devices": []}]
+
+    coord.inventory_view.gateway_iq_energy_router_summary_records = lambda: None  # type: ignore[assignment]
+
+    def _restored_boom():
+        raise RuntimeError("restored failed")
+
+    coord.inventory_view.gateway_iq_energy_router_records = _restored_boom  # type: ignore[assignment]
+    coord._hems_group_members = None  # type: ignore[assignment]  # noqa: SLF001
+    coord._devices_inventory_payload = {  # noqa: SLF001
+        "value": {
+            "result": [
+                {"type": "   "},
+                {"type": "envoy", "devices": []},
+                {"type": "hemsDevices", "devices": {}},
+                {
+                    "type": "hemsDevices",
+                    "devices": [
+                        None,
+                        {"gateway": {"device-type": "IQ_ENERGY_ROUTER"}},
+                        {
+                            "gateway": [
+                                None,
+                                {
+                                    "device-type": "IQ_ENERGY_ROUTER",
+                                    "device-uid": "RETIRED-1",
+                                    "statusText": "retired",
+                                },
+                                {
+                                    "device-type": "IQ_GATEWAY",
+                                    "device-uid": "NOT-A-ROUTER",
+                                },
+                                {
+                                    "device-type": "IQ_ENERGY_ROUTER",
+                                    "device-uid": "ROUTER-1",
+                                },
+                                {
+                                    "device-type": "IQ_ENERGY_ROUTER",
+                                    "device-uid": "ROUTER-1",
+                                },
+                            ]
+                        },
+                    ],
+                },
+            ]
+        }
+    }
+
+    records = sensor_mod._gateway_iq_energy_router_records(coord)
+    assert [record["key"] for record in records] == ["router_1", "router_1_2"]
+
+    coord.gateway_iq_energy_router_record = lambda _key: {"key": _key}  # type: ignore[assignment]
+    assert sensor_mod._gateway_iq_energy_router_record(coord, "router_1") == {
+        "key": "router_1"
+    }
+
+    coord.gateway_iq_energy_router_record = lambda _key: (_ for _ in ()).throw(  # type: ignore[assignment]
+        RuntimeError("lookup failed")
+    )
+    assert (
+        sensor_mod._gateway_iq_energy_router_record(coord, "router_1_2") == records[1]
+    )
 
 
 def test_gateway_iq_energy_router_sensor_name_and_availability_edge_paths(
@@ -3220,7 +3291,7 @@ def test_system_controller_inventory_sensor_state_and_attributes(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3294,7 +3365,7 @@ def test_system_controller_inventory_sensor_missing_member_unavailable(
     )
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3312,7 +3383,7 @@ def test_system_controller_inventory_sensor_missing_member_unavailable(
     assert sensor.native_value is None
     assert sensor.extra_state_attributes == {}
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3333,7 +3404,7 @@ def test_dry_contacts_inventory_sensor_state_and_attributes(
     from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3397,7 +3468,7 @@ def test_dry_contacts_inventory_sensor_missing_member_unavailable(
     from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3456,7 +3527,7 @@ def test_dry_contacts_inventory_sensor_single_contact_adds_terminal_descriptions
     from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3495,7 +3566,7 @@ def test_dry_contacts_inventory_sensor_single_member_attributes(
     from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3538,7 +3609,7 @@ def test_dry_contacts_inventory_sensor_merges_settings_into_contact_attributes(
     from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3617,7 +3688,7 @@ def test_dry_contacts_inventory_sensor_single_contact_flattens_settings_attribut
     from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3686,7 +3757,7 @@ def test_dry_contacts_inventory_sensor_multi_contact_state_is_stable(
     ]
     members_b = list(reversed(members_a))
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3711,7 +3782,7 @@ def test_dry_contacts_inventory_sensor_multi_contact_state_is_stable(
     assert attrs_a["contacts"][0]["channel_type"] == "dry_contact_1"
     assert attrs_a["contacts"][1]["channel_type"] == "dry_contact_2"
 
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3737,7 +3808,7 @@ def test_dry_contacts_inventory_sensor_counts_visible_enabled_in_use(
     from custom_components.enphase_ev.sensor import EnphaseDryContactsInventorySensor
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -3794,7 +3865,7 @@ def test_dry_contacts_inventory_sensor_unavailable_when_super_unavailable(
     coord.last_success_utc = None
     coord.last_update_success = False
     coord.has_type_for_entities = lambda _type_key: False  # type: ignore[assignment]
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "dry_contact": {
                 "type_key": "dry_contact",
@@ -3962,7 +4033,7 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert parsed_router_report is not None
 
     coord = coordinator_factory(serials=[RANDOM_SERIAL])
-    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {  # type: ignore[assignment]
         "count": BadInt(),
         "devices": [
             {"status": "normal", "connected": None, "model": "IQ Gateway"},
@@ -3980,7 +4051,7 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     meter_member = sensor_mod._gateway_meter_member(coord, "production")
     assert meter_member is None
 
-    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {  # type: ignore[assignment]
         "count": 2,
         "devices": [
             {"channel_type": "production_meter", "name": "Production Meter"},
@@ -3989,11 +4060,11 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     }
     assert sensor_mod._gateway_meter_member(coord, "production") is not None
     assert sensor_mod._gateway_meter_member(coord, "consumption") is not None
-    coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
     assert sensor_mod._gateway_meter_member(coord, "production") is None
-    coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
     assert sensor_mod._gateway_meter_member(coord, "production") is None
-    coord.type_bucket = lambda _key: {"count": 0, "devices": []}  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {"count": 0, "devices": []}  # type: ignore[assignment]
     coord.system_dashboard_envoy_detail = lambda: {  # type: ignore[attr-defined]
         "status": "normal",
         "last_report": "2026-03-09T05:45:00+00:00",
@@ -4004,7 +4075,7 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert fallback_snapshot["total_devices"] == 1
     assert fallback_snapshot["connected_devices"] == 1
     assert fallback_snapshot["latest_reported_utc"] == "2026-03-09T05:45:00+00:00"
-    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {  # type: ignore[assignment]
         "devices": [{"channel_type": "production_meter", "name": "Production Meter"}]
     }
     coord.system_dashboard_meter_detail = lambda _kind: {  # type: ignore[attr-defined]
@@ -4016,15 +4087,15 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
         "name": "Production Meter",
         "config_type": "Production",
     }
-    coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
     assert sensor_mod._gateway_system_controller_member(coord) is None
-    coord.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {"devices": ["bad"]}  # type: ignore[assignment]
     assert sensor_mod._gateway_system_controller_member(coord) is None
-    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {  # type: ignore[assignment]
         "devices": [{"name": "System Controller (Main)"}]
     }
     assert sensor_mod._gateway_system_controller_member(coord) is not None
-    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {  # type: ignore[assignment]
         "devices": [
             {"name": "Dry Contact Gateway", "channel_type": "dry_contact_1"},
             {"name": "Dry Contact Gateway", "channel_type": "dry_contact_1"},
@@ -4046,7 +4117,7 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert len(dry_members) == 2
     assert any(member.get("name") == "Dry Contact Gateway" for member in dry_members)
     assert any(member.get("name") == "Dry Contact Type" for member in dry_members)
-    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {  # type: ignore[assignment]
         "devices": [
             {
                 "name": "Dry Contact",
@@ -4063,7 +4134,7 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     coord._type_device_buckets = {}  # noqa: SLF001
     dry_members = sensor_mod._gateway_dry_contact_members(coord)
     assert len(dry_members) == 2
-    coord.type_bucket = lambda _key: {"devices": []}  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {"devices": []}  # type: ignore[assignment]
     coord._type_device_buckets = {  # noqa: SLF001
         "dry_contact": {
             "devices": [
@@ -4073,7 +4144,7 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     }
     dry_members = sensor_mod._gateway_dry_contact_members(coord)
     assert len(dry_members) == 1
-    coord.type_bucket = lambda _key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda _key: {  # type: ignore[assignment]
         "devices": [
             {"device_uid": "DU-1", "channel_type": "dry_contact_1"},
             {"device_uid": "DU-2", "name": "Dry Contact Device UID Only"},
@@ -4127,9 +4198,8 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
         ]
     }
     router_records = sensor_mod._gateway_iq_energy_router_records(coord)
-    assert len(router_records) == 2
+    assert len(router_records) == 1
     assert router_records[0]["key"] == "5956621_iq_energy_router_1"
-    assert router_records[1]["key"] == "5956621_iq_energy_router_1_2"
     assert (
         sensor_mod._gateway_iq_energy_router_record(
             coord,
@@ -4573,7 +4643,7 @@ async def test_async_setup_entry_adds_optional_site_energy_entities_when_support
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -4723,7 +4793,7 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
         manufacturer="Enphase",
         name="Heat Pump",
     )
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -4734,7 +4804,7 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
         },
         ["heatpump"],
     )
-    coord.type_device_info = lambda key: expected if key == "heatpump" else None  # type: ignore[assignment]
+    coord.inventory_view.type_device_info = lambda key: expected if key == "heatpump" else None  # type: ignore[assignment]
     coord._heatpump_power_w = 725.125  # noqa: SLF001
     coord._heatpump_daily_consumption = {  # noqa: SLF001
         "daily_energy_wh": 230.0,
@@ -4802,7 +4872,7 @@ def test_heat_pump_daily_energy_and_sg_ready_gateway_sensors(
     from homeassistant.components.sensor import SensorStateClass
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -4901,7 +4971,7 @@ def test_site_heat_pump_energy_sensor_ignores_phantom_heatpump_device_info(
         manufacturer="Enphase",
         name="Enphase Cloud",
     )
-    coord.type_device_info = lambda key: (  # type: ignore[assignment]
+    coord.inventory_view.type_device_info = lambda key: (  # type: ignore[assignment]
         phantom if key == "heatpump" else expected_cloud if key == "cloud" else None
     )
     coord.energy.site_energy = {
@@ -4922,6 +4992,64 @@ def test_site_heat_pump_energy_sensor_ignores_phantom_heatpump_device_info(
         "Site Heat Pump Consumption",
     )
     assert sensor.device_info is expected_cloud
+
+
+def test_cloud_sensor_device_info_falls_back_to_default_cloud_device(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseCurrentPowerConsumptionSensor,
+        EnphaseCloudLatencySensor,
+        EnphaseSiteBackoffEndsSensor,
+        EnphaseSiteEnergySensor,
+        EnphaseSiteLastErrorCodeSensor,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord.inventory_view.type_device_info = lambda _key: None  # type: ignore[assignment]
+    coord.energy.site_energy = {
+        "home": {
+            "value_kwh": 1.25,
+            "bucket_count": 1,
+            "fields_used": ["home"],
+            "start_date": "2026-02-27",
+            "last_report_date": None,
+            "source_unit": "Wh",
+        }
+    }
+
+    site_energy = EnphaseSiteEnergySensor(
+        coord,
+        "home",
+        "site_home_consumption",
+        "Site Home Consumption",
+    )
+    current_power = EnphaseCurrentPowerConsumptionSensor(coord)
+    latency = EnphaseCloudLatencySensor(coord)
+    last_error = EnphaseSiteLastErrorCodeSensor(coord)
+    backoff = EnphaseSiteBackoffEndsSensor(coord)
+
+    expected_identifiers = {("enphase_ev", f"type:{coord.site_id}:cloud")}
+    assert site_energy.device_info["identifiers"] == expected_identifiers
+    assert current_power.device_info["identifiers"] == expected_identifiers
+    assert latency.device_info["identifiers"] == expected_identifiers
+    assert last_error.device_info["identifiers"] == expected_identifiers
+    assert backoff.device_info["identifiers"] == expected_identifiers
+
+
+def test_cloud_latency_sensor_device_info_falls_back_without_type_device_info(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseCloudLatencySensor
+
+    coord = coordinator_factory(serials=[])
+    monkeypatch.setattr(sensor_mod, "_type_device_info", lambda *_args, **_kwargs: None)
+
+    sensor = EnphaseCloudLatencySensor(coord)
+
+    assert sensor.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:cloud")
+    }
 
 
 @pytest.mark.asyncio
@@ -4983,7 +5111,7 @@ async def test_async_setup_entry_adds_cloud_site_entities_without_envoy_type(
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "iqevse": {
                 "type_key": "iqevse",
@@ -5021,7 +5149,7 @@ async def test_async_setup_entry_skips_unsupported_gateway_meter_when_inventory_
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5055,7 +5183,7 @@ async def test_async_setup_entry_prunes_stale_unsupported_gateway_meter_entity(
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5101,7 +5229,7 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5168,11 +5296,12 @@ async def test_async_setup_entry_keeps_gateway_meters_when_meter_detection_error
 
     coord = coordinator_factory(serials=[])
     coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.inventory_view.has_type_for_entities = lambda type_key: type_key == "envoy"  # type: ignore[assignment]
 
     def _raise_type_bucket(_type_key):
         raise RuntimeError("boom")
 
-    coord.type_bucket = _raise_type_bucket  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = _raise_type_bucket  # type: ignore[assignment]
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list[Any] = []
@@ -5197,7 +5326,7 @@ async def test_async_setup_entry_skips_dry_contacts_when_inventory_ready_and_abs
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5235,7 +5364,7 @@ async def test_async_setup_entry_adds_microinverter_site_entities_without_gatewa
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "microinverter": {
                 "type_key": "microinverter",
@@ -5287,7 +5416,7 @@ async def test_async_setup_entry_adds_heatpump_site_entities(
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -5359,7 +5488,7 @@ async def test_async_setup_entry_skips_runtime_only_heatpump_site_entities_witho
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -5413,7 +5542,7 @@ async def test_async_setup_entry_prunes_stale_heatpump_site_entities_when_unavai
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5452,7 +5581,7 @@ async def test_async_setup_entry_prunes_stale_runtime_heatpump_site_entities_wit
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
                 "type_key": "heatpump",
@@ -5502,7 +5631,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5591,7 +5720,7 @@ async def test_async_setup_entry_skips_gateway_and_battery_inventory_sensors(
     )
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5630,7 +5759,7 @@ async def test_async_setup_entry_prunes_battery_type_inventory_entity(
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5681,7 +5810,7 @@ async def test_async_setup_entry_prunes_stale_dry_contact_type_inventory_entity(
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5748,7 +5877,7 @@ async def test_async_setup_entry_prunes_legacy_drycontactloads_inventory_entity_
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5800,7 +5929,7 @@ async def test_async_setup_entry_removes_known_dry_contact_type_inventory_entity
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5864,7 +5993,7 @@ async def test_async_setup_entry_known_dry_contact_removal_handles_missing_entit
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -5919,7 +6048,7 @@ async def test_async_setup_entry_known_dry_contact_removal_handles_noncallable_l
     from custom_components.enphase_ev.sensor import async_setup_entry
 
     coord = coordinator_factory(serials=[])
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",

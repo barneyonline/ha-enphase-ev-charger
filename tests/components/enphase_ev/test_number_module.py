@@ -113,7 +113,9 @@ def test_number_helper_fallbacks_and_retained_site_unique_ids() -> None:
 
     coord = SimpleNamespace(
         site_id="site",
-        has_type=lambda type_key: type_key == "encharge",
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key == "encharge"
+        ),
         battery_write_access_confirmed=None,
         battery_user_is_owner=True,
         battery_user_is_installer=False,
@@ -274,7 +276,9 @@ async def test_async_setup_entry_skips_site_numbers_without_battery_type(
     coord._serial_order = [RANDOM_SERIAL]
     coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
     coord.iter_serials = lambda: [RANDOM_SERIAL]
-    coord.has_type = lambda type_key: str(type_key) != "encharge"
+    coord.inventory_view.has_type_for_entities = (
+        lambda type_key: str(type_key) != "encharge"
+    )
     coord.async_add_listener = MagicMock(return_value=lambda: None)
 
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
@@ -330,7 +334,7 @@ def _make_coordinator(hass, config_entry, data):
         return_value=None,
     ):
         coord = EnphaseCoordinator(hass, config_entry.data, config_entry=config_entry)
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "encharge": {
                 "type_key": "encharge",
@@ -826,7 +830,7 @@ def test_battery_cfg_schedule_limit_number_super_unavailable_and_device_info_fal
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
 
     number = BatteryCfgScheduleLimitNumber(coord)
 
@@ -846,7 +850,7 @@ def test_battery_cfg_schedule_limit_number_uses_type_device_info_when_available(
     coord._battery_charge_from_grid = True  # noqa: SLF001
     coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
 
     number = BatteryCfgScheduleLimitNumber(coord)
 
@@ -857,7 +861,7 @@ def test_battery_reserve_and_shutdown_number_device_info_fallbacks(
     hass, config_entry
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
 
     reserve = BatteryReserveNumber(coord)
     shutdown = BatteryShutdownLevelNumber(coord)
@@ -875,7 +879,7 @@ def test_battery_reserve_and_shutdown_number_use_type_device_info(
 ) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
 
     assert BatteryReserveNumber(coord).device_info is expected
     assert BatteryShutdownLevelNumber(coord).device_info is expected
@@ -909,7 +913,7 @@ async def test_base_battery_schedule_limit_number_fallbacks(hass, config_entry) 
     coord._battery_user_is_owner = True  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord.async_custom_schedule_setter = AsyncMock()
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
 
     number = number_mod._BaseBatteryScheduleLimitNumber(
         coord,
@@ -928,7 +932,7 @@ async def test_base_battery_schedule_limit_number_fallbacks(hass, config_entry) 
     }
 
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
     assert number.device_info is expected
 
     coord.last_update_success = False

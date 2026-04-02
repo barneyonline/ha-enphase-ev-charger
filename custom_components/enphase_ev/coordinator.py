@@ -76,10 +76,7 @@ from .coordinator_diagnostics import CoordinatorDiagnostics
 from .device_types import (
     normalize_type_key,
     parse_type_identifier,
-    type_display_label,
-    type_identifier,
 )
-from .device_info_helpers import _is_redundant_model_id
 from .energy import EnergyManager
 from .evse_timeseries import EVSETimeseriesManager
 from .evse_runtime import (
@@ -90,6 +87,7 @@ from .evse_runtime import (
 )
 from .heatpump_runtime import HeatpumpRuntime
 from .inventory_runtime import CoordinatorTopologySnapshot, InventoryRuntime
+from .inventory_view import InventoryView
 from .labels import (
     battery_grid_mode_label,
     battery_profile_label as translated_battery_profile_label,
@@ -103,10 +101,7 @@ from .parsing_helpers import (
     coerce_optional_bool,
     coerce_optional_float,
     coerce_optional_text,
-    heatpump_member_device_type,
-    heatpump_status_text,
     parse_inverter_last_report,
-    type_member_text,
 )
 from .runtime_helpers import (
     coerce_int as helper_coerce_int,
@@ -407,6 +402,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.battery_runtime = BatteryRuntime(self)
         self.heatpump_runtime = HeatpumpRuntime(self)
         self.inventory_runtime = InventoryRuntime(self)
+        self.inventory_view = InventoryView(self)
         self.diagnostics = CoordinatorDiagnostics(self)
 
     def __setattr__(self, name, value):
@@ -440,6 +436,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             diagnostics = CoordinatorDiagnostics(self)
             self.__dict__["diagnostics"] = diagnostics
             return diagnostics
+        if name == "inventory_view":
+            inventory_view = InventoryView(self)
+            self.__dict__["inventory_view"] = inventory_view
+            return inventory_view
         raise AttributeError(f"{type(self).__name__} has no attribute {name!r}")
 
     async def _async_setup(self) -> None:
@@ -664,28 +664,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return self.inventory_runtime.topology_snapshot()
 
     def gateway_inventory_summary(self) -> dict[str, object]:
-        source = self._gateway_inventory_summary_marker()
+        source = self.inventory_runtime._gateway_inventory_summary_marker()
         summary = getattr(self, "_gateway_inventory_summary_cache", {}) or {}
         if not summary or source != self._gateway_inventory_summary_source:
-            summary = self._build_gateway_inventory_summary()
+            summary = self.inventory_runtime._build_gateway_inventory_summary()
             self._gateway_inventory_summary_cache = summary
             self._gateway_inventory_summary_source = source
         return dict(summary)
 
     def microinverter_inventory_summary(self) -> dict[str, object]:
-        source = self._microinverter_inventory_summary_marker()
+        source = self.inventory_runtime._microinverter_inventory_summary_marker()
         summary = getattr(self, "_microinverter_inventory_summary_cache", {}) or {}
         if not summary or source != self._microinverter_inventory_summary_source:
-            summary = self._build_microinverter_inventory_summary()
+            summary = self.inventory_runtime._build_microinverter_inventory_summary()
             self._microinverter_inventory_summary_cache = summary
             self._microinverter_inventory_summary_source = source
         return dict(summary)
 
     def heatpump_inventory_summary(self) -> dict[str, object]:
-        source = self._heatpump_inventory_summary_marker()
+        source = self.inventory_runtime._heatpump_inventory_summary_marker()
         summary = getattr(self, "_heatpump_inventory_summary_cache", {}) or {}
         if not summary or source != self._heatpump_inventory_summary_source:
-            summary = self._build_heatpump_inventory_summary()
+            summary = self.inventory_runtime._build_heatpump_inventory_summary()
             self._heatpump_inventory_summary_cache = summary
             self._heatpump_inventory_summary_source = source
         return dict(summary)
@@ -695,60 +695,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             normalized = str(device_type).strip().upper()
         except Exception:  # noqa: BLE001
             normalized = ""
-        source = self._heatpump_inventory_summary_marker()
+        source = self.inventory_runtime._heatpump_inventory_summary_marker()
         summaries = getattr(self, "_heatpump_type_summaries_cache", {}) or {}
         if source != self._heatpump_type_summaries_source or (
             normalized and normalized not in summaries
         ):
-            summaries = self._build_heatpump_type_summaries()
+            summaries = self.inventory_runtime._build_heatpump_type_summaries()
             self._heatpump_type_summaries_cache = summaries
             self._heatpump_type_summaries_source = source
         summary = summaries.get(normalized, {})
         return dict(summary) if isinstance(summary, dict) else {}
-
-    def gateway_iq_energy_router_summary_records(self) -> list[dict[str, object]]:
-        source = self._gateway_iq_energy_router_records_marker()
-        records = getattr(self, "_gateway_iq_energy_router_records_cache", [])
-        if not records or source != self._gateway_iq_energy_router_records_source:
-            records = self._gateway_iq_energy_router_summary_records(
-                self.gateway_iq_energy_router_records()
-            )
-            self._gateway_iq_energy_router_records_cache = records
-            self._gateway_iq_energy_router_records_source = source
-            self._gateway_iq_energy_router_records_by_key_cache = {
-                record["key"]: record
-                for record in records
-                if isinstance(record, dict) and isinstance(record.get("key"), str)
-            }
-        return [dict(record) for record in records if isinstance(record, dict)]
-
-    @staticmethod
-    def _router_record_key(record: object) -> str | None:
-        if not isinstance(record, dict):
-            return None
-        key = record.get("key")
-        if key is None:
-            return None
-        try:
-            key_text = str(key).strip()
-        except Exception:  # noqa: BLE001
-            return None
-        return key_text or None
-
-    def gateway_iq_energy_router_record(
-        self, router_key: object
-    ) -> dict[str, object] | None:
-        try:
-            key = str(router_key).strip()
-        except Exception:  # noqa: BLE001
-            return None
-        if not key:
-            return None
-        self.gateway_iq_energy_router_summary_records()
-        record = getattr(
-            self, "_gateway_iq_energy_router_records_by_key_cache", {}
-        ).get(key)
-        return dict(record) if isinstance(record, dict) else None
 
     def _current_topology_snapshot(self) -> CoordinatorTopologySnapshot:
         return self.inventory_runtime._current_topology_snapshot()
@@ -872,7 +828,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def _live_gateway_iq_energy_router_records(self) -> list[dict[str, object]]:
         records: list[dict[str, object]] = []
-        for member in self._hems_group_members("gateway"):
+        for member in self.inventory_runtime._hems_group_members("gateway"):
             if not isinstance(member, dict):
                 continue
             raw_type = member.get("device-type")
@@ -888,18 +844,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 continue
             records.append(dict(member))
         return records
-
-    def gateway_iq_energy_router_records(self) -> list[dict[str, object]]:
-        records = self._live_gateway_iq_energy_router_records()
-        if records:
-            return records
-        if self._gateway_router_discovery_ready():
-            return []
-        return [
-            dict(item)
-            for item in self._restored_gateway_iq_energy_router_records
-            if isinstance(item, dict)
-        ]
 
     def _capture_discovery_snapshot(self) -> dict[str, object]:
         site_energy_channels = self._live_site_energy_channels()
@@ -981,7 +925,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 else list(normalized_grouped.keys())
             )
             if normalized_grouped:
-                self._set_type_device_buckets(
+                self.inventory_runtime._set_type_device_buckets(
                     normalized_grouped, ordered_keys, authoritative=False
                 )
 
@@ -1234,7 +1178,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         if isinstance(getattr(self, "_battery_status_payload", None), dict):
             return
-        await self._async_refresh_battery_status(force=True)
+        await self.battery_runtime.async_refresh_battery_status(force=True)
 
     async def _async_refresh_hems_support_preflight(
         self, *, force: bool = False
@@ -1362,10 +1306,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         serials = [sn for sn in self.iter_serials() if sn]
         if not serials:
             return
-        charge_modes = await self._async_resolve_charge_modes(serials)
-        green_settings = await self._async_resolve_green_battery_settings(serials)
-        auth_settings = await self._async_resolve_auth_settings(serials)
-        charger_config = await self._async_resolve_charger_config(
+        charge_modes = await self.evse_runtime.async_resolve_charge_modes(serials)
+        green_settings = await self.evse_runtime.async_resolve_green_battery_settings(
+            serials
+        )
+        auth_settings = await self.evse_runtime.async_resolve_auth_settings(serials)
+        charger_config = await self.evse_runtime.async_resolve_charger_config(
             serials,
             keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
         )
@@ -1415,173 +1361,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     ]
         if working_data is None:
             self.async_set_updated_data(merged)
-
-    def _parse_devices_inventory_payload(  # pragma: no cover - compatibility shim
-        self, payload: object
-    ) -> tuple[bool, dict[str, dict[str, object]], list[str]]:
-        return self.inventory_runtime._parse_devices_inventory_payload(payload)
-
-    def _set_type_device_buckets(  # pragma: no cover - compatibility shim
-        self,
-        grouped: dict[str, dict[str, object]],
-        ordered_keys: list[str],
-        *,
-        authoritative: bool = True,
-    ) -> None:
-        self.inventory_runtime._set_type_device_buckets(
-            grouped,
-            ordered_keys,
-            authoritative=authoritative,
-        )
-
-    @staticmethod
-    def _devices_inventory_buckets(  # pragma: no cover - compatibility shim
-        payload: object,
-    ) -> list[dict[str, object]]:
-        return InventoryRuntime._devices_inventory_buckets(payload)
-
-    @staticmethod
-    def _hems_devices_groups(  # pragma: no cover - compatibility shim
-        payload: object,
-    ) -> list[dict[str, object]]:
-        return InventoryRuntime._hems_devices_groups(payload)
-
-    @classmethod
-    def _legacy_hems_devices_groups(  # pragma: no cover - compatibility shim
-        cls, payload: object
-    ) -> list[dict[str, object]]:
-        return InventoryRuntime._legacy_hems_devices_groups(payload)
-
-    def _hems_grouped_devices(self) -> list[dict[str, object]]:  # pragma: no cover
-        return self.inventory_runtime._hems_grouped_devices()
-
-    @staticmethod
-    def _normalize_hems_member(  # pragma: no cover - compatibility shim
-        member: dict[str, object],
-    ) -> dict[str, object]:
-        return InventoryRuntime._normalize_hems_member(member)
-
-    @staticmethod
-    def _normalize_heatpump_member(  # pragma: no cover - compatibility shim
-        member: dict[str, object],
-    ) -> dict[str, object]:
-        return InventoryRuntime._normalize_heatpump_member(member)
-
-    def _extract_hems_group_members(  # pragma: no cover - compatibility shim
-        self,
-        groups: list[dict[str, object]],
-        requested_keys: set[str],
-    ) -> tuple[bool, list[dict[str, object]]]:
-        return self.inventory_runtime._extract_hems_group_members(
-            groups,
-            requested_keys,
-        )
-
-    def _hems_group_members(
-        self, *group_keys: str
-    ) -> list[dict[str, object]]:  # pragma: no cover
-        return self.inventory_runtime._hems_group_members(*group_keys)
-
-    @staticmethod
-    def _hems_bucket_type(raw_type: object) -> str | None:  # pragma: no cover
-        return InventoryRuntime._hems_bucket_type(raw_type)
-
-    @staticmethod
-    def _heatpump_member_device_type(  # pragma: no cover - compatibility shim
-        member: dict[str, object] | None,
-    ) -> str | None:
-        return heatpump_member_device_type(member)
-
-    @staticmethod
-    def _heatpump_worst_status_text(  # pragma: no cover - compatibility shim
-        status_counts: dict[str, int],
-    ) -> str | None:
-        return InventoryRuntime._heatpump_worst_status_text(status_counts)
-
-    def _merge_heatpump_type_bucket(self) -> None:  # pragma: no cover
-        self.inventory_runtime._merge_heatpump_type_bucket()
-
-    @staticmethod
-    def _summary_text(value: object) -> str | None:
-        return InventoryRuntime._summary_text(value)
-
-    @classmethod
-    def _summary_identity(cls, value: object) -> str | None:
-        return InventoryRuntime._summary_identity(value)
-
-    def _summary_type_bucket_source(self, type_key: object) -> dict[str, object] | None:
-        return self.inventory_runtime._summary_type_bucket_source(type_key)
-
-    def _gateway_inventory_summary_marker(self) -> tuple[object, ...]:
-        return self.inventory_runtime._gateway_inventory_summary_marker()
-
-    def _microinverter_inventory_summary_marker(self) -> tuple[object, ...]:
-        return self.inventory_runtime._microinverter_inventory_summary_marker()
-
-    def _heatpump_inventory_summary_marker(self) -> tuple[object, ...]:
-        return self.inventory_runtime._heatpump_inventory_summary_marker()
-
-    def _gateway_iq_energy_router_records_marker(self) -> tuple[object, ...]:
-        return self.inventory_runtime._gateway_iq_energy_router_records_marker()
-
-    @staticmethod
-    def _heatpump_status_text(member: dict[str, object] | None) -> str | None:
-        return heatpump_status_text(member)
-
-    @classmethod
-    def _gateway_iq_energy_router_summary_records(
-        cls, members: list[dict[str, object]]
-    ) -> list[dict[str, object]]:
-        records: list[dict[str, object]] = []
-        key_counts: dict[str, int] = {}
-        for member in members:
-            index = len(records) + 1
-            base_key = None
-            for key in ("device-uid", "device_uid", "uid"):
-                base_key = cls._summary_identity(member.get(key))
-                if base_key:
-                    break
-            if base_key is None:
-                name_identity = cls._summary_identity(member.get("name"))
-                base_key = (
-                    f"name_{name_identity}" if name_identity else f"index_{index}"
-                )
-            key_counts[base_key] = key_counts.get(base_key, 0) + 1
-            key = base_key
-            if key_counts[base_key] > 1:
-                key = f"{base_key}_{key_counts[base_key]}"
-            records.append(
-                {
-                    "key": key,
-                    "index": index,
-                    "name": cls._summary_text(member.get("name"))
-                    or f"IQ Energy Router_{index}",
-                    "member": dict(member),
-                }
-            )
-        return records
-
-    def _build_gateway_inventory_summary(self) -> dict[str, object]:
-        return self.inventory_runtime._build_gateway_inventory_summary()
-
-    def _build_microinverter_inventory_summary(self) -> dict[str, object]:
-        return self.inventory_runtime._build_microinverter_inventory_summary()
-
-    def _build_heatpump_inventory_summary(self) -> dict[str, object]:
-        return self.inventory_runtime._build_heatpump_inventory_summary()
-
-    def _build_heatpump_type_summaries(self) -> dict[str, dict[str, object]]:
-        return self.inventory_runtime._build_heatpump_type_summaries()
-
-    @callback
-    def _rebuild_inventory_summary_caches(self) -> None:
-        self.inventory_runtime._rebuild_inventory_summary_caches()
-
-    async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
-        await self.inventory_runtime._async_refresh_devices_inventory(force=force)
-
-    async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
-        await self.inventory_runtime._async_refresh_hems_devices(force=force)
 
     @staticmethod
     def _copy_diagnostics_value(value: object) -> object:  # pragma: no cover
@@ -2196,632 +1975,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._current_power_consumption_reported_units = units
         self._current_power_consumption_reported_precision = precision
         self._current_power_consumption_source = "app-api:get_latest_power"
-
-    def iter_type_keys(self) -> list[str]:
-        type_order = getattr(self, "_type_device_order", None)
-        if isinstance(type_order, list):
-            return [key for key in type_order if self._type_is_selected(key)]
-        return []
-
-    def _type_is_selected(self, type_key: object) -> bool:
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return False
-        selected = getattr(self, "_selected_type_keys", None)
-        if selected is None:
-            return True
-        return normalized in selected
-
-    def has_type(self, type_key: object) -> bool:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return False
-        buckets = getattr(self, "_type_device_buckets", None)
-        if not isinstance(buckets, dict):
-            return False
-        bucket = buckets.get(normalized)
-        if not isinstance(bucket, dict):
-            return False
-        try:
-            return int(bucket.get("count", 0)) > 0
-        except Exception:
-            return False
-
-    def has_type_for_entities(self, type_key: object) -> bool:  # pragma: no cover
-        """Return whether a type should gate entity creation/availability.
-
-        Before devices-inventory has been parsed at least once, return True to
-        avoid suppressing site entities during transient or unsupported
-        inventory fetch conditions.
-        """
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return False
-        if not self._type_is_selected(normalized):
-            return False
-        if not getattr(self, "_devices_inventory_ready", False):
-            return True
-        if self.has_type(normalized):
-            return True
-        # BatteryConfig site settings are a separate capability source from
-        # devices.json and are the authoritative battery-family signal on some
-        # regional deployments where the inventory bucket is missing or delayed.
-        if normalized == "encharge":
-            return getattr(self, "_battery_has_encharge", None) is True
-        return False
-
-    def type_bucket(
-        self, type_key: object
-    ) -> dict[str, object] | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        buckets = getattr(self, "_type_device_buckets", None)
-        if not isinstance(buckets, dict):
-            return None
-        bucket = buckets.get(normalized)
-        if not isinstance(bucket, dict):
-            return None
-        members = bucket.get("devices")
-        if isinstance(members, list):
-            members_out = [dict(item) for item in members if isinstance(item, dict)]
-        else:
-            members_out = []
-        out = {
-            "type_key": normalized,
-            "type_label": bucket.get("type_label") or type_display_label(normalized),
-            "count": bucket.get("count", len(members_out)),
-            "devices": members_out,
-        }
-        for key, value in bucket.items():
-            if key in out or key == "devices":
-                continue
-            if isinstance(value, dict):
-                out[key] = dict(value)
-            elif isinstance(value, list):
-                out[key] = list(value)
-            else:
-                out[key] = value
-        return out
-
-    def type_label(self, type_key: object) -> str | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        buckets = getattr(self, "_type_device_buckets", None)
-        bucket = buckets.get(normalized) if isinstance(buckets, dict) else None
-        if isinstance(bucket, dict):
-            label = bucket.get("type_label")
-            if isinstance(label, str) and label.strip():
-                return label
-        return type_display_label(normalized)
-
-    def type_identifier(
-        self, type_key: object
-    ) -> tuple[str, str] | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        if not self.has_type(normalized):
-            return None
-        return type_identifier(self.site_id, normalized)
-
-    def _type_bucket_members(self, type_key: object) -> list[dict[str, object]]:
-        bucket = self.type_bucket(type_key)
-        if not isinstance(bucket, dict):
-            return []
-        members = bucket.get("devices")
-        if not isinstance(members, list):
-            return []
-        return [dict(item) for item in members if isinstance(item, dict)]
-
-    @staticmethod
-    def _type_member_text(member: dict[str, object] | None, *keys: str) -> str | None:
-        return type_member_text(member, *keys)
-
-    def _type_summary_from_values(self, values: Iterable[object]) -> str | None:
-        counts: dict[str, int] = {}
-        for value in values:
-            if value is None:
-                continue
-            try:
-                text = str(value).strip()
-            except Exception:
-                continue
-            if not text:
-                continue
-            counts[text] = counts.get(text, 0) + 1
-        return self._format_inverter_model_summary(counts)
-
-    def _type_member_summary(
-        self,
-        members: Iterable[dict[str, object]],
-        *keys: str,
-    ) -> str | None:
-        values: list[str] = []
-        for member in members:
-            value = self._type_member_text(member, *keys)
-            if value:
-                values.append(value)
-        return self._type_summary_from_values(values)
-
-    @staticmethod
-    def _iq_type_device_name(type_key: str) -> str | None:
-        return {
-            "envoy": "IQ Gateway",
-            "encharge": "IQ Battery",
-            "iqevse": "IQ EV Charger",
-            "heatpump": "Heat Pump",
-            "microinverter": "IQ Microinverters",
-            "generator": "IQ Generator",
-        }.get(type_key)
-
-    def _type_member_single_value(
-        self, members: Iterable[dict[str, object]], *keys: str
-    ) -> str | None:
-        values: list[str] = []
-        for member in members:
-            value = self._type_member_text(member, *keys)
-            if value:
-                values.append(value)
-        if not values:
-            return None
-        unique_values = list(dict.fromkeys(values))
-        if len(unique_values) == 1:
-            return unique_values[0]
-        return None
-
-    @staticmethod
-    def _normalize_mac(value: object) -> str | None:
-        if value is None:
-            return None
-        try:
-            text = str(value).strip().lower()
-        except Exception:
-            return None
-        if not text:
-            return None
-
-        def _all_hex(chars: str) -> bool:
-            return bool(chars) and all(ch in "0123456789abcdef" for ch in chars)
-
-        def _compact_to_colon_hex(compact: str) -> str:
-            return ":".join(compact[idx : idx + 2] for idx in range(0, 12, 2))
-
-        if ":" in text or "-" in text:
-            parts = [part for part in text.replace("-", ":").split(":") if part]
-            if len(parts) != 6:
-                return None
-            normalized_parts: list[str] = []
-            for part in parts:
-                if len(part) == 1:
-                    part = f"0{part}"
-                if len(part) != 2 or not _all_hex(part):
-                    return None
-                normalized_parts.append(part)
-            return ":".join(normalized_parts)
-
-        if "." in text:
-            groups = [group for group in text.split(".") if group]
-            if len(groups) != 3:
-                return None
-            if any(len(group) != 4 or not _all_hex(group) for group in groups):
-                return None
-            return _compact_to_colon_hex("".join(groups))
-
-        if len(text) == 12 and _all_hex(text):
-            return _compact_to_colon_hex(text)
-
-        return None
-
-    def _envoy_controller_mac(self) -> str | None:
-        controller = self._envoy_system_controller_member()
-        if not isinstance(controller, dict):
-            return None
-        for key in (
-            "mac",
-            "mac_address",
-            "macAddress",
-            "eth0_mac",
-            "ethernet_mac",
-            "wifi_mac",
-            "wireless_mac",
-        ):
-            normalized = self._normalize_mac(controller.get(key))
-            if normalized:
-                return normalized
-        return None
-
-    @staticmethod
-    def _envoy_member_kind(member: dict[str, object]) -> str | None:
-        channel_type = EnphaseCoordinator._type_member_text(
-            member,
-            "channel_type",
-            "channelType",
-            "meter_type",
-        )
-        if channel_type:
-            normalized = "".join(
-                ch if ch.isalnum() else "_" for ch in channel_type.lower()
-            )
-            if (
-                normalized in ("enpower", "system_controller", "systemcontroller")
-                or "enpower" in normalized
-                or "system_controller" in normalized
-                or normalized.startswith("systemcontroller")
-            ):
-                return "controller"
-            if "production" in normalized or normalized in ("prod", "pv", "solar"):
-                return "production"
-            if "consumption" in normalized or normalized in (
-                "cons",
-                "load",
-                "site_load",
-            ):
-                return "consumption"
-        name = (EnphaseCoordinator._type_member_text(member, "name") or "").lower()
-        if "system controller" in name:
-            return "controller"
-        if "controller" in name and "meter" not in name:
-            return "controller"
-        if "production" in name:
-            return "production"
-        if "consumption" in name:
-            return "consumption"
-        return None
-
-    def _envoy_system_controller_member(self) -> dict[str, object] | None:
-        for member in self._type_bucket_members("envoy"):
-            if self._envoy_member_kind(member) == "controller":
-                return member
-        return None
-
-    def _envoy_member_looks_like_gateway(self, member: dict[str, object]) -> bool:
-        if self._envoy_member_kind(member) in (
-            "production",
-            "consumption",
-            "controller",
-        ):
-            return False
-        if any(
-            member.get(key) is not None
-            for key in (
-                "envoy_sw_version",
-                "ap_mode",
-                "supportsEntrez",
-                "show_connection_details",
-                "ip",
-                "ip_address",
-            )
-        ):
-            return True
-        name = (self._type_member_text(member, "name") or "").lower()
-        return "gateway" in name
-
-    def _envoy_primary_gateway_member(self) -> dict[str, object] | None:
-        for member in self._type_bucket_members("envoy"):
-            if self._envoy_member_looks_like_gateway(member):
-                return member
-        return None
-
-    def _heatpump_primary_member(self) -> dict[str, object] | None:
-        return self.heatpump_runtime._heatpump_primary_member()
-
-    def type_device_name(self, type_key: object) -> str | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        canonical_iq_name = self._iq_type_device_name(normalized)
-        if canonical_iq_name:
-            return canonical_iq_name
-        bucket = self.type_bucket(normalized)
-        if not bucket:
-            return None
-        label = bucket.get("type_label")
-        if not isinstance(label, str) or not label.strip():
-            return None
-        return label.strip()
-
-    def type_device_model(self, type_key: object) -> str | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        if normalized == "envoy":
-            member = self._envoy_system_controller_member()
-            if member is None:
-                member = self._envoy_primary_gateway_member()
-            controller_name = self._type_member_text(
-                member,
-                "name",
-                "model",
-                "channel_type",
-                "sku_id",
-                "model_id",
-            )
-            if controller_name:
-                return controller_name
-            return self.type_device_name(normalized) or self.type_label(normalized)
-        if normalized == "heatpump":
-            primary_member = self._heatpump_primary_member()
-            primary_model = self._type_member_text(
-                primary_member,
-                "model",
-                "sku_id",
-                "model_id",
-                "part_num",
-                "part_number",
-                "hardware_sku",
-                "name",
-            )
-            if primary_model:
-                return primary_model
-            members = self._type_bucket_members(normalized)
-            summary_model = self._type_member_summary(
-                members,
-                "model",
-                "sku_id",
-                "model_id",
-                "part_num",
-                "part_number",
-                "hardware_sku",
-                "name",
-            )
-            if summary_model:
-                return summary_model
-            return self.type_device_name(normalized) or self.type_label(normalized)
-        members = self._type_bucket_members(normalized)
-        model = self._type_member_single_value(
-            members,
-            "model",
-            "sku_id",
-            "model_id",
-            "part_num",
-            "part_number",
-            "channel_type",
-            "name",
-        )
-        if model:
-            return model
-        return self.type_device_name(normalized) or self.type_label(normalized)
-
-    def type_device_serial_number(
-        self, type_key: object
-    ) -> str | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        if normalized == "envoy":
-            serial_keys = ("serial_number", "serial", "serialNumber", "device_sn")
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
-            return self._type_member_text(controller, *serial_keys)
-        if normalized == "heatpump":
-            primary = self._heatpump_primary_member()
-            serial = self._type_member_text(
-                primary,
-                "serial_number",
-                "serial",
-                "serialNumber",
-                "device_sn",
-                "uid",
-                "device_uid",
-            )
-            if serial:
-                return serial
-            return self._type_member_single_value(
-                self._type_bucket_members(normalized),
-                "serial_number",
-                "serial",
-                "serialNumber",
-                "device_sn",
-                "uid",
-                "device_uid",
-            )
-        if normalized in ("encharge", "microinverter", "iqevse", "generator"):
-            return self._type_member_single_value(
-                self._type_bucket_members(normalized),
-                "serial_number",
-                "serial",
-                "serialNumber",
-                "device_sn",
-            )
-        return None
-
-    def type_device_model_id(self, type_key: object) -> str | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        model_id_keys = (
-            "sku_id",
-            "model_id",
-            "sku",
-            "modelId",
-            "part_num",
-            "part_number",
-        )
-        if normalized == "envoy":
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
-            model_id = self._type_member_text(controller, *model_id_keys)
-        elif normalized == "heatpump":
-            primary = self._heatpump_primary_member()
-            model_id = self._type_member_text(
-                primary,
-                *model_id_keys,
-                "hardware_sku",
-            )
-            if not model_id:
-                model_id = self._type_member_single_value(
-                    self._type_bucket_members(normalized),
-                    *model_id_keys,
-                    "hardware_sku",
-                )
-            if not model_id:
-                model_id = self._type_member_summary(
-                    self._type_bucket_members(normalized),
-                    *model_id_keys,
-                    "hardware_sku",
-                )
-        elif normalized in ("encharge", "microinverter", "iqevse", "generator"):
-            model_id = self._type_member_single_value(
-                self._type_bucket_members(normalized),
-                *model_id_keys,
-            )
-        else:
-            return None
-        if _is_redundant_model_id(self.type_device_model(type_key), model_id):
-            return None
-        return model_id
-
-    def type_device_sw_version(
-        self, type_key: object
-    ) -> str | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        sw_keys = (
-            "envoy_sw_version",
-            "sw_version",
-            "firmware_version",
-            "software_version",
-            "system_version",
-            "application_version",
-        )
-        if normalized == "envoy":
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
-            return self._type_member_text(controller, *sw_keys)
-        if normalized == "heatpump":
-            primary = self._heatpump_primary_member()
-            sw_version = self._type_member_text(primary, *sw_keys)
-            if sw_version:
-                return sw_version
-            sw_version = self._type_member_single_value(
-                self._type_bucket_members(normalized), *sw_keys
-            )
-            if sw_version:
-                return sw_version
-            return self._type_member_summary(
-                self._type_bucket_members(normalized), *sw_keys
-            )
-        if normalized in ("encharge", "iqevse", "generator"):
-            return self._type_member_single_value(
-                self._type_bucket_members(normalized),
-                *sw_keys,
-            )
-        if normalized == "microinverter":
-            return self._type_member_single_value(
-                self._type_bucket_members(normalized),
-                "fw1",
-                "fw2",
-                *sw_keys,
-            )
-        return None
-
-    def type_device_hw_version(
-        self, type_key: object
-    ) -> str | None:  # pragma: no cover
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        if normalized == "envoy":
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
-            return self._type_member_text(
-                controller,
-                "hw_version",
-                "hardware_version",
-                "hardwareVersion",
-            )
-        if normalized == "heatpump":
-            primary = self._heatpump_primary_member()
-            hw_version = self._type_member_text(
-                primary,
-                "hw_version",
-                "hardware_version",
-                "hardwareVersion",
-                "hardware_sku",
-                "part_num",
-                "part_number",
-                "sku_id",
-            )
-            if hw_version:
-                return hw_version
-            hw_version = self._type_member_single_value(
-                self._type_bucket_members(normalized),
-                "hw_version",
-                "hardware_version",
-                "hardwareVersion",
-                "hardware_sku",
-                "part_num",
-                "part_number",
-                "sku_id",
-            )
-            if hw_version:
-                return hw_version
-            return self._type_member_summary(
-                self._type_bucket_members(normalized),
-                "hw_version",
-                "hardware_version",
-                "hardwareVersion",
-                "hardware_sku",
-                "part_num",
-                "part_number",
-                "sku_id",
-            )
-        if normalized in ("microinverter", "encharge", "iqevse", "generator"):
-            return self._type_member_single_value(
-                self._type_bucket_members(normalized),
-                "hw_version",
-                "hardware_version",
-                "hardwareVersion",
-                "part_num",
-                "part_number",
-                "sku_id",
-            )
-        return None
-
-    def type_device_info(self, type_key: object):
-        from homeassistant.helpers.entity import DeviceInfo
-
-        normalized = normalize_type_key(type_key)
-        if not normalized:
-            return None
-        identifier = self.type_identifier(type_key)
-        if identifier is None:
-            return None
-        label = self.type_label(type_key) or "Device"
-        name = self.type_device_name(type_key) or label
-        model = self.type_device_model(type_key) or label
-        info_kwargs: dict[str, object] = {
-            "identifiers": {identifier},
-            "manufacturer": "Enphase",
-            "model": model,
-            "name": name,
-        }
-        serial_number = self.type_device_serial_number(type_key)
-        if serial_number:
-            info_kwargs["serial_number"] = serial_number
-        model_id = self.type_device_model_id(type_key)
-        if model_id:
-            info_kwargs["model_id"] = model_id
-        sw_version = self.type_device_sw_version(type_key)
-        if sw_version:
-            info_kwargs["sw_version"] = sw_version
-        hw_summary = self.type_device_hw_version(type_key)
-        if hw_summary:
-            info_kwargs["hw_version"] = hw_summary
-        if normalized == "envoy":
-            controller_mac = self._envoy_controller_mac()
-            if controller_mac:
-                from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
-
-                info_kwargs["connections"] = {(CONNECTION_NETWORK_MAC, controller_mac)}
-        return DeviceInfo(**info_kwargs)
 
     def iter_inverter_serials(self) -> list[str]:
         return self.inventory_runtime.iter_inverter_serials()
@@ -3509,7 +2662,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             unique_candidates = list(dict.fromkeys(charge_mode_candidates))
             charge_start = time.monotonic()
             if unique_candidates:
-                charge_modes = await self._async_resolve_charge_modes(unique_candidates)
+                charge_modes = await self.evse_runtime.async_resolve_charge_modes(
+                    unique_candidates
+                )
             phase_timings["charge_mode_s"] = round(time.monotonic() - charge_start, 3)
 
         green_settings: dict[str, tuple[bool | None, bool]] = {}
@@ -4748,11 +3903,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def _determine_polling_state(self, data: dict[str, dict]) -> dict[str, object]:
         return self.evse_runtime.determine_polling_state(data)
-
-    async def _async_resolve_charge_modes(
-        self, serials: Iterable[str]
-    ) -> dict[str, str | None]:
-        return await self.evse_runtime.async_resolve_charge_modes(serials)
 
     def _has_embedded_charge_mode(self, obj: dict) -> bool:
         """Check whether the status payload already exposes a charge mode."""
@@ -6764,56 +5914,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ) -> None:
         self.battery_runtime.remember_battery_reserve(profile, reserve)
 
-    def parse_battery_profile_payload(
-        self, payload: object
-    ) -> None:  # pragma: no cover
-        self.battery_runtime.parse_battery_profile_payload(payload)
-
-    def _parse_battery_settings_payload(  # pragma: no cover - compatibility shim
-        self, payload: object, *, clear_missing_schedule_times: bool = False
-    ) -> None:
-        self.battery_runtime.parse_battery_settings_payload(
-            payload,
-            clear_missing_schedule_times=clear_missing_schedule_times,
-        )
-
-    def parse_battery_settings_payload(  # pragma: no cover - compatibility shim
-        self, payload: object, *, clear_missing_schedule_times: bool = False
-    ) -> None:
-        self.battery_runtime.parse_battery_settings_payload(
-            payload,
-            clear_missing_schedule_times=clear_missing_schedule_times,
-        )
-
-    def parse_battery_site_settings_payload(
-        self, payload: object
-    ) -> None:  # pragma: no cover
-        self.battery_runtime.parse_battery_site_settings_payload(payload)
-
     def dry_contact_settings_matches(
         self, members: Iterable[dict[str, object]]
     ) -> tuple[list[dict[str, object] | None], list[dict[str, object]]]:
         return self.battery_runtime.dry_contact_settings_matches(list(members))
-
-    def _parse_dry_contact_settings_payload(
-        self, payload: object
-    ) -> None:  # pragma: no cover
-        self.battery_runtime.parse_dry_contact_settings_payload(payload)
-
-    def parse_dry_contact_settings_payload(
-        self, payload: object
-    ) -> None:  # pragma: no cover
-        self.battery_runtime.parse_dry_contact_settings_payload(payload)
-
-    def _parse_grid_control_check_payload(
-        self, payload: object
-    ) -> None:  # pragma: no cover
-        self.battery_runtime.parse_grid_control_check_payload(payload)
-
-    def parse_grid_control_check_payload(
-        self, payload: object
-    ) -> None:  # pragma: no cover
-        self.battery_runtime.parse_grid_control_check_payload(payload)
 
     def _battery_profile_devices_payload(self) -> list[dict[str, object]] | None:
         if not self._battery_profile_devices:
@@ -6906,9 +6010,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             timezone=timezone,
         )
 
-    async def _async_refresh_battery_status(self, *, force: bool = False) -> None:
-        await self.battery_runtime.async_refresh_battery_status(force=force)
-
     def parse_battery_status_payload(self, payload: object) -> None:  # pragma: no cover
         self.battery_runtime.parse_battery_status_payload(payload)
 
@@ -6950,14 +6051,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_refresh_grid_control_check(self, *, force: bool = False) -> None:
         await self.battery_runtime.async_refresh_grid_control_check(force=force)
 
-    async def async_refresh_grid_control_check(self, *, force: bool = False) -> None:
-        await self._async_refresh_grid_control_check(force=force)
-
     async def _async_refresh_dry_contact_settings(self, *, force: bool = False) -> None:
         await self.battery_runtime.async_refresh_dry_contact_settings(force=force)
-
-    async def async_set_system_profile(self, profile_key: str) -> None:
-        await self.battery_runtime.async_set_system_profile(profile_key)
 
     async def async_set_battery_reserve(self, reserve: int) -> None:
         await self.battery_runtime.async_set_battery_reserve(reserve)

@@ -80,7 +80,9 @@ def test_switch_helper_fallbacks_and_retained_site_keys() -> None:
 
     coord = SimpleNamespace(
         battery_has_encharge=True,
-        has_type=lambda type_key: type_key in {"envoy", "encharge"},
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key in {"envoy", "encharge"}
+        ),
         battery_write_access_confirmed=None,
         battery_user_is_owner=True,
         battery_user_is_installer=False,
@@ -120,7 +122,7 @@ def coordinator_factory(hass, config_entry, monkeypatch):
             lambda *args, **kwargs: object(),
         )
         coord = EnphaseCoordinator(hass, config_entry.data, config_entry=config_entry)
-        coord._set_type_device_buckets(  # noqa: SLF001
+        coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
             {
                 "envoy": {
                     "type_key": "envoy",
@@ -1709,7 +1711,7 @@ def test_base_battery_schedule_switch_fallbacks(coordinator_factory) -> None:
 
     coord = coordinator_factory()
     coord._battery_user_is_owner = True  # noqa: SLF001
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
     coord.custom_schedule_available = True
     coord.custom_schedule_enabled = None
     coord.async_custom_schedule_enabled = AsyncMock()
@@ -1730,7 +1732,7 @@ def test_base_battery_schedule_switch_fallbacks(coordinator_factory) -> None:
     }
 
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
     assert switch.device_info is expected
 
     coord.last_update_success = False
@@ -1739,7 +1741,7 @@ def test_base_battery_schedule_switch_fallbacks(coordinator_factory) -> None:
 
 def test_site_switch_device_info_fallbacks(coordinator_factory) -> None:
     coord = coordinator_factory()
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
 
     assert StormGuardSwitch(coord).device_info["identifiers"] == {
         ("enphase_ev", f"type:{coord.site_id}:envoy")
@@ -1761,7 +1763,7 @@ def test_site_switch_device_info_prefers_type_info_and_storm_guard_envoy_gate(
     coord = coordinator_factory()
     expected_envoy = {"identifiers": {("enphase_ev", "envoy")}}
     expected_encharge = {"identifiers": {("enphase_ev", "encharge")}}
-    coord.type_device_info = MagicMock(
+    coord.inventory_view.type_device_info = MagicMock(
         side_effect=[
             expected_envoy,
             expected_encharge,
@@ -1775,8 +1777,8 @@ def test_site_switch_device_info_prefers_type_info_and_storm_guard_envoy_gate(
     assert ChargeFromGridSwitch(coord).device_info is expected_encharge
     assert ChargeFromGridScheduleSwitch(coord).device_info is expected_encharge
 
-    coord.type_device_info = None
-    coord.has_type = lambda _type_key: False
+    coord.inventory_view.type_device_info = lambda _type_key: None
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False
     coord._battery_user_is_owner = True  # noqa: SLF001
     coord._storm_guard_state = "enabled"  # noqa: SLF001
     coord._storm_evse_enabled = True  # noqa: SLF001

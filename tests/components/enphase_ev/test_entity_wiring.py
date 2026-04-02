@@ -1,8 +1,15 @@
+from types import SimpleNamespace
+
 from tests.components.enphase_ev.random_ids import (
     RANDOM_SERIAL,
     RANDOM_SERIAL_ALT,
     RANDOM_SITE_ID,
 )
+
+
+def _with_inventory_view(coord):
+    coord.inventory_view = SimpleNamespace(type_identifier=lambda _type_key: None)
+    return coord
 
 
 def test_entity_naming_and_availability():
@@ -15,7 +22,7 @@ def test_entity_naming_and_availability():
             self.site_id = RANDOM_SITE_ID
             self.last_update_success = True
 
-    coord = DummyCoord()
+    coord = _with_inventory_view(DummyCoord())
     coord.data = {
         RANDOM_SERIAL: {
             "sn": RANDOM_SERIAL,
@@ -50,7 +57,7 @@ def test_device_info_includes_model_name_when_available():
             self.site_id = RANDOM_SITE_ID
             self.last_update_success = True
 
-    coord = DummyCoord()
+    coord = _with_inventory_view(DummyCoord())
     coord.data = {
         RANDOM_SERIAL_ALT: {
             "sn": RANDOM_SERIAL_ALT,
@@ -76,7 +83,7 @@ def test_device_info_suppresses_duplicate_extended_evse_model_suffix():
             self.site_id = RANDOM_SITE_ID
             self.last_update_success = True
 
-    coord = DummyCoord()
+    coord = _with_inventory_view(DummyCoord())
     coord.data = {
         RANDOM_SERIAL_ALT: {
             "sn": RANDOM_SERIAL_ALT,
@@ -106,7 +113,7 @@ def test_device_info_handles_empty_or_invalid_model_name():
             self.site_id = RANDOM_SITE_ID
             self.last_update_success = True
 
-    coord = DummyCoord()
+    coord = _with_inventory_view(DummyCoord())
     coord.data = {
         RANDOM_SERIAL_ALT: {
             "sn": RANDOM_SERIAL_ALT,

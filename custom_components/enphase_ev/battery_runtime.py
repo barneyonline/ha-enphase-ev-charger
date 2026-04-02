@@ -453,9 +453,7 @@ class BatteryRuntime:
             seen_keys.add(dedupe_key)
             members.append(sanitized)
 
-        coord = self.coordinator
-        type_bucket = getattr(coord, "type_bucket", None)
-        envoy_bucket = type_bucket("envoy") if callable(type_bucket) else {}
+        envoy_bucket = self.coordinator.inventory_view.type_bucket("envoy")
         if envoy_bucket is None:
             envoy_bucket = {}
         envoy_members = (
@@ -466,7 +464,7 @@ class BatteryRuntime:
                 if self._dry_contact_member_is_dry_contact(member):
                     _append_member(member)
 
-        dry_bucket = type_bucket("dry_contact") if callable(type_bucket) else {}
+        dry_bucket = self.coordinator.inventory_view.type_bucket("dry_contact")
         if dry_bucket is None:
             dry_bucket = {}
         dry_members = (
@@ -3405,7 +3403,7 @@ class BatteryRuntime:
         )
 
     def grid_envoy_serial(self) -> str | None:
-        bucket = self.coordinator.type_bucket("envoy")
+        bucket = self.coordinator.inventory_view.type_bucket("envoy")
         if not isinstance(bucket, dict):
             return None
         devices = bucket.get("devices")
@@ -3421,7 +3419,7 @@ class BatteryRuntime:
 
     async def async_assert_grid_toggle_allowed(self) -> None:
         coord = self.coordinator
-        await coord.async_refresh_grid_control_check(force=True)
+        await self.async_refresh_grid_control_check(force=True)
         if coord.grid_control_supported is not True:
             self.raise_grid_validation("grid_control_unavailable")
         if coord.grid_toggle_allowed is True:
@@ -3530,16 +3528,15 @@ class BatteryRuntime:
 
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()
-        await coord.async_refresh_grid_control_check(force=True)
+        await self.async_refresh_grid_control_check(force=True)
 
     async def async_set_grid_connection(
         self, enabled: bool, *, otp: str | None = None
     ) -> None:
-        coord = self.coordinator
         if not otp:
             self.raise_grid_validation("grid_otp_required")
         mode = "on_grid" if bool(enabled) else "off_grid"
-        await coord.async_set_grid_mode(mode, otp)
+        await self.async_set_grid_mode(mode, otp)
 
     async def async_set_battery_shutdown_level(self, level: int) -> None:
         coord = self.coordinator

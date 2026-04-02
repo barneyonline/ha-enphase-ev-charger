@@ -9,7 +9,7 @@ from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
 def _seed_dry_contact_members(coord) -> None:
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",

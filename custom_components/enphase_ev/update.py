@@ -31,11 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
-    if callable(has_type_for_entities):
-        return bool(has_type_for_entities(type_key))
-    has_type = getattr(coord, "has_type", None)
-    return bool(has_type(type_key)) if callable(has_type) else True
+    return bool(coord.inventory_view.has_type_for_entities(type_key))
 
 
 async def async_setup_entry(
@@ -169,11 +165,9 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
 
     @property
     def device_info(self):
-        get_type_info = getattr(self._coord, "type_device_info", None)
-        if callable(get_type_info):
-            info = get_type_info(self._device_type)
-            if info is not None:
-                return info
+        info = self._coord.inventory_view.type_device_info(self._device_type)
+        if info is not None:
+            return info
         return None
 
     @property
@@ -461,26 +455,19 @@ def _async_prune_removed_charger_updates(
 
 
 def _gateway_installed_version(coord: EnphaseCoordinator) -> str | None:
-    getter = getattr(coord, "type_device_sw_version", None)
-    if callable(getter):
-        return _text(getter("envoy"))
-    return None
+    return _text(coord.inventory_view.type_device_sw_version("envoy"))
 
 
 def _microinverter_installed_version(coord: EnphaseCoordinator) -> str | None:
-    getter = getattr(coord, "type_device_sw_version", None)
-    if callable(getter):
-        version = _text(getter("microinverter"))
-        if version:
-            return version
+    version = _text(coord.inventory_view.type_device_sw_version("microinverter"))
+    if version:
+        return version
 
-    bucket_getter = getattr(coord, "type_bucket", None)
-    if callable(bucket_getter):
-        bucket = bucket_getter("microinverter")
-        if isinstance(bucket, dict):
-            firmware_summary = _text(bucket.get("firmware_summary"))
-            if firmware_summary:
-                return firmware_summary
+    bucket = coord.inventory_view.type_bucket("microinverter")
+    if isinstance(bucket, dict):
+        firmware_summary = _text(bucket.get("firmware_summary"))
+        if firmware_summary:
+            return firmware_summary
     return None
 
 
@@ -499,10 +486,7 @@ def _charger_installed_version(coord: EnphaseCoordinator, serial: str) -> str | 
                 if version:
                     return version
 
-    getter = getattr(coord, "type_device_sw_version", None)
-    if callable(getter):
-        return _text(getter("iqevse"))
-    return None
+    return _text(coord.inventory_view.type_device_sw_version("iqevse"))
 
 
 def _as_bool(value: Any) -> bool | None:

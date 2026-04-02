@@ -208,26 +208,14 @@ def _sync_type_devices(
     entry: EnphaseConfigEntry, coord, dev_reg, site_id: object
 ) -> dict[str, object]:
     """Create or update type devices from coordinator inventory."""
+    inventory_view = coord.inventory_view
     type_devices: dict[str, object] = {}
     type_devices_by_identifier: dict[tuple[str, str], object] = {}
-    iter_type_keys = getattr(coord, "iter_type_keys", None)
-    type_identifier_fn = getattr(coord, "type_identifier", None)
-    type_label_fn = getattr(coord, "type_label", None)
-    type_device_name_fn = getattr(coord, "type_device_name", None)
-    type_device_model_fn = getattr(coord, "type_device_model", None)
-    type_device_hw_version_fn = getattr(coord, "type_device_hw_version", None)
-    type_device_serial_number_fn = getattr(coord, "type_device_serial_number", None)
-    type_device_model_id_fn = getattr(coord, "type_device_model_id", None)
-    type_device_sw_version_fn = getattr(coord, "type_device_sw_version", None)
-    has_hw_version = callable(type_device_hw_version_fn)
-    has_serial_number = callable(type_device_serial_number_fn)
-    has_model_id = callable(type_device_model_id_fn)
-    has_sw_version = callable(type_device_sw_version_fn)
-    type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
+    type_keys = list(inventory_view.iter_type_keys())
     for type_key in type_keys:
         if is_dry_contact_type_key(type_key):
             continue
-        ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
+        ident = inventory_view.type_identifier(type_key)
         if ident is None:
             continue
         if (
@@ -237,32 +225,22 @@ def _sync_type_devices(
         ):
             type_devices[type_key] = type_devices_by_identifier[ident]
             continue
-        label = type_label_fn(type_key) if callable(type_label_fn) else None
-        name = type_device_name_fn(type_key) if callable(type_device_name_fn) else None
-        model = (
-            type_device_model_fn(type_key) if callable(type_device_model_fn) else None
-        ) or label
-        hw_version = (
-            _clean_optional_text(type_device_hw_version_fn(type_key))
-            if has_hw_version
-            else None
+        label = inventory_view.type_label(type_key)
+        name = inventory_view.type_device_name(type_key)
+        if not name:
+            name = label
+        model = inventory_view.type_device_model(type_key) or label
+        hw_version = _clean_optional_text(
+            inventory_view.type_device_hw_version(type_key)
         )
-        serial_number = (
-            _clean_optional_text(type_device_serial_number_fn(type_key))
-            if has_serial_number
-            else None
+        serial_number = _clean_optional_text(
+            inventory_view.type_device_serial_number(type_key)
         )
-        model_id = (
-            _clean_optional_text(type_device_model_id_fn(type_key))
-            if has_model_id
-            else None
-        )
-        if has_model_id and _is_redundant_model_id(model, model_id):
+        model_id = _clean_optional_text(inventory_view.type_device_model_id(type_key))
+        if _is_redundant_model_id(model, model_id):
             model_id = None
-        sw_version = (
-            _clean_optional_text(type_device_sw_version_fn(type_key))
-            if has_sw_version
-            else None
+        sw_version = _clean_optional_text(
+            inventory_view.type_device_sw_version(type_key)
         )
         if not label or not name:
             continue
@@ -275,14 +253,10 @@ def _sync_type_devices(
         }
         # Keep registry fields aligned with current coordinator data: clear stale
         # values by passing explicit None when helper methods return no value.
-        if has_hw_version:
-            kwargs["hw_version"] = hw_version
-        if has_serial_number:
-            kwargs["serial_number"] = serial_number
-        if has_model_id:
-            kwargs["model_id"] = model_id
-        if has_sw_version:
-            kwargs["sw_version"] = sw_version
+        kwargs["hw_version"] = hw_version
+        kwargs["serial_number"] = serial_number
+        kwargs["model_id"] = model_id
+        kwargs["sw_version"] = sw_version
         existing = dev_reg.async_get_device(identifiers={ident})
         changes: list[str] = []
         if existing is None:
@@ -294,19 +268,13 @@ def _sync_type_devices(
                 changes.append("manufacturer")
             if existing.model != model:
                 changes.append("model")
-            if has_hw_version and existing.hw_version != kwargs.get("hw_version"):
+            if existing.hw_version != kwargs.get("hw_version"):
                 changes.append("hw_version")
-            if has_serial_number and (
-                getattr(existing, "serial_number", None) != kwargs.get("serial_number")
-            ):
+            if getattr(existing, "serial_number", None) != kwargs.get("serial_number"):
                 changes.append("serial_number")
-            if has_model_id and (
-                getattr(existing, "model_id", None) != kwargs.get("model_id")
-            ):
+            if getattr(existing, "model_id", None) != kwargs.get("model_id"):
                 changes.append("model_id")
-            if has_sw_version and (
-                getattr(existing, "sw_version", None) != kwargs.get("sw_version")
-            ):
+            if getattr(existing, "sw_version", None) != kwargs.get("sw_version"):
                 changes.append("sw_version")
         if changes:
             _LOGGER.debug(
@@ -330,10 +298,7 @@ def _sync_charger_devices(
     type_devices: dict[str, object],
 ) -> None:
     """Create or update charger devices and parent links."""
-    type_identifier_fn = getattr(coord, "type_identifier", None)
-    evse_parent_ident = (
-        type_identifier_fn("iqevse") if callable(type_identifier_fn) else None
-    )
+    evse_parent_ident = coord.inventory_view.type_identifier("iqevse")
     evse_parent_id = None
     evse_parent = type_devices.get("iqevse")
     if evse_parent is None and evse_parent_ident is not None:
@@ -412,17 +377,9 @@ def _sync_registry_devices(
 
 
 def _registry_type_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
-    iter_type_keys = getattr(coord, "iter_type_keys", None)
-    type_identifier_fn = getattr(coord, "type_identifier", None)
-    type_label_fn = getattr(coord, "type_label", None)
-    type_device_name_fn = getattr(coord, "type_device_name", None)
-    type_device_model_fn = getattr(coord, "type_device_model", None)
-    type_device_hw_version_fn = getattr(coord, "type_device_hw_version", None)
-    type_device_serial_number_fn = getattr(coord, "type_device_serial_number", None)
-    type_device_model_id_fn = getattr(coord, "type_device_model_id", None)
-    type_device_sw_version_fn = getattr(coord, "type_device_sw_version", None)
+    inventory_view = coord.inventory_view
 
-    type_keys = list(iter_type_keys()) if callable(iter_type_keys) else []
+    type_keys = list(inventory_view.iter_type_keys())
     signature: list[tuple[object, ...]] = []
     for type_key in type_keys:
         if is_dry_contact_type_key(type_key):
@@ -430,44 +387,20 @@ def _registry_type_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
         normalized = (
             normalize_type_key(type_key) or _clean_optional_text(type_key) or ""
         )
-        ident = type_identifier_fn(type_key) if callable(type_identifier_fn) else None
+        ident = inventory_view.type_identifier(type_key)
         signature.append(
             (
                 normalized,
                 ident,
+                _clean_optional_text(inventory_view.type_label(type_key)),
+                _clean_optional_text(inventory_view.type_device_name(type_key)),
+                _clean_optional_text(inventory_view.type_device_model(type_key)),
+                _clean_optional_text(inventory_view.type_device_hw_version(type_key)),
                 _clean_optional_text(
-                    type_label_fn(type_key) if callable(type_label_fn) else None
+                    inventory_view.type_device_serial_number(type_key)
                 ),
-                _clean_optional_text(
-                    type_device_name_fn(type_key)
-                    if callable(type_device_name_fn)
-                    else None
-                ),
-                _clean_optional_text(
-                    type_device_model_fn(type_key)
-                    if callable(type_device_model_fn)
-                    else None
-                ),
-                _clean_optional_text(
-                    type_device_hw_version_fn(type_key)
-                    if callable(type_device_hw_version_fn)
-                    else None
-                ),
-                _clean_optional_text(
-                    type_device_serial_number_fn(type_key)
-                    if callable(type_device_serial_number_fn)
-                    else None
-                ),
-                _clean_optional_text(
-                    type_device_model_id_fn(type_key)
-                    if callable(type_device_model_id_fn)
-                    else None
-                ),
-                _clean_optional_text(
-                    type_device_sw_version_fn(type_key)
-                    if callable(type_device_sw_version_fn)
-                    else None
-                ),
+                _clean_optional_text(inventory_view.type_device_model_id(type_key)),
+                _clean_optional_text(inventory_view.type_device_sw_version(type_key)),
             )
         )
     return tuple(signature)
@@ -932,10 +865,10 @@ def _migrate_legacy_gateway_type_devices(
     if not site_id_text:
         return
 
-    type_identifier_fn = getattr(coord, "type_identifier", None)
-    gateway_ident = (
-        type_identifier_fn("envoy") if callable(type_identifier_fn) else None
-    ) or (DOMAIN, f"type:{site_id_text}:envoy")
+    gateway_ident = coord.inventory_view.type_identifier("envoy") or (
+        DOMAIN,
+        f"type:{site_id_text}:envoy",
+    )
     gateway_device = dev_reg.async_get_device(identifiers={gateway_ident})
     if gateway_device is None:
         return
