@@ -29,15 +29,16 @@ def test_site_has_battery_helper_defaults_and_strict() -> None:
     assert calendar_mod._site_has_battery(coord, strict=True) is True
 
 
-def test_calendar_type_available_falls_back_to_has_type() -> None:
+def test_calendar_type_available_uses_inventory_view() -> None:
     from custom_components.enphase_ev import calendar as calendar_mod
 
-    coord = SimpleNamespace(has_type=lambda type_key: type_key == "encharge")
+    coord = SimpleNamespace(
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key == "encharge"
+        )
+    )
     assert calendar_mod._type_available(coord, "encharge") is True
     assert calendar_mod._type_available(coord, "envoy") is False
-
-    coord_no_helpers = SimpleNamespace()
-    assert calendar_mod._type_available(coord_no_helpers, "encharge") is True
 
 
 @pytest.mark.asyncio
@@ -153,10 +154,10 @@ def test_backup_history_calendar_available_gating(coordinator_factory) -> None:
     assert entity.available is False
 
     coord.last_update_success = True
-    coord.has_type_for_entities = lambda _type_key: False
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False
     assert entity.available is False
 
-    coord.has_type_for_entities = lambda _type_key: True
+    coord.inventory_view.has_type_for_entities = lambda _type_key: True
     coord._battery_has_encharge = False  # noqa: SLF001
     assert entity.available is False
 
@@ -171,7 +172,7 @@ def test_backup_history_calendar_device_info_uses_encharge(coordinator_factory) 
 
 def test_backup_history_calendar_device_info_fallback(coordinator_factory) -> None:
     coord = coordinator_factory()
-    coord.type_device_info = lambda _type_key: None
+    coord.inventory_view.type_device_info = lambda _type_key: None
     entity = BackupHistoryCalendarEntity(coord)
 
     info = entity.device_info

@@ -50,6 +50,29 @@ from custom_components.enphase_ev.services import async_setup_services
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
+def _with_inventory_view(coord):
+    coord.inventory_view = SimpleNamespace(
+        iter_type_keys=getattr(coord, "iter_type_keys", lambda: []),
+        type_identifier=getattr(coord, "type_identifier", lambda _type_key: None),
+        type_label=getattr(coord, "type_label", lambda _type_key: None),
+        type_device_name=getattr(coord, "type_device_name", lambda _type_key: None),
+        type_device_model=getattr(coord, "type_device_model", lambda _type_key: None),
+        type_device_hw_version=getattr(
+            coord, "type_device_hw_version", lambda _type_key: None
+        ),
+        type_device_serial_number=getattr(
+            coord, "type_device_serial_number", lambda _type_key: None
+        ),
+        type_device_model_id=getattr(
+            coord, "type_device_model_id", lambda _type_key: None
+        ),
+        type_device_sw_version=getattr(
+            coord, "type_device_sw_version", lambda _type_key: None
+        ),
+    )
+    return coord
+
+
 def test_normalize_selected_type_keys_covers_string_and_fallback_paths() -> None:
     assert _normalize_selected_type_keys("envoy,\ninverters") == [
         "envoy",
@@ -77,13 +100,15 @@ async def test_async_setup_registers_services(hass: HomeAssistant, monkeypatch) 
 def test_registry_metadata_signature_skips_dry_contact_and_handles_missing_helpers() -> (
     None
 ):
-    coord = SimpleNamespace(
-        data={RANDOM_SERIAL: {"name": "Garage Charger", "sw_version": "1.0.0"}},
-        iter_serials=lambda: [RANDOM_SERIAL],
-        iter_type_keys=lambda: ["dry_contact_1", "iqevse"],
-        type_identifier=lambda key: (DOMAIN, f"type:{key}"),
-        type_label=lambda key: f"Label {key}",
-        type_device_name=lambda key: f"Name {key}",
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            data={RANDOM_SERIAL: {"name": "Garage Charger", "sw_version": "1.0.0"}},
+            iter_serials=lambda: [RANDOM_SERIAL],
+            iter_type_keys=lambda: ["dry_contact_1", "iqevse"],
+            type_identifier=lambda key: (DOMAIN, f"type:{key}"),
+            type_label=lambda key: f"Label {key}",
+            type_device_name=lambda key: f"Name {key}",
+        )
     )
 
     type_signature = _registry_type_metadata_signature(coord)
@@ -239,7 +264,7 @@ async def test_async_setup_entry_updates_existing_device(
                 return "Gateway (1)"
             return "EV Chargers (1)"
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -290,7 +315,7 @@ async def test_async_setup_entry_restores_discovery_before_first_refresh(
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -322,7 +347,7 @@ async def test_async_setup_entry_uses_background_task_for_schedule_sync_start(
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -369,7 +394,7 @@ async def test_async_setup_entry_uses_background_task_for_startup_warmup(
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -418,7 +443,7 @@ async def test_async_setup_entry_records_startup_migration_version(
         def startup_migrations_ready(self) -> bool:
             return True
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     migrate_gateway = MagicMock()
     migrate_cloud = MagicMock()
     monkeypatch.setattr(
@@ -465,7 +490,7 @@ async def test_async_setup_entry_skips_startup_migrations_when_version_current(
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     migrate_gateway = MagicMock()
     migrate_cloud = MagicMock()
     monkeypatch.setattr(
@@ -508,7 +533,7 @@ async def test_async_setup_entry_schedule_sync_falls_back_to_hass_background_tas
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -553,7 +578,7 @@ async def test_async_setup_entry_schedule_sync_falls_back_to_hass_create_task(
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -601,7 +626,7 @@ async def test_async_setup_entry_updates_title_to_prefixed_site_id(
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -652,7 +677,7 @@ async def test_async_setup_entry_migrates_selected_type_keys_for_microinverters_
         def iter_type_keys(self) -> list[str]:
             return []
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -713,7 +738,9 @@ async def test_async_setup_entry_does_not_add_heatpump_without_gateway_selection
 
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
-        lambda hass_, entry_data, config_entry=None: DummyCoordinator(),
+        lambda hass_, entry_data, config_entry=None: _with_inventory_view(
+            DummyCoordinator()
+        ),
     )
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
 
@@ -763,7 +790,7 @@ async def test_async_setup_entry_model_display_variants(
         def type_device_name(self, _type_key: str) -> str:
             return "EV Chargers (2)"
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -824,7 +851,7 @@ async def test_async_setup_entry_uses_fallback_name_for_model(
         def type_device_name(self, _type_key: str) -> str:
             return "EV Chargers (1)"
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -880,7 +907,7 @@ async def test_async_setup_entry_registry_sync_listener_handles_exceptions(
             state_listeners.append(callback)
             return lambda: None
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -1568,13 +1595,15 @@ def test_sync_type_devices_skips_invalid_and_updates_existing(config_entry) -> N
         model="Old",
     )
 
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["invalid", "empty", "envoy"],
-        type_identifier=lambda key: (
-            None if key == "invalid" else (DOMAIN, f"type:{site_id}:{key}")
-        ),
-        type_label=lambda key: "" if key == "empty" else "Gateway",
-        type_device_name=lambda key: "" if key == "empty" else "Gateway (1)",
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["invalid", "empty", "envoy"],
+            type_identifier=lambda key: (
+                None if key == "invalid" else (DOMAIN, f"type:{site_id}:{key}")
+            ),
+            type_label=lambda key: "" if key == "empty" else "Gateway",
+            type_device_name=lambda key: "" if key == "empty" else "Gateway (1)",
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
@@ -1590,11 +1619,13 @@ def test_sync_type_devices_skips_invalid_and_updates_existing(config_entry) -> N
 def test_sync_type_devices_deduplicates_merged_identifiers(config_entry) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["envoy", "meter", "enpower"],
-        type_identifier=lambda _key: (DOMAIN, f"type:{site_id}:envoy"),
-        type_label=lambda _key: "Gateway",
-        type_device_name=lambda _key: "Gateway (1)",
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["envoy", "meter", "enpower"],
+            type_identifier=lambda _key: (DOMAIN, f"type:{site_id}:envoy"),
+            type_label=lambda _key: "Gateway",
+            type_device_name=lambda _key: "Gateway (1)",
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
@@ -1608,16 +1639,18 @@ def test_sync_type_devices_uses_model_and_hw_summary(config_entry) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
 
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["microinverter"],
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        type_label=lambda key: "Microinverters",
-        type_device_name=lambda key: "Microinverters (16)",
-        type_device_model=lambda key: "IQ7A x16",
-        type_device_serial_number=lambda key: "INV-1 x16",
-        type_device_model_id=lambda key: "IQ7A-72-2-US x16",
-        type_device_sw_version=lambda key: "520-00082-r01-v04.30.32 x16",
-        type_device_hw_version=lambda key: "IQ7A-72-2-US x16",
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["microinverter"],
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            type_label=lambda key: "Microinverters",
+            type_device_name=lambda key: "Microinverters (16)",
+            type_device_model=lambda key: "IQ7A x16",
+            type_device_serial_number=lambda key: "INV-1 x16",
+            type_device_model_id=lambda key: "IQ7A-72-2-US x16",
+            type_device_sw_version=lambda key: "520-00082-r01-v04.30.32 x16",
+            type_device_hw_version=lambda key: "IQ7A-72-2-US x16",
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
@@ -1641,13 +1674,15 @@ def test_sync_type_devices_updates_existing_hw_summary(config_entry) -> None:
         hw_version="Normal 15 | Warning 1 | Error 0 | Not Reporting 0",
     )
 
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["microinverter"],
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        type_label=lambda key: "Microinverters",
-        type_device_name=lambda key: "Microinverters (16)",
-        type_device_model=lambda key: "IQ7A x16",
-        type_device_hw_version=lambda key: "IQ7A-72-2-US x16",
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["microinverter"],
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            type_label=lambda key: "Microinverters",
+            type_device_name=lambda key: "Microinverters (16)",
+            type_device_model=lambda key: "IQ7A x16",
+            type_device_hw_version=lambda key: "IQ7A-72-2-US x16",
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
@@ -1671,15 +1706,17 @@ def test_sync_type_devices_updates_existing_serial_model_id_and_sw(
         sw_version="1.0",
     )
 
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["envoy"],
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        type_label=lambda key: "Gateway",
-        type_device_name=lambda key: "IQ System Controller 3 INT",
-        type_device_model=lambda key: "IQ System Controller 3 INT",
-        type_device_serial_number=lambda key: "Controller: NEW-SN",
-        type_device_model_id=lambda key: "NEW-SKU x1",
-        type_device_sw_version=lambda key: "9.0.0 x1",
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["envoy"],
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            type_label=lambda key: "Gateway",
+            type_device_name=lambda key: "IQ System Controller 3 INT",
+            type_device_model=lambda key: "IQ System Controller 3 INT",
+            type_device_serial_number=lambda key: "Controller: NEW-SN",
+            type_device_model_id=lambda key: "NEW-SKU x1",
+            type_device_sw_version=lambda key: "9.0.0 x1",
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
@@ -1695,21 +1732,23 @@ def test_sync_type_devices_omits_redundant_model_id(config_entry) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
 
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["iqevse", "encharge"],
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        type_label=lambda key: "EV Charger" if key == "iqevse" else "Battery",
-        type_device_name=lambda key: (
-            "IQ EV Charger" if key == "iqevse" else "IQ Battery"
-        ),
-        type_device_model=lambda key: (
-            "IQ EV Charger (IQ-EVSE-EU-3032)"
-            if key == "iqevse"
-            else "B05-T02-ROW00-1-2"
-        ),
-        type_device_model_id=lambda key: (
-            "IQ-EVSE-EU-3032-0105-1300" if key == "iqevse" else "B05-T02-ROW00-1-2"
-        ),
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["iqevse", "encharge"],
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            type_label=lambda key: "EV Charger" if key == "iqevse" else "Battery",
+            type_device_name=lambda key: (
+                "IQ EV Charger" if key == "iqevse" else "IQ Battery"
+            ),
+            type_device_model=lambda key: (
+                "IQ EV Charger (IQ-EVSE-EU-3032)"
+                if key == "iqevse"
+                else "B05-T02-ROW00-1-2"
+            ),
+            type_device_model_id=lambda key: (
+                "IQ-EVSE-EU-3032-0105-1300" if key == "iqevse" else "B05-T02-ROW00-1-2"
+            ),
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
@@ -1738,16 +1777,18 @@ def test_sync_type_devices_clears_stale_metadata_when_helpers_return_none(
         def __str__(self) -> str:
             raise ValueError("boom")
 
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["envoy"],
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        type_label=lambda _key: "Gateway",
-        type_device_name=lambda _key: "Gateway",
-        type_device_model=lambda _key: "Gateway",
-        type_device_serial_number=lambda _key: _BadStr(),
-        type_device_model_id=lambda _key: _BadStr(),
-        type_device_sw_version=lambda _key: "   ",
-        type_device_hw_version=lambda _key: None,
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["envoy"],
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            type_label=lambda _key: "Gateway",
+            type_device_name=lambda _key: "Gateway",
+            type_device_model=lambda _key: "Gateway",
+            type_device_serial_number=lambda _key: _BadStr(),
+            type_device_model_id=lambda _key: _BadStr(),
+            type_device_sw_version=lambda _key: "   ",
+            type_device_hw_version=lambda _key: None,
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
@@ -1758,7 +1799,7 @@ def test_sync_type_devices_clears_stale_metadata_when_helpers_return_none(
     assert device.hw_version is None
 
 
-def test_sync_type_devices_preserves_metadata_when_helpers_missing(
+def test_sync_type_devices_clears_metadata_when_inventory_view_returns_none(
     config_entry,
 ) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
@@ -1775,20 +1816,22 @@ def test_sync_type_devices_preserves_metadata_when_helpers_missing(
         hw_version="kept-hw",
     )
 
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["envoy"],
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        type_label=lambda _key: "Gateway",
-        type_device_name=lambda _key: "Gateway",
-        type_device_model=lambda _key: "Gateway",
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["envoy"],
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            type_label=lambda _key: "Gateway",
+            type_device_name=lambda _key: "Gateway",
+            type_device_model=lambda _key: "Gateway",
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
     device = type_devices["envoy"]
-    assert device.serial_number == "kept-sn"
-    assert device.model_id == "kept-sku"
-    assert device.sw_version == "kept-sw"
-    assert device.hw_version == "kept-hw"
+    assert device.serial_number is None
+    assert device.model_id is None
+    assert device.sw_version is None
+    assert device.hw_version is None
 
 
 def test_sync_charger_devices_resolves_parent_from_registry_when_missing(
@@ -1804,17 +1847,19 @@ def test_sync_charger_devices_resolves_parent_from_registry_when_missing(
         model="EV Chargers",
     )
 
-    coord = SimpleNamespace(
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        iter_serials=lambda: [RANDOM_SERIAL],
-        data={
-            RANDOM_SERIAL: {
-                "display_name": "Garage Charger",
-                "model_name": "IQ EVSE",
-                "hw_version": "1.0",
-                "sw_version": "2.0",
-            }
-        },
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            iter_serials=lambda: [RANDOM_SERIAL],
+            data={
+                RANDOM_SERIAL: {
+                    "display_name": "Garage Charger",
+                    "model_name": "IQ EVSE",
+                    "hw_version": "1.0",
+                    "sw_version": "2.0",
+                }
+            },
+        )
     )
 
     _sync_charger_devices(config_entry, coord, dev_reg, site_id, type_devices={})
@@ -1834,15 +1879,17 @@ def test_sync_charger_devices_dedupes_extended_evse_model_display(config_entry) 
         model="EV Chargers",
     )
 
-    coord = SimpleNamespace(
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
-        iter_serials=lambda: [RANDOM_SERIAL],
-        data={
-            RANDOM_SERIAL: {
-                "display_name": "IQ EV Charger (IQ-EVSE-EU-3032)",
-                "model_name": "IQ-EVSE-EU-3032-0105-1300",
-            }
-        },
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            iter_serials=lambda: [RANDOM_SERIAL],
+            data={
+                RANDOM_SERIAL: {
+                    "display_name": "IQ EV Charger (IQ-EVSE-EU-3032)",
+                    "model_name": "IQ-EVSE-EU-3032-0105-1300",
+                }
+            },
+        )
     )
 
     _sync_charger_devices(config_entry, coord, dev_reg, site_id, type_devices={})
@@ -2139,8 +2186,10 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
         config_entry=config_entry,
     )
 
-    coord = SimpleNamespace(
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        )
     )
 
     _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
@@ -2171,16 +2220,19 @@ async def test_migrate_legacy_gateway_type_devices_rehomes_entities_and_prunes(
 
 def test_sync_type_devices_skips_dry_contact_types(config_entry) -> None:
     dev_reg = SimpleNamespace(async_get_device=Mock(), async_get_or_create=Mock())
-    coord = SimpleNamespace(
-        iter_type_keys=lambda: ["envoy", "dry_contact", "nc1"],
-        type_identifier=lambda key: (DOMAIN, f"type:site-1:{key}"),
-        type_label=lambda key: {"envoy": "Gateway", "dry_contact": "Dry Contacts"}.get(
-            key, key
-        ),
-        type_device_name=lambda key: {
-            "envoy": "IQ Gateway",
-            "dry_contact": "Dry Contacts",
-        }.get(key, key),
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            iter_type_keys=lambda: ["envoy", "dry_contact", "nc1"],
+            type_identifier=lambda key: (DOMAIN, f"type:site-1:{key}"),
+            type_label=lambda key: {
+                "envoy": "Gateway",
+                "dry_contact": "Dry Contacts",
+            }.get(key, key),
+            type_device_name=lambda key: {
+                "envoy": "IQ Gateway",
+                "dry_contact": "Dry Contacts",
+            }.get(key, key),
+        )
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, "site-1")
@@ -2189,6 +2241,26 @@ def test_sync_type_devices_skips_dry_contact_types(config_entry) -> None:
     assert "dry_contact" not in type_devices
     assert "nc1" not in type_devices
     dev_reg.async_get_or_create.assert_called_once()
+
+
+def test_sync_type_devices_skips_selected_type_without_bucket(config_entry) -> None:
+    from custom_components.enphase_ev.inventory_view import InventoryView
+
+    dev_reg = SimpleNamespace(async_get_device=Mock(), async_get_or_create=Mock())
+    coord = SimpleNamespace(
+        site_id="site-1",
+        inventory_runtime=SimpleNamespace(),
+        heatpump_runtime=SimpleNamespace(),
+        _selected_type_keys={"iqevse"},
+        _type_device_order=None,
+        _type_device_buckets={},
+    )
+    coord.inventory_view = InventoryView(coord)
+
+    type_devices = _sync_type_devices(config_entry, coord, dev_reg, "site-1")
+
+    assert type_devices == {}
+    dev_reg.async_get_or_create.assert_not_called()
 
 
 def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
@@ -2202,7 +2274,9 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     _migrate_legacy_gateway_type_devices(
         hass,
         config_entry,
-        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        _with_inventory_view(
+            SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy"))
+        ),
         SimpleNamespace(async_get_device=lambda **_kwargs: None),
         "x",
     )
@@ -2216,14 +2290,18 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     _migrate_legacy_gateway_type_devices(
         hass,
         config_entry,
-        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        _with_inventory_view(
+            SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy"))
+        ),
         SimpleNamespace(async_get_device=lambda **_kwargs: None),
         BadStr(),
     )
     _migrate_legacy_gateway_type_devices(
         hass,
         config_entry,
-        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        _with_inventory_view(
+            SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy"))
+        ),
         SimpleNamespace(async_get_device=lambda **_kwargs: None),
         "   ",
     )
@@ -2232,7 +2310,9 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     _migrate_legacy_gateway_type_devices(
         hass,
         config_entry,
-        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        _with_inventory_view(
+            SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy"))
+        ),
         SimpleNamespace(async_get_device=lambda **_kwargs: SimpleNamespace(id=None)),
         "x",
     )
@@ -2245,7 +2325,9 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
     _migrate_legacy_gateway_type_devices(
         hass,
         config_entry,
-        SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy")),
+        _with_inventory_view(
+            SimpleNamespace(type_identifier=lambda _key: (DOMAIN, "type:x:envoy"))
+        ),
         SimpleNamespace(
             async_get_device=lambda **kwargs: (
                 SimpleNamespace(id="gw")
@@ -2291,9 +2373,11 @@ def test_migrate_legacy_gateway_type_devices_handles_internal_edge_paths(
         }.get(next(iter(kwargs["identifiers"]))),
         async_remove_device=lambda _device_id: None,
     )
-    coord = SimpleNamespace(
-        site_id="site-fallback",
-        type_identifier=lambda key: (DOMAIN, f"type:site-fallback:{key}"),
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            site_id="site-fallback",
+            type_identifier=lambda key: (DOMAIN, f"type:site-fallback:{key}"),
+        )
     )
 
     _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, None)
@@ -2987,8 +3071,10 @@ async def test_migrate_legacy_gateway_type_devices_skips_without_gateway(
         device_id=meter.id,
         config_entry=config_entry,
     )
-    coord = SimpleNamespace(
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        )
     )
 
     _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
@@ -3060,8 +3146,10 @@ async def test_migrate_legacy_gateway_type_devices_keeps_unowned_entities(
         config_entry=other_entry,
     )
 
-    coord = SimpleNamespace(
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        )
     )
     _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
 
@@ -3126,8 +3214,10 @@ async def test_migrate_legacy_gateway_type_devices_handles_remove_failure(
         raise RuntimeError("cannot remove")
 
     monkeypatch.setattr(dev_reg, "async_remove_device", _boom)
-    coord = SimpleNamespace(
-        type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+        )
     )
 
     _migrate_legacy_gateway_type_devices(hass, config_entry, coord, dev_reg, site_id)
@@ -3185,7 +3275,7 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
             state_listeners.append(callback)
             return lambda: None
 
-    dummy_coord = DummyCoordinator()
+    dummy_coord = _with_inventory_view(DummyCoordinator())
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,

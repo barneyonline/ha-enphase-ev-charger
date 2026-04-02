@@ -70,11 +70,11 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
 
 
 def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
-    if callable(has_type_for_entities):
-        return bool(has_type_for_entities(type_key))
-    has_type = getattr(coord, "has_type", None)
-    return bool(has_type(type_key)) if callable(has_type) else True
+    return bool(coord.inventory_view.has_type_for_entities(type_key))
+
+
+def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | None:
+    return coord.inventory_view.type_device_info(type_key)
 
 
 def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
@@ -264,8 +264,7 @@ class _BaseChargeFromGridTimeEntity(CoordinatorEntity, TimeEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("encharge") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "encharge")
         if info is not None:
             return info
         return DeviceInfo(
@@ -355,8 +354,7 @@ class _BaseNamedBatteryScheduleTimeEntity(CoordinatorEntity, TimeEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("encharge") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "encharge")
         if info is not None:
             return info
         return DeviceInfo(

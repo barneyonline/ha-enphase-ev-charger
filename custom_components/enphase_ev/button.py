@@ -27,11 +27,11 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
 
 
 def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    has_type_for_entities = getattr(coord, "has_type_for_entities", None)
-    if callable(has_type_for_entities):
-        return bool(has_type_for_entities(type_key))
-    has_type = getattr(coord, "has_type", None)
-    return bool(has_type(type_key)) if callable(has_type) else True
+    return bool(coord.inventory_view.has_type_for_entities(type_key))
+
+
+def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | None:
+    return coord.inventory_view.type_device_info(type_key)
 
 
 def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
@@ -179,8 +179,7 @@ class CancelPendingProfileChangeButton(CoordinatorEntity, ButtonEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("envoy") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "envoy")
         if info is not None:
             return info
         return DeviceInfo(
@@ -219,12 +218,10 @@ class RequestGridToggleOtpButton(CoordinatorEntity, ButtonEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        if callable(type_device_info):
-            for type_key in ("enpower", "envoy"):
-                info = type_device_info(type_key)
-                if info is not None:
-                    return info
+        for type_key in ("enpower", "envoy"):
+            info = _type_device_info(self._coord, type_key)
+            if info is not None:
+                return info
         return DeviceInfo(
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",
@@ -254,8 +251,7 @@ class StormAlertOptOutButton(CoordinatorEntity, ButtonEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        type_device_info = getattr(self._coord, "type_device_info", None)
-        info = type_device_info("envoy") if callable(type_device_info) else None
+        info = _type_device_info(self._coord, "envoy")
         if info is not None:
             return info
         return DeviceInfo(

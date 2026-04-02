@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from custom_components.enphase_ev import inventory_runtime as inventory_runtime_mod
-from custom_components.enphase_ev.inventory_runtime import HEMS_DEVICES_STALE_AFTER_S
+from custom_components.enphase_ev.inventory_runtime import (
+    HEMS_DEVICES_STALE_AFTER_S,
+    InventoryRuntime,
+)
 
 
 def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
@@ -105,7 +108,7 @@ def test_inventory_runtime_summary_and_inverter_helper_paths(
 ) -> None:
     coord = coordinator_factory(serials=[])
     runtime = coord.inventory_runtime
-    coord.type_bucket = lambda type_key: {  # type: ignore[assignment]
+    coord.inventory_view.type_bucket = lambda type_key: {  # type: ignore[assignment]
         "envoy": {
             "count": 3,
             "devices": [
@@ -163,35 +166,37 @@ def test_inventory_runtime_summary_and_inverter_helper_paths(
         }
     }
     coord._type_device_order = ["microinverter"]  # noqa: SLF001
-    coord.type_bucket = type(coord).type_bucket.__get__(coord, type(coord))  # type: ignore[method-assign]
-    bucket = coord.type_bucket("microinverter")
+    coord.inventory_view.type_bucket = type(coord.inventory_view).type_bucket.__get__(coord.inventory_view, type(coord.inventory_view))  # type: ignore[method-assign]
+    bucket = coord.inventory_view.type_bucket("microinverter")
     assert bucket is not None
     assert bucket["extra_list"] == ["a", "b"]
 
-    info = coord.type_device_info("microinverter")
+    info = coord.inventory_view.type_device_info("microinverter")
     assert info is not None
     assert info["hw_version"] == "IQ7A-SKU"
     assert info.get("model_id") is None
-    assert coord.type_device_model_id("microinverter") is None
-    assert coord.type_device_model(None) is None
-    assert coord.type_device_serial_number(None) is None
-    assert coord.type_device_model_id(None) is None
-    assert coord.type_device_sw_version(None) is None
-    assert coord.type_device_hw_version(None) is None
+    assert coord.inventory_view.type_device_model_id("microinverter") is None
+    assert coord.inventory_view.type_device_model(None) is None
+    assert coord.inventory_view.type_device_serial_number(None) is None
+    assert coord.inventory_view.type_device_model_id(None) is None
+    assert coord.inventory_view.type_device_sw_version(None) is None
+    assert coord.inventory_view.type_device_hw_version(None) is None
     coord._type_device_buckets = {"microinverter": "bad"}  # noqa: SLF001
-    assert coord.type_device_hw_version("microinverter") is None
+    assert coord.inventory_view.type_device_hw_version("microinverter") is None
 
-    coord.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
-    assert coord._type_bucket_members("envoy") == []  # noqa: SLF001
-    coord.type_bucket = type(coord).type_bucket.__get__(coord, type(coord))  # type: ignore[method-assign]
+    coord.inventory_view.type_bucket = lambda _key: {"devices": "bad"}  # type: ignore[assignment]
+    assert coord.inventory_view._type_bucket_members("envoy") == []  # noqa: SLF001
+    coord.inventory_view.type_bucket = type(coord.inventory_view).type_bucket.__get__(coord.inventory_view, type(coord.inventory_view))  # type: ignore[method-assign]
 
     class BadText:
         def __str__(self) -> str:
             raise ValueError("bad")
 
-    assert coord._type_member_text({"name": BadText()}, "name") is None  # noqa: SLF001
     assert (
-        coord._type_summary_from_values(
+        coord.inventory_view._type_member_text({"name": BadText()}, "name") is None
+    )  # noqa: SLF001
+    assert (
+        coord.inventory_view._type_summary_from_values(
             [None, BadText(), "  ", "A", "A"]
         )  # noqa: SLF001
         == "A x2"
@@ -206,9 +211,9 @@ def test_inventory_runtime_summary_and_inverter_helper_paths(
             "firmware_summary": "4.0 x1",
         }
     }
-    assert coord.type_device_sw_version("microinverter") is None
+    assert coord.inventory_view.type_device_sw_version("microinverter") is None
     coord._type_device_buckets = {"encharge": "bad"}  # noqa: SLF001
-    assert coord.type_device_hw_version("encharge") is None
+    assert coord.inventory_view.type_device_hw_version("encharge") is None
     coord._type_device_buckets = {  # noqa: SLF001
         "envoy": {
             "type_key": "envoy",
@@ -218,7 +223,7 @@ def test_inventory_runtime_summary_and_inverter_helper_paths(
             "status_summary": "Normal 1 | Warning 0 | Error 0 | Not Reporting 0",
         }
     }
-    assert coord.type_device_hw_version("envoy") is None
+    assert coord.inventory_view.type_device_hw_version("envoy") is None
 
     coord._inverter_data = None  # type: ignore[assignment]  # noqa: SLF001
     assert coord.iter_inverter_serials() == []
@@ -294,7 +299,7 @@ def test_inventory_runtime_summary_helpers_reuse_stable_cache_markers(
 ) -> None:
     coord = coordinator_factory(serials=[])
     runtime = coord.inventory_runtime
-    coord._set_type_device_buckets(  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "envoy": {
                 "type_key": "envoy",
@@ -327,7 +332,7 @@ def test_inventory_runtime_summary_helpers_reuse_stable_cache_markers(
     heatpump_builder = MagicMock(return_value={"heatpump": 1})
     heatpump_type_builder = MagicMock(return_value={"HEAT_PUMP": {"count": 1}})
 
-    monkeypatch.setattr(coord, "_build_gateway_inventory_summary", gateway_builder)
+    monkeypatch.setattr(runtime, "_build_gateway_inventory_summary", gateway_builder)
     monkeypatch.setattr(
         runtime, "_build_microinverter_inventory_summary", micro_builder
     )
@@ -631,12 +636,19 @@ def test_devices_inventory_runtime_parser_shapes_and_buckets(
     assert ordered == ["wind_turbine", "encharge", "microinverter", "generator"]
     runtime._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
 
-    assert coord.iter_type_keys() == ["wind_turbine", "encharge", "microinverter"]
-    assert coord.type_device_name("wind-turbine") == "Wind Turbine"
-    assert coord.type_bucket("encharge")["count"] == 3
-    assert coord.type_bucket("encharge")["model_summary"] == "IQ Battery 5P x2"
-    assert coord.type_bucket("microinverter")["count"] == 3
-    assert coord.has_type("generator") is False
+    assert coord.inventory_view.iter_type_keys() == [
+        "wind_turbine",
+        "encharge",
+        "microinverter",
+    ]
+    assert coord.inventory_view.type_device_name("wind-turbine") == "Wind Turbine"
+    assert coord.inventory_view.type_bucket("encharge")["count"] == 3
+    assert (
+        coord.inventory_view.type_bucket("encharge")["model_summary"]
+        == "IQ Battery 5P x2"
+    )
+    assert coord.inventory_view.type_bucket("microinverter")["count"] == 3
+    assert coord.inventory_view.has_type("generator") is False
 
     valid, grouped, ordered = runtime._parse_devices_inventory_payload(
         {
@@ -650,8 +662,12 @@ def test_devices_inventory_runtime_parser_shapes_and_buckets(
     assert valid is True
     assert ordered == ["envoy"]
     runtime._set_type_device_buckets(grouped, ordered)  # noqa: SLF001
-    assert coord.type_bucket("meter") == coord.type_bucket("envoy")
-    assert coord.type_bucket("enpower") == coord.type_bucket("envoy")
+    assert coord.inventory_view.type_bucket(
+        "meter"
+    ) == coord.inventory_view.type_bucket("envoy")
+    assert coord.inventory_view.type_bucket(
+        "enpower"
+    ) == coord.inventory_view.type_bucket("envoy")
 
     class _BadName:
         def __str__(self) -> str:
@@ -791,7 +807,7 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
         inventory_runtime_mod, "redact_battery_payload", lambda payload: payload
     )
     await runtime._async_refresh_devices_inventory(force=True)
-    assert coord.has_type("envoy") is True
+    assert coord.inventory_view.has_type("envoy") is True
 
     runtime._devices_inventory_cache_until = None  # noqa: SLF001
     coord.client.devices_inventory = AsyncMock(
@@ -997,7 +1013,7 @@ async def test_inventory_runtime_refresh_inverters_paths(coordinator_factory) ->
     assert coord.inverter_data("INV-A")["inverter_id"] == "1001"
     assert coord.inverter_data("INV-A")["device_id"] == 11
     assert coord.inverter_data("INV-A")["lifetime_production_wh"] == 1_000_000.0
-    bucket = coord.type_bucket("microinverter")
+    bucket = coord.inventory_view.type_bucket("microinverter")
     assert bucket is not None
     assert bucket["count"] == 2
     assert bucket["status_counts"]["normal"] == 2
@@ -1045,7 +1061,7 @@ async def test_inventory_runtime_refresh_inverters_paths(coordinator_factory) ->
     coord._type_device_order = ["microinverter"]  # noqa: SLF001
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == []
-    assert coord.type_bucket("microinverter") is None
+    assert coord.inventory_view.type_bucket("microinverter") is None
 
 
 @pytest.mark.asyncio
@@ -1313,12 +1329,14 @@ async def test_coordinator_inventory_runtime_wrapper_delegation(
     runtime._rebuild_inventory_summary_caches = MagicMock()
     coord.inventory_runtime = runtime
 
-    assert coord._router_record_key({"key": "router"}) == "router"  # noqa: SLF001
+    assert (
+        InventoryRuntime._router_record_key({"key": "router"}) == "router"
+    )  # noqa: SLF001
     assert coord._current_topology_snapshot() is snapshot  # noqa: SLF001
-    assert coord._legacy_hems_devices_groups(  # noqa: SLF001
+    assert InventoryRuntime._legacy_hems_devices_groups(  # noqa: SLF001
         {"result": [{"type": "hemsDevices", "devices": [{"gateway": [{}]}]}]}
     ) == [{"gateway": [{}]}]
-    assert coord._normalize_hems_member(
+    assert InventoryRuntime._normalize_hems_member(
         {"device-uid": "abc", "serial": "123"}
     ) == {  # noqa: SLF001
         "device-uid": "abc",
@@ -1327,13 +1345,17 @@ async def test_coordinator_inventory_runtime_wrapper_delegation(
         "serial_number": "123",
         "uid": "abc",
     }
-    assert coord._extract_hems_group_members([], {"gateway"}) == (  # noqa: SLF001
+    assert coord.inventory_runtime._extract_hems_group_members(
+        [], {"gateway"}
+    ) == (  # noqa: SLF001
         True,
         [{"device_uid": "x"}],
     )
 
-    coord._rebuild_inventory_summary_caches()  # noqa: SLF001
-    await coord._async_refresh_devices_inventory(force=True)  # noqa: SLF001
+    coord.inventory_runtime._rebuild_inventory_summary_caches()  # noqa: SLF001
+    await coord.inventory_runtime._async_refresh_devices_inventory(
+        force=True
+    )  # noqa: SLF001
 
     runtime._current_topology_snapshot.assert_called_once_with()
     runtime._extract_hems_group_members.assert_called_once_with([], {"gateway"})
@@ -1384,13 +1406,13 @@ def test_inventory_runtime_rebuild_summary_caches_updates_coordinator_caches(
     )
     monkeypatch.setattr(runtime, "gateway_iq_energy_router_records", lambda: [])
 
-    coord._rebuild_inventory_summary_caches()  # noqa: SLF001
+    coord.inventory_runtime._rebuild_inventory_summary_caches()  # noqa: SLF001
 
     assert coord.gateway_inventory_summary() == {"gateway": 1}
     assert coord.microinverter_inventory_summary() == {"micro": 2}
     assert coord.heatpump_inventory_summary() == {"heatpump": 3}
     assert coord.heatpump_type_summary("heat_pump") == {"count": 4}
-    assert coord.gateway_iq_energy_router_summary_records() == [
+    assert coord.inventory_view.gateway_iq_energy_router_summary_records() == [
         {"key": "router-1", "name": "Router"}
     ]
 
@@ -1645,9 +1667,9 @@ def test_inventory_runtime_merge_heatpump_bucket_uses_worst_status_fallback(
 
     runtime._merge_heatpump_type_bucket()  # noqa: SLF001
 
-    bucket = coord.type_bucket("heatpump")
+    bucket = coord.inventory_view.type_bucket("heatpump")
     assert bucket is not None
-    assert coord.iter_type_keys() == ["iqevse", "heatpump"]
+    assert coord.inventory_view.iter_type_keys() == ["iqevse", "heatpump"]
     assert bucket["overall_status_text"] == "Warning"
     assert bucket["latest_reported_device"] == {
         "device_type": "FURNACE",
@@ -1693,7 +1715,7 @@ def test_inventory_runtime_system_dashboard_and_microinverter_edge_paths(
 
     runtime._merge_microinverter_type_bucket()  # noqa: SLF001
 
-    bucket = coord.type_bucket("microinverter")
+    bucket = coord.inventory_view.type_bucket("microinverter")
     assert bucket is not None
     assert bucket["count"] == 1
     assert bucket["array_summary"] is None
@@ -1742,7 +1764,7 @@ def test_merge_heatpump_type_bucket_preserves_fault_over_lifecycle_state(
 
     runtime._merge_heatpump_type_bucket()  # noqa: SLF001
 
-    bucket = coord.type_bucket("heatpump")
+    bucket = coord.inventory_view.type_bucket("heatpump")
     assert bucket is not None
     assert bucket["overall_status_text"] == "Fault"
     assert bucket["status_counts"] == {
@@ -2120,3 +2142,17 @@ def test_inventory_runtime_misc_helper_edges(coordinator_factory) -> None:
     assert (
         runtime._inverter_connectivity_state({"total": 2, "unknown": 2}) == "unknown"
     )  # noqa: SLF001
+
+
+def test_inventory_runtime_refresh_cached_topology_handles_snapshot_errors(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).inventory_runtime
+    runtime._rebuild_inventory_summary_caches = lambda: None  # type: ignore[method-assign]  # noqa: SLF001
+
+    def _boom():
+        raise RuntimeError("snapshot failed")
+
+    runtime._current_topology_snapshot = _boom  # type: ignore[method-assign]  # noqa: SLF001
+
+    assert runtime._refresh_cached_topology() is False  # noqa: SLF001

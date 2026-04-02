@@ -128,7 +128,7 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     coord.kick_fast = MagicMock()
     coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
 
-    await coord.async_set_system_profile("cost_savings")
+    await coord.battery_runtime.async_set_system_profile("cost_savings")
 
     coord.client.set_battery_profile.assert_awaited_once()
     kwargs = coord.client.set_battery_profile.await_args.kwargs
@@ -142,7 +142,7 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     coord.client.set_battery_profile.reset_mock()
     coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
     coord._battery_profile = "regional_special"  # noqa: SLF001
-    await coord.async_set_system_profile("regional_special")
+    await coord.battery_runtime.async_set_system_profile("regional_special")
     kwargs = coord.client.set_battery_profile.await_args.kwargs
     assert kwargs["profile"] == "regional_special"
     assert kwargs["battery_backup_percentage"] == 20
@@ -150,7 +150,7 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     coord.client.set_battery_profile.reset_mock()
     coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    await coord.async_set_system_profile("ai_optimisation")
+    await coord.battery_runtime.async_set_system_profile("ai_optimisation")
     kwargs = coord.client.set_battery_profile.await_args.kwargs
     assert kwargs["profile"] == "ai_optimisation"
     assert kwargs["battery_backup_percentage"] == 12
@@ -1061,11 +1061,11 @@ async def test_battery_profile_setter_validation_and_fallbacks(
     coord.client.battery_site_settings.assert_not_called()
 
     with pytest.raises(ServiceValidationError, match="unavailable"):
-        await coord.async_set_system_profile("")
+        await coord.battery_runtime.async_set_system_profile("")
 
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="not supported"):
-        await coord.async_set_system_profile("cost_savings")
+        await coord.battery_runtime.async_set_system_profile("cost_savings")
 
     coord._battery_profile = None  # noqa: SLF001
     with pytest.raises(ServiceValidationError, match="unavailable"):

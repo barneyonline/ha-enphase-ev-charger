@@ -246,7 +246,7 @@ def test_select_helper_fallbacks() -> None:
     coord.battery_user_is_installer = False
     assert select_mod._retain_system_profile(coord) is False
 
-    coord.has_type = lambda _type_key: False
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False
     coord.battery_user_is_owner = True
     assert select_mod._retain_system_profile(coord) is False
 
@@ -745,12 +745,14 @@ async def test_system_profile_select_sets_ai_optimization_profile(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_ai_optimisation_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock()
+    coord.battery_runtime.async_set_system_profile = AsyncMock()
 
     sel = SystemProfileSelect(coord)
     await sel.async_select_option("AI Optimisation")
 
-    coord.async_set_system_profile.assert_awaited_once_with("ai_optimisation")
+    coord.battery_runtime.async_set_system_profile.assert_awaited_once_with(
+        "ai_optimisation"
+    )
 
 
 def test_system_profile_select_unavailable_and_none_current(coordinator_factory):
@@ -803,15 +805,19 @@ async def test_system_profile_select_sets_profile(coordinator_factory):
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_show_ai_opti_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock()
+    coord.battery_runtime.async_set_system_profile = AsyncMock()
 
     sel = SystemProfileSelect(coord)
     await sel.async_select_option("Savings")
 
-    coord.async_set_system_profile.assert_awaited_once_with("cost_savings")
+    coord.battery_runtime.async_set_system_profile.assert_awaited_once_with(
+        "cost_savings"
+    )
 
     await sel.async_select_option("AI Optimisation")
-    coord.async_set_system_profile.assert_awaited_with("ai_optimisation")
+    coord.battery_runtime.async_set_system_profile.assert_awaited_with(
+        "ai_optimisation"
+    )
 
 
 @pytest.mark.asyncio
@@ -835,7 +841,7 @@ async def test_system_profile_select_surfaces_validation_error(coordinator_facto
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock(
+    coord.battery_runtime.async_set_system_profile = AsyncMock(
         side_effect=ServiceValidationError("Battery profile update was rejected.")
     )
     sel = SystemProfileSelect(coord)
@@ -852,7 +858,7 @@ async def test_system_profile_select_translates_raw_http_forbidden(coordinator_f
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock(
+    coord.battery_runtime.async_set_system_profile = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
             history=(),
@@ -876,7 +882,7 @@ async def test_system_profile_select_translates_raw_http_unauthorized(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock(
+    coord.battery_runtime.async_set_system_profile = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
             history=(),
@@ -900,7 +906,7 @@ async def test_system_profile_select_translates_raw_http_other_error(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock(
+    coord.battery_runtime.async_set_system_profile = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
             history=(),
@@ -924,7 +930,7 @@ async def test_system_profile_select_translates_raw_network_error(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock(
+    coord.battery_runtime.async_set_system_profile = AsyncMock(
         side_effect=aiohttp.ClientConnectionError("boom")
     )
     sel = SystemProfileSelect(coord)
@@ -943,7 +949,9 @@ async def test_system_profile_select_translates_timeout_error(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_show_savings_mode = True  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
-    coord.async_set_system_profile = AsyncMock(side_effect=asyncio.TimeoutError())
+    coord.battery_runtime.async_set_system_profile = AsyncMock(
+        side_effect=asyncio.TimeoutError()
+    )
     sel = SystemProfileSelect(coord)
 
     with pytest.raises(ServiceValidationError, match="timed out"):
@@ -956,7 +964,7 @@ def test_system_profile_select_availability_fallback_and_device_info(
     from custom_components.enphase_ev.select import SystemProfileSelect
 
     coord = coordinator_factory()
-    coord.type_device_info = None
+    coord.inventory_view.type_device_info = lambda _type_key: None
     coord._battery_profile_selection_available = None  # noqa: SLF001
     coord._battery_controls_available = False  # noqa: SLF001
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
@@ -973,12 +981,12 @@ def test_system_profile_select_availability_fallback_and_device_info(
     coord._battery_user_is_installer = False  # noqa: SLF001
     assert sel.available is False
 
-    coord.has_type = lambda _type_key: False
+    coord.inventory_view.has_type_for_entities = lambda _type_key: False
     assert sel.available is False
 
     expected = {"identifiers": {("enphase_ev", "provided")}}
-    coord.has_type = lambda type_key: type_key == "envoy"
-    coord.type_device_info = MagicMock(return_value=expected)
+    coord.inventory_view.has_type_for_entities = lambda type_key: type_key == "envoy"
+    coord.inventory_view.type_device_info = MagicMock(return_value=expected)
     assert sel.device_info is expected
 
 

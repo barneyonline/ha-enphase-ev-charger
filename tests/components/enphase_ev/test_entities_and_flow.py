@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -185,6 +186,12 @@ async def test_sensor_platform_discovers_new_serial(hass, config_entry) -> None:
             self.last_update_success = True
             self.serials: set[str] = set()
             self._listeners: list = []
+            self.inventory_view = SimpleNamespace(
+                iter_type_keys=lambda: [],
+                has_type=lambda _type_key: False,
+                has_type_for_entities=lambda _type_key: False,
+                gateway_iq_energy_router_summary_records=lambda: [],
+            )
 
         def iter_serials(self) -> list[str]:
             ordered = list(self.serials)

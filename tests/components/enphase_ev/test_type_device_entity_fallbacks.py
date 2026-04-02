@@ -229,9 +229,13 @@ def test_type_device_entities_use_provided_type_device_info() -> None:
         site_id="site-x",
         last_update_success=True,
         has_type=lambda _key: True,
-        type_label=lambda _key: "Gateway",
-        type_bucket=lambda _key: {"count": "bad", "devices": "bad"},
-        type_device_info=lambda _key: provided,
+        inventory_view=SimpleNamespace(
+            has_type=lambda _key: True,
+            has_type_for_entities=lambda _key: True,
+            type_label=lambda _key: "Gateway",
+            type_bucket=lambda _key: {"count": "bad", "devices": "bad"},
+            type_device_info=lambda _key: provided,
+        ),
         last_success_utc=None,
         last_failure_utc=None,
         last_failure_status=None,
@@ -277,9 +281,13 @@ def test_site_and_type_inventory_device_info_fallback_identifiers() -> None:
         site_id="site-fallback",
         last_update_success=True,
         has_type=lambda _key: True,
-        type_device_info=lambda _key: None,
-        type_label=lambda _key: "Gateway",
-        type_bucket=lambda _key: {"count": 1, "devices": []},
+        inventory_view=SimpleNamespace(
+            has_type=lambda _key: True,
+            has_type_for_entities=lambda _key: True,
+            type_device_info=lambda _key: None,
+            type_label=lambda _key: "Gateway",
+            type_bucket=lambda _key: {"count": 1, "devices": []},
+        ),
         last_success_utc=None,
         last_failure_utc=None,
         last_failure_status=None,
@@ -305,8 +313,12 @@ def test_site_sensor_attributes_and_latency_attrs_paths() -> None:
         site_id="site-attrs",
         last_update_success=True,
         has_type=lambda _key: True,
-        type_label=lambda _key: "Gateway",
-        type_bucket=lambda _key: {"count": 1, "devices": []},
+        inventory_view=SimpleNamespace(
+            has_type=lambda _key: True,
+            has_type_for_entities=lambda _key: True,
+            type_label=lambda _key: "Gateway",
+            type_bucket=lambda _key: {"count": 1, "devices": []},
+        ),
         last_success_utc=None,
         last_failure_utc=None,
         last_failure_status=None,
@@ -336,12 +348,18 @@ def test_grid_control_status_device_info_prefers_enpower_then_envoy() -> None:
         grid_control_sunlight_backup_system_check=False,
         grid_control_grid_outage_check=False,
         grid_control_user_initiated_toggle=False,
-        type_device_info=lambda key: enpower_info if key == "enpower" else envoy_info,
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda key: (
+                enpower_info if key == "enpower" else envoy_info
+            )
+        ),
     )
     sensor = EnphaseGridControlStatusSensor(coord)
     assert sensor.device_info is enpower_info
 
-    coord.type_device_info = lambda key: None if key == "enpower" else envoy_info
+    coord.inventory_view.type_device_info = lambda key: (
+        None if key == "enpower" else envoy_info
+    )
     assert sensor.device_info is envoy_info
 
 
@@ -350,9 +368,13 @@ def test_cloud_site_sensor_last_success_attrs_not_type_gated() -> None:
         site_id="site-gate",
         last_update_success=True,
         has_type=lambda _key: False,
-        type_label=lambda _key: "Gateway",
-        type_bucket=lambda _key: {"count": 1, "devices": []},
-        type_device_info=lambda _key: None,
+        inventory_view=SimpleNamespace(
+            has_type=lambda _key: False,
+            has_type_for_entities=lambda _key: False,
+            type_label=lambda _key: "Gateway",
+            type_bucket=lambda _key: {"count": 1, "devices": []},
+            type_device_info=lambda _key: None,
+        ),
         last_success_utc=datetime.now(timezone.utc),
         last_failure_utc=None,
         last_failure_status=None,
