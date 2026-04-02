@@ -11,11 +11,45 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Kept `Self-Consumption` available in the system profile selector even on sites where Enphase reports `showChargeFromGrid: false`, fixing automations that switch away from `Full Backup`.
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.6.7 - 2026-04-02
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
 - Preserved Green mode from the live EVSE schedule summary when Enphase temporarily omits the scheduler preference, keeping `preferred_mode` and the charge-mode select stable instead of dropping to `null`/`unknown`.
 - Switched heat-pump power to use the HEMS `energy-consumption` device reading as the sole source, aligned its refresh cadence to the existing 300-second HEMS daily-consumption cache, and treated missing or null `details[]` values as `0 W`.
 - Made BatteryConfig schedule XSRF preflight family-aware for create, update, and delete flows so DTG/RBD schedule writes do not validate against the CFG family first.
 - Preserved explicitly disabled DTG/RBD schedule state during ordinary time/limit edits while still avoiding unnecessary `isEnabled` writes for other schedule edit flows.
+- Safely prune stale managed button, number, select, switch, and time entities when they no longer belong to the active Enphase inventory so orphaned helpers do not linger after device changes.
+
+### 🔧 Improvements
+- Run the service-status workflow every 30 minutes instead of hourly so the published status badge and history update more quickly.
+
+### 🔄 Other changes
+- None
+
+## v2.6.6 - 2026-03-31
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Kept `Self-Consumption` available in the system profile selector even on sites where Enphase reports `showChargeFromGrid: false`, fixing automations that switch away from `Full Backup`.
 
 ### 🔧 Improvements
 - None
