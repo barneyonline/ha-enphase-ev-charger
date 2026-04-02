@@ -1,6 +1,9 @@
 name: Feature request
 description: Suggest an improvement that is not a bug or device-support gap
 title: "[Feature]: "
+labels:
+  - enhancement
+  - status/needs-triage
 body:
   - type: markdown
     attributes:
@@ -22,11 +25,15 @@ body:
     attributes:
       label: Area
       options:
-        - Setup and onboarding
-        - Authentication and session handling
-        - Gateway / battery / EV charger / microinverter behavior
-        - Site-energy or HEMS presentation
-        - Diagnostics and repair issues
+        - Setup, sign-in, MFA, or reauthentication
+        - IQ Gateway / System Controller
+        - IQ Battery / Encharge / BatteryConfig
+        - IQ EV Charger / IQ EVSE
+        - IQ Microinverters
+        - Heat Pump / HEMS device data
+        - Water Heater / site-energy channel
+        - Site or cloud energy telemetry
+        - Diagnostics, repairs, or service-availability reporting
         - Documentation
         - Developer workflow / repository tooling
         - Other

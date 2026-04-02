@@ -1,0 +1,273 @@
+name: Auto Label Issues
+
+on:
+  issues:
+    types:
+      - opened
+      - reopened
+      - edited
+
+permissions:
+  issues: write
+
+jobs:
+  label_issue:
+    if: >
+      startsWith(github.event.issue.title, '[Bug]:') ||
+      startsWith(github.event.issue.title, '[Feature]:') ||
+      startsWith(github.event.issue.title, '[Device support]:')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine issue form
+        id: form
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = context.payload.issue.title ?? "";
+            const forms = {
+              "[Bug]:": {
+                kind: "bug",
+                template: ".github/ISSUE_TEMPLATE/bug_report.yml",
+              },
+              "[Feature]:": {
+                kind: "feature",
+                template: ".github/ISSUE_TEMPLATE/feature_request.yml",
+              },
+              "[Device support]:": {
+                kind: "device_support",
+                template: ".github/ISSUE_TEMPLATE/device_support_request.yml",
+              },
+            };
+
+            for (const [prefix, config] of Object.entries(forms)) {
+              if (title.startsWith(prefix)) {
+                core.setOutput("kind", config.kind);
+                core.setOutput("template_path", config.template);
+                return;
+              }
+            }
+
+            core.setFailed(`Unsupported issue form title: ${title}`);
+
+      - name: Parse issue form
+        id: issue_parser
+        uses: stefanbuck/github-issue-parser@10dcc54158ba4c137713d9d69d70a2da63b6bda3
+        with:
+          template-path: ${{ steps.form.outputs.template_path }}
+
+      - name: Reconcile automation labels
+        uses: actions/github-script@v8
+        env:
+          ISSUE_KIND: ${{ steps.form.outputs.kind }}
+          PRIMARY_AREA: ${{ steps.issue_parser.outputs.issueparser_primary_area }}
+          FEATURE_AREA: ${{ steps.issue_parser.outputs.issueparser_area }}
+          DEVICE_FAMILY: ${{ steps.issue_parser.outputs.issueparser_device_family }}
+          BUG_DIAGNOSTICS: ${{ steps.issue_parser.outputs.issueparser_diagnostics_status }}
+          DEVICE_DIAGNOSTICS: ${{ steps.issue_parser.outputs.issueparser_diagnostics_status }}
+          ISSUE_ACTION: ${{ github.event.action }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue = context.payload.issue;
+            const action = process.env.ISSUE_ACTION;
+            const kind = process.env.ISSUE_KIND;
+
+            const managedPrefixes = ["area/"];
+            const managedLabels = new Set([
+              "type/device-support",
+              "status/needs-diagnostics",
+            ]);
+
+            const labelDefinitions = {
+              "type/device-support": {
+                color: "0E8A16",
+                description: "Requests support for a missing device, model, or capability",
+              },
+              "status/needs-triage": {
+                color: "FBCA04",
+                description: "New or reopened issue awaiting maintainer triage",
+              },
+              "status/needs-diagnostics": {
+                color: "D93F0B",
+                description: "More diagnostics or evidence are needed before triage can finish",
+              },
+              "area/setup-auth": {
+                color: "1D76DB",
+                description: "Setup, sign-in, MFA, or reauthentication",
+              },
+              "area/gateway": {
+                color: "1D76DB",
+                description: "IQ Gateway or System Controller behavior",
+              },
+              "area/battery": {
+                color: "1D76DB",
+                description: "IQ Battery, Encharge, or BatteryConfig behavior",
+              },
+              "area/ev-charger": {
+                color: "1D76DB",
+                description: "IQ EV Charger or IQ EVSE behavior",
+              },
+              "area/microinverters": {
+                color: "1D76DB",
+                description: "IQ Microinverter behavior",
+              },
+              "area/hems": {
+                color: "1D76DB",
+                description: "Heat pump or HEMS device data",
+              },
+              "area/water-heater": {
+                color: "1D76DB",
+                description: "Water heater or site-energy channel behavior",
+              },
+              "area/site-energy": {
+                color: "1D76DB",
+                description: "Site or cloud energy telemetry and presentation",
+              },
+              "area/diagnostics": {
+                color: "1D76DB",
+                description: "Diagnostics, repairs, or service-availability reporting",
+              },
+              "area/docs": {
+                color: "1D76DB",
+                description: "Documentation and setup guidance",
+              },
+              "area/tooling": {
+                color: "1D76DB",
+                description: "Developer workflow or repository tooling",
+              },
+            };
+
+            for (const labelName of Object.keys(labelDefinitions)) {
+              managedLabels.add(labelName);
+            }
+
+            const ensureLabel = async (name, config) => {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name,
+                  color: config.color,
+                  description: config.description,
+                });
+              }
+            };
+
+            const normalize = (value) => (value ?? "").trim();
+
+            const mapAreaLabel = (value) => {
+              const normalized = normalize(value);
+              const mapping = {
+                "Setup, sign-in, MFA, or reauthentication": "area/setup-auth",
+                "IQ Gateway / System Controller": "area/gateway",
+                "IQ Battery / Encharge / BatteryConfig": "area/battery",
+                "IQ EV Charger / IQ EVSE": "area/ev-charger",
+                "IQ Microinverters": "area/microinverters",
+                "Heat Pump / HEMS device data": "area/hems",
+                "Heat Pump / HEMS device": "area/hems",
+                "Water Heater / site-energy channel": "area/water-heater",
+                "Site or cloud energy telemetry": "area/site-energy",
+                "Site / cloud telemetry capability": "area/site-energy",
+                "Diagnostics, repairs, or service-availability reporting": "area/diagnostics",
+                Documentation: "area/docs",
+                "Developer workflow / repository tooling": "area/tooling",
+              };
+              return mapping[normalized] ?? null;
+            };
+
+            const wantsDiagnosticsLabel = () => {
+              if (kind === "bug") {
+                const diagnostics = normalize(process.env.BUG_DIAGNOSTICS);
+                return (
+                  diagnostics === "Not yet, but I can upload them" ||
+                  diagnostics === "I cannot capture diagnostics"
+                );
+              }
+
+              if (kind === "device_support") {
+                const diagnostics = normalize(process.env.DEVICE_DIAGNOSTICS);
+                return (
+                  diagnostics === "Screenshots only" ||
+                  diagnostics === "Nothing attached yet"
+                );
+              }
+
+              return false;
+            };
+
+            const desiredLabels = new Set();
+
+            if (kind === "device_support") {
+              desiredLabels.add("type/device-support");
+            }
+
+            if (action === "opened" || action === "reopened") {
+              desiredLabels.add("status/needs-triage");
+            }
+
+            if (wantsDiagnosticsLabel()) {
+              desiredLabels.add("status/needs-diagnostics");
+            }
+
+            const areaSource =
+              kind === "bug"
+                ? process.env.PRIMARY_AREA
+                : kind === "feature"
+                  ? process.env.FEATURE_AREA
+                  : process.env.DEVICE_FAMILY;
+            const areaLabel = mapAreaLabel(areaSource);
+            if (areaLabel) {
+              desiredLabels.add(areaLabel);
+            }
+
+            const currentLabels = issue.labels.map((label) =>
+              typeof label === "string" ? label : label.name,
+            );
+            const managedCurrent = currentLabels.filter((label) =>
+              managedLabels.has(label) ||
+              managedPrefixes.some((prefix) => label.startsWith(prefix)),
+            );
+
+            const toAdd = [...desiredLabels].filter(
+              (label) => !currentLabels.includes(label),
+            );
+            const toRemove = managedCurrent.filter(
+              (label) => !desiredLabels.has(label),
+            );
+
+            const labelsToEnsure = new Set([...toAdd, ...toRemove]);
+            for (const labelName of labelsToEnsure) {
+              const definition = labelDefinitions[labelName];
+              if (definition) {
+                await ensureLabel(labelName, definition);
+              }
+            }
+
+            if (toAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issue.number,
+                labels: toAdd,
+              });
+            }
+
+            for (const labelName of toRemove) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  name: labelName,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
+            }
