@@ -6,13 +6,17 @@ _This reference consolidates observed Enlighten mobile/web APIs across EV chargi
 
 ## 1. Overview
 - **Base URL:** `https://enlighten.enphaseenergy.com`
-- **Auth:** Most endpoints require the Enlighten `e-auth-token` header and the authenticated session `Cookie` header. Some services (notably scheduler and selected control APIs) also require `Authorization: Bearer <token>`.
+- **Auth:** The current implementation is cookie-first. Login establishes an Enlighten session cookie jar, then the client best-effort fetches an access token from Entrez and adds endpoint-specific headers on top. Many read endpoints work with cookies plus `e-auth-token`; scheduler, BatteryConfig, HEMS, and timeseries families prefer or require `Authorization: Bearer <jwt>`.
 - **Privacy:** Example identifiers, account details, LAN metadata, and credentials in this document use placeholders. Raw browser-export request headers often contain JWTs, cookies, email addresses, user IDs, LAN IPs, MAC addresses, and serial numbers; those values must be redacted before captures are shared or committed. When this spec lists "observed values", it intentionally preserves non-sensitive enum/flag values so newly seen behavior is not lost.
 - **Path Variables:**
   - `<site_id>` - numeric site identifier
   - `<sn>` - charger serial number
   - `connectorId` - connector index; currently always `1`
 - **Discovery:** `GET /app-api/search_sites.json?searchText=&favourite=false` enumerates the account's accessible sites, returning IDs and display titles.
+- **Evidence labels used below:**
+  - `Implementation:` describes behavior verified in the current integration code.
+  - `Observed:` describes behavior seen in browser/mobile captures.
+  - `Inference:` describes reasoned interpretation that is plausible but not yet directly confirmed.
 
 ---
 
@@ -67,9 +71,10 @@ Example response:
 
 | Domain | Method | Endpoint | Auth | Used by integration |
 | --- | --- | --- | --- | --- |
-| Site discovery | `GET` | `/app-api/search_sites.json` | login session cookies | Yes |
-| JWT token bootstrap | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No |
-| JWT token fallback | `GET` | `/service/auth_ms_enho/api/v1/session/token` | session cookies + `_enlighten_4_session` echoed as `e-auth-token` | No |
+| Site discovery | `GET` | `/app-api/search_sites.json` | authenticated session cookies; implementation also sends `X-CSRF-Token` and, when available, `Authorization: Bearer <token>` + `e-auth-token: <token>` | Yes |
+| Entrez token bootstrap | `POST` | `https://entrez.enphaseenergy.com/tokens` | authenticated session cookies + JSON body `{session_id,email}` | Yes |
+| JWT token bootstrap (legacy / documented capture) | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No |
+| JWT token fallback (legacy / documented capture) | `GET` | `/service/auth_ms_enho/api/v1/session/token` | session cookies + `_enlighten_4_session` echoed as `e-auth-token` | No |
 | Mobile/web shared constants | `GET` | `https://enlighten-mobile-38d22.firebaseio.com/enho_constants.json` | none observed | No (documented from web UI) |
 | EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
@@ -84,15 +89,15 @@ Example response:
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | Site today snapshot | `GET` | `/pv/systems/<site_id>/today` | authenticated Enlighten session cookies | Yes |
 | Site tariff configuration | `GET` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
-| System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies (observed); `e-auth-token` unverified | No (documented from web UI) |
-| System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | session cookies (+ XSRF) | No (documented from web UI) |
-| Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | `e-auth-token` + cookies | No (documented from web UI) |
-| System dashboard devices table | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=<range>&filter_columns=<...>&serial_numbers=<...>&type=table&page=<page>&per_page=<n>` | `e-auth-token` + cookies | No (documented from web UI) |
-| System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | `e-auth-token` + cookies | No (documented from web UI) |
-| System dashboard range testing | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing` | `e-auth-token` + cookies | No (documented from web UI) |
-| System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | `e-auth-token` + cookies | No (documented from web UI) |
-| Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | `e-auth-token` + cookies | No (documented from web UI) |
-| System dashboard device details | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<type>` | `e-auth-token` + cookies | No (documented from web UI) |
+| System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies + optional `Authorization: Bearer <token>` (current implementation adds bearer when available) | No (documented from web UI) |
+| System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | dashboard-read headers: authenticated cookies, optional bearer, XSRF when present | No (documented from web UI) |
+| Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
+| System dashboard devices table | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/devices?range=<range>&filter_columns=<...>&serial_numbers=<...>&type=table&page=<page>&per_page=<n>` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
+| System dashboard status | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/status` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
+| System dashboard range testing | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/range_testing` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
+| System dashboard device tree | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices-tree` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
+| Standing alarms | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/alarms` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
+| System dashboard device details | `GET` | `/service/system_dashboard/api_internal/dashboard/sites/<site_id>/devices_details?type=<type>` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
 | Site lifetime energy | `GET` | `/pv/systems/<site_id>/lifetime_energy` | `e-auth-token` + cookies | Yes |
 | Homeowner events | `GET` | `/service/events-platform-service/v1.0/<site_id>/events/homeowner` | `e-auth-token` + cookies | Yes |
 | Battery backup history | `GET` | `/app-api/<site_id>/battery_backup_history.json` | `e-auth-token` + cookies | Yes |
@@ -101,28 +106,28 @@ Example response:
 | Microinverter array layout | `GET` | `/systems/<site_id>/site_array_layout_x` | authenticated Enlighten session cookies | No (documented from web UI) |
 | Microinverter jellyfish bootstrap | `GET` | `/systems/<site_id>/jellyfish_initializer?range=<range>&view=<view>` | authenticated Enlighten session cookies | No (documented from web UI) |
 | Battery status | `GET` | `/pv/settings/<site_id>/battery_status.json` | `e-auth-token` + cookies | Yes |
-| HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices[?include-retired=true|refreshData=false]` | Authorization JWT (`Bearer` and bare-token variants observed); cookies optional in web capture | No (documented for roadmap) |
-| HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | bearer JWT + Enlighten cookies (`username` and `requestId` also observed) | No (documented from mobile app HAR) |
-| HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | bearer JWT + Enlighten cookies (`username` and `requestId` also observed) | No (documented from mobile app HAR) |
-| HEMS supported device models | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/list-supported-models?deviceType=<device_type>` | bearer JWT + `e-auth-token` + Enlighten cookies | No (documented from web UI) |
+| HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices[?include-retired=true|refreshData=false]` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | No (documented for roadmap) |
+| HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | No (documented from mobile app HAR) |
+| HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | No (documented from mobile app HAR) |
+| HEMS supported device models | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/list-supported-models?deviceType=<device_type>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `e-auth-token`, `requestId`, `username` when available | No (documented from web UI) |
 | HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS lifetime consumption | `GET` | `/systems/<site_id>/hems_consumption_lifetime` | `e-auth-token` + cookies | No (documented for roadmap) |
 | HEMS live stream toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status` | Enlighten session cookies | No (monitoring stream only) |
 | HEMS live vitals toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/vitals` | Enlighten session cookies | No (monitoring stream only) |
 | Start charging | `POST` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/start_charging` | `e-auth-token` + cookies | Yes |
 | Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
-| EV charger config read/write | `POST/PUT` | `/service/evse_controller/api/v1/<site_id>/ev_chargers/<sn>/ev_charger_config` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
+| EV charger config read/write | `POST/PUT` | `/service/evse_controller/api/v1/<site_id>/ev_chargers/<sn>/ev_charger_config` | `Authorization: Bearer <token>` overlay on top of session cookies / base EV headers | No (documented from web UI) |
 | Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
-| BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | `e-auth-token` + cookies + `Username` | Yes |
-| BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | `e-auth-token` + cookies + `Username` | No |
-| BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
-| BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
-| BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | `e-auth-token` + cookies + `Username` + XSRF | No |
-| BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
-| BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | `e-auth-token` + cookies + `Username` + XSRF | No (documented from web UI) |
-| BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | `e-auth-token` + cookies + `Username` + XSRF | No |
-| BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | `e-auth-token` + cookies + `Username` | No (documented from web UI) |
-| Login | `POST` | `/login/login.json` | credentials + CSRF/session cookies | Yes |
+| BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | bearer preferred + `e-auth-token` + normalized cookies; `Username` when user id can be decoded from JWT | Yes |
+| BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | bearer preferred + `e-auth-token` + normalized cookies; `Username` when available | No |
+| BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | bearer preferred + `e-auth-token` + normalized cookies; `Username` when available | No (documented from web UI) |
+| BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | bearer preferred + `e-auth-token` + normalized cookies; `Username` when available | No (documented from web UI) |
+| BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | bearer preferred + `e-auth-token` + normalized cookies + `X-XSRF-Token`; `Username` when available | No |
+| BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | bearer preferred + `e-auth-token` + normalized cookies; `Username` when available | No (documented from web UI) |
+| BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | bearer preferred + `e-auth-token` + normalized cookies + `X-XSRF-Token`; `Username` when available | No (documented from web UI) |
+| BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | bearer preferred + `e-auth-token` + normalized cookies + `X-XSRF-Token`; `Username` when available | No |
+| BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | documented write pattern only: if implemented, use BatteryConfig write headers with fresh XSRF + bearer-preferred auth | No (not currently implemented) |
+| Login | `POST` | `/login/login.json` | credentials; session/XSRF cookies are established by the response rather than pre-required | Yes |
 
 ---
 
@@ -472,7 +477,8 @@ Observed fields:
 - `isAutoOta`: whether automatic OTA behavior is enabled for the charger.
 
 Notes:
-- The captured browser request succeeded with session cookies even though `e-auth-token` was `null`. Whether non-browser clients can omit `e-auth-token` for this endpoint remains unverified, so preserve standard session headers when scripting against it.
+- Observed: the captured browser request succeeded with session cookies even though `e-auth-token` was `null`.
+- Implementation: preserve the standard session headers for client behavior rather than treating the browser capture as proof that `e-auth-token` can be omitted generally.
 - The original trace contained live cookies, XSRF tokens, JWT-bearing cookie values with account identifiers, a real site ID, a real charger serial number, and a client-facing proxy address. Those values are intentionally replaced with placeholders here.
 
 ### 2.2.3 EV Feature Flags
@@ -717,8 +723,9 @@ Headers:
 ```
 Returns the chargers available for session history lookups (IDs + display names).
 Notes:
-- `Authorization` uses the Auth MS JWT (from `/tokens` or the `enlighten_manager_token_production` cookie).
-- `e-auth-token` should match the JWT `session_id` claim; `username` should match the JWT `user_id` claim.
+- Implementation: the current client uses the stored access token first for session-history calls, then falls back to the manager-token cookie JWT.
+- Implementation: `e-auth-token` is derived from the JWT `session_id` claim rather than reusing the raw bearer token value.
+- Implementation: `username` is derived from the JWT `user_id` claim when present.
 - `requestid` is a UUID generated per request.
 
 ### 2.7 Session History
@@ -745,8 +752,9 @@ Headers:
 ```
 Returns a list of recent charging sessions for the requested charger. `startDate`/`endDate` are `DD-MM-YYYY` in the site's local timezone. The response indicates whether more pages are available via `hasMore`.
 Notes:
-- `Authorization` uses the Auth MS JWT (from `/tokens` or the `enlighten_manager_token_production` cookie).
-- `e-auth-token` should match the JWT `session_id` claim; `username` should match the JWT `user_id` claim.
+- Implementation: the current client uses the stored access token first for session-history calls, then falls back to the manager-token cookie JWT.
+- Implementation: `e-auth-token` is derived from the JWT `session_id` claim rather than reusing the raw bearer token value.
+- Implementation: `username` is derived from the JWT `user_id` claim when present.
 - `requestid` is a UUID generated per request.
 
 Example response:
@@ -809,8 +817,9 @@ Returns EV charger daily or lifetime energy keyed by charger serial.
 Notes:
 - The request parameter must be `site_id`. Requests using `siteId` were rejected by Enphase with `400 BAD_REQUEST` and the message `Required request parameter 'site_id' ... is not present`.
 - The daily endpoint also requires `start_date` in `YYYY-MM-DD`. Omitting it produced `400 BAD_REQUEST` with `Required request parameter 'start_date' ... is not present`.
-- `Authorization` uses the Auth MS JWT (from `/tokens` or the `enlighten_manager_token_production` cookie).
-- `e-auth-token` should match the JWT `session_id` claim; `username` should match the JWT `user_id` claim when present.
+- The current client uses a bearer token from the stored access token when available, otherwise from the `enlighten_manager_token_production` cookie.
+- The current client does not reuse the raw bearer token as `e-auth-token` here. Instead it decodes the JWT locally and sends the JWT `session_id` claim as `e-auth-token` when present.
+- `username` should match the JWT `user_id` claim when present.
 - `requestId` / `requestid` is a UUID generated per request.
 
 Example daily request:
@@ -1263,6 +1272,7 @@ Observed fields:
 
 Notes:
 - Requires the standard authenticated Enlighten session headers (`e-auth-token` plus cookies).
+- The current implementation may also attach `Authorization: Bearer <token>` to some dashboard-family GETs when a usable bearer is available, even though browser captures succeeded with cookies alone.
 - The payload is nested under `latest_power`; treat a missing or non-numeric `value` as no sample rather than coercing to `0`.
 - Observed timestamps are epoch seconds rather than milliseconds.
 - The observed capture returned `value=-30`, confirming the field can go negative. Preserve negative samples rather than clamping to `0`; they likely represent net import or reverse power flow.
@@ -1305,7 +1315,8 @@ Observed structure:
 - `currency_*`, `geo`, and `country_code` are region-dependent.
 
 Notes:
-- The captured browser request succeeded with authenticated session cookies and did not include an `e-auth-token` header. Whether non-browser clients can omit `e-auth-token` for this endpoint remains unverified.
+- Observed: the captured browser request succeeded with authenticated session cookies and did not include an `e-auth-token` header.
+- The current implementation groups this route with other dashboard reads and may add `Authorization: Bearer <token>` when a bearer can be derived from cookies or stored auth state.
 - The original trace contained live cookies, a site ID, account identifiers, and a client-facing IP address; those values are intentionally replaced with placeholders in this document.
 
 ### 2.9.4.a Activation Checklist
@@ -1699,6 +1710,7 @@ Observed structure:
 - `storage_setpoint`, `pv_setpoint`, and `reserved_soc` are integer tuning values. `storage_setpoint` has been observed as both positive and negative; semantics are still unclear.
 - `items[]` contains dashboard shortcut labels and fully qualified site URLs for other Enlighten surfaces.
 - Observed request auth was session-cookie based from the dashboard web app; no explicit `e-auth-token` header was present in the captured request.
+- The current implementation uses the same dashboard-read header builder for this family and may attach `Authorization: Bearer <token>` opportunistically.
 
 ### 2.9.5.a System Dashboard Range Testing
 ```
@@ -2917,6 +2929,9 @@ Observed battery LED legend:
 
 The endpoints below are read-oriented HEMS/IQ Energy Router APIs observed in Enlighten web and mobile captures for sites with paired router + heat-pump accessories.
 
+Implementation note:
+- The current client treats HEMS as a bearer-preferred family. It builds requests with bearer auth first, then adds shared Enlighten headers/cookies plus `requestId` and `username` when a JWT-derived user id is available.
+
 ### 2.17 HEMS Device Inventory (Router + Heat Pump Stack)
 ```
 GET https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices
@@ -3034,7 +3049,8 @@ Observed structure:
 - The top-level inventory envelope in the supplied captures was `type` + `timestamp` + `data["hems-devices"]`; an older `status/result/devices` example should not be assumed.
 - Device grouping is hierarchical (`gateway`, `heat-pump`, `evse`, `water-heater`) rather than the flat `type/devices` shape used by `/app-api/<site_id>/devices.json`.
 - Query variants observed so far are `include-retired=true` and `refreshData=false`; both returned the same `hems-device-details` payload shape.
-- Authorization varied by caller: one web capture succeeded with a bare JWT in the `Authorization` header and no cookies, while another used `Authorization: Bearer <jwt>` together with cookies, `username`, and `requestId`.
+- Observed: authorization varied by caller; one web capture succeeded with a bare JWT in the `Authorization` header and no cookies, while another used `Authorization: Bearer <jwt>` together with cookies, `username`, and `requestId`.
+- Implementation: the current client standardizes on bearer-preferred HEMS headers instead of reproducing each capture variant literally.
 - `device-uid` is a stable HEMS identifier reused across timeseries filters and related detail requests.
 - `created-at`, `last-report`, and `fvt-time` were observed as ISO-8601 strings in this capture, not epoch seconds.
 - `status` / `statusText` were observed as `normal` / `Normal` for all listed devices in these captures; `pairing-status` was `PAIRED`.
@@ -3490,6 +3506,9 @@ Observed AI Optimization variant:
   "error": {}
 }
 ```
+Notes:
+- The current implementation resolves this bearer from the `enlighten_manager_token_production` cookie first, then falls back to the stored access token.
+- Scheduler calls are sent on top of the normal session-cookie/base EV headers; the bearer is the additional requirement that makes this family distinct from simple EV status reads.
 
 ### 4.2 Set Charge Mode
 ```
@@ -3501,6 +3520,9 @@ Success response mirrors the GET payload.
 
 Observed mode values include `MANUAL_CHARGING`, `SCHEDULED_CHARGING`,
 `GREEN_CHARGING`, and `SMART_CHARGING`.
+
+Notes:
+- The bearer source matches `4.1`: manager-token cookie first, stored access token second.
 
 ### 4.3 Green Charging Settings (Battery Support)
 ```
@@ -3555,6 +3577,7 @@ Notes:
 - `USE_BATTERY_FOR_SELF_CONSUMPTION` was the observed setting name for battery supplementation in Green mode.
 - Setting `enabled=false` disables battery supplementation; `value` remains `null`.
 - Captured requests sent `loader=false`; the API accepts payloads without the `loader` key.
+- As with other scheduler endpoints, the current implementation derives bearer auth from the manager-token cookie first and otherwise falls back to the stored access token.
 
 ### 4.4 List Schedules
 ```
@@ -3622,6 +3645,7 @@ Notes:
 - Observed: `remindTime` may be present even when `remindFlag` is `false`.
 - Observed: `reminderTimeUtc` is `HH:MM` when `remindFlag=true`, otherwise null.
 - Observed: editing a schedule time in Enlighten auto-enables the slot and populates `reminderTimeUtc`.
+- Auth matches the rest of the scheduler family: `Authorization: Bearer <token>` from manager-token cookie first, stored access token second.
 
 ### 4.5 Update Schedules
 ```
@@ -3637,6 +3661,7 @@ Notes:
 - Preserve unchanged fields like `sourceType`, `recurringKind`, `chargeLevelType`.
 - Observed: captured PATCH requests may include `chargingLevel=100` and `chargingLevelAmp=null` for `CUSTOM` schedules; subsequent GETs may normalize back to `32/32`.
 - Observed: captured PATCH requests include a top-level `"error": {}` field; the API accepts PATCH payloads without it.
+- Auth matches the rest of the scheduler family: `Authorization: Bearer <token>` from manager-token cookie first, stored access token second.
 ---
 
 ## 5. BatteryConfig APIs (System Profile and Battery Controls)
@@ -3644,9 +3669,12 @@ Notes:
 The BatteryConfig service exposes system profile and EV charging mode endpoints.
 
 Observed shared requirements:
-- `e-auth-token` header plus the authenticated `Cookie` jar.
-- `Username: <user_id>` header matching the Enlighten user ID.
+- `Authorization: Bearer <jwt>` is preferred when a manager/access token is available.
+- `e-auth-token` is also sent; the implementation prefers the stored access token and otherwise falls back to the bearer token value.
+- Authenticated Enlighten cookies are still sent, but the client normalizes BatteryConfig cookies to avoid duplicate stale XSRF cookie values.
+- `Username: <user_id>` is sent when the JWT payload exposes a usable user id; it is not guaranteed for every token shape.
 - Browser-style `Origin`/`Referer` set to the battery profile UI host.
+- Write flows acquire a fresh `BP-XSRF-Token` first and then send `X-XSRF-Token`.
 
 ### 5.1 MQTT Signed URL / Authorizer Bootstrap
 ```
@@ -3894,6 +3922,10 @@ Headers: X-XSRF-Token: <token>
 Updates the system profile and reserve percentage. Observed profile keys include
 `self-consumption`, `cost_savings`, `backup_only`, and `ai_optimisation`.
 
+Implementation auth notes:
+- The current client first acquires a fresh `BP-XSRF-Token` by POSTing to `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid`.
+- It then sends the write with bearer-preferred BatteryConfig headers plus `X-XSRF-Token`.
+
 Example payloads observed:
 ```json
 { "profile": "self-consumption", "batteryBackupPercentage": 10 }
@@ -3980,6 +4012,9 @@ Body: {}
 ```
 Cancels a pending profile change. The request body is an empty JSON object.
 
+Implementation auth notes:
+- The current client treats this as another BatteryConfig write: acquire fresh XSRF first, then send bearer-preferred BatteryConfig headers plus `X-XSRF-Token`.
+
 Example response:
 ```json
 { "message": "success" }
@@ -4065,6 +4100,10 @@ PUT /service/batteryConfig/api/v1/batterySettings/<site_id>?userId=<user_id>
 Headers: X-XSRF-Token: <token>
 ```
 Updates battery settings. Captured requests used partial payloads to change individual controls.
+
+Implementation auth notes:
+- The current client first acquires a fresh `BP-XSRF-Token` via `/battery/sites/<site_id>/schedules/isValid`.
+- It then sends bearer-preferred BatteryConfig headers, normalized cookies, and `X-XSRF-Token`.
 
 Example payloads observed:
 ```json
@@ -4160,6 +4199,9 @@ Body: {
 ```
 Opts out of a specific active Storm Guard alert.
 
+Implementation auth notes:
+- The current client treats this as a BatteryConfig write: fresh XSRF acquisition first, then bearer-preferred headers plus `X-XSRF-Token`.
+
 Example response:
 ```json
 { "message": "success" }
@@ -4186,6 +4228,7 @@ Notes:
 - Alert opt-out uses `PUT /stormGuard/<site_id>/stormAlert` with `status: "opted-out"` per alert ID.
 - Observed behavior: if that opt-out removes the last active Storm Alert and Storm Guard remains enabled, the system profile exits storm-driven Full Backup and returns to the normal configured profile.
 - Once enabled, the profile automatically switches to Full Backup during severe weather alerts and reserves full battery capacity.
+- The current client sends this write with the same BatteryConfig write flow as other mutations: acquire XSRF first, then send bearer-preferred headers plus `X-XSRF-Token`.
 
 ### 5.7 Third-Party Control Settings
 ```
@@ -4270,6 +4313,9 @@ Body: {
 ```
 Creates a new battery schedule entry. The same endpoint is used for CFG, DTG, and RBD schedule creation and schedule restore flows.
 
+Implementation auth notes:
+- The current client acquires fresh XSRF first, then sends bearer-preferred BatteryConfig headers plus `X-XSRF-Token`.
+
 Observed behavior:
 - `scheduleType` is sent uppercase (`CFG`, `DTG`, `RBD`).
 - `limit` is included for charge-oriented schedules and omitted for pure RBD recreate flows.
@@ -4302,6 +4348,7 @@ Body: {}
 Observed behavior:
 - Soft-delete is supported through the canonical `PUT /schedules/<schedule_id>` resource, sometimes with the full schedule echoed back and sometimes with only `{ "isDeleted": true }`.
 - A `/delete` alias also exists. This path is useful as a compatibility note, but it was not present in the newer browser traces captured for this repository.
+- The current client implements the legacy `/delete` alias and sends it with the same BatteryConfig write flow: acquire XSRF first, then send bearer-preferred headers plus `X-XSRF-Token`.
 
 ### 5.9 Battery Schedule Validation
 ```
@@ -4320,6 +4367,8 @@ Example response (anonymized):
 Observed behavior:
 - The validation call appeared immediately before enabling charge-from-grid scheduling.
 - Only the lowercase request value `scheduleType: "cfg"` was observed, even though the stored schedule object used uppercase `scheduleType: "CFG"`.
+- In the current client, this validation route also serves as the XSRF bootstrap mechanism for later BatteryConfig writes.
+- Unlike later writes, the validation request is sent without `X-XSRF-Token`; the token is learned from the response `Set-Cookie` / cookie jar update.
 
 ### 5.10 Update Battery Schedule (In-Place PUT)
 ```
@@ -4337,10 +4386,14 @@ Updates an existing battery schedule in place.  This is the endpoint used by
 the Enlighten battery profile UI when the user modifies a CFG schedule.
 
 **Headers** (same as other batteryConfig calls):
-- `e-auth-token`: JWT session token
-- `Username`: Enphase user ID
-- `XSRF-TOKEN` / `BP-XSRF-Token`: Anti-CSRF tokens from cookies
-- `x-xsrf-token`: XSRF token echoed in request header
+- `Authorization: Bearer <jwt>` preferred
+- `e-auth-token`: stored access token when present, otherwise bearer token
+- `Username`: Enphase user ID when decodable from JWT
+- normalized BatteryConfig `Cookie` header, optionally including `BP-XSRF-Token`
+- `X-XSRF-Token`: freshly acquired XSRF token echoed in request header
+
+Implementation auth notes:
+- The current client acquires fresh XSRF via `/schedules/isValid` immediately before issuing this `PUT`.
 
 Example response (anonymized):
 ```json
@@ -4387,6 +4440,7 @@ Example response (anonymized):
 Observed behavior:
 - This call preceded `PUT /batterySettings/<site_id>` in the captured sequence.
 - A subsequent battery-settings update used `acceptedItcDisclaimer: true`; later `GET /batterySettings/<site_id>` returned `acceptedItcDisclaimer` as a timestamp string, so the backend normalizes the acknowledgement internally.
+- The current integration does not implement this route today, but if added it should follow the same BatteryConfig write pattern as the other mutation endpoints: acquire fresh XSRF first, then send bearer-preferred headers plus `X-XSRF-Token`.
 
 ---
 
@@ -4396,19 +4450,32 @@ Observed behavior:
 ```
 POST https://enlighten.enphaseenergy.com/login/login.json
 ```
-This endpoint authenticates credentials and either completes login immediately or initiates an MFA challenge. MFA status is inferred from the response shape and cookie changes (there is no explicit flag).
+This endpoint authenticates credentials and either completes login immediately or initiates an MFA challenge. The current implementation treats login as a cookie bootstrap step first, then derives site access and tokens afterward.
+
+Observed implementation behavior:
+- Credentials are posted as form fields `user[email]` and `user[password]`.
+- No pre-existing CSRF/session cookie is required by the client before the first login request.
+- MFA may be indicated explicitly by `requires_mfa: true` or inferred from `success: true` together with a `login_otp_nonce` cookie.
+- A successful login can still return an incomplete body; the implementation will continue with cookie-based token/site discovery if the response body is empty.
 
 MFA required response (credentials accepted, OTP pending):
 ```json
 {
-  "success": true,
-  "isBlocked": false
+  "requires_mfa": true
 }
 ```
 Indicators:
 - `session_id` and `manager_token` are absent from the JSON.
 - `Set-Cookie` refreshes `login_otp_nonce` (short expiry).
 - `_enlighten_4_session` is not replaced with an authenticated session yet.
+
+Alternate MFA-required shape observed by the implementation:
+```json
+{
+  "success": true,
+  "isBlocked": false
+}
+```
 
 MFA not required response (fully authenticated):
 ```json
@@ -4455,6 +4522,7 @@ Success response (authenticated):
 Indicators:
 - `Set-Cookie` replaces `_enlighten_4_session` with the authenticated session.
 - `session_id` and `manager_token` are now available for API access.
+- The implementation also sends `X-CSRF-Token` when an XSRF cookie is present and re-seeds the session cookie jar before the request.
 
 Invalid OTP response:
 ```json
@@ -4491,8 +4559,33 @@ Success response (OTP queued):
 ```
 The server rotates `login_otp_nonce` via `Set-Cookie` but does not return `session_id` or `manager_token`.
 
-### 6.4 JWT Session Token Retrieval
-Two JWT retrieval paths were observed:
+### 6.4 Token Retrieval Used by the Current Client
+Current implementation path:
+```
+POST https://entrez.enphaseenergy.com/tokens
+Content-Type: application/json
+
+{
+  "session_id": "<session_id>",
+  "email": "<email>"
+}
+```
+
+Observed response:
+```json
+{
+  "token": "<jwt>",
+  "expires_at": 1770000000
+}
+```
+
+Observed behavior:
+- This is the token bootstrap path used by the integration today.
+- The token is stored as both the access token and `e-auth-token` value for cookie-backed site discovery and many EV endpoints.
+- If `expires_at` is absent, the client decodes the JWT `exp` claim locally.
+- Failure to obtain this token is non-fatal for initial login; the client proceeds with cookie-only site discovery where possible.
+
+Legacy/documented JWT retrieval paths from earlier captures:
 
 Primary path:
 ```
@@ -4522,20 +4615,56 @@ Observed response:
 ```
 
 Observed behavior:
-- `jwt_token.json` is the simpler path and is the preferred retrieval path when available.
+- In older captures, `jwt_token.json` appeared to be the simpler retrieval path when available.
 - `auth_ms_enho/api/v1/session/token` is a useful fallback when the primary endpoint fails but the authenticated `_enlighten_4_session` cookie is present.
 - Clients can decode the JWT locally and refresh it roughly one hour before expiry.
 
 ### 6.5 Access Token
-Some sites issue a JWT-like access token via `https://entrez.enphaseenergy.com/access_token`.
+The current implementation does not use `https://entrez.enphaseenergy.com/access_token`.
+
+Instead:
+- the Entrez `POST /tokens` response is treated as the access/bearer token source;
+- scheduler/control requests often prefer the JWT found in the `enlighten_manager_token_production` cookie when present;
+- timeseries requests derive `e-auth-token` from the JWT `session_id` claim rather than reusing the raw bearer token.
 
 ### 6.6 Headers Required by API Client
-- `e-auth-token: <token>`
-- `Cookie: <serialized cookie jar>` (must include session cookies like `_enlighten_session`, `X-Requested-With`, etc.)
-- When available: `Authorization: Bearer <token>`
-- Common defaults also send:
-  - `Referer: https://enlighten.enphaseenergy.com/`
+There is no single universal header set; the implementation varies headers by endpoint family:
+
+| Endpoint family | Auth/header strategy in current client |
+| --- | --- |
+| Login + MFA | form POSTs plus cookie jar management; `X-CSRF-Token` added for MFA when an XSRF cookie is present |
+| Site discovery | authenticated cookies; `X-CSRF-Token`; add `Authorization` + `e-auth-token` when Entrez token retrieval succeeded |
+| Basic Enlighten reads (`/app-api`, `/pv`, many EV reads) | authenticated cookies plus `e-auth-token` when available |
+| Scheduler + EV control overlays | base headers plus `Authorization: Bearer <jwt>` from manager-token cookie first, stored access token second |
+| Session history + EVSE timeseries | `Authorization: Bearer <jwt>`; `e-auth-token` set to JWT `session_id`; `username` set to JWT `user_id`; `requestid` UUID |
+| System dashboard reads | authenticated cookies; may also include bearer auth opportunistically |
+| HEMS | bearer-preferred auth plus cookies/base headers; `username` and `requestId` when available |
+| BatteryConfig reads | bearer-preferred auth, `e-auth-token`, normalized cookies, `Username` when decodable, battery-profile `Origin`/`Referer` |
+| BatteryConfig writes | acquire fresh XSRF via `/battery/sites/<site_id>/schedules/isValid`, then send bearer-preferred BatteryConfig headers plus `X-XSRF-Token` |
+
+- Base Enlighten reads:
+  - `Cookie: <serialized cookie jar>`
+  - `e-auth-token: <token>` when available
   - `X-Requested-With: XMLHttpRequest`
+  - `Referer: https://enlighten.enphaseenergy.com/pv/systems/<site_id>/summary`
+- Site discovery after login:
+  - authenticated cookies
+  - `X-CSRF-Token` when an XSRF cookie is present
+  - `Authorization: Bearer <token>` and `e-auth-token: <token>` when Entrez token retrieval succeeds
+- Scheduler / EV control overlays:
+  - `Authorization: Bearer <jwt>` from `enlighten_manager_token_production` cookie when present, otherwise the stored access token
+- Session history / EVSE timeseries:
+  - `Authorization: Bearer <jwt>`
+  - `e-auth-token: <jwt session_id claim>` when present
+  - `username: <jwt user_id claim>` when present
+  - `requestid: <uuid>`
+- BatteryConfig:
+  - `Authorization: Bearer <jwt>` preferred
+  - `e-auth-token`
+  - normalized `Cookie`
+  - `Username: <user_id>` when decodable from JWT
+  - `Origin` / `Referer` for the battery-profile UI
+  - `X-XSRF-Token` for writes after token acquisition
 
 ---
 
