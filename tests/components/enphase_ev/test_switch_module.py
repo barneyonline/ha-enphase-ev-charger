@@ -539,6 +539,43 @@ async def test_async_setup_entry_skips_app_auth_switch_when_unsupported(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_prunes_feature_switches_when_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": True}
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    listener_spy = MagicMock(wraps=coord.async_add_listener)
+    monkeypatch.setattr(coord, "async_add_listener", listener_spy)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "switch",
+        "enphase_ev",
+        f"enphase_ev_{RANDOM_SERIAL}_green_battery",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    coord.data[RANDOM_SERIAL]["green_battery_supported"] = False
+    listener = listener_spy.call_args[0][0]
+    listener()
+
+    remove_spy.assert_called_with(stale.entity_id)
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_adds_schedule_switches(
     hass, config_entry, coordinator_factory
 ) -> None:

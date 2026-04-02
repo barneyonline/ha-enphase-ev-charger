@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -9,6 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
+from .entity_cleanup import prune_managed_entities
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -37,23 +39,56 @@ def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
     return show_storm_guard is not False
 
 
+def _retain_cancel_pending_profile_change(coord: EnphaseCoordinator) -> bool:
+    return _type_available(coord, "envoy")
+
+
+def _retain_request_grid_toggle_otp(coord: EnphaseCoordinator) -> bool:
+    return (
+        _site_has_battery(coord)
+        and (_type_available(coord, "enpower") or _type_available(coord, "envoy"))
+    )
+
+
+def _retain_storm_alert_opt_out(coord: EnphaseCoordinator) -> bool:
+    return (
+        _site_has_battery(coord)
+        and _type_available(coord, "envoy")
+        and _storm_guard_visible(coord)
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ):
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
+    ent_reg = er.async_get(hass)
     known_serials: set[str] = set()
     site_entity_keys: set[str] = set()
 
+    def _site_button_unique_id(key: str) -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_{key}"
+
+    def _charger_button_unique_id(sn: str, action: str) -> str:
+        return f"{DOMAIN}_{sn}_{action}"
+
     @callback
     def _async_sync_chargers() -> None:
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         site_entities: list[ButtonEntity] = []
+        retain_site_entity_keys: set[str] = set()
+        current_serials = {sn for sn in coord.iter_serials() if sn}
+        if _retain_cancel_pending_profile_change(coord):
+            retain_site_entity_keys.add("cancel_pending_profile_change")
         if "cancel_pending_profile_change" not in site_entity_keys and _type_available(
             coord, "envoy"
         ):
             site_entities.append(CancelPendingProfileChangeButton(coord))
             site_entity_keys.add("cancel_pending_profile_change")
+        if _retain_request_grid_toggle_otp(coord):
+            retain_site_entity_keys.add("request_grid_toggle_otp")
         if (
             "request_grid_toggle_otp" not in site_entity_keys
             and _site_has_battery(coord)
@@ -61,6 +96,8 @@ async def async_setup_entry(
         ):
             site_entities.append(RequestGridToggleOtpButton(coord))
             site_entity_keys.add("request_grid_toggle_otp")
+        if _retain_storm_alert_opt_out(coord):
+            retain_site_entity_keys.add("storm_alert_opt_out")
         if (
             "storm_alert_opt_out" not in site_entity_keys
             and _site_has_battery(coord)
@@ -71,15 +108,47 @@ async def async_setup_entry(
             site_entity_keys.add("storm_alert_opt_out")
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
-        serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
+        serials = [sn for sn in current_serials if sn not in known_serials]
         if not serials:
-            return
-        entities = []
-        for sn in serials:
-            entities.append(StartChargeButton(coord, sn))
-            entities.append(StopChargeButton(coord, sn))
-        async_add_entities(entities, update_before_add=False)
+            serial_entities: list[ButtonEntity] = []
+        else:
+            serial_entities = []
+            for sn in serials:
+                serial_entities.append(StartChargeButton(coord, sn))
+                serial_entities.append(StopChargeButton(coord, sn))
+        if serial_entities:
+            async_add_entities(serial_entities, update_before_add=False)
+        known_serials.intersection_update(current_serials)
         known_serials.update(serials)
+        site_entity_keys.intersection_update(retain_site_entity_keys)
+
+        if not inventory_ready:
+            return
+
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="button",
+            active_unique_ids={
+                *(_site_button_unique_id(key) for key in retain_site_entity_keys),
+                *(
+                    unique_id
+                    for sn in current_serials
+                    for unique_id in (
+                        _charger_button_unique_id(sn, "start_charging"),
+                        _charger_button_unique_id(sn, "stop_charging"),
+                    )
+                ),
+            },
+            is_managed=lambda unique_id: (
+                unique_id in {
+                    _site_button_unique_id("cancel_pending_profile_change"),
+                    _site_button_unique_id("request_grid_toggle_otp"),
+                    _site_button_unique_id("storm_alert_opt_out"),
+                }
+                or unique_id.endswith(("_start_charging", "_stop_charging"))
+            ),
+        )
 
     unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)

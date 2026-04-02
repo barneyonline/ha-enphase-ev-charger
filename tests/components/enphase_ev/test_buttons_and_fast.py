@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -489,6 +489,47 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     assert len(added) == 1
     serials = {entity._sn for entity in added[0]}
     assert serials == {"6666"}
+
+
+@pytest.mark.asyncio
+async def test_button_platform_prunes_stale_buttons_when_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.button import async_setup_entry
+
+    coord = coordinator_factory(serials=["5555"])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    added: list[list[object]] = []
+    listeners: list[object] = []
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    def capture_listener(callback, *, context=None):
+        listeners.append(callback)
+        return lambda: None
+
+    coord.async_add_listener = capture_listener  # type: ignore[attr-defined]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "button",
+        "enphase_ev",
+        "enphase_ev_5555_start_charging",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, capture_add)
+
+    coord.data.pop("5555", None)
+    coord.iter_serials = lambda: []
+    listeners[0]()
+
+    remove_spy.assert_called_with(stale.entity_id)
 
 
 @pytest.mark.asyncio

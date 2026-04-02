@@ -1,7 +1,7 @@
 import asyncio
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
@@ -568,6 +568,62 @@ async def test_select_platform_adds_system_profile_after_permission_refresh(
 
     assert len(added) == 2
     assert isinstance(added[1][0], SystemProfileSelect)
+
+
+@pytest.mark.asyncio
+async def test_select_platform_prunes_stale_entities_when_inventory_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.select import async_setup_entry
+
+    coord = coordinator_factory(serials=["1111"])
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    added: list[list[object]] = []
+    topology_callbacks: list[object] = []
+    update_callbacks: list[object] = []
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    def capture_topology(callback, *, context=None):
+        topology_callbacks.append(callback)
+        return lambda: None
+
+    def capture_update(callback, *, context=None):
+        update_callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = capture_topology  # type: ignore[attr-defined]
+    coord.async_add_listener = capture_update  # type: ignore[attr-defined]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    stale_charge_mode = ent_reg.async_get_or_create(
+        "select",
+        "enphase_ev",
+        "enphase_ev_1111_charge_mode_select",
+        config_entry=config_entry,
+    )
+    stale_system_profile = ent_reg.async_get_or_create(
+        "select",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_system_profile",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, capture_add)
+
+    coord.data.pop("1111", None)
+    coord.iter_serials = lambda: []
+    coord._battery_has_encharge = False  # noqa: SLF001
+    topology_callbacks[0]()
+    update_callbacks[0]()
+
+    remove_spy.assert_any_call(stale_charge_mode.entity_id)
+    remove_spy.assert_any_call(stale_system_profile.entity_id)
 
 
 def test_system_profile_select_options_and_current(coordinator_factory):

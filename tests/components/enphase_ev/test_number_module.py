@@ -133,11 +133,10 @@ async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     await async_setup_entry(hass, config_entry, capture)
 
     assert coord.async_add_listener.called
-    assert [ent._sn for ent in added if hasattr(ent, "_sn")] == [
+    assert {ent._sn for ent in added if hasattr(ent, "_sn")} == {
         RANDOM_SERIAL,
         "EV2",
-        "EV2",
-    ]
+    }
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
     assert any(
@@ -238,6 +237,37 @@ async def test_async_setup_entry_skips_site_numbers_without_battery_type(
     assert any(isinstance(ent, ChargingAmpsNumber) for ent in added)
     assert not any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert not any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_prunes_stale_number_entities_when_inventory_ready(
+    hass, config_entry, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    coord = SimpleNamespace()
+    coord.site_id = "123456"
+    coord.battery_write_access_confirmed = True
+    coord.battery_has_encharge = True
+    coord._devices_inventory_ready = True
+    coord.iter_serials = lambda: []
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "number",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_battery_reserve",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    coord.battery_has_encharge = False
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    remove_spy.assert_called_with(stale.entity_id)
 
 
 def _make_coordinator(hass, config_entry, data):

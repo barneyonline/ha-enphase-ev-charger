@@ -18,6 +18,7 @@ from .api import AuthSettingsUnavailable
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
+from .entity_cleanup import prune_managed_entities
 from .evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from .log_redaction import redact_identifier, redact_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
@@ -97,6 +98,34 @@ def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
     return show_storm_guard is not False
 
 
+def _retained_site_switch_keys(coord: EnphaseCoordinator) -> set[str]:
+    retained: set[str] = set()
+    if (
+        _site_has_battery(coord)
+        and _type_available(coord, "envoy")
+        and _battery_write_access_confirmed(coord)
+        and _storm_guard_visible(coord)
+        and getattr(coord, "storm_guard_state", None) is not None
+        and getattr(coord, "storm_evse_enabled", None) is not None
+    ):
+        retained.add("storm_guard")
+    if _type_available(coord, "encharge") and _battery_write_access_confirmed(coord):
+        if getattr(coord, "savings_use_battery_switch_available", None) is not False:
+            retained.add("savings_use_battery_after_peak")
+        if getattr(coord, "charge_from_grid_control_available", None) is not False:
+            retained.add("charge_from_grid")
+        if getattr(coord, "charge_from_grid_force_schedule_available", None) is not False:
+            retained.add("charge_from_grid_schedule")
+        if getattr(coord, "discharge_to_grid_schedule_available", None) is not False:
+            retained.add("discharge_to_grid_schedule")
+        if (
+            getattr(coord, "restrict_battery_discharge_schedule_available", None)
+            is not False
+        ):
+            retained.add("restrict_battery_discharge_schedule")
+    return retained
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -143,19 +172,22 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_site_entities() -> None:
-        if not _site_has_battery(coord):
-            return
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         site_entities: list[SwitchEntity] = []
+        retain_site_entity_keys = _retained_site_switch_keys(coord)
         if (
             "storm_guard" not in site_entity_keys
+            and _site_has_battery(coord)
             and _type_available(coord, "envoy")
             and _battery_write_access_confirmed(coord)
             and _storm_guard_visible(coord)
         ):
             site_entities.append(StormGuardSwitch(coord))
             site_entity_keys.add("storm_guard")
-        if _type_available(coord, "encharge") and _battery_write_access_confirmed(
-            coord
+        if (
+            _site_has_battery(coord)
+            and _type_available(coord, "encharge")
+            and _battery_write_access_confirmed(coord)
         ):
             if "savings_use_battery_after_peak" not in site_entity_keys:
                 site_entities.append(SavingsUseBatteryAfterPeakSwitch(coord))
@@ -174,6 +206,25 @@ async def async_setup_entry(
                 site_entity_keys.add("restrict_battery_discharge_schedule")
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
+        site_entity_keys.intersection_update(retain_site_entity_keys)
+        if not inventory_ready:
+            return
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="switch",
+            active_unique_ids={
+                f"{DOMAIN}_site_{coord.site_id}_{key}" for key in retain_site_entity_keys
+            },
+            is_managed=lambda unique_id: unique_id in {
+                f"{DOMAIN}_site_{coord.site_id}_storm_guard",
+                f"{DOMAIN}_site_{coord.site_id}_savings_use_battery_after_peak",
+                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid",
+                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_schedule",
+                f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_schedule",
+                f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_schedule",
+            },
+        )
 
     def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
         schedule_type = str(slot.get("scheduleType") or "")
@@ -191,8 +242,10 @@ async def async_setup_entry(
     @callback
     def _async_sync_chargers() -> None:
         _async_sync_site_entities()
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         site_has_battery = _site_has_battery(coord)
-        serials = [sn for sn in coord.iter_serials() if sn and sn not in known_serials]
+        current_serials = {sn for sn in coord.iter_serials() if sn}
+        serials = [sn for sn in current_serials if sn not in known_serials]
         entities: list[SwitchEntity] = []
         if serials:
             entities.extend(ChargingSwitch(coord, sn) for sn in serials)
@@ -202,26 +255,64 @@ async def async_setup_entry(
                 and _storm_guard_visible(coord)
             ):
                 entities.extend(StormGuardEvseSwitch(coord, sn) for sn in serials)
-            known_serials.update(serials)
         data_source = coord.data or {}
+        retain_green_battery: set[str] = set()
+        retain_app_auth: set[str] = set()
         if isinstance(data_source, dict):
             if site_has_battery:
                 for sn in coord.iter_serials():
-                    if not sn or sn in known_green_battery:
+                    if not sn:
                         continue
                     data = data_source.get(sn) or {}
+                    if data.get("green_battery_supported") is True:
+                        retain_green_battery.add(sn)
+                    if sn in known_green_battery:
+                        continue
                     if data.get("green_battery_supported") is True:
                         entities.append(GreenBatterySwitch(coord, sn))
                         known_green_battery.add(sn)
             for sn in coord.iter_serials():
-                if not sn or sn in known_app_auth:
+                if not sn:
                     continue
                 data = data_source.get(sn) or {}
+                if data.get("app_auth_supported") is True:
+                    retain_app_auth.add(sn)
+                if sn in known_app_auth:
+                    continue
                 if data.get("app_auth_supported") is True:
                     entities.append(AppAuthenticationSwitch(coord, sn))
                     known_app_auth.add(sn)
         if entities:
             async_add_entities(entities, update_before_add=False)
+        known_serials.intersection_update(current_serials)
+        known_serials.update(serials)
+        known_green_battery.intersection_update(retain_green_battery)
+        known_app_auth.intersection_update(retain_app_auth)
+        if not inventory_ready:
+            return
+        active_unique_ids = {f"{DOMAIN}_{sn}_charging_switch" for sn in current_serials}
+        if site_has_battery and _storm_guard_visible(coord):
+            active_unique_ids.update(
+                f"{DOMAIN}_{sn}_storm_guard_evse_charge" for sn in current_serials
+            )
+        active_unique_ids.update(f"{DOMAIN}_{sn}_green_battery" for sn in retain_green_battery)
+        active_unique_ids.update(
+            f"{DOMAIN}_{sn}_app_authentication" for sn in retain_app_auth
+        )
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="switch",
+            active_unique_ids=active_unique_ids,
+            is_managed=lambda unique_id: unique_id.endswith(
+                (
+                    "_charging_switch",
+                    "_storm_guard_evse_charge",
+                    "_green_battery",
+                    "_app_authentication",
+                )
+            ),
+        )
 
     @callback
     def _async_sync_schedule_switches() -> None:
