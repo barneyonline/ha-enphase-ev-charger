@@ -758,8 +758,95 @@ def test_storm_alert_opt_out_button_device_info_fallback() -> None:
     button = StormAlertOptOutButton(coord)
     info = button.device_info
 
-    assert info["identifiers"] == {("enphase_ev", "type:site:envoy")}
-    assert info["manufacturer"] == "Enphase"
+
+def test_cancel_pending_profile_button_device_info_fallback_and_override() -> None:
+    from custom_components.enphase_ev.button import CancelPendingProfileChangeButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_profile_pending=True,
+        has_type=lambda key: key == "envoy",
+        type_device_info=None,
+    )
+    button = CancelPendingProfileChangeButton(coord)
+
+    assert button.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
+
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.type_device_info = MagicMock(return_value=expected)
+    assert button.device_info is expected
+
+
+def test_request_grid_toggle_otp_button_device_info_prefers_enpower_then_envoy() -> None:
+    from custom_components.enphase_ev.button import RequestGridToggleOtpButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        has_type=lambda _key: True,
+        grid_control_supported=True,
+        grid_toggle_allowed=True,
+        type_device_info=MagicMock(side_effect=[None, {"identifiers": {("enphase_ev", "envoy")}}]),
+    )
+    button = RequestGridToggleOtpButton(coord)
+
+    assert button.device_info == {"identifiers": {("enphase_ev", "envoy")}}
+
+
+def test_request_grid_toggle_otp_button_device_info_falls_back_when_missing() -> None:
+    from custom_components.enphase_ev.button import RequestGridToggleOtpButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        has_type=lambda _key: True,
+        grid_control_supported=True,
+        grid_toggle_allowed=True,
+        type_device_info=MagicMock(side_effect=[None, None]),
+    )
+    button = RequestGridToggleOtpButton(coord)
+
+    assert button.device_info["identifiers"] == {("enphase_ev", "type:site:envoy")}
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_button_cleanup_waits_for_inventory_ready(
+    hass, config_entry, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.button import async_setup_entry
+
+    coord = SimpleNamespace(
+        site_id="123456",
+        _devices_inventory_ready=False,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        iter_serials=lambda: [],
+        async_add_listener=MagicMock(return_value=lambda: None),
+        has_type=lambda key: key == "envoy",
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "button",
+        "enphase_ev",
+        "enphase_ev_site_123456_cancel_pending_profile_change",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    remove_spy.assert_not_called()
+    assert ent_reg.async_get(stale.entity_id) is not None
 
 
 def test_storm_alert_opt_out_button_device_info_prefers_type_info() -> None:

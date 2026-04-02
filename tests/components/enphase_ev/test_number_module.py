@@ -108,6 +108,58 @@ def test_dtg_and_rbd_schedule_edit_available_cover_control_window_fallbacks() ->
     assert number_mod._rbd_schedule_edit_available(rbd) is True
 
 
+def test_number_helper_fallbacks_and_retained_site_unique_ids() -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        site_id="site",
+        has_type=lambda type_key: type_key == "encharge",
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_reserve_editable=True,
+        battery_shutdown_level_available=True,
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=True,
+        charge_from_grid_schedule_supported=True,
+        _battery_cfg_schedule_id="sched-cfg",
+        battery_charge_from_grid_start_time=1,
+        battery_charge_from_grid_end_time=2,
+        _battery_charge_begin_time=None,
+        _battery_charge_end_time=None,
+        discharge_to_grid_schedule_available=False,
+        discharge_to_grid_schedule_supported=True,
+        battery_discharge_to_grid_start_time=3,
+        battery_discharge_to_grid_end_time=4,
+        _battery_dtg_begin_time=None,
+        _battery_dtg_end_time=None,
+        _battery_dtg_control_begin_time=None,
+        _battery_dtg_control_end_time=None,
+        restrict_battery_discharge_schedule_available=False,
+        restrict_battery_discharge_schedule_supported=True,
+        battery_restrict_battery_discharge_start_time=5,
+        battery_restrict_battery_discharge_end_time=6,
+        _battery_rbd_begin_time=None,
+        _battery_rbd_end_time=None,
+        _battery_rbd_control_begin_time=None,
+        _battery_rbd_control_end_time=None,
+    )
+
+    assert number_mod._type_available(coord, "encharge") is True
+    assert number_mod._battery_write_access_confirmed(coord) is True
+    assert number_mod._retained_site_number_unique_ids(coord) == {
+        "enphase_ev_site_site_battery_reserve",
+        "enphase_ev_site_site_battery_shutdown_level",
+        "enphase_ev_site_site_battery_cfg_schedule_limit",
+        "enphase_ev_site_site_battery_dtg_schedule_limit",
+        "enphase_ev_site_site_battery_rbd_schedule_limit",
+    }
+
+    coord.battery_write_access_confirmed = False
+    assert number_mod._battery_write_access_confirmed(coord) is False
+    assert number_mod._retained_site_number_unique_ids(coord) == set()
+
+
 @pytest.mark.asyncio
 async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     coord = SimpleNamespace()
@@ -801,6 +853,34 @@ def test_battery_cfg_schedule_limit_number_uses_type_device_info_when_available(
     assert number.device_info is expected
 
 
+def test_battery_reserve_and_shutdown_number_device_info_fallbacks(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord.type_device_info = None
+
+    reserve = BatteryReserveNumber(coord)
+    shutdown = BatteryShutdownLevelNumber(coord)
+
+    assert reserve.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+    assert shutdown.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+
+def test_battery_reserve_and_shutdown_number_use_type_device_info(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    expected = {"identifiers": {("enphase_ev", "provided")}}
+    coord.type_device_info = MagicMock(return_value=expected)
+
+    assert BatteryReserveNumber(coord).device_info is expected
+    assert BatteryShutdownLevelNumber(coord).device_info is expected
+
+
 def test_battery_numbers_unavailable_without_confirmed_write_access(
     hass, config_entry
 ) -> None:
@@ -853,6 +933,28 @@ async def test_base_battery_schedule_limit_number_fallbacks(hass, config_entry) 
 
     coord.last_update_success = False
     assert number.available is False
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_number_prune_active_ids_include_charger_numbers(
+    hass, config_entry, monkeypatch
+) -> None:
+    coord = SimpleNamespace()
+    coord.site_id = "123456"
+    coord.battery_write_access_confirmed = False
+    coord._devices_inventory_ready = True
+    coord.data = {RANDOM_SERIAL: {}}
+    coord.iter_serials = lambda: [RANDOM_SERIAL]
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    prune_spy = MagicMock()
+    monkeypatch.setattr("custom_components.enphase_ev.number.prune_managed_entities", prune_spy)
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    active_unique_ids = prune_spy.call_args.kwargs["active_unique_ids"]
+    assert f"enphase_ev_{RANDOM_SERIAL}_amps_number" in active_unique_ids
 
 
 def test_dtg_schedule_limit_number_bounds_and_availability(hass, config_entry) -> None:

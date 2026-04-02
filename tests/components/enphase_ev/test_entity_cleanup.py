@@ -20,6 +20,19 @@ def test_iter_entity_registry_entries_handles_edge_shapes() -> None:
 
     assert iter_entity_registry_entries(SimpleNamespace(entities=_ValuesRaises())) == []
 
+    class _DictWithNonCallableValues(dict):
+        values = 1
+
+    assert (
+        iter_entity_registry_entries(
+            SimpleNamespace(entities=_DictWithNonCallableValues({"one": 1}))
+        )
+        == [1]
+    )
+    assert iter_entity_registry_entries(
+        SimpleNamespace(entities=SimpleNamespace(values=1))
+    ) == []
+
 
 def test_is_owned_entity_filters_domain_platform_and_entry() -> None:
     assert (
@@ -40,6 +53,30 @@ def test_is_owned_entity_filters_domain_platform_and_entry() -> None:
             SimpleNamespace(
                 entity_id="sensor.test",
                 domain="sensor",
+                platform="enphase_ev",
+                config_entry_id="entry-1",
+            ),
+            "entry-1",
+            "switch",
+        )
+        is False
+    )
+    assert (
+        is_owned_entity(
+            SimpleNamespace(
+                entity_id="switch.test",
+                platform="enphase_ev",
+                config_entry_id="entry-1",
+            ),
+            "entry-1",
+            "switch",
+        )
+        is True
+    )
+    assert (
+        is_owned_entity(
+            SimpleNamespace(
+                entity_id=None,
                 platform="enphase_ev",
                 config_entry_id="entry-1",
             ),
@@ -142,3 +179,30 @@ def test_prune_managed_entities_handles_remove_failures() -> None:
         )
         == 0
     )
+
+
+def test_prune_managed_entities_skips_entries_without_entity_id() -> None:
+    ent_reg = SimpleNamespace(
+        entities={
+            "switch.no_entity_id": SimpleNamespace(
+                entity_id=None,
+                unique_id="enphase_ev_remove",
+                domain="switch",
+                platform="enphase_ev",
+                config_entry_id="entry-1",
+            )
+        },
+        async_remove=MagicMock(),
+    )
+
+    assert (
+        prune_managed_entities(
+            ent_reg,
+            "entry-1",
+            domain="switch",
+            active_unique_ids=set(),
+            is_managed=lambda unique_id: True,
+        )
+        == 0
+    )
+    ent_reg.async_remove.assert_not_called()
