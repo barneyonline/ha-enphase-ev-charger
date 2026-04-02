@@ -2093,9 +2093,56 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             phase_multiplier,
         )
 
+    def _apply_derived_snapshot(self, data: dict) -> bool:
+        if "derived_power_w" not in data:
+            return False
+        self._last_lifetime_kwh = self._as_float(data.get("derived_last_lifetime_kwh"))
+        self._last_energy_ts = self._parse_timestamp(data.get("derived_last_energy_ts"))
+        self._last_sample_ts = self._parse_timestamp(data.get("derived_last_sample_ts"))
+        derived_power = self._as_int(data.get("derived_power_w"))
+        self._last_power_w = derived_power if derived_power is not None else 0
+        self._last_window_s = self._as_float(data.get("derived_power_window_seconds"))
+        method = data.get("derived_power_method")
+        self._last_method = str(method) if method is not None else "seeded"
+        self._last_reset_at = self._parse_timestamp(data.get("derived_last_reset_at"))
+        self._max_throughput_w = (
+            self._as_int(data.get("derived_power_max_throughput_w"))
+            or self._STATIC_MAX_WATTS
+        )
+        self._max_throughput_unbounded_w = (
+            self._as_int(data.get("derived_power_max_throughput_unbounded_w"))
+            or self._STATIC_MAX_WATTS
+        )
+        source = data.get("derived_power_max_throughput_source")
+        self._max_throughput_source = (
+            str(source) if source is not None else "static_default"
+        )
+        self._max_throughput_amps = self._as_float(
+            data.get("derived_power_max_throughput_amps")
+        )
+        max_voltage = self._as_float(data.get("derived_power_max_throughput_voltage"))
+        if max_voltage is None or max_voltage <= 0:
+            max_voltage = float(
+                getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE)
+            )
+        self._max_throughput_voltage = max_voltage
+        topology = data.get("derived_power_max_throughput_topology")
+        self._max_throughput_topology = (
+            str(topology) if topology is not None else "unknown"
+        )
+        phase_multiplier = self._as_float(
+            data.get("derived_power_max_throughput_phase_multiplier")
+        )
+        self._max_throughput_phase_multiplier = (
+            phase_multiplier if phase_multiplier is not None else 1.0
+        )
+        return True
+
     @property
     def native_value(self):
         data = self.data
+        if self._apply_derived_snapshot(data):
+            return self._last_power_w
         is_charging = self._is_actually_charging(data)
         (
             max_watts,
@@ -2114,9 +2161,13 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         self._max_throughput_topology = max_topology
         self._max_throughput_phase_multiplier = max_phase_multiplier
         lifetime = self._as_float(data.get("lifetime_kwh"))
-        sample_ts = self._parse_timestamp(data.get("last_reported_at"))
+        sample_ts = self._parse_timestamp(data.get("sampled_at_ts"))
         if sample_ts is None:
-            now_dt = dt_util.now()
+            sample_ts = self._parse_timestamp(data.get("sampled_at_utc"))
+        if sample_ts is None:
+            sample_ts = self._parse_timestamp(data.get("last_reported_at"))
+        if sample_ts is None:
+            now_dt = getattr(self._coord, "last_success_utc", None) or dt_util.now()
             if now_dt.tzinfo is None:
                 now_dt = now_dt.replace(tzinfo=timezone.utc)
             sample_ts = now_dt.astimezone(timezone.utc).timestamp()
@@ -2189,6 +2240,17 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
                 getattr(self._coord, "nominal_voltage", DEFAULT_NOMINAL_VOLTAGE)
             )
         return {
+            "sampled_at_utc": (
+                data.get("sampled_at_utc")
+                if data.get("sampled_at_utc") is not None
+                else (
+                    datetime.fromtimestamp(
+                        self._last_sample_ts, tz=timezone.utc
+                    ).isoformat()
+                    if self._last_sample_ts is not None
+                    else None
+                )
+            ),
             "last_lifetime_kwh": self._last_lifetime_kwh,
             "last_energy_ts": self._last_energy_ts,
             "last_sample_ts": self._last_sample_ts,
@@ -2754,6 +2816,7 @@ class EnphaseLifetimeEnergySensor(EnphaseBaseEntity, RestoreSensor):
     @property
     def extra_state_attributes(self):
         return {
+            "sampled_at_utc": self.data.get("sampled_at_utc"),
             "last_reset_value": self._last_reset_value,
             "last_reset_at": self._last_reset_at,
         }
@@ -3115,7 +3178,16 @@ class EnphaseInverterLifetimeEnergySensor(CoordinatorEntity, RestoreSensor):
     @property
     def extra_state_attributes(self):
         data = self._snapshot() or {}
+        sampled_at = _battery_parse_timestamp(
+            data.get("last_report")
+            or data.get("last_reported")
+            or data.get("last_reported_at")
+            or data.get("lastReportedAt")
+        )
         return {
+            "sampled_at_utc": (
+                sampled_at.isoformat() if sampled_at is not None else None
+            ),
             "serial_number": data.get("serial_number"),
             "inverter_id": data.get("inverter_id"),
             "device_id": data.get("device_id"),
@@ -4288,6 +4360,7 @@ def _heatpump_daily_common_attrs(
     coord: EnphaseCoordinator, snapshot: dict[str, object]
 ) -> dict[str, object]:
     return {
+        "sampled_at_utc": snapshot.get("sampled_at_utc"),
         "device_uid": snapshot.get("device_uid"),
         "device_name": snapshot.get("device_name"),
         "member_name": snapshot.get("member_name"),
@@ -5118,6 +5191,7 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
         data = self._flow_data()
         last_report_raw = data.get("last_report_date")
         last_report_iso = None
+        sampled_at_iso = None
         if isinstance(last_report_raw, datetime):
             last_report_iso = last_report_raw.isoformat()
         elif last_report_raw is not None:
@@ -5125,8 +5199,16 @@ class EnphaseSiteEnergySensor(_SiteBaseEntity, RestoreSensor):
                 last_report_iso = str(last_report_raw)
             except Exception:  # noqa: BLE001
                 last_report_iso = None
+        parsed_sample_ts = _EnphaseSiteLifetimePowerSensor._parse_sample_timestamp(
+            last_report_raw
+        )
+        if parsed_sample_ts is not None:
+            sampled_at_iso = datetime.fromtimestamp(
+                parsed_sample_ts, tz=timezone.utc
+            ).isoformat()
         attrs = {
             "start_date": data.get("start_date"),
+            "sampled_at_utc": sampled_at_iso,
             "last_report_date": last_report_iso,
             "bucket_count": data.get("bucket_count"),
             "source_fields": data.get("fields_used"),
@@ -5822,6 +5904,7 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
     @property
     def extra_state_attributes(self):
         return {
+            "sampled_at_utc": self._last_report_date_iso,
             "last_flow_kwh": dict(self._last_flow_kwh),
             "last_energy_ts": self._last_energy_ts,
             "last_sample_ts": self._last_sample_ts,
@@ -7737,7 +7820,11 @@ class EnphaseBatteryAvailableEnergySensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         summary = self._coord.battery_status_summary
+        sampled_at = getattr(self._coord, "battery_summary_sample_utc", None)
         return {
+            "sampled_at_utc": (
+                sampled_at.isoformat() if sampled_at is not None else None
+            ),
             "site_max_capacity_kwh": summary.get("site_max_capacity_kwh"),
             "site_current_charge_pct": summary.get("site_current_charge_pct"),
             "included_count": summary.get("site_included_count"),
@@ -7779,7 +7866,13 @@ class EnphaseBatteryAvailablePowerSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         summary = self._coord.battery_status_summary
-        return {"site_max_power_kw": summary.get("site_max_power_kw")}
+        sampled_at = getattr(self._coord, "battery_summary_sample_utc", None)
+        return {
+            "sampled_at_utc": (
+                sampled_at.isoformat() if sampled_at is not None else None
+            ),
+            "site_max_power_kw": summary.get("site_max_power_kw"),
+        }
 
 
 class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):

@@ -1462,6 +1462,9 @@ async def test_refresh_heatpump_daily_consumption_tracks_site_day(
     assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(230.0)
     assert coord.heatpump_daily_consumption["daily_grid_wh"] == pytest.approx(200.0)
     assert coord.heatpump_daily_consumption["source"] == "hems_energy_consumption:HP-1"
+    assert coord.heatpump_daily_consumption["sampled_at_utc"].startswith(
+        "2026-03-20T07:53:00.739143"
+    )
 
 
 def test_heatpump_daily_window_handles_dst_transition_day(
@@ -1601,6 +1604,7 @@ def test_heatpump_daily_helper_and_property_edge_cases(
         "source": "hems_energy_consumption:HP-2",
         "endpoint_type": None,
         "endpoint_timestamp": None,
+        "sampled_at_utc": None,
     }
     snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
         {
@@ -1637,6 +1641,7 @@ def test_heatpump_daily_helper_and_property_edge_cases(
         "source": "hems_energy_consumption:HP-2",
         "endpoint_type": None,
         "endpoint_timestamp": None,
+        "sampled_at_utc": None,
     }
     assert (
         coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
