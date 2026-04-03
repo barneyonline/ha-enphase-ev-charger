@@ -276,6 +276,21 @@ def test_collect_site_metrics_reports_battery_entity_availability_flags(
     assert metrics["restrict_battery_discharge_schedule_switch_available"] is True
 
 
+def test_collect_site_metrics_matches_battery_energy_power_sensor_parse_rules(
+    hass, monkeypatch
+):
+    coord = _make_battery_ready_coordinator(hass, monkeypatch)
+    coord._battery_aggregate_status_details = {  # noqa: SLF001
+        "site_available_energy_kwh": "N/A",
+        "site_available_power_kw": "bad",
+    }
+
+    metrics = coord.collect_site_metrics()
+
+    assert metrics["battery_available_energy_sensor_available"] is False
+    assert metrics["battery_available_power_sensor_available"] is False
+
+
 def test_collect_site_metrics_handles_missing_and_raising_type_checker(
     hass, monkeypatch
 ):
