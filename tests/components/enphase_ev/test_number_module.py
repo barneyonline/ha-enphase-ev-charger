@@ -18,6 +18,17 @@ from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
+def test_evse_resolved_charge_mode_handles_data_access_failure() -> None:
+    from custom_components.enphase_ev.entity import evse_resolved_charge_mode
+
+    class _BoomCoord:
+        @property
+        def data(self):
+            raise RuntimeError("boom")
+
+    assert evse_resolved_charge_mode(_BoomCoord(), RANDOM_SERIAL) is None
+
+
 def test_cfg_schedule_edit_available_uses_schedule_id_and_public_times() -> None:
     from custom_components.enphase_ev import number as number_mod
 
