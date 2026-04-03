@@ -680,20 +680,7 @@ class InventoryView:
         return DeviceInfo(**info_kwargs)
 
     def gateway_iq_energy_router_records(self) -> list[dict[str, object]]:
-        records = self.coordinator._live_gateway_iq_energy_router_records()
-        if records:
-            return records
-        if self.coordinator._gateway_router_discovery_ready():
-            return []
-        return [
-            dict(item)
-            for item in getattr(
-                self.coordinator,
-                "_restored_gateway_iq_energy_router_records",
-                (),
-            )
-            if isinstance(item, dict)
-        ]
+        return self.coordinator.discovery_snapshot.gateway_iq_energy_router_records()
 
     def gateway_iq_energy_router_summary_records(self) -> list[dict[str, object]]:
         return self.inventory_runtime.gateway_iq_energy_router_summary_records()

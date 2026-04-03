@@ -384,7 +384,7 @@ def test_inventory_runtime_debug_cache_and_gateway_fallback_edges(
     assert hems_summary["router_count"] == 0
 
     coord.energy = None
-    assert runtime._live_site_energy_channels() == set()  # noqa: SLF001
+    assert coord.discovery_snapshot.live_site_energy_channels() == set()
     coord.energy = SimpleNamespace(
         site_energy={BadText(): 1, " grid_import ": 1},
         site_energy_meta={
@@ -399,7 +399,7 @@ def test_inventory_runtime_debug_cache_and_gateway_fallback_edges(
             }
         },
     )
-    assert runtime._live_site_energy_channels() == {  # noqa: SLF001
+    assert coord.discovery_snapshot.live_site_energy_channels() == {
         "battery_discharge",
         "grid_import",
         "heat_pump",

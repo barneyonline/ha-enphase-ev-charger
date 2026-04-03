@@ -226,7 +226,7 @@ async def test_async_setup_entry_site_energy_known_error_falls_back_to_bucket_le
     def _raise_known(_flow_key: str) -> bool:
         raise RuntimeError("boom")
 
-    coord.site_energy_channel_known = _raise_known  # type: ignore[assignment]
+    coord.discovery_snapshot.site_energy_channel_known = _raise_known  # type: ignore[assignment]
     callbacks: list = []
 
     def fake_add_listener(cb):

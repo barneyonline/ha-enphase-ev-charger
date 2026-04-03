@@ -2636,11 +2636,11 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     assert coord._snapshot_bool("disabled") is False  # noqa: SLF001
     assert coord._snapshot_bool("maybe") is None  # noqa: SLF001
 
-    assert coord.site_energy_channel_known(BadStr()) is False
-    assert coord.site_energy_channel_known(" ") is False
+    assert coord.discovery_snapshot.site_energy_channel_known(BadStr()) is False
+    assert coord.discovery_snapshot.site_energy_channel_known(" ") is False
 
     coord.energy = None  # type: ignore[assignment]
-    assert coord._live_site_energy_channels() == set()  # noqa: SLF001
+    assert coord.discovery_snapshot.live_site_energy_channels() == set()
 
     coord.energy = SimpleNamespace(
         site_energy={BadStr(): 1, "grid_import": 1},
@@ -2662,7 +2662,7 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
             }
         },
     )
-    channels = coord._live_site_energy_channels()  # noqa: SLF001
+    channels = coord.discovery_snapshot.live_site_energy_channels()
     assert channels >= {
         "grid_import",
         "heat_pump",
@@ -2683,7 +2683,7 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
         {"device-type": "IQ_GATEWAY"},
         {"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE-1"},
     ]
-    live_records = coord._live_gateway_iq_energy_router_records()  # noqa: SLF001
+    live_records = coord.discovery_snapshot.gateway_iq_energy_router_records()
     assert live_records == [{"device_type": "IQ_ENERGY_ROUTER", "device-uid": "LIVE-1"}]
 
     coord.inventory_runtime._hems_group_members = lambda *_args: []  # type: ignore[assignment]  # noqa: SLF001
@@ -2703,7 +2703,7 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_has_enpower = False  # noqa: SLF001
 
-    snapshot = coord._capture_discovery_snapshot()  # noqa: SLF001
+    snapshot = coord.discovery_snapshot.capture()
     assert snapshot["site_energy_channels"] == ["heat_pump"]
     assert snapshot["gateway_iq_energy_router_records"] == [
         {"device-uid": "REST-1", "device-type": "IQ_ENERGY_ROUTER"}
@@ -2718,17 +2718,37 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     hass, monkeypatch
 ) -> None:
     coord = _make_coordinator(hass, monkeypatch)
+    from custom_components.enphase_ev.discovery_snapshot import (
+        _snapshot_bool,
+        _snapshot_compatible_value,
+    )
 
     class BadStr:
         def __str__(self) -> str:
             raise ValueError("boom")
+
+    class BadKey:
+        def __str__(self) -> str:
+            raise RuntimeError("key")
+
+    assert _snapshot_compatible_value(datetime(2024, 1, 1, tzinfo=timezone.utc)) == (
+        "2024-01-01T00:00:00+00:00"
+    )
+    assert _snapshot_compatible_value({BadKey(): "drop", "ok": BadStr()}) == {
+        "ok": None
+    }
+    assert _snapshot_compatible_value({BadStr()}) == [None]
+    assert _snapshot_bool(None) is None
+    assert _snapshot_bool(0) is False
+    assert _snapshot_bool("maybe") is None
 
     ensure_serial = Mock()
     set_buckets = Mock()
     coord._ensure_serial_tracked = ensure_serial  # type: ignore[assignment]  # noqa: SLF001
     coord.inventory_runtime._set_type_device_buckets = set_buckets  # type: ignore[assignment]  # noqa: SLF001
 
-    coord._apply_discovery_snapshot(  # noqa: SLF001
+    coord.discovery_snapshot.apply(None)
+    coord.discovery_snapshot.apply(
         {
             "serial_order": [None, BadStr(), "REST-1"],
             "type_device_buckets": {
@@ -2778,25 +2798,25 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     assert coord._devices_inventory_ready is True  # noqa: SLF001
 
     coord._discovery_snapshot_loaded = True  # noqa: SLF001
-    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
         async_load=AsyncMock(side_effect=AssertionError("no load"))
     )
-    await coord.async_restore_discovery_state()
+    await coord.discovery_snapshot.async_restore_state()
 
     coord._discovery_snapshot_loaded = False  # noqa: SLF001
-    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
         async_load=AsyncMock(side_effect=RuntimeError("boom"))
     )
-    await coord.async_restore_discovery_state()
+    await coord.discovery_snapshot.async_restore_state()
     assert coord._devices_inventory_ready is False  # noqa: SLF001
     assert coord._hems_inventory_ready is False  # noqa: SLF001
     assert coord._site_energy_discovery_ready is False  # noqa: SLF001
 
-    coord._capture_discovery_snapshot = Mock(return_value={"serial_order": []})  # type: ignore[assignment]  # noqa: SLF001
-    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+    coord.discovery_snapshot.capture = Mock(return_value={"serial_order": []})  # type: ignore[assignment]
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
         async_save=AsyncMock(side_effect=RuntimeError("boom"))
     )
-    await coord._async_save_discovery_snapshot()  # noqa: SLF001
+    await coord.discovery_snapshot.async_save()
 
     create_calls: list[object] = []
 
@@ -2812,15 +2832,15 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
         scheduled.append(callback)
         return lambda: None
 
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import discovery_snapshot as snapshot_mod
 
-    monkeypatch.setattr(coord_mod, "async_call_later", _capture_call_later)
+    monkeypatch.setattr(snapshot_mod, "async_call_later", _capture_call_later)
     coord._discovery_snapshot_save_cancel = lambda: None  # type: ignore[assignment]  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save()  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save()
     assert scheduled == []
 
     coord._discovery_snapshot_save_cancel = None  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save()  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save()
     assert len(scheduled) == 1
     coord._discovery_snapshot_pending = False  # noqa: SLF001
     scheduled[0](datetime.now(tz=timezone.utc))
@@ -2829,11 +2849,16 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     coord._discovery_snapshot_pending = True  # noqa: SLF001
     scheduled[0](datetime.now(tz=timezone.utc))
     assert len(create_calls) == 1
+    cancelled: list[bool] = []
+    coord._discovery_snapshot_save_cancel = lambda: cancelled.append(True)  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.cancel_pending_save()
+    assert cancelled == [True]
+    assert coord._discovery_snapshot_save_cancel is None  # noqa: SLF001
 
     coord.energy = None  # type: ignore[assignment]
-    coord._sync_site_energy_discovery_state()  # noqa: SLF001
+    coord.discovery_snapshot.sync_site_energy_discovery_state()
     coord.energy = SimpleNamespace(_site_energy_cache_ts=1)
-    coord._sync_site_energy_discovery_state()  # noqa: SLF001
+    coord.discovery_snapshot.sync_site_energy_discovery_state()
     assert coord._site_energy_discovery_ready is True  # noqa: SLF001
 
     coord._system_dashboard_type_summaries = {"envoy": {}}  # noqa: SLF001
@@ -2863,7 +2888,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
 ) -> None:
     coord = coordinator_factory()
     coord.async_set_updated_data = Mock(side_effect=RuntimeError("publish"))  # type: ignore[assignment]
-    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_battery_site_settings = None  # type: ignore[assignment]  # noqa: SLF001
 
     await coord._async_startup_warmup_runner()  # noqa: SLF001
@@ -2871,29 +2896,29 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     assert coord._warmup_last_error == "publish"  # noqa: SLF001
     assert coord._warmup_in_progress is False  # noqa: SLF001
     assert "discovery_s" in coord._warmup_phase_timings  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
     coord = coordinator_factory()
-    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_battery_site_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
         await coord._async_startup_warmup_runner()  # noqa: SLF001
     assert coord._warmup_in_progress is False  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
     coord = coordinator_factory()
-    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_heatpump_power = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=RuntimeError("heatpump")
     )
     await coord._async_startup_warmup_runner()  # noqa: SLF001
     assert "heatpump_power_s" in coord._warmup_phase_timings  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
     coord = coordinator_factory()
-    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_heatpump_runtime_state = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=RuntimeError("runtime")
     )
@@ -2903,37 +2928,37 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     await coord._async_startup_warmup_runner()  # noqa: SLF001
     assert "heatpump_runtime_s" in coord._warmup_phase_timings  # noqa: SLF001
     assert "heatpump_daily_s" in coord._warmup_phase_timings  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
     coord = coordinator_factory()
-    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_heatpump_runtime_state = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
         await coord._async_startup_warmup_runner()  # noqa: SLF001
     assert coord._warmup_in_progress is False  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
     coord = coordinator_factory()
-    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
         await coord._async_startup_warmup_runner()  # noqa: SLF001
     assert coord._warmup_in_progress is False  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
     coord = coordinator_factory()
-    coord._schedule_discovery_snapshot_save = Mock()  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_heatpump_power = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
         await coord._async_startup_warmup_runner()  # noqa: SLF001
     assert coord._warmup_in_progress is False  # noqa: SLF001
-    coord._schedule_discovery_snapshot_save.assert_called_once()  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
     coord = coordinator_factory()
     coord._warmup_task = SimpleNamespace(done=lambda: False)  # type: ignore[assignment]  # noqa: SLF001
@@ -3124,7 +3149,7 @@ async def test_restore_discovery_state_applies_snapshot_topology(
 ) -> None:
     coord = coordinator_factory(serials=[])
     coord._hems_inventory_ready = False  # noqa: SLF001
-    coord._discovery_snapshot_store = SimpleNamespace(  # noqa: SLF001
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
         async_load=AsyncMock(
             return_value={
                 "serial_order": [RANDOM_SERIAL, "RESTORED123"],
@@ -3168,15 +3193,15 @@ async def test_restore_discovery_state_applies_snapshot_topology(
         )
     )
 
-    await coord.async_restore_discovery_state()
+    await coord.discovery_snapshot.async_restore_state()
 
     assert coord.iter_serials() == [RANDOM_SERIAL, "RESTORED123"]
     assert coord.inventory_view.type_bucket("heatpump")["count"] == 1
     assert coord._battery_storage_order == ["BAT-1"]  # noqa: SLF001
     assert coord._inverter_order == ["INV-1"]  # noqa: SLF001
     assert coord._devices_inventory_ready is False  # noqa: SLF001
-    assert coord.site_energy_channel_known("heat_pump") is True
-    assert coord.site_energy_channel_known("water_heater") is True
+    assert coord.discovery_snapshot.site_energy_channel_known("heat_pump") is True
+    assert coord.discovery_snapshot.site_energy_channel_known("water_heater") is True
     router_records = coord.inventory_view.gateway_iq_energy_router_records()
     assert router_records[0]["device-uid"] == "ROUTER-1"
 
@@ -3197,7 +3222,7 @@ def test_restored_site_energy_and_router_hints_expire_after_authoritative_refres
         }
     ]
 
-    assert coord.site_energy_channel_known("heat_pump") is True
+    assert coord.discovery_snapshot.site_energy_channel_known("heat_pump") is True
     assert (
         coord.inventory_view.gateway_iq_energy_router_records()[0]["device-uid"]
         == "ROUTER-1"
@@ -3206,8 +3231,8 @@ def test_restored_site_energy_and_router_hints_expire_after_authoritative_refres
     coord._site_energy_discovery_ready = True  # noqa: SLF001
     coord._hems_inventory_ready = True  # noqa: SLF001
 
-    assert coord.site_energy_channel_known("heat_pump") is False
-    assert coord.site_energy_channel_known("water_heater") is False
+    assert coord.discovery_snapshot.site_energy_channel_known("heat_pump") is False
+    assert coord.discovery_snapshot.site_energy_channel_known("water_heater") is False
     assert coord.inventory_view.gateway_iq_energy_router_records() == []
 
 
