@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Laadmodus"
+        "name": "Laadmodus",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Ampèreregeling van toepassing"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Modus die ampères beheert"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Modi waarin ampèreregeling van toepassing is"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Authenticatie van de oplader",

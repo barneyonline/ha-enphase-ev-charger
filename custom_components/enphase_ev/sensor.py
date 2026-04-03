@@ -39,7 +39,11 @@ from .coordinator import EnphaseCoordinator
 from .device_types import is_dry_contact_type_key, member_is_retired
 from .device_info_helpers import _cloud_device_info
 from .energy import SiteEnergyFlow
-from .entity import EnphaseBaseEntity
+from .entity import (
+    EnphaseBaseEntity,
+    evse_amp_control_applicable,
+    evse_resolved_charge_mode,
+)
 from .labels import friendly_status_text, status_label
 from .parsing_helpers import heatpump_status_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
@@ -2290,6 +2294,10 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         super().__init__(coord, sn)
         self._attr_unique_id = f"{DOMAIN}_{sn}_charging_amps"
 
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return super().available and evse_amp_control_applicable(self._coord, self._sn)
+
     @staticmethod
     def _safe_limit_active(value) -> bool:
         if value is None:
@@ -2598,12 +2606,20 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
+        applicable = evse_amp_control_applicable(self._coord, self._sn)
+        resolved_mode = evse_resolved_charge_mode(self._coord, self._sn)
         return {
             "preferred_mode": self.data.get("charge_mode_pref"),
             "effective_mode": self.data.get("charge_mode"),
             "charge_mode_supported": self._as_bool(
                 self.data.get("charge_mode_supported")
             ),
+            "amp_control_applicable": applicable,
+            "amp_control_managed_by_mode": None if applicable else resolved_mode,
+            "amp_control_applies_in_modes": [
+                "MANUAL_CHARGING",
+                "SCHEDULED_CHARGING",
+            ],
             "schedule_status": self.data.get("schedule_status"),
             "schedule_type": self.data.get("schedule_type"),
             "schedule_slot_id": self.data.get("schedule_slot_id"),

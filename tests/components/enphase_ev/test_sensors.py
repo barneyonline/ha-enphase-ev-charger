@@ -91,6 +91,26 @@ def test_charging_level_attributes_include_limits():
     }
 
 
+@pytest.mark.parametrize("mode", ["GREEN_CHARGING", "SMART_CHARGING"])
+def test_charging_level_unavailable_when_amp_control_not_applicable(mode):
+    from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
+
+    sn = RANDOM_SERIAL
+    coord = _mk_coord_with(
+        sn,
+        {
+            "sn": sn,
+            "name": "Garage EV",
+            "charging_level": 32,
+            "charge_mode_pref": mode,
+        },
+    )
+
+    sensor = EnphaseChargingLevelSensor(coord, sn)
+
+    assert sensor.available is False
+
+
 def test_charging_level_invalid_value_falls_back():
     from custom_components.enphase_ev.sensor import EnphaseChargingLevelSensor
     from custom_components.enphase_ev.const import SAFE_LIMIT_AMPS
@@ -2309,6 +2329,12 @@ def test_charge_mode_sensor_attributes():
     assert attrs["preferred_mode"] == "SCHEDULED_CHARGING"
     assert attrs["effective_mode"] == "IMMEDIATE"
     assert attrs["charge_mode_supported"] is True
+    assert attrs["amp_control_applicable"] is True
+    assert attrs["amp_control_managed_by_mode"] is None
+    assert attrs["amp_control_applies_in_modes"] == [
+        "MANUAL_CHARGING",
+        "SCHEDULED_CHARGING",
+    ]
     assert attrs["schedule_slot_id"] == "slot-1"
     assert attrs["schedule_days"] == [1, 2, 3]
     assert attrs["schedule_reminder_enabled"] is True
@@ -2346,6 +2372,11 @@ def test_charge_mode_sensor_smart_icon():
     sensor = EnphaseChargeModeSensor(coord, sn)
     assert sensor.native_value == "SMART_CHARGING"
     assert sensor.icon == "mdi:leaf"
+    assert sensor.extra_state_attributes["amp_control_applicable"] is False
+    assert (
+        sensor.extra_state_attributes["amp_control_managed_by_mode"]
+        == "SMART_CHARGING"
+    )
 
 
 def test_last_session_sensor_exposes_auth_metadata(monkeypatch):

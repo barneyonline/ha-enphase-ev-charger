@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Modo de carga"
+        "name": "Modo de carga",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Control de amperaje aplicable"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Modo que gestiona el amperaje"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Modos en los que aplica el control de amperaje"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Autenticación del cargador",

@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Uzlādes režīms"
+        "name": "Uzlādes režīms",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Ampēru vadība piemērojama"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Režīms, kas pārvalda ampērus"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Režīmi, kuros ampēru vadība ir piemērojama"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Lādētāja autentifikācija",
