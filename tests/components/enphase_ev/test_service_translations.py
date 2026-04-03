@@ -124,6 +124,27 @@ def test_shared_label_translations_exist_for_all_locales() -> None:
                 ), f"{name} should localize {path} (still matches English)"
 
 
+def test_charge_mode_attribute_labels_exist_for_all_locales() -> None:
+    """Ensure charge-mode helper attributes are labeled in every locale."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    paths = [
+        "entity.sensor.charge_mode.state_attributes.amp_control_applicable.name",
+        "entity.sensor.charge_mode.state_attributes.amp_control_managed_by_mode.name",
+        "entity.sensor.charge_mode.state_attributes.amp_control_applies_in_modes.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{locale.name} missing value for {path}"
+
+
 def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
     """Ensure newly added battery settings entity labels exist in every locale."""
 

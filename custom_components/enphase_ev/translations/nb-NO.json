@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Lademodus"
+        "name": "Lademodus",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Amperekontroll gjelder"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Modus som styrer ampere"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Moduser der amperekontroll gjelder"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Laderautentisering",

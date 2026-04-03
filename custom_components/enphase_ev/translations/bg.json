@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Режим на зареждане"
+        "name": "Режим на зареждане",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Приложимост на управлението на ампеража"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Режим, управляващ ампеража"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Режими, при които амперажът е приложим"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Удостоверяване на зарядното устройство",

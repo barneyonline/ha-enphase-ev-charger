@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Charge Mode"
+        "name": "Charge Mode",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Amp Control Applicable"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Amp Control Managed By Mode"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Amp Control Applies In Modes"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Charger Authentication",

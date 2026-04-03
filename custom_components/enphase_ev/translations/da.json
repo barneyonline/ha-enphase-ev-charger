@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Opladningstilstand"
+        "name": "Opladningstilstand",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Ampere-styring tilgængelig"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Tilstand der styrer ampere"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Tilstande hvor ampere-styring gælder"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Opladergodkendelse",
