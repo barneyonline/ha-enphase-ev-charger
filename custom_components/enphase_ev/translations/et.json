@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Laadimisrežiim"
+        "name": "Laadimisrežiim",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Amprite juhtimine rakendub"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Amprite juhtiv režiim"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Režiimid, kus amprite juhtimine kehtib"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Laadija autentimine",

@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Λειτουργία φόρτισης"
+        "name": "Λειτουργία φόρτισης",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Εφαρμογή ελέγχου έντασης"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Λειτουργία που ελέγχει την ένταση"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Λειτουργίες όπου ισχύει ο έλεγχος έντασης"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Έλεγχος ταυτότητας φορτιστή",

@@ -18,6 +18,17 @@ from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
+def test_evse_resolved_charge_mode_handles_data_access_failure() -> None:
+    from custom_components.enphase_ev.entity import evse_resolved_charge_mode
+
+    class _BoomCoord:
+        @property
+        def data(self):
+            raise RuntimeError("boom")
+
+    assert evse_resolved_charge_mode(_BoomCoord(), RANDOM_SERIAL) is None
+
+
 def test_cfg_schedule_edit_available_uses_schedule_id_and_public_times() -> None:
     from custom_components.enphase_ev import number as number_mod
 
@@ -423,6 +434,43 @@ def test_charging_number_remains_available_when_feature_flag_disabled(
     assert number.available is True
 
 
+@pytest.mark.parametrize("mode", ["GREEN_CHARGING", "SMART_CHARGING"])
+def test_charging_number_remains_available_when_amp_control_not_applicable(
+    hass, config_entry, mode
+) -> None:
+    coord = _make_coordinator(
+        hass,
+        config_entry,
+        {RANDOM_SERIAL: {"charging_level": 32, "charge_mode_pref": mode}},
+    )
+
+    number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+    assert number.available is True
+
+
+@pytest.mark.parametrize("mode", ["GREEN_CHARGING", "SMART_CHARGING"])
+def test_charging_number_uses_stored_setpoint_when_amp_control_not_applicable(
+    hass, config_entry, mode
+) -> None:
+    coord = _make_coordinator(
+        hass,
+        config_entry,
+        {
+            RANDOM_SERIAL: {
+                "charging_level": 20,
+                "charge_mode_pref": mode,
+                "min_amp": 6,
+                "max_amp": 40,
+            }
+        },
+    )
+    coord.last_set_amps[RANDOM_SERIAL] = 26
+
+    number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+
+    assert number.native_value == 26.0
+
+
 def test_charging_number_fallbacks_to_pick_start(hass, config_entry) -> None:
     coord = _make_coordinator(
         hass,
@@ -554,6 +602,34 @@ async def test_charging_number_set_value_restarts_when_active(
     await number.async_set_native_value(26)
 
     coord.schedule_amp_restart.assert_called_once_with(RANDOM_SERIAL)
+
+
+@pytest.mark.asyncio
+async def test_charging_number_set_value_does_not_restart_in_green_or_smart_mode(
+    hass, config_entry
+) -> None:
+    for mode in ("GREEN_CHARGING", "SMART_CHARGING"):
+        coord = _make_coordinator(
+            hass,
+            config_entry,
+            {
+                RANDOM_SERIAL: {
+                    "charging_level": 20,
+                    "min_amp": 6,
+                    "max_amp": 40,
+                    "charging": True,
+                    "charge_mode_pref": mode,
+                }
+            },
+        )
+
+        coord.schedule_amp_restart = MagicMock()
+        number = ChargingAmpsNumber(coord, RANDOM_SERIAL)
+        await number.async_set_native_value(26)
+
+        coord.set_last_set_amps.assert_called_once_with(RANDOM_SERIAL, 26)
+        assert number.native_value == 26.0
+        coord.schedule_amp_restart.assert_not_called()
 
 
 def test_battery_reserve_number_dynamic_bounds(hass, config_entry) -> None:

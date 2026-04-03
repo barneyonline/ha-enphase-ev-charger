@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
-from .entity import EnphaseBaseEntity
+from .entity import EnphaseBaseEntity, evse_amp_control_applicable
 from .entity_cleanup import prune_managed_entities
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
@@ -279,6 +279,8 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
     @property
     def native_value(self) -> float | None:
         data = self.data
+        if not evse_amp_control_applicable(self._coord, self._sn):
+            return float(self._coord.pick_start_amps(self._sn))
         if self._safe_limit_active(
             data.get("safe_limit_state")
         ) and self._charging_active(data.get("charging")):
@@ -318,7 +320,9 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
         # Start actions (switch/button/service) will use this setpoint.
         self._coord.set_last_set_amps(self._sn, amps)
         await self._coord.async_request_refresh()
-        if bool(self.data.get("charging")):
+        if bool(self.data.get("charging")) and evse_amp_control_applicable(
+            self._coord, self._sn
+        ):
             # Restart the active session so the updated amps take effect
             self._coord.schedule_amp_restart(self._sn)
 

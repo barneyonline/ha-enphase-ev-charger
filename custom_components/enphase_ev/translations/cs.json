@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Režim nabíjení"
+        "name": "Režim nabíjení",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Použitelnost řízení proudu"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Režim řídící proud"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Režimy, ve kterých je řízení proudu použitelné"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Ověření nabíječky",

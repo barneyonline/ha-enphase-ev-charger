@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Lataustila"
+        "name": "Lataustila",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Ampeeriohjaus käytettävissä"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Ampeereja ohjaava tila"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Tilat, joissa ampeeriohjaus on käytössä"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Laturin todennus",
