@@ -330,51 +330,6 @@ class InventoryRuntime:
             "types": types,
         }
 
-    def _live_site_energy_channels(self) -> set[str]:
-        channels: set[str] = set()
-        energy = getattr(self.coordinator, "energy", None)
-        if energy is None:
-            return channels
-        flows = getattr(energy, "site_energy", None)
-        if isinstance(flows, dict):
-            for key in flows:
-                try:
-                    key_text = str(key).strip()
-                except Exception:  # noqa: BLE001
-                    continue
-                if key_text:
-                    channels.add(key_text)
-        meta = getattr(energy, "site_energy_meta", None)
-        if isinstance(meta, dict):
-            bucket_lengths = meta.get("bucket_lengths")
-            if isinstance(bucket_lengths, dict):
-                for key, value in bucket_lengths.items():
-                    try:
-                        key_text = str(key).strip()
-                    except Exception:  # noqa: BLE001
-                        continue
-                    if not key_text:
-                        continue
-                    try:
-                        if int(value) <= 0:
-                            continue
-                    except Exception:  # noqa: BLE001
-                        if not value:
-                            continue
-                    mapped = {
-                        "heatpump": "heat_pump",
-                        "water_heater": "water_heater",
-                        "evse": "evse_charging",
-                        "solar_production": "solar_production",
-                        "consumption": "consumption",
-                        "grid_import": "grid_import",
-                        "grid_export": "grid_export",
-                        "battery_charge": "battery_charge",
-                        "battery_discharge": "battery_discharge",
-                    }.get(key_text, key_text)
-                    channels.add(mapped)
-        return channels
-
     def _debug_topology_summary(
         self, snapshot: CoordinatorTopologySnapshot
     ) -> dict[str, object]:
@@ -385,7 +340,9 @@ class InventoryRuntime:
             "inverter_count": len(snapshot.inverter_serials),
             "active_type_keys": list(snapshot.active_type_keys),
             "gateway_iq_router_count": len(snapshot.gateway_iq_router_keys),
-            "site_energy_channels": sorted(self._live_site_energy_channels()),
+            "site_energy_channels": sorted(
+                self.coordinator.discovery_snapshot.live_site_energy_channels()
+            ),
         }
 
     def _build_system_dashboard_summaries(

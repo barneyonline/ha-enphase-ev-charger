@@ -1092,7 +1092,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         firmware_catalog=firmware_catalog,
         evse_firmware_details=evse_firmware_details,
     )
-    restore_discovery_state = getattr(coord, "async_restore_discovery_state", None)
+    discovery_snapshot = getattr(coord, "discovery_snapshot", None)
+    restore_discovery_state = getattr(discovery_snapshot, "async_restore_state", None)
     if callable(restore_discovery_state):
         await restore_discovery_state()
     await async_prime_label_translations(hass)

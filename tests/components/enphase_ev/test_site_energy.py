@@ -2494,7 +2494,9 @@ def test_site_lifetime_power_sensor_helper_edge_cases(
     assert ts == 1_700_000_200
 
     coord.energy = None  # type: ignore[assignment]
-    coord.site_energy_channel_known = lambda flow_key: flow_key == "grid_export"  # type: ignore[assignment]
+    coord.discovery_snapshot.site_energy_channel_known = (  # type: ignore[assignment]
+        lambda flow_key: flow_key == "grid_export"
+    )
     export_sensor = EnphaseGridPowerSensor(coord)
     assert export_sensor._flow_supported("grid_export") is True
     assert export_sensor._current_flow_values() == (
@@ -2509,7 +2511,7 @@ def test_site_lifetime_power_sensor_helper_edge_cases(
     def _raise_known(_flow_key: str) -> bool:
         raise RuntimeError("boom")
 
-    coord.site_energy_channel_known = _raise_known  # type: ignore[assignment]
+    coord.discovery_snapshot.site_energy_channel_known = _raise_known  # type: ignore[assignment]
     coord.site_energy_meta = {"bucket_lengths": {"solar_grid": "yes"}}  # type: ignore[assignment]
     assert export_sensor._flow_supported("grid_export") is True
     coord.site_energy_meta = {"bucket_lengths": {"solar_grid": 0}}  # type: ignore[assignment]
