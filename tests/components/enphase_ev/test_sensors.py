@@ -2334,6 +2334,7 @@ def test_charge_mode_sensor_attributes():
     assert attrs["amp_control_applies_in_modes"] == [
         "MANUAL_CHARGING",
         "SCHEDULED_CHARGING",
+        "IMMEDIATE",
     ]
     assert attrs["schedule_slot_id"] == "slot-1"
     assert attrs["schedule_days"] == [1, 2, 3]
