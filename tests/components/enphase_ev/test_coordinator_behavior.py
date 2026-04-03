@@ -2627,6 +2627,9 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     ) == {  # noqa: SLF001
         "ok": 1
     }
+    set_snapshot = coord._snapshot_compatible_value({1, "two"})  # noqa: SLF001
+    assert isinstance(set_snapshot, list)
+    assert set(set_snapshot) == {1, "two"}
     assert coord._snapshot_compatible_value(BadStr()) is None  # noqa: SLF001
 
     assert coord._snapshot_bool(None) is None  # noqa: SLF001

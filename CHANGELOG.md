@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Preserve the last known EV lifetime energy baseline when the cloud summary payload temporarily omits `lifeTimeConsumption`, preventing EV charger power attributes from collapsing to null during active sessions.
 
 ### 🔧 Improvements
 - None
