@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Laddläge"
+        "name": "Laddläge",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Amperestyrning tillämplig"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Läge som styr amperetal"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Lägen där amperestyrning gäller"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Laddare autentisering",

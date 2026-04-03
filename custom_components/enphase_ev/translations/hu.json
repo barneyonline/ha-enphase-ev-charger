@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Töltési mód"
+        "name": "Töltési mód",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Áramerősség-szabályzás alkalmazható"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Az áramerősséget vezérlő mód"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Módok, amelyekben az áramerősség-szabályzás alkalmazható"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Töltő hitelesítés",

@@ -21,6 +21,43 @@ from .log_redaction import redact_identifier, redact_text
 _LOGGER = logging.getLogger(__name__)
 
 
+def evse_resolved_charge_mode(coord: EnphaseCoordinator, serial: str) -> str | None:
+    """Return the best available resolved charge mode for an EVSE."""
+
+    resolve_pref = getattr(coord, "_resolve_charge_mode_pref", None)
+    if callable(resolve_pref):
+        try:
+            mode = resolve_pref(serial)
+        except Exception:  # noqa: BLE001
+            mode = None
+        if isinstance(mode, str):
+            normalized = mode.strip().upper()
+            if normalized:
+                return normalized
+
+    try:
+        data = (coord.data or {}).get(serial, {})
+    except Exception:  # noqa: BLE001
+        data = {}
+    for key in ("charge_mode_pref", "charge_mode"):
+        value = data.get(key)
+        if not isinstance(value, str):
+            continue
+        normalized = value.strip().upper()
+        if normalized:
+            return normalized
+    return None
+
+
+def evse_amp_control_applicable(coord: EnphaseCoordinator, serial: str) -> bool:
+    """Return whether direct amp control applies for the charger's current mode."""
+
+    return evse_resolved_charge_mode(coord, serial) not in {
+        "GREEN_CHARGING",
+        "SMART_CHARGING",
+    }
+
+
 class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
     _attr_has_entity_name = True
 

@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Tryb ładowania"
+        "name": "Tryb ładowania",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Sterowanie amperażem ma zastosowanie"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Tryb zarządzający amperażem"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Tryby, w których sterowanie amperażem ma zastosowanie"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Uwierzytelnianie ładowarki",

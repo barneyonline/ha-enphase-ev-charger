@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Mod de încărcare"
+        "name": "Mod de încărcare",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Controlul amperajului este aplicabil"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Modul care gestionează amperajul"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Modurile în care se aplică controlul amperajului"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Autentificare încărcător",

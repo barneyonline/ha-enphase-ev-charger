@@ -250,7 +250,18 @@
         }
       },
       "charge_mode": {
-        "name": "Įkrovimo režimas"
+        "name": "Įkrovimo režimas",
+        "state_attributes": {
+          "amp_control_applicable": {
+            "name": "Srovės valdymas taikomas"
+          },
+          "amp_control_managed_by_mode": {
+            "name": "Režimas, valdantis srovę"
+          },
+          "amp_control_applies_in_modes": {
+            "name": "Režimai, kuriuose taikomas srovės valdymas"
+          }
+        }
       },
       "charger_authentication": {
         "name": "Įkroviklio autentifikavimas",
