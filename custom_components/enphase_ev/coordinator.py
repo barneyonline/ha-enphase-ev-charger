@@ -3375,6 +3375,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "plug_and_charge_supported": plug_and_charge_support,
                 "plug_and_charge_supported_source": plug_and_charge_support_source,
             }
+            if isinstance(previous_entry, dict):
+                previous_lifetime_kwh = _power_as_float(
+                    previous_entry.get("lifetime_kwh")
+                )
+                if previous_lifetime_kwh is not None:
+                    entry.setdefault("lifetime_kwh", previous_lifetime_kwh)
             entry.update(_build_evse_power_snapshot(sn, entry))
             if PHASE_SWITCH_CONFIG_SETTING in config_values:
                 entry["phase_switch_config"] = config_values[
@@ -3645,6 +3651,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                     if filtered is not None:
                         cur["lifetime_kwh"] = filtered
+                elif isinstance(prev_sn, dict):
+                    previous_lifetime_kwh = _power_as_float(prev_sn.get("lifetime_kwh"))
+                    if previous_lifetime_kwh is not None:
+                        cur["lifetime_kwh"] = previous_lifetime_kwh
                 for key_src, key_dst in (
                     ("firmwareVersion", "firmware_version"),
                     ("systemVersion", "system_version"),
