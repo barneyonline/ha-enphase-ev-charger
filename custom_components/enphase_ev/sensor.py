@@ -2619,6 +2619,7 @@ class EnphaseChargeModeSensor(EnphaseBaseEntity, SensorEntity):
             "amp_control_applies_in_modes": [
                 "MANUAL_CHARGING",
                 "SCHEDULED_CHARGING",
+                "IMMEDIATE",
             ],
             "schedule_status": self.data.get("schedule_status"),
             "schedule_type": self.data.get("schedule_type"),
