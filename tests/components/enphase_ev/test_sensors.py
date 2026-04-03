@@ -2374,8 +2374,7 @@ def test_charge_mode_sensor_smart_icon():
     assert sensor.icon == "mdi:leaf"
     assert sensor.extra_state_attributes["amp_control_applicable"] is False
     assert (
-        sensor.extra_state_attributes["amp_control_managed_by_mode"]
-        == "SMART_CHARGING"
+        sensor.extra_state_attributes["amp_control_managed_by_mode"] == "SMART_CHARGING"
     )
 
 
