@@ -537,7 +537,11 @@ async def async_setup_entry(
         ) -> bool:
             if flow_key in site_energy:
                 return True
-            known_channel = getattr(coord, "site_energy_channel_known", None)
+            known_channel = getattr(
+                getattr(coord, "discovery_snapshot", None),
+                "site_energy_channel_known",
+                None,
+            )
             if callable(known_channel):
                 try:
                     if known_channel(flow_key):
@@ -5626,7 +5630,11 @@ class _EnphaseSiteLifetimePowerSensor(_SiteBaseEntity, RestoreEntity):
         if flow_key in self._site_energy_flows():
             return True
 
-        known_channel = getattr(self._coord, "site_energy_channel_known", None)
+        known_channel = getattr(
+            getattr(self._coord, "discovery_snapshot", None),
+            "site_energy_channel_known",
+            None,
+        )
         if callable(known_channel):
             try:
                 if known_channel(flow_key):

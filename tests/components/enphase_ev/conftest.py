@@ -436,7 +436,7 @@ def setup_integration(
             )
             stack.enter_context(
                 patch(
-                    "custom_components.enphase_ev.coordinator.EnphaseCoordinator.async_restore_discovery_state",
+                    "custom_components.enphase_ev.discovery_snapshot.DiscoverySnapshotManager.async_restore_state",
                     new=AsyncMock(return_value=None),
                 )
             )

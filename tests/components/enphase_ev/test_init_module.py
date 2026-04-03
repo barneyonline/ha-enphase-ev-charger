@@ -302,8 +302,11 @@ async def test_async_setup_entry_restores_discovery_before_first_refresh(
     class DummyCoordinator:
         def __init__(self) -> None:
             self.site_id = site_id
+            self.discovery_snapshot = SimpleNamespace(
+                async_restore_state=self._async_restore_state
+            )
 
-        async def async_restore_discovery_state(self) -> None:
+        async def _async_restore_state(self) -> None:
             calls.append("restore")
 
         async def async_config_entry_first_refresh(self) -> None:
