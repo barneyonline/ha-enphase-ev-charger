@@ -112,6 +112,112 @@ class CoordinatorDiagnostics:
             except Exception:
                 type_counts[key] = 0
 
+        def _coordinator_available() -> bool:
+            return bool(getattr(coord, "last_update_success", False))
+
+        def _parsed_float(value: object) -> float | None:
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except Exception:
+                return None
+
+        def _type_available_for_entities(type_key: str) -> bool:
+            inventory_view = getattr(coord, "inventory_view", None)
+            checker = getattr(inventory_view, "has_type_for_entities", None)
+            if not callable(checker):
+                return False
+            try:
+                return bool(checker(type_key))
+            except Exception:
+                return False
+
+        def _site_sensor_base_available(type_key: str | None) -> bool:
+            if type_key is not None and not _type_available_for_entities(type_key):
+                return False
+            if coord.last_success_utc is not None:
+                return True
+            return _coordinator_available()
+
+        def _battery_write_access_confirmed() -> bool:
+            try:
+                return bool(coord.battery_write_access_confirmed)
+            except Exception:
+                owner = getattr(coord, "_battery_user_is_owner", None)
+                installer = getattr(coord, "_battery_user_is_installer", None)
+                return owner is True or installer is True
+
+        def _cfg_schedule_edit_available() -> bool:
+            if getattr(coord, "charge_from_grid_schedule_available", False):
+                return True
+            if not getattr(coord, "charge_from_grid_control_available", False):
+                return False
+            if not getattr(coord, "charge_from_grid_schedule_supported", False):
+                return False
+            if getattr(coord, "_battery_cfg_schedule_id", None) is not None:
+                start_time = getattr(coord, "battery_charge_from_grid_start_time", None)
+                end_time = getattr(coord, "battery_charge_from_grid_end_time", None)
+                if start_time is not None and end_time is not None:
+                    return True
+                begin = getattr(coord, "_battery_charge_begin_time", None)
+                end = getattr(coord, "_battery_charge_end_time", None)
+                return begin is not None and end is not None
+            return False
+
+        def _dtg_schedule_edit_available() -> bool:
+            if getattr(coord, "discharge_to_grid_schedule_available", False):
+                return True
+            if not getattr(coord, "discharge_to_grid_schedule_supported", False):
+                return False
+            start_time = getattr(coord, "battery_discharge_to_grid_start_time", None)
+            end_time = getattr(coord, "battery_discharge_to_grid_end_time", None)
+            if start_time is not None and end_time is not None:
+                return True
+            begin = getattr(coord, "_battery_dtg_begin_time", None)
+            end = getattr(coord, "_battery_dtg_end_time", None)
+            if begin is None:
+                begin = getattr(coord, "_battery_dtg_control_begin_time", None)
+            if end is None:
+                end = getattr(coord, "_battery_dtg_control_end_time", None)
+            return begin is not None and end is not None
+
+        def _rbd_schedule_edit_available() -> bool:
+            if getattr(coord, "restrict_battery_discharge_schedule_available", False):
+                return True
+            if not getattr(
+                coord, "restrict_battery_discharge_schedule_supported", False
+            ):
+                return False
+            start_time = getattr(
+                coord, "battery_restrict_battery_discharge_start_time", None
+            )
+            end_time = getattr(
+                coord, "battery_restrict_battery_discharge_end_time", None
+            )
+            if start_time is not None and end_time is not None:
+                return True
+            begin = getattr(coord, "_battery_rbd_begin_time", None)
+            end = getattr(coord, "_battery_rbd_end_time", None)
+            if begin is None:
+                begin = getattr(coord, "_battery_rbd_control_begin_time", None)
+            if end is None:
+                end = getattr(coord, "_battery_rbd_control_end_time", None)
+            return begin is not None and end is not None
+
+        battery_type_available = _type_available_for_entities("encharge")
+        battery_write_access = _battery_write_access_confirmed()
+        battery_sensor_base_available = _site_sensor_base_available("encharge")
+        battery_status_summary = coord.battery_status_summary
+        battery_aggregate_charge = coord.battery_aggregate_charge_pct
+        battery_aggregate_status = coord.battery_aggregate_status
+        battery_available_energy = _parsed_float(
+            battery_status_summary.get("site_available_energy_kwh")
+        )
+        battery_available_power = _parsed_float(
+            battery_status_summary.get("site_available_power_kw")
+        )
+
         metrics: dict[str, object] = {
             "site_id": coord.site_id,
             "site_name": coord.site_name,
@@ -220,6 +326,114 @@ class CoordinatorDiagnostics:
             "battery_profile_options": coord.battery_profile_option_labels,
             "battery_show_charge_from_grid": getattr(
                 coord, "_battery_show_charge_from_grid", None
+            ),
+            "battery_type_available_for_entities": battery_type_available,
+            "battery_write_access_confirmed": battery_write_access,
+            "battery_controls_available": coord.battery_controls_available,
+            "battery_profile_selection_available": (
+                coord.battery_profile_selection_available
+            ),
+            "battery_reserve_editable": coord.battery_reserve_editable,
+            "battery_shutdown_level_available": coord.battery_shutdown_level_available,
+            "charge_from_grid_control_available": (
+                coord.charge_from_grid_control_available
+            ),
+            "charge_from_grid_schedule_supported": (
+                coord.charge_from_grid_schedule_supported
+            ),
+            "charge_from_grid_schedule_available": (
+                coord.charge_from_grid_schedule_available
+            ),
+            "charge_from_grid_force_schedule_supported": (
+                coord.charge_from_grid_force_schedule_supported
+            ),
+            "charge_from_grid_force_schedule_available": (
+                coord.charge_from_grid_force_schedule_available
+            ),
+            "discharge_to_grid_schedule_supported": (
+                coord.discharge_to_grid_schedule_supported
+            ),
+            "discharge_to_grid_schedule_available": (
+                coord.discharge_to_grid_schedule_available
+            ),
+            "restrict_battery_discharge_schedule_supported": (
+                coord.restrict_battery_discharge_schedule_supported
+            ),
+            "restrict_battery_discharge_schedule_available": (
+                coord.restrict_battery_discharge_schedule_available
+            ),
+            "battery_overall_charge_sensor_available": (
+                battery_sensor_base_available and battery_aggregate_charge is not None
+            ),
+            "battery_overall_status_sensor_available": (
+                battery_sensor_base_available and battery_aggregate_status is not None
+            ),
+            "battery_cfg_schedule_status_sensor_available": (
+                battery_sensor_base_available
+                and coord.charge_from_grid_control_available
+            ),
+            "battery_available_energy_sensor_available": (
+                battery_sensor_base_available and battery_available_energy is not None
+            ),
+            "battery_available_power_sensor_available": (
+                battery_sensor_base_available and battery_available_power is not None
+            ),
+            "battery_reserve_number_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and coord.battery_reserve_editable
+            ),
+            "battery_shutdown_level_number_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and coord.battery_shutdown_level_available
+            ),
+            "battery_cfg_schedule_limit_number_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and _cfg_schedule_edit_available()
+                and coord.battery_cfg_schedule_limit is not None
+            ),
+            "battery_dtg_schedule_limit_number_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and _dtg_schedule_edit_available()
+                and coord.battery_dtg_schedule_limit is not None
+            ),
+            "battery_rbd_schedule_limit_number_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and _rbd_schedule_edit_available()
+                and coord.battery_rbd_schedule_limit is not None
+            ),
+            "charge_from_grid_switch_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and coord.charge_from_grid_control_available
+            ),
+            "charge_from_grid_schedule_switch_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and coord.charge_from_grid_force_schedule_available
+            ),
+            "discharge_to_grid_schedule_switch_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and coord.discharge_to_grid_schedule_available
+            ),
+            "restrict_battery_discharge_schedule_switch_available": (
+                _coordinator_available()
+                and battery_type_available
+                and battery_write_access
+                and coord.restrict_battery_discharge_schedule_available
             ),
             "battery_show_savings_mode": getattr(
                 coord, "_battery_show_savings_mode", None
