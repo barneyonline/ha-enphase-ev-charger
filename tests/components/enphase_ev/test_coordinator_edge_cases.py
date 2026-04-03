@@ -75,6 +75,63 @@ def _make_entry(
     return entry
 
 
+def _make_battery_ready_coordinator(hass, monkeypatch):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass)
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    coord.last_update_success = True
+    coord.last_success_utc = now
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._selected_type_keys = {"encharge"}  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "encharge": {"type_key": "encharge", "count": 2, "devices": [{}, {}]}
+    }
+    coord._type_device_order = ["encharge"]  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_cfg_control_show = True  # noqa: SLF001
+    coord._battery_cfg_control_schedule_supported = True  # noqa: SLF001
+    coord._battery_cfg_control_force_schedule_supported = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_cfg_schedule_id = "cfg-1"  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 90  # noqa: SLF001
+    coord._battery_charge_begin_time = 60  # noqa: SLF001
+    coord._battery_charge_end_time = 120  # noqa: SLF001
+    coord._battery_dtg_schedule_id = "dtg-1"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 180  # noqa: SLF001
+    coord._battery_dtg_end_time = 240  # noqa: SLF001
+    coord._battery_dtg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_rbd_schedule_id = "rbd-1"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 300  # noqa: SLF001
+    coord._battery_rbd_end_time = 360  # noqa: SLF001
+    coord._battery_rbd_schedule_limit = 70  # noqa: SLF001
+    coord._battery_very_low_soc = 10  # noqa: SLF001
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_aggregate_charge_pct = 25.0  # noqa: SLF001
+    coord._battery_aggregate_status = "normal"  # noqa: SLF001
+    coord._battery_aggregate_status_details = {  # noqa: SLF001
+        "site_available_energy_kwh": 2.5,
+        "site_available_power_kw": 7.68,
+    }
+    return coord
+
+
 @pytest.mark.asyncio
 async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(
     hass, monkeypatch
@@ -166,6 +223,239 @@ def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     assert metrics["last_failure_status"] == 503
     assert metrics["network_errors"] == 1
     assert metrics["session_cache_ttl_s"] is None
+    assert "battery_controls_available" in metrics
+    assert "battery_profile_selection_available" in metrics
+    assert "battery_reserve_editable" in metrics
+    assert "battery_shutdown_level_available" in metrics
+    assert "charge_from_grid_control_available" in metrics
+    assert "charge_from_grid_schedule_supported" in metrics
+    assert "charge_from_grid_schedule_available" in metrics
+    assert "charge_from_grid_force_schedule_supported" in metrics
+    assert "charge_from_grid_force_schedule_available" in metrics
+    assert "discharge_to_grid_schedule_supported" in metrics
+    assert "discharge_to_grid_schedule_available" in metrics
+    assert "restrict_battery_discharge_schedule_supported" in metrics
+    assert "restrict_battery_discharge_schedule_available" in metrics
+
+
+def test_collect_site_metrics_reports_battery_entity_availability_flags(
+    hass, monkeypatch
+):
+    coord = _make_battery_ready_coordinator(hass, monkeypatch)
+
+    metrics = coord.collect_site_metrics()
+
+    assert metrics["battery_type_available_for_entities"] is True
+    assert metrics["battery_write_access_confirmed"] is True
+    assert metrics["battery_controls_available"] is True
+    assert metrics["battery_profile_selection_available"] is True
+    assert metrics["battery_reserve_editable"] is True
+    assert metrics["battery_shutdown_level_available"] is True
+    assert metrics["charge_from_grid_control_available"] is True
+    assert metrics["charge_from_grid_schedule_supported"] is True
+    assert metrics["charge_from_grid_schedule_available"] is True
+    assert metrics["charge_from_grid_force_schedule_supported"] is True
+    assert metrics["charge_from_grid_force_schedule_available"] is True
+    assert metrics["discharge_to_grid_schedule_supported"] is True
+    assert metrics["discharge_to_grid_schedule_available"] is True
+    assert metrics["restrict_battery_discharge_schedule_supported"] is True
+    assert metrics["restrict_battery_discharge_schedule_available"] is True
+    assert metrics["battery_overall_charge_sensor_available"] is True
+    assert metrics["battery_overall_status_sensor_available"] is True
+    assert metrics["battery_cfg_schedule_status_sensor_available"] is True
+    assert metrics["battery_available_energy_sensor_available"] is True
+    assert metrics["battery_available_power_sensor_available"] is True
+    assert metrics["battery_reserve_number_available"] is True
+    assert metrics["battery_shutdown_level_number_available"] is True
+    assert metrics["battery_cfg_schedule_limit_number_available"] is True
+    assert metrics["battery_dtg_schedule_limit_number_available"] is True
+    assert metrics["battery_rbd_schedule_limit_number_available"] is True
+    assert metrics["charge_from_grid_switch_available"] is True
+    assert metrics["charge_from_grid_schedule_switch_available"] is True
+    assert metrics["discharge_to_grid_schedule_switch_available"] is True
+    assert metrics["restrict_battery_discharge_schedule_switch_available"] is True
+
+
+def test_collect_site_metrics_handles_missing_and_raising_type_checker(
+    hass, monkeypatch
+):
+    coord = _make_battery_ready_coordinator(hass, monkeypatch)
+
+    monkeypatch.setattr(coord.inventory_view, "has_type_for_entities", None)
+    metrics = coord.collect_site_metrics()
+    assert metrics["battery_type_available_for_entities"] is False
+    assert metrics["battery_overall_charge_sensor_available"] is False
+
+    def _raise(_type_key):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(coord.inventory_view, "has_type_for_entities", _raise)
+    metrics = coord.collect_site_metrics()
+    assert metrics["battery_type_available_for_entities"] is False
+    assert metrics["charge_from_grid_switch_available"] is False
+
+
+def test_collect_site_metrics_write_access_fallback_and_cfg_schedule_fallbacks(
+    hass, monkeypatch
+):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _make_battery_ready_coordinator(hass, monkeypatch)
+
+    monkeypatch.setattr(
+        EnphaseCoordinator,
+        "battery_write_access_confirmed",
+        property(lambda _self: (_ for _ in ()).throw(RuntimeError("boom"))),
+    )
+    metrics = coord.collect_site_metrics()
+    assert metrics["battery_write_access_confirmed"] is True
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_available",
+            property(lambda _self: False),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_supported",
+            property(lambda _self: False),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_cfg_schedule_limit_number_available"] is False
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_available",
+            property(lambda _self: False),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_supported",
+            property(lambda _self: True),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_cfg_schedule_limit_number_available"] is True
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_available",
+            property(lambda _self: False),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_supported",
+            property(lambda _self: True),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "battery_charge_from_grid_start_time",
+            property(lambda _self: None),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "battery_charge_from_grid_end_time",
+            property(lambda _self: None),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_cfg_schedule_limit_number_available"] is True
+
+    coord._battery_cfg_schedule_id = None  # noqa: SLF001
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_available",
+            property(lambda _self: False),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "charge_from_grid_schedule_supported",
+            property(lambda _self: True),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_cfg_schedule_limit_number_available"] is False
+
+
+def test_collect_site_metrics_dtg_and_rbd_schedule_fallbacks(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _make_battery_ready_coordinator(hass, monkeypatch)
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "discharge_to_grid_schedule_available",
+            property(lambda _self: False),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_dtg_schedule_limit_number_available"] is True
+
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "restrict_battery_discharge_schedule_available",
+            property(lambda _self: False),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_rbd_schedule_limit_number_available"] is True
+
+    coord._battery_dtg_begin_time = None  # noqa: SLF001
+    coord._battery_dtg_end_time = None  # noqa: SLF001
+    coord._battery_dtg_control_begin_time = 180  # noqa: SLF001
+    coord._battery_dtg_control_end_time = 240  # noqa: SLF001
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "discharge_to_grid_schedule_available",
+            property(lambda _self: False),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "discharge_to_grid_schedule_supported",
+            property(lambda _self: True),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "battery_discharge_to_grid_start_time",
+            property(lambda _self: None),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "battery_discharge_to_grid_end_time",
+            property(lambda _self: None),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_dtg_schedule_limit_number_available"] is True
+
+    coord._battery_rbd_begin_time = None  # noqa: SLF001
+    coord._battery_rbd_end_time = None  # noqa: SLF001
+    coord._battery_rbd_control_begin_time = 300  # noqa: SLF001
+    coord._battery_rbd_control_end_time = 360  # noqa: SLF001
+    with monkeypatch.context() as m:
+        m.setattr(
+            EnphaseCoordinator,
+            "restrict_battery_discharge_schedule_available",
+            property(lambda _self: False),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "restrict_battery_discharge_schedule_supported",
+            property(lambda _self: True),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "battery_restrict_battery_discharge_start_time",
+            property(lambda _self: None),
+        )
+        m.setattr(
+            EnphaseCoordinator,
+            "battery_restrict_battery_discharge_end_time",
+            property(lambda _self: None),
+        )
+        metrics = coord.collect_site_metrics()
+        assert metrics["battery_rbd_schedule_limit_number_available"] is True
 
 
 @pytest.mark.asyncio
