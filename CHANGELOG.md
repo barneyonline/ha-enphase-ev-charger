@@ -11,13 +11,32 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Preserve the last known EV lifetime energy baseline when the cloud summary payload temporarily omits `lifeTimeConsumption`, preventing EV charger power attributes from collapsing to null during active sessions.
+- None
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
 - None
+
+## v2.6.9 - 2026-04-04
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Clarified EV charger current-control applicability in Green and Smart modes so Home Assistant only exposes the related controls when Enphase can act on them immediately, and updated the translated user-facing messaging to explain those mode constraints more clearly.
+- Added battery diagnostics availability details so diagnostics exports capture the parsed battery sensor availability state more completely when troubleshooting missing or intermittent battery entities.
+- Preserve the last known EV lifetime energy baseline when the cloud summary payload temporarily omits `lifeTimeConsumption`, preventing EV charger power attributes from collapsing to null during active sessions.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Extracted the discovery snapshot manager into its own module to simplify internal coordinator and inventory state handling without changing supported functionality.
 
 ## v2.6.8 - 2026-04-03
 
