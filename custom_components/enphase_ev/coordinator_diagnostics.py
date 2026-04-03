@@ -115,6 +115,14 @@ class CoordinatorDiagnostics:
         def _coordinator_available() -> bool:
             return bool(getattr(coord, "last_update_success", False))
 
+        def _parsed_float(value: object) -> float | None:
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except Exception:
+                return None
+
         def _type_available_for_entities(type_key: str) -> bool:
             inventory_view = getattr(coord, "inventory_view", None)
             checker = getattr(inventory_view, "has_type_for_entities", None)
@@ -203,6 +211,12 @@ class CoordinatorDiagnostics:
         battery_status_summary = coord.battery_status_summary
         battery_aggregate_charge = coord.battery_aggregate_charge_pct
         battery_aggregate_status = coord.battery_aggregate_status
+        battery_available_energy = _parsed_float(
+            battery_status_summary.get("site_available_energy_kwh")
+        )
+        battery_available_power = _parsed_float(
+            battery_status_summary.get("site_available_power_kw")
+        )
 
         metrics: dict[str, object] = {
             "site_id": coord.site_id,
@@ -359,12 +373,10 @@ class CoordinatorDiagnostics:
                 and coord.charge_from_grid_control_available
             ),
             "battery_available_energy_sensor_available": (
-                battery_sensor_base_available
-                and battery_status_summary.get("site_available_energy_kwh") is not None
+                battery_sensor_base_available and battery_available_energy is not None
             ),
             "battery_available_power_sensor_available": (
-                battery_sensor_base_available
-                and battery_status_summary.get("site_available_power_kw") is not None
+                battery_sensor_base_available and battery_available_power is not None
             ),
             "battery_reserve_number_available": (
                 _coordinator_available()
