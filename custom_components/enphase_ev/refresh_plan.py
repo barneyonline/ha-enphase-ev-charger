@@ -316,29 +316,32 @@ def warmup_energy_stage(working_data: dict[str, dict]) -> RefreshStage:
     return RefreshStage(
         stage_key="energy",
         parallel_tasks=(
-            method_task(
-                "site_energy_s", "site energy", "_async_refresh_site_energy_for_warmup"
+            object_method_task(
+                "site_energy_s",
+                "site energy",
+                "refresh_runner",
+                "_async_refresh_site_energy_for_warmup",
             ),
-            callback_task(
+            object_method_task(
                 "evse_timeseries_s",
                 "EVSE timeseries",
-                lambda owner: owner._async_refresh_evse_timeseries_for_warmup(
-                    working_data=working_data
-                ),
+                "refresh_runner",
+                "_async_refresh_evse_timeseries_for_warmup",
+                working_data=working_data,
             ),
-            callback_task(
+            object_method_task(
                 "sessions_s",
                 "session state",
-                lambda owner: owner._async_refresh_session_state_for_warmup(
-                    working_data=working_data
-                ),
+                "refresh_runner",
+                "_async_refresh_session_state_for_warmup",
+                working_data=working_data,
             ),
-            callback_task(
+            object_method_task(
                 "secondary_evse_state_s",
                 "secondary EVSE state",
-                lambda owner: owner._async_refresh_secondary_evse_state_for_warmup(
-                    working_data=working_data
-                ),
+                "refresh_runner",
+                "_async_refresh_secondary_evse_state_for_warmup",
+                working_data=working_data,
             ),
         ),
     )

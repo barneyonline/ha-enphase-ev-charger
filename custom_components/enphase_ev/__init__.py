@@ -1151,7 +1151,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
             f"{DOMAIN}_schedule_sync_start",
         )
 
-    startup_warmup = getattr(coord, "async_start_startup_warmup", None)
+    refresh_runner = getattr(coord, "refresh_runner", None)
+    startup_warmup = getattr(refresh_runner, "async_start_startup_warmup", None)
     if callable(startup_warmup):
         _schedule_background_task(
             startup_warmup(),

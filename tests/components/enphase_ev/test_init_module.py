@@ -386,7 +386,9 @@ async def test_async_setup_entry_uses_background_task_for_startup_warmup(
     class DummyCoordinator:
         def __init__(self) -> None:
             self.site_id = site_id
-            self.async_start_startup_warmup = AsyncMock()
+            self.refresh_runner = SimpleNamespace(
+                async_start_startup_warmup=AsyncMock()
+            )
 
         async def async_config_entry_first_refresh(self) -> None:
             return None
@@ -420,7 +422,7 @@ async def test_async_setup_entry_uses_background_task_for_startup_warmup(
     assert await async_setup_entry(hass, config_entry)
 
     assert background_calls == [(hass, "enphase_ev_startup_warmup", True)]
-    dummy_coord.async_start_startup_warmup.assert_not_awaited()
+    dummy_coord.refresh_runner.async_start_startup_warmup.assert_not_awaited()
     forward.assert_awaited_once()
 
 

@@ -442,7 +442,7 @@ def setup_integration(
             )
             stack.enter_context(
                 patch(
-                    "custom_components.enphase_ev.coordinator.EnphaseCoordinator.async_start_startup_warmup",
+                    "custom_components.enphase_ev.refresh_runner.CoordinatorRefreshRunner.async_start_startup_warmup",
                     new=AsyncMock(return_value=None),
                 )
             )
