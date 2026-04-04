@@ -277,6 +277,26 @@ def test_power_native_value_suspended_connector_resets_power(coordinator_factory
     assert sensor.extra_state_attributes["actual_charging"] is False
 
 
+def test_power_native_value_suspended_ev_still_tracks_power(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 10.0,
+                "last_reported_at": 1200,
+                "charging": True,
+                "connector_status": "SUSPENDED_EV",
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+    sensor._last_lifetime_kwh = 9.5
+    sensor._last_energy_ts = 900
+
+    assert sensor.native_value == 6000
+    assert sensor._last_method == "lifetime_energy_window"
+    assert sensor.extra_state_attributes["actual_charging"] is True
+
+
 def test_power_native_value_suspended_by_evse_resets_power(coordinator_factory):
     coord = coordinator_factory(
         data={
@@ -292,6 +312,27 @@ def test_power_native_value_suspended_by_evse_resets_power(coordinator_factory):
     sensor._last_lifetime_kwh = 10.0
     sensor._last_energy_ts = 600
     sensor._last_power_w = 321
+    assert sensor.native_value == 0
+    assert sensor._last_method == "idle"
+    assert sensor.extra_state_attributes["actual_charging"] is False
+
+
+def test_power_native_value_suspended_evse_resets_power(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 10.0,
+                "last_reported_at": 1200,
+                "charging": True,
+                "connector_status": "SUSPENDED_EVSE",
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+    sensor._last_lifetime_kwh = 9.5
+    sensor._last_energy_ts = 900
+    sensor._last_power_w = 321
+
     assert sensor.native_value == 0
     assert sensor._last_method == "idle"
     assert sensor.extra_state_attributes["actual_charging"] is False

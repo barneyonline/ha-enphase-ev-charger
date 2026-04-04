@@ -2477,13 +2477,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return (19200, "static_default", None, voltage, 19200, topology, 1.0)
 
         def _is_actually_charging(entry: dict[str, object]) -> bool:
+            status = entry.get("connector_status")
+            status_norm = ""
+            if isinstance(status, str):
+                status_norm = status.strip().upper()
             if entry.get("suspended_by_evse"):
                 return False
-            status = entry.get("connector_status")
-            if isinstance(status, str) and status.strip().upper().startswith(
-                "SUSPENDED"
-            ):
+            if status_norm in {"SUSPENDED", SUSPENDED_EVSE_STATUS}:
                 return False
+            if status_norm in {"CHARGING", "FINISHING"} or any(
+                status_norm.startswith(prefix) for prefix in ACTIVE_SUSPENDED_PREFIXES
+            ):
+                return True
             return bool(entry.get("charging"))
 
         def _build_evse_power_snapshot(
@@ -2522,13 +2527,37 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             lifetime = _power_as_float(entry.get("lifetime_kwh"))
             is_charging = _is_actually_charging(entry)
 
+            last_power_w = _power_as_int(previous.get("derived_power_w"))
+            if last_power_w is None:
+                last_power_w = 0
+            last_method = previous.get("derived_power_method")
+            if not isinstance(last_method, str):
+                last_method = "seeded"
+            last_window_s = _power_as_float(
+                previous.get("derived_power_window_seconds")
+            )
+            last_lifetime_kwh = _power_as_float(
+                previous.get("derived_last_lifetime_kwh")
+            )
+            last_energy_ts = _power_parse_timestamp(
+                previous.get("derived_last_energy_ts")
+            )
+            last_reset_at = _power_parse_timestamp(
+                previous.get("derived_last_reset_at")
+            )
             prior_sample_ts = _power_parse_timestamp(
                 previous.get("derived_last_sample_ts")
+            )
+            lifetime_changed = (lifetime is None) != (last_lifetime_kwh is None) or (
+                lifetime is not None
+                and last_lifetime_kwh is not None
+                and abs(lifetime - last_lifetime_kwh) > 1e-9
             )
             if (
                 sample_ts is not None
                 and prior_sample_ts is not None
                 and sample_ts == prior_sample_ts
+                and not lifetime_changed
             ):
                 snapshot.update(previous)
                 snapshot.update(
@@ -2552,25 +2581,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     snapshot["derived_power_window_seconds"] = None
                 self.evse_state._evse_power_snapshots[serial] = snapshot
                 return snapshot
-
-            last_power_w = _power_as_int(previous.get("derived_power_w"))
-            if last_power_w is None:
-                last_power_w = 0
-            last_method = previous.get("derived_power_method")
-            if not isinstance(last_method, str):
-                last_method = "seeded"
-            last_window_s = _power_as_float(
-                previous.get("derived_power_window_seconds")
-            )
-            last_lifetime_kwh = _power_as_float(
-                previous.get("derived_last_lifetime_kwh")
-            )
-            last_energy_ts = _power_parse_timestamp(
-                previous.get("derived_last_energy_ts")
-            )
-            last_reset_at = _power_parse_timestamp(
-                previous.get("derived_last_reset_at")
-            )
 
             snapshot.update(
                 {
@@ -3072,6 +3082,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "plug_and_charge_supported": plug_and_charge_support,
                 "plug_and_charge_supported_source": plug_and_charge_support_source,
             }
+            if isinstance(previous_entry, dict):
+                previous_lifetime_kwh = _power_as_float(
+                    previous_entry.get("lifetime_kwh")
+                )
+                if previous_lifetime_kwh is not None:
+                    entry.setdefault("lifetime_kwh", previous_lifetime_kwh)
             entry.update(_build_evse_power_snapshot(sn, entry))
             if PHASE_SWITCH_CONFIG_SETTING in config_values:
                 entry["phase_switch_config"] = config_values[
@@ -3342,6 +3358,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                     if filtered is not None:
                         cur["lifetime_kwh"] = filtered
+                elif isinstance(prev_sn, dict):
+                    previous_lifetime_kwh = _power_as_float(prev_sn.get("lifetime_kwh"))
+                    if previous_lifetime_kwh is not None:
+                        cur["lifetime_kwh"] = previous_lifetime_kwh
                 for key_src, key_dst in (
                     ("firmwareVersion", "firmware_version"),
                     ("systemVersion", "system_version"),
