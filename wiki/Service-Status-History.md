@@ -1,11 +1,11 @@
 # Service Status History
 
-- Current status: **Fully Operational**
-- Last updated: `2026-04-04 15:31 UTC`
-- Failed checks in latest run: `1`
-- Latest failed checks: battery_config
-- Retained hourly samples: `561`
-- Incident windows in last 30 days: `4`
+- Current status: **Degraded**
+- Last updated: `2026-04-04 16:35 UTC`
+- Failed checks in latest run: `4`
+- Latest failed checks: evse_scheduler, site_energy, battery_config, inventory
+- Retained hourly samples: `562`
+- Incident windows in last 30 days: `5`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
 
@@ -16,14 +16,15 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-03-05T15:31:05, 0ms
-    Window end :vert, window-end, 2026-04-04T15:31:05, 0ms
+    Window start :vert, window-start, 2026-03-05T16:35:17, 0ms
+    Window end :vert, window-end, 2026-04-04T16:35:17, 0ms
     section Down
     Down 1 (2026-03-19 2056 UTC) :crit, down-1, 2026-03-19T20:56:20, 145m
     Down 2 (2026-03-25 0943 UTC) :crit, down-2, 2026-03-25T09:43:28, 111m
     Down 3 (2026-04-01 0145 UTC) :crit, down-3, 2026-04-01T01:45:09, 60m
     section Degraded
     Degraded 1 (2026-03-12 1650 UTC) :active, degraded-1, 2026-03-12T16:50:43, 60m
+    Degraded 2 (2026-04-04 1635 UTC) :active, degraded-2, 2026-04-04T16:35:17, 60m
 ```
 
 ## Incident Summary
@@ -34,6 +35,7 @@ gantt
 | Down | 2026-03-19 20:56 UTC | Unknown after last seen 2026-03-19 23:21 UTC | Observed 2h 25m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
 | Down | 2026-03-25 09:43 UTC | 2026-03-25 11:34 UTC | 1h 51m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
 | Down | 2026-04-01 01:45 UTC | Unknown after last seen 2026-04-01 01:45 UTC | Observed 0m | battery_config, evse_runtime, evse_scheduler |
+| Degraded | 2026-04-04 16:35 UTC | Ongoing (last seen 2026-04-04 16:35 UTC) | Observed at latest check | battery_config, evse_scheduler, inventory, site_energy |
 
 ## Raw Artifacts
 
