@@ -14,6 +14,7 @@ from custom_components.enphase_ev.refresh_plan import (
     post_session_followup_plan,
     warmup_plan,
 )
+from custom_components.enphase_ev.refresh_runner import RefreshRunner
 from custom_components.enphase_ev.state_models import (
     RefreshHealthState,
     StateBackedAttribute,
@@ -283,10 +284,10 @@ class _RefreshOwner:
             _async_refresh_hems_devices=self._async_refresh_hems_devices,
         )
         self.refresh_runner = SimpleNamespace(
-            _async_refresh_site_energy_for_warmup=self._async_refresh_site_energy_for_warmup,
-            _async_refresh_evse_timeseries_for_warmup=self._async_refresh_evse_timeseries_for_warmup,
-            _async_refresh_session_state_for_warmup=self._async_refresh_session_state_for_warmup,
-            _async_refresh_secondary_evse_state_for_warmup=self._async_refresh_secondary_evse_state_for_warmup,
+            async_refresh_site_energy_for_warmup=self.async_refresh_site_energy_for_warmup,
+            async_refresh_evse_timeseries_for_warmup=self.async_refresh_evse_timeseries_for_warmup,
+            async_refresh_session_state_for_warmup=self.async_refresh_session_state_for_warmup,
+            async_refresh_secondary_evse_state_for_warmup=self.async_refresh_secondary_evse_state_for_warmup,
         )
 
     def _record(self, value: str) -> str:
@@ -357,11 +358,11 @@ class _RefreshOwner:
         self.calls.append("heatpump_power")
         return "heatpump-power"
 
-    def _async_refresh_site_energy_for_warmup(self) -> str:
+    def async_refresh_site_energy_for_warmup(self) -> str:
         self.calls.append("warmup_site_energy")
         return "warmup-site-energy"
 
-    def _async_refresh_evse_timeseries_for_warmup(
+    def async_refresh_evse_timeseries_for_warmup(
         self,
         *,
         working_data: dict[str, dict[str, object]],
@@ -369,7 +370,7 @@ class _RefreshOwner:
         self.calls.append(f"warmup_evse_timeseries:{sorted(working_data)}")
         return "warmup-evse-timeseries"
 
-    def _async_refresh_session_state_for_warmup(
+    def async_refresh_session_state_for_warmup(
         self,
         *,
         working_data: dict[str, dict[str, object]],
@@ -377,7 +378,7 @@ class _RefreshOwner:
         self.calls.append(f"warmup_sessions:{sorted(working_data)}")
         return "warmup-sessions"
 
-    def _async_refresh_secondary_evse_state_for_warmup(
+    def async_refresh_secondary_evse_state_for_warmup(
         self,
         *,
         working_data: dict[str, dict[str, object]],
@@ -464,11 +465,9 @@ async def test_coordinator_refresh_plan_runner_executes_each_stage(
             )
         )
 
-    coord.refresh_runner._async_run_staged_refresh_calls = _run_stage  # type: ignore[method-assign]  # noqa: SLF001
+    coord.refresh_runner.async_run_staged_refresh_calls = _run_stage  # type: ignore[method-assign]
 
-    await coord.refresh_runner._async_run_refresh_plan(  # noqa: SLF001
-        {}, plan=FOLLOWUP_PLAN
-    )
+    await coord.refresh_runner.async_run_refresh_plan({}, plan=FOLLOWUP_PLAN)
 
     assert seen == [
         (None, True, 9, 3),
@@ -482,12 +481,12 @@ async def test_coordinator_run_refresh_calls_tracks_stage_and_topology_batch(
     coord = coordinator_factory()
     coord._begin_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._end_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
-    coord.refresh_runner._async_run_refresh_call = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
+    coord.refresh_runner.async_run_refresh_call = AsyncMock(  # type: ignore[method-assign]
         side_effect=(("first_s", 0.1), ("second_s", 0.2))
     )
     phase_timings: dict[str, float] = {}
 
-    await coord.refresh_runner._async_run_refresh_calls(  # noqa: SLF001
+    await coord.refresh_runner.async_run_refresh_calls(
         phase_timings,
         calls=(
             ("first_s", "first", lambda: None),
@@ -502,3 +501,27 @@ async def test_coordinator_run_refresh_calls_tracks_stage_and_topology_batch(
     assert phase_timings["first_s"] == 0.1
     assert phase_timings["second_s"] == 0.2
     assert "refresh_s" in phase_timings
+
+
+@pytest.mark.asyncio
+async def test_refresh_runner_staged_calls_track_empty_stage_timing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runner = RefreshRunner(coord)
+    phase_timings: dict[str, float] = {}
+
+    await runner.async_run_staged_refresh_calls(phase_timings, stage_key="empty")
+
+    assert phase_timings == {"empty_s": 0.0}
+
+
+def test_coordinator_lazily_creates_refresh_runner() -> None:
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = EnphaseCoordinator.__new__(EnphaseCoordinator)
+
+    runner = coord.refresh_runner
+
+    assert isinstance(runner, RefreshRunner)
+    assert runner is coord.refresh_runner
