@@ -347,3 +347,7 @@ class RefreshRunner:
                     ]
         if working_data is None:
             coordinator.async_set_updated_data(merged)
+
+
+# Backward-compatible alias for older tests and patch targets.
+CoordinatorRefreshRunner = RefreshRunner
