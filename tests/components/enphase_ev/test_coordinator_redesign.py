@@ -282,6 +282,12 @@ class _RefreshOwner:
             _async_refresh_devices_inventory=self._async_refresh_devices_inventory,
             _async_refresh_hems_devices=self._async_refresh_hems_devices,
         )
+        self.refresh_runner = SimpleNamespace(
+            _async_refresh_site_energy_for_warmup=self._async_refresh_site_energy_for_warmup,
+            _async_refresh_evse_timeseries_for_warmup=self._async_refresh_evse_timeseries_for_warmup,
+            _async_refresh_session_state_for_warmup=self._async_refresh_session_state_for_warmup,
+            _async_refresh_secondary_evse_state_for_warmup=self._async_refresh_secondary_evse_state_for_warmup,
+        )
 
     def _record(self, value: str) -> str:
         self.calls.append(value)
@@ -458,9 +464,11 @@ async def test_coordinator_refresh_plan_runner_executes_each_stage(
             )
         )
 
-    coord._async_run_staged_refresh_calls = _run_stage  # type: ignore[method-assign]  # noqa: SLF001
+    coord.refresh_runner._async_run_staged_refresh_calls = _run_stage  # type: ignore[method-assign]  # noqa: SLF001
 
-    await coord._async_run_refresh_plan({}, plan=FOLLOWUP_PLAN)  # noqa: SLF001
+    await coord.refresh_runner._async_run_refresh_plan(  # noqa: SLF001
+        {}, plan=FOLLOWUP_PLAN
+    )
 
     assert seen == [
         (None, True, 9, 3),
@@ -474,12 +482,12 @@ async def test_coordinator_run_refresh_calls_tracks_stage_and_topology_batch(
     coord = coordinator_factory()
     coord._begin_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._end_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
-    coord._async_run_refresh_call = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
+    coord.refresh_runner._async_run_refresh_call = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
         side_effect=(("first_s", 0.1), ("second_s", 0.2))
     )
     phase_timings: dict[str, float] = {}
 
-    await coord._async_run_refresh_calls(  # noqa: SLF001
+    await coord.refresh_runner._async_run_refresh_calls(  # noqa: SLF001
         phase_timings,
         calls=(
             ("first_s", "first", lambda: None),
