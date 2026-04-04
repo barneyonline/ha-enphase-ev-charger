@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-04-04T16:35:17.378312Z",
+  "checked_at": "2026-04-04T17:28:56.968762Z",
   "checks": [
     {
       "affects": true,
@@ -43,7 +43,7 @@
       ],
       "group": "degraded",
       "name": "evse_scheduler",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -64,7 +64,7 @@
       ],
       "group": "degraded",
       "name": "site_energy",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -122,7 +122,7 @@
       ],
       "group": "degraded",
       "name": "inventory",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -263,12 +263,12 @@
       "category": "evse_scheduler",
       "check_group": "evse_scheduler",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_charge_mode",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
     },
     {
@@ -308,7 +308,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=b79fbab6-df52-49d9-88ff-b7996e7b6cc1&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=a318d926-82e5-4da9-88e4-1e0ba3bcf698&username=2999024"
     },
     {
       "affects_status": true,
@@ -328,12 +328,12 @@
       "category": "site_energy",
       "check_group": "site_energy",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "site_energy",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/pv/systems/{site_id}/lifetime_energy"
     },
     {
@@ -373,7 +373,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=b79fbab6-df52-49d9-88ff-b7996e7b6cc1&start_date=2026-04-04&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=a318d926-82e5-4da9-88e4-1e0ba3bcf698&start_date=2026-04-04&username=2999024"
     },
     {
       "affects_status": false,
@@ -386,7 +386,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=b79fbab6-df52-49d9-88ff-b7996e7b6cc1&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=a318d926-82e5-4da9-88e4-1e0ba3bcf698&username=2999024"
     },
     {
       "affects_status": false,
@@ -432,12 +432,12 @@
       "category": "battery_config",
       "check_group": "battery_config",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_profile",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/batteryConfig/api/v1/profile/{site_id}?userId=2999024&source=enho&locale=en-AU"
     },
     {
@@ -497,12 +497,12 @@
       "category": "inventory",
       "check_group": "inventory",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "devices_inventory",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/devices.json"
     },
     {
@@ -675,13 +675,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 4,
-    "checks_ok": 13,
+    "checks_failed": 1,
+    "checks_ok": 16,
     "checks_total": 17,
-    "endpoints_failed": 5,
-    "endpoints_ok": 32,
+    "endpoints_failed": 1,
+    "endpoints_ok": 36,
     "endpoints_total": 37
   }
 }
