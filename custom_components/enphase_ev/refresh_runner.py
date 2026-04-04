@@ -4,18 +4,13 @@ import asyncio
 import inspect
 import logging
 import time
-from collections.abc import Callable
 from datetime import datetime
 from datetime import timezone as _tz
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from homeassistant.util import dt as dt_util
 
-from .const import (
-    DEFAULT_CHARGE_LEVEL_SETTING,
-    DOMAIN,
-    PHASE_SWITCH_CONFIG_SETTING,
-)
+from .const import DOMAIN, DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING
 from .log_redaction import redact_site_id, redact_text
 from .refresh_plan import RefreshPlan, bind_refresh_plan, warmup_plan
 
@@ -25,11 +20,13 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-class CoordinatorRefreshRunner:
-    def __init__(self, coordinator: EnphaseCoordinator) -> None:
-        self.coordinator = coordinator
+class RefreshRunner:
+    """Execute refresh plans and startup warmup on behalf of the coordinator."""
 
-    async def _async_run_refresh_call(
+    def __init__(self, coordinator: EnphaseCoordinator) -> None:
+        self._coordinator = coordinator
+
+    async def async_run_refresh_call(
         self,
         timing_key: str,
         log_label: str,
@@ -46,12 +43,12 @@ class CoordinatorRefreshRunner:
             _LOGGER.debug(
                 "Skipping %s refresh for site %s: %s",
                 log_label,
-                redact_site_id(self.coordinator.site_id),
-                redact_text(err, site_ids=(self.coordinator.site_id,)),
+                redact_site_id(self._coordinator.site_id),
+                redact_text(err, site_ids=(self._coordinator.site_id,)),
             )
         return timing_key, round(time.monotonic() - started, 3)
 
-    async def _async_run_refresh_calls(
+    async def async_run_refresh_calls(
         self,
         phase_timings: dict[str, float],
         *,
@@ -60,21 +57,19 @@ class CoordinatorRefreshRunner:
         defer_topology: bool = False,
     ) -> None:
         if defer_topology:
-            self.coordinator._begin_topology_refresh_batch()
+            self._coordinator._begin_topology_refresh_batch()
 
         group_started = time.monotonic()
         try:
             results = await asyncio.gather(
                 *(
-                    self._async_run_refresh_call(
-                        timing_key, log_label, callback_factory
-                    )
+                    self.async_run_refresh_call(timing_key, log_label, callback_factory)
                     for timing_key, log_label, callback_factory in calls
                 )
             )
         finally:
             if defer_topology:
-                self.coordinator._end_topology_refresh_batch()
+                self._coordinator._end_topology_refresh_batch()
 
         for timing_key, duration in results:
             if duration is not None:
@@ -82,7 +77,7 @@ class CoordinatorRefreshRunner:
         if stage_key is not None:
             phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
 
-    async def _async_run_ordered_refresh_calls(
+    async def async_run_ordered_refresh_calls(
         self,
         phase_timings: dict[str, float],
         *,
@@ -91,12 +86,12 @@ class CoordinatorRefreshRunner:
         defer_topology: bool = False,
     ) -> None:
         if defer_topology:
-            self.coordinator._begin_topology_refresh_batch()
+            self._coordinator._begin_topology_refresh_batch()
 
         group_started = time.monotonic()
         try:
             for timing_key, log_label, callback_factory in calls:
-                key, duration = await self._async_run_refresh_call(
+                key, duration = await self.async_run_refresh_call(
                     timing_key,
                     log_label,
                     callback_factory,
@@ -105,12 +100,12 @@ class CoordinatorRefreshRunner:
                     phase_timings[key] = duration
         finally:
             if defer_topology:
-                self.coordinator._end_topology_refresh_batch()
+                self._coordinator._end_topology_refresh_batch()
 
         if stage_key is not None:
             phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
 
-    async def _async_run_staged_refresh_calls(
+    async def async_run_staged_refresh_calls(
         self,
         phase_timings: dict[str, float],
         *,
@@ -125,36 +120,36 @@ class CoordinatorRefreshRunner:
             return
 
         if defer_topology:
-            self.coordinator._begin_topology_refresh_batch()
+            self._coordinator._begin_topology_refresh_batch()
 
         group_started = time.monotonic()
         try:
             if parallel_calls:
-                await self._async_run_refresh_calls(
+                await self.async_run_refresh_calls(
                     phase_timings,
                     calls=parallel_calls,
                 )
             if ordered_calls:
-                await self._async_run_ordered_refresh_calls(
+                await self.async_run_ordered_refresh_calls(
                     phase_timings,
                     calls=ordered_calls,
                 )
         finally:
             if defer_topology:
-                self.coordinator._end_topology_refresh_batch()
+                self._coordinator._end_topology_refresh_batch()
 
         if stage_key is not None:
             phase_timings[f"{stage_key}_s"] = round(time.monotonic() - group_started, 3)
 
-    async def _async_run_refresh_plan(
+    async def async_run_refresh_plan(
         self,
         phase_timings: dict[str, float],
         *,
         plan: RefreshPlan,
     ) -> None:
-        bound_plan = bind_refresh_plan(self.coordinator, plan)
+        bound_plan = bind_refresh_plan(self._coordinator, plan)
         for stage in bound_plan.stages:
-            await self._async_run_staged_refresh_calls(
+            await self.async_run_staged_refresh_calls(
                 phase_timings,
                 stage_key=stage.stage_key,
                 defer_topology=stage.defer_topology,
@@ -162,93 +157,96 @@ class CoordinatorRefreshRunner:
                 ordered_calls=stage.ordered_calls,
             )
 
-    async def _async_startup_warmup_runner(self) -> None:
-        coord = self.coordinator
+    async def async_startup_warmup_runner(self) -> None:
+        coordinator = self._coordinator
         warmup_timings: dict[str, float] = {}
-        coord._warmup_in_progress = True
-        coord._warmup_last_error = None
+        coordinator._warmup_in_progress = True
+        coordinator._warmup_last_error = None
         warmup_data = (
-            {sn: dict(payload) for sn, payload in coord.data.items()}
-            if isinstance(coord.data, dict)
+            {sn: dict(payload) for sn, payload in coordinator.data.items()}
+            if isinstance(coordinator.data, dict)
             else {}
         )
         try:
-            await self._async_run_refresh_plan(
+            await self.async_run_refresh_plan(
                 warmup_timings,
                 plan=warmup_plan(warmup_data),
             )
             if warmup_data:
-                coord.async_set_updated_data(warmup_data)
+                coordinator.async_set_updated_data(warmup_data)
         except asyncio.CancelledError:
             raise
         except Exception as err:  # noqa: BLE001
-            coord._warmup_last_error = (
-                redact_text(err, site_ids=(coord.site_id,)) or err.__class__.__name__
+            coordinator._warmup_last_error = (
+                redact_text(err, site_ids=(coordinator.site_id,))
+                or err.__class__.__name__
             )
             _LOGGER.debug(
                 "Startup warmup failed for site %s: %s",
-                redact_site_id(coord.site_id),
-                redact_text(err, site_ids=(coord.site_id,)),
+                redact_site_id(coordinator.site_id),
+                redact_text(err, site_ids=(coordinator.site_id,)),
                 exc_info=True,
             )
         finally:
-            coord._warmup_in_progress = False
-            coord._warmup_phase_timings = warmup_timings
-            coord.discovery_snapshot.schedule_save()
+            coordinator._warmup_in_progress = False
+            coordinator._warmup_phase_timings = warmup_timings
+            coordinator.discovery_snapshot.schedule_save()
 
     async def async_start_startup_warmup(self) -> None:
-        coord = self.coordinator
-        if coord._warmup_task is not None and not coord._warmup_task.done():
+        coordinator = self._coordinator
+        if coordinator._warmup_task is not None and not coordinator._warmup_task.done():
             return
         try:
-            coord._warmup_task = coord.hass.async_create_task(
-                self._async_startup_warmup_runner(),
-                name=f"{DOMAIN}_warmup_{coord.site_id}",
+            coordinator._warmup_task = coordinator.hass.async_create_task(
+                self.async_startup_warmup_runner(),
+                name=f"{DOMAIN}_warmup_{coordinator.site_id}",
             )
         except TypeError:
-            coord._warmup_task = coord.hass.async_create_task(
-                self._async_startup_warmup_runner()
+            coordinator._warmup_task = coordinator.hass.async_create_task(
+                self.async_startup_warmup_runner()
             )
 
-    async def _async_refresh_site_energy_for_warmup(self) -> None:
-        coord = self.coordinator
-        await coord.energy._async_refresh_site_energy()
-        coord.discovery_snapshot.sync_site_energy_discovery_state()
-        coord._sync_site_energy_issue()
+    async def async_refresh_site_energy_for_warmup(self) -> None:
+        coordinator = self._coordinator
+        await coordinator.energy._async_refresh_site_energy()
+        coordinator.discovery_snapshot.sync_site_energy_discovery_state()
+        coordinator._sync_site_energy_issue()
 
-    async def _async_refresh_evse_timeseries_for_warmup(
+    async def async_refresh_evse_timeseries_for_warmup(
         self,
         *,
         working_data: dict[str, dict[str, object]] | None = None,
     ) -> None:
-        coord = self.coordinator
+        coordinator = self._coordinator
         try:
             day_local = dt_util.as_local(dt_util.now())
         except Exception:
             day_local = datetime.now(tz=_tz.utc)
-        await coord.evse_timeseries.async_refresh(day_local=day_local)
+        await coordinator.evse_timeseries.async_refresh(day_local=day_local)
         target = working_data
-        if target is None and isinstance(coord.data, dict) and coord.data:
-            target = {sn: dict(payload) for sn, payload in coord.data.items()}
+        if target is None and isinstance(coordinator.data, dict) and coordinator.data:
+            target = {sn: dict(payload) for sn, payload in coordinator.data.items()}
         if target:
-            coord.evse_timeseries.merge_charger_payloads(target, day_local=day_local)
+            coordinator.evse_timeseries.merge_charger_payloads(
+                target, day_local=day_local
+            )
             if working_data is None:
-                coord.async_set_updated_data(target)
+                coordinator.async_set_updated_data(target)
 
-    async def _async_refresh_session_state_for_warmup(
+    async def async_refresh_session_state_for_warmup(
         self,
         *,
         working_data: dict[str, dict[str, object]] | None = None,
     ) -> None:
-        coord = self.coordinator
-        target = working_data if working_data is not None else coord.data
+        coordinator = self._coordinator
+        target = working_data if working_data is not None else coordinator.data
         if not isinstance(target, dict) or not target:
             return
         try:
             day_ref = dt_util.as_local(dt_util.now())
         except Exception:
             day_ref = datetime.now(tz=_tz.utc)
-        updates = await coord._async_enrich_sessions(
+        updates = await coordinator._async_enrich_sessions(
             target.keys(),
             day_ref,
             in_background=False,
@@ -265,29 +263,35 @@ class CoordinatorRefreshRunner:
             if payload is None:
                 continue
             payload["energy_today_sessions"] = sessions
-            payload["energy_today_sessions_kwh"] = coord._sum_session_energy(sessions)
+            payload["energy_today_sessions_kwh"] = coordinator._sum_session_energy(
+                sessions
+            )
         if working_data is None:
-            coord.async_set_updated_data(merged)
-        coord._sync_session_history_issue()
+            coordinator.async_set_updated_data(merged)
+        coordinator._sync_session_history_issue()
 
-    async def _async_refresh_secondary_evse_state_for_warmup(
+    async def async_refresh_secondary_evse_state_for_warmup(
         self,
         *,
         working_data: dict[str, dict[str, object]] | None = None,
     ) -> None:
-        coord = self.coordinator
-        target = working_data if working_data is not None else coord.data
+        coordinator = self._coordinator
+        target = working_data if working_data is not None else coordinator.data
         if not isinstance(target, dict) or not target:
             return
-        serials = [sn for sn in coord.iter_serials() if sn]
+        serials = [sn for sn in coordinator.iter_serials() if sn]
         if not serials:
             return
-        charge_modes = await coord.evse_runtime.async_resolve_charge_modes(serials)
-        green_settings = await coord.evse_runtime.async_resolve_green_battery_settings(
+        charge_modes = await coordinator.evse_runtime.async_resolve_charge_modes(
             serials
         )
-        auth_settings = await coord.evse_runtime.async_resolve_auth_settings(serials)
-        charger_config = await coord.evse_runtime.async_resolve_charger_config(
+        green_settings = (
+            await coordinator.evse_runtime.async_resolve_green_battery_settings(serials)
+        )
+        auth_settings = await coordinator.evse_runtime.async_resolve_auth_settings(
+            serials
+        )
+        charger_config = await coordinator.evse_runtime.async_resolve_charger_config(
             serials,
             keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
         )
@@ -301,8 +305,8 @@ class CoordinatorRefreshRunner:
             if payload is None:
                 continue
             charge_mode_resolution = charge_modes.get(sn)
-            charge_mode_value, charge_mode_source = coord._charge_mode_resolution_parts(
-                charge_mode_resolution
+            charge_mode_value, charge_mode_source = (
+                coordinator._charge_mode_resolution_parts(charge_mode_resolution)
             )
             if charge_mode_value:
                 payload["charge_mode_pref"] = charge_mode_value
@@ -342,4 +346,8 @@ class CoordinatorRefreshRunner:
                         DEFAULT_CHARGE_LEVEL_SETTING
                     ]
         if working_data is None:
-            coord.async_set_updated_data(merged)
+            coordinator.async_set_updated_data(merged)
+
+
+# Backward-compatible alias for older tests and patch targets.
+CoordinatorRefreshRunner = RefreshRunner
