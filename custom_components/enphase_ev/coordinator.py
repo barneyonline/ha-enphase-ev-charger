@@ -128,7 +128,7 @@ from .refresh_plan import (
     SITE_ONLY_FOLLOWUP_PLAN,
     post_session_followup_plan,
 )
-from .refresh_runner import CoordinatorRefreshRunner
+from .refresh_runner import RefreshRunner
 from .service_validation import raise_translated_service_validation
 from .state_models import (
     BatteryControlCapability,
@@ -392,10 +392,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.battery_runtime = BatteryRuntime(self)
         self.heatpump_runtime = HeatpumpRuntime(self)
         self.inventory_runtime = InventoryRuntime(self)
-        self.refresh_runner = CoordinatorRefreshRunner(self)
         self.discovery_snapshot = DiscoverySnapshotManager(self)
         self.inventory_view = InventoryView(self)
         self.diagnostics = CoordinatorDiagnostics(self)
+        self.refresh_runner = RefreshRunner(self)
 
     def __setattr__(self, name, value):
         if name == "_async_fetch_sessions_today" and hasattr(self, "session_history"):
@@ -432,6 +432,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             inventory_view = InventoryView(self)
             self.__dict__["inventory_view"] = inventory_view
             return inventory_view
+        if name == "refresh_runner":
+            refresh_runner = RefreshRunner(self)
+            self.__dict__["refresh_runner"] = refresh_runner
+            return refresh_runner
         raise AttributeError(f"{type(self).__name__} has no attribute {name!r}")
 
     async def _async_setup(self) -> None:
@@ -878,6 +882,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         await self.heatpump_runtime.async_ensure_heatpump_runtime_diagnostics(
             force=force
         )
+
+    async def async_start_startup_warmup(self) -> None:
+        await self.refresh_runner.async_start_startup_warmup()
 
     @staticmethod
     def _copy_diagnostics_value(value: object) -> object:  # pragma: no cover
@@ -1793,7 +1800,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 time.monotonic() - site_energy_start, 3
             )
             if not first_refresh:
-                await self.refresh_runner._async_run_refresh_plan(
+                await self.refresh_runner.async_run_refresh_plan(
                     phase_timings,
                     plan=SITE_ONLY_FOLLOWUP_PLAN,
                 )
@@ -2173,7 +2180,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._last_error = self.last_failure_description
 
         if not first_refresh:
-            await self.refresh_runner._async_run_refresh_plan(
+            await self.refresh_runner.async_run_refresh_plan(
                 phase_timings,
                 plan=FOLLOWUP_PLAN,
             )
@@ -3065,12 +3072,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "plug_and_charge_supported": plug_and_charge_support,
                 "plug_and_charge_supported_source": plug_and_charge_support_source,
             }
-            if isinstance(previous_entry, dict):
-                previous_lifetime_kwh = _power_as_float(
-                    previous_entry.get("lifetime_kwh")
-                )
-                if previous_lifetime_kwh is not None:
-                    entry.setdefault("lifetime_kwh", previous_lifetime_kwh)
             entry.update(_build_evse_power_snapshot(sn, entry))
             if PHASE_SWITCH_CONFIG_SETTING in config_values:
                 entry["phase_switch_config"] = config_values[
@@ -3341,10 +3342,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                     if filtered is not None:
                         cur["lifetime_kwh"] = filtered
-                elif isinstance(prev_sn, dict):
-                    previous_lifetime_kwh = _power_as_float(prev_sn.get("lifetime_kwh"))
-                    if previous_lifetime_kwh is not None:
-                        cur["lifetime_kwh"] = previous_lifetime_kwh
                 for key_src, key_dst in (
                     ("firmwareVersion", "firmware_version"),
                     ("systemVersion", "system_version"),
@@ -3439,7 +3436,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_session_history_issue()
 
         if not first_refresh:
-            await self.refresh_runner._async_run_refresh_plan(
+            await self.refresh_runner.async_run_refresh_plan(
                 phase_timings,
                 plan=post_session_followup_plan(day_local_default),
             )
@@ -3452,7 +3449,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.discovery_snapshot.sync_site_energy_discovery_state()
             self._sync_site_energy_issue()
             self._sync_battery_profile_pending_issue()
-            await self.refresh_runner._async_run_refresh_plan(
+            await self.refresh_runner.async_run_refresh_plan(
                 phase_timings,
                 plan=HEATPUMP_FOLLOWUP_PLAN,
             )

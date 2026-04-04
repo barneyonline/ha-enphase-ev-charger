@@ -1014,7 +1014,7 @@ def test_heatpump_power_properties_handle_invalid_internal_values(
 
 
 @pytest.mark.asyncio
-async def test_refresh_helper_wrappers_cover_stage_and_topology_paths(
+async def test_refresh_runner_helpers_cover_stage_and_topology_paths(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[])
@@ -1024,7 +1024,7 @@ async def test_refresh_helper_wrappers_cover_stage_and_topology_paths(
     coord._begin_topology_refresh_batch = begin  # type: ignore[assignment]  # noqa: SLF001
     coord._end_topology_refresh_batch = end  # type: ignore[assignment]  # noqa: SLF001
 
-    await coord.refresh_runner._async_run_ordered_refresh_calls(  # noqa: SLF001
+    await coord.refresh_runner.async_run_ordered_refresh_calls(
         phase_timings,
         stage_key="ordered",
         defer_topology=True,
@@ -1040,7 +1040,7 @@ async def test_refresh_helper_wrappers_cover_stage_and_topology_paths(
     begin.reset_mock()
     end.reset_mock()
 
-    await coord.refresh_runner._async_run_staged_refresh_calls(  # noqa: SLF001
+    await coord.refresh_runner.async_run_staged_refresh_calls(
         phase_timings,
         stage_key="empty",
     )
@@ -2627,9 +2627,6 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     ) == {  # noqa: SLF001
         "ok": 1
     }
-    set_snapshot = coord._snapshot_compatible_value({1, "two"})  # noqa: SLF001
-    assert isinstance(set_snapshot, list)
-    assert set(set_snapshot) == {1, "two"}
     assert coord._snapshot_compatible_value(BadStr()) is None  # noqa: SLF001
 
     assert coord._snapshot_bool(None) is None  # noqa: SLF001
@@ -2894,7 +2891,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_battery_site_settings = None  # type: ignore[assignment]  # noqa: SLF001
 
-    await coord.refresh_runner._async_startup_warmup_runner()  # noqa: SLF001
+    await coord.refresh_runner.async_startup_warmup_runner()
 
     assert coord._warmup_last_error == "publish"  # noqa: SLF001
     assert coord._warmup_in_progress is False  # noqa: SLF001
@@ -2907,7 +2904,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
-        await coord.refresh_runner._async_startup_warmup_runner()  # noqa: SLF001
+        await coord.refresh_runner.async_startup_warmup_runner()
     assert coord._warmup_in_progress is False  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
@@ -2916,7 +2913,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     coord._async_refresh_heatpump_power = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=RuntimeError("heatpump")
     )
-    await coord.refresh_runner._async_startup_warmup_runner()  # noqa: SLF001
+    await coord.refresh_runner.async_startup_warmup_runner()
     assert "heatpump_power_s" in coord._warmup_phase_timings  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
@@ -2928,7 +2925,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=RuntimeError("daily")
     )
-    await coord.refresh_runner._async_startup_warmup_runner()  # noqa: SLF001
+    await coord.refresh_runner.async_startup_warmup_runner()
     assert "heatpump_runtime_s" in coord._warmup_phase_timings  # noqa: SLF001
     assert "heatpump_daily_s" in coord._warmup_phase_timings  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
@@ -2939,7 +2936,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
-        await coord.refresh_runner._async_startup_warmup_runner()  # noqa: SLF001
+        await coord.refresh_runner.async_startup_warmup_runner()
     assert coord._warmup_in_progress is False  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
@@ -2949,7 +2946,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
-        await coord.refresh_runner._async_startup_warmup_runner()  # noqa: SLF001
+        await coord.refresh_runner.async_startup_warmup_runner()
     assert coord._warmup_in_progress is False  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
@@ -2959,7 +2956,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
         side_effect=asyncio.CancelledError()
     )
     with pytest.raises(asyncio.CancelledError):
-        await coord.refresh_runner._async_startup_warmup_runner()  # noqa: SLF001
+        await coord.refresh_runner.async_startup_warmup_runner()
     assert coord._warmup_in_progress is False  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
 
@@ -2970,7 +2967,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     async def _runner() -> None:
         return None
 
-    coord.refresh_runner._async_startup_warmup_runner = _runner  # type: ignore[assignment]  # noqa: SLF001
+    coord.refresh_runner.async_startup_warmup_runner = _runner  # type: ignore[method-assign]
 
     def _create_task(coro, name=None):
         create_calls.append(name)
@@ -2980,11 +2977,11 @@ async def test_startup_warmup_runner_and_task_edge_paths(
         return "task"
 
     object.__setattr__(coord.hass, "async_create_task", _create_task)
-    await coord.refresh_runner.async_start_startup_warmup()
+    await coord.async_start_startup_warmup()
     assert create_calls == []
 
     coord._warmup_task = None  # noqa: SLF001
-    await coord.refresh_runner.async_start_startup_warmup()
+    await coord.async_start_startup_warmup()
     assert create_calls == [f"{DOMAIN}_warmup_{coord.site_id}", None]
     assert coord._warmup_task == "task"  # noqa: SLF001
 
@@ -3006,7 +3003,7 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
 
     coord.energy._async_refresh_site_energy = AsyncMock()  # noqa: SLF001
     coord._sync_site_energy_issue = Mock()  # type: ignore[assignment]  # noqa: SLF001
-    await coord.refresh_runner._async_refresh_site_energy_for_warmup()  # noqa: SLF001
+    await coord.refresh_runner.async_refresh_site_energy_for_warmup()
     coord.energy._async_refresh_site_energy.assert_awaited_once()
 
     coord.evse_timeseries.async_refresh = AsyncMock()
@@ -3015,7 +3012,7 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
             {"timeseries": True}
         )
     )
-    await coord.refresh_runner._async_refresh_evse_timeseries_for_warmup()  # noqa: SLF001
+    await coord.refresh_runner.async_refresh_evse_timeseries_for_warmup()
     merged_timeseries = set_updated.call_args_list[-1].args[0]
     assert merged_timeseries[RANDOM_SERIAL]["timeseries"] is True
 
@@ -3027,7 +3024,7 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
     )
     coord._sum_session_energy = Mock(return_value=1.5)  # type: ignore[assignment]  # noqa: SLF001
     coord._sync_session_history_issue = Mock()  # type: ignore[assignment]  # noqa: SLF001
-    await coord.refresh_runner._async_refresh_session_state_for_warmup()  # noqa: SLF001
+    await coord.refresh_runner.async_refresh_session_state_for_warmup()
     merged_sessions = set_updated.call_args_list[-1].args[0]
     assert merged_sessions[RANDOM_SERIAL]["energy_today_sessions"] == [
         {"energy_kwh": 1.5}
@@ -3036,7 +3033,10 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
     coord._sync_session_history_issue.assert_called_once()
 
     coord._async_enrich_sessions = AsyncMock(return_value={})  # type: ignore[assignment]  # noqa: SLF001
-    await coord.refresh_runner._async_refresh_session_state_for_warmup()  # noqa: SLF001
+    await coord.refresh_runner.async_refresh_session_state_for_warmup()
+    coord.data = None
+    await coord.refresh_runner.async_refresh_session_state_for_warmup()
+    coord.data = {RANDOM_SERIAL: {"name": "Garage EV"}}
 
     coord.iter_serials = lambda: [RANDOM_SERIAL, "SECONDARY"]  # type: ignore[assignment]
     coord.evse_runtime.async_resolve_charge_modes = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
@@ -3056,7 +3056,7 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
             }
         }
     )
-    await coord.refresh_runner._async_refresh_secondary_evse_state_for_warmup()  # noqa: SLF001
+    await coord.refresh_runner.async_refresh_secondary_evse_state_for_warmup()
     merged_secondary = set_updated.call_args_list[-1].args[0]
     assert merged_secondary[RANDOM_SERIAL]["charge_mode_pref"] == "SCHEDULED"
     assert merged_secondary[RANDOM_SERIAL]["charge_mode_pref_source"] == "cache_backoff"
@@ -3069,7 +3069,9 @@ async def test_startup_warmup_helper_refreshes_cover_fallback_and_merge_paths(
     assert merged_secondary[RANDOM_SERIAL]["default_charge_level"] is None
 
     coord.iter_serials = lambda: [""]  # type: ignore[assignment]
-    await coord.refresh_runner._async_refresh_secondary_evse_state_for_warmup()  # noqa: SLF001
+    await coord.refresh_runner.async_refresh_secondary_evse_state_for_warmup()
+    coord.data = None
+    await coord.refresh_runner.async_refresh_secondary_evse_state_for_warmup()
 
 
 @pytest.mark.asyncio

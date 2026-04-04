@@ -320,28 +320,28 @@ def warmup_energy_stage(working_data: dict[str, dict]) -> RefreshStage:
                 "site_energy_s",
                 "site energy",
                 "refresh_runner",
-                "_async_refresh_site_energy_for_warmup",
+                "async_refresh_site_energy_for_warmup",
             ),
-            object_method_task(
+            callback_task(
                 "evse_timeseries_s",
                 "EVSE timeseries",
-                "refresh_runner",
-                "_async_refresh_evse_timeseries_for_warmup",
-                working_data=working_data,
+                lambda owner: owner.refresh_runner.async_refresh_evse_timeseries_for_warmup(
+                    working_data=working_data
+                ),
             ),
-            object_method_task(
+            callback_task(
                 "sessions_s",
                 "session state",
-                "refresh_runner",
-                "_async_refresh_session_state_for_warmup",
-                working_data=working_data,
+                lambda owner: owner.refresh_runner.async_refresh_session_state_for_warmup(
+                    working_data=working_data
+                ),
             ),
-            object_method_task(
+            callback_task(
                 "secondary_evse_state_s",
                 "secondary EVSE state",
-                "refresh_runner",
-                "_async_refresh_secondary_evse_state_for_warmup",
-                working_data=working_data,
+                lambda owner: owner.refresh_runner.async_refresh_secondary_evse_state_for_warmup(
+                    working_data=working_data
+                ),
             ),
         ),
     )
