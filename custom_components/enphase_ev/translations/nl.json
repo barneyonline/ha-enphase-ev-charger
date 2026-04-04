@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Schakel ten minste één schema in voordat je Gepland laden selecteert."
+    },
+    "charge_mode_invalid_option": {
+      "message": "De geselecteerde laadmodus is niet beschikbaar."
     }
   },
   "entity": {

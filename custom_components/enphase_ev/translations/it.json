@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Abilita almeno una pianificazione prima di selezionare la ricarica programmata."
+    },
+    "charge_mode_invalid_option": {
+      "message": "La modalità di ricarica selezionata non è disponibile."
     }
   },
   "entity": {

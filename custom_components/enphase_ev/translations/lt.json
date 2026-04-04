@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Prieš pasirinkdami planinį įkrovimą įjunkite bent vieną tvarkaraštį."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Pasirinktas įkrovimo režimas nepasiekiamas."
     }
   },
   "entity": {

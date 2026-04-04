@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Pirms plānotās uzlādes izvēles iespējojiet vismaz vienu grafiku."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Izvēlētais uzlādes režīms nav pieejams."
     }
   },
   "entity": {

@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Před výběrem plánovaného nabíjení povolte alespoň jeden plán."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Vybraný režim nabíjení není k dispozici."
     }
   },
   "entity": {

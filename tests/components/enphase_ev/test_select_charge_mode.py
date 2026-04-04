@@ -339,6 +339,55 @@ async def test_charge_mode_select_sets_smart_mode_for_single_evse_profile_contex
 
 
 @pytest.mark.asyncio
+async def test_charge_mode_select_maps_legacy_green_alias_to_smart_mode(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord._storm_guard_cache_until = 10.0**12  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": RANDOM_SERIAL, "chargeMode": "SMART", "enable": False}
+    ]
+    coord.client.set_charge_mode = AsyncMock(return_value={"status": "accepted"})
+    coord.async_request_refresh = AsyncMock()
+
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+
+    await sel.async_select_option("Green")
+
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "SMART_CHARGING"
+    )
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_maps_localized_green_alias_to_smart_mode(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.labels import async_prime_label_translations
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord.hass.config.language = "de"
+    await async_prime_label_translations(coord.hass)
+    coord._storm_guard_cache_until = 10.0**12  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": RANDOM_SERIAL, "chargeMode": "SMART", "enable": False}
+    ]
+    coord.client.set_charge_mode = AsyncMock(return_value={"status": "accepted"})
+    coord.async_request_refresh = AsyncMock()
+
+    sel = ChargeModeSelect(coord, RANDOM_SERIAL)
+
+    await sel.async_select_option("Grün")
+
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "SMART_CHARGING"
+    )
+
+
+@pytest.mark.asyncio
 async def test_charge_mode_select_keeps_green_for_other_evse_on_ai_site(
     coordinator_factory,
 ):
@@ -365,11 +414,13 @@ async def test_charge_mode_select_keeps_green_for_other_evse_on_ai_site(
 def test_charge_mode_select_helper_branches(coordinator_factory):
     from custom_components.enphase_ev.select import (
         ChargeModeSelect,
+        _english_charge_mode_label,
         _smart_charging_context,
     )
 
     coord = coordinator_factory()
     assert _smart_charging_context(coord) is False
+    assert _english_charge_mode_label("unexpected") is None
     coord._battery_profile_charge_mode_preference = None  # noqa: SLF001
     assert _smart_charging_context(coord, RANDOM_SERIAL) is False
 
@@ -413,7 +464,7 @@ def test_charge_mode_select_helper_branches(coordinator_factory):
 
 
 @pytest.mark.asyncio
-async def test_charge_mode_select_unknown_option_falls_back_to_uppercase(
+async def test_charge_mode_select_rejects_unknown_option(
     coordinator_factory,
 ):
     from custom_components.enphase_ev.select import ChargeModeSelect
@@ -423,9 +474,13 @@ async def test_charge_mode_select_unknown_option_falls_back_to_uppercase(
     coord.async_request_refresh = AsyncMock()
     sel = ChargeModeSelect(coord, RANDOM_SERIAL)
 
-    await sel.async_select_option("experimental")
+    with pytest.raises(
+        ServiceValidationError,
+        match="Selected charging mode is not available",
+    ):
+        await sel.async_select_option("experimental")
 
-    coord.client.set_charge_mode.assert_awaited_once_with(RANDOM_SERIAL, "EXPERIMENTAL")
+    coord.client.set_charge_mode.assert_not_awaited()
 
 
 def test_charge_mode_select_unavailable_when_scheduler_down(coordinator_factory):
