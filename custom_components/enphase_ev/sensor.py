@@ -2049,10 +2049,18 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
     @staticmethod
     def _is_actually_charging(data: dict) -> bool:
         status = data.get("connector_status")
-        if isinstance(status, str) and status.strip().upper().startswith("SUSPENDED"):
-            return False
+        status_norm = ""
+        if isinstance(status, str):
+            status_norm = status.strip().upper()
         if data.get("suspended_by_evse"):
             return False
+        if status_norm in {"SUSPENDED", "SUSPENDED_EVSE"}:
+            return False
+        if status_norm in {
+            "CHARGING",
+            "FINISHING",
+        } or status_norm.startswith("SUSPENDED_EV"):
+            return True
         return bool(data.get("charging"))
 
     def _resolve_max_throughput(
