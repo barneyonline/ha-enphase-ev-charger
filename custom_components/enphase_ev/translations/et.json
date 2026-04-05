@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Luba vähemalt üks ajakava enne ajastatud laadimise valimist."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Valitud laadimisrežiim pole saadaval."
     }
   },
   "entity": {

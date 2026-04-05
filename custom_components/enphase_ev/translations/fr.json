@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Activez au moins un planning avant de sélectionner la charge planifiée."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Le mode de charge sélectionné n’est pas disponible."
     }
   },
   "entity": {

@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Aktivieren Sie mindestens einen Zeitplan, bevor Sie geplantes Laden auswählen."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Der ausgewählte Lademodus ist nicht verfügbar."
     }
   },
   "entity": {

@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Aktiver minst én tidsplan før du velger planlagt lading."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Den valgte lademodusen er ikke tilgjengelig."
     }
   },
   "entity": {

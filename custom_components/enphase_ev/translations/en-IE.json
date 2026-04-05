@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Enable at least one schedule before selecting Scheduled charging."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Selected charging mode is not available."
     }
   },
   "entity": {

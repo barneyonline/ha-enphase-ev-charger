@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Ative pelo menos uma programação antes de selecionar o carregamento agendado."
+    },
+    "charge_mode_invalid_option": {
+      "message": "O modo de carregamento selecionado não está disponível."
     }
   },
   "entity": {

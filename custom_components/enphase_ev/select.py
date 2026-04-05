@@ -17,7 +17,7 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 from .entity_cleanup import prune_managed_entities
-from .labels import battery_profile_label, charge_mode_label
+from .labels import CHARGE_MODE_LABELS, battery_profile_label, charge_mode_label
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -58,6 +58,24 @@ def _solar_mode(coord: EnphaseCoordinator, sn: str | None = None) -> tuple[str, 
     if _smart_charging_context(coord, sn):
         return "SMART_CHARGING", charge_mode_label("SMART_CHARGING", hass=coord.hass)
     return "GREEN_CHARGING", charge_mode_label("GREEN_CHARGING", hass=coord.hass)
+
+
+def _english_charge_mode_label(mode: str) -> str | None:
+    key = str(mode).strip().lower()
+    aliases = {
+        "manual": "manual_charging",
+        "manual_charging": "manual_charging",
+        "scheduled": "scheduled_charging",
+        "scheduled_charging": "scheduled_charging",
+        "green": "green_charging",
+        "green_charging": "green_charging",
+        "smart": "smart_charging",
+        "smart_charging": "smart_charging",
+    }
+    normalized = aliases.get(key)
+    if normalized is None:
+        return None
+    return CHARGE_MODE_LABELS.get(normalized)
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
@@ -331,21 +349,29 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
             raise HomeAssistantError(
                 "Charging mode selection is unavailable while the Enphase scheduler service is down."
             )
+        hass = getattr(self, "hass", None) or self._coord.hass
         solar_mode_key, solar_label = _solar_mode(self._coord, self._sn)
-        manual_label = charge_mode_label(
-            "MANUAL_CHARGING", hass=getattr(self, "hass", None) or self._coord.hass
-        )
-        scheduled_label = charge_mode_label(
-            "SCHEDULED_CHARGING", hass=getattr(self, "hass", None) or self._coord.hass
-        )
-        if option == manual_label:
-            mode = "MANUAL_CHARGING"
-        elif option == scheduled_label:
-            mode = "SCHEDULED_CHARGING"
-        elif option == solar_label:
-            mode = solar_mode_key
-        else:
-            mode = option.upper()
+        manual_label = charge_mode_label("MANUAL_CHARGING", hass=hass)
+        scheduled_label = charge_mode_label("SCHEDULED_CHARGING", hass=hass)
+        option_map: dict[str, str] = {}
+        for label, mode in (
+            (manual_label, "MANUAL_CHARGING"),
+            (scheduled_label, "SCHEDULED_CHARGING"),
+            (solar_label, solar_mode_key),
+            (charge_mode_label("GREEN_CHARGING", hass=hass), solar_mode_key),
+            (charge_mode_label("SMART_CHARGING", hass=hass), solar_mode_key),
+            (_english_charge_mode_label("GREEN_CHARGING"), solar_mode_key),
+            (_english_charge_mode_label("SMART_CHARGING"), solar_mode_key),
+        ):
+            if label:
+                option_map[label] = mode
+        mode = option_map.get(option)
+        if mode is None:
+            raise ServiceValidationError(
+                "Selected charging mode is not available.",
+                translation_domain=DOMAIN,
+                translation_key="charge_mode_invalid_option",
+            )
         try:
             await self._coord.client.set_charge_mode(self._sn, mode)
             self._coord.mark_scheduler_available()

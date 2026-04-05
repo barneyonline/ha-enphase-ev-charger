@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Made EV charger charge-mode selection backward compatible with stale automation values like `Green` when Enphase now exposes the solar option as `Smart`, and reject unsupported select values locally instead of forwarding invalid scheduler payloads.
 
 ### 🔧 Improvements
 - None
