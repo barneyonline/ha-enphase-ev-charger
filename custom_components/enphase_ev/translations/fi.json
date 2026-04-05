@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Ota käyttöön vähintään yksi aikataulu ennen kuin valitset ajastetun latauksen."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Valittu lataustila ei ole käytettävissä."
     }
   },
   "entity": {

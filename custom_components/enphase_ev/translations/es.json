@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Habilita al menos un horario antes de seleccionar la carga programada."
+    },
+    "charge_mode_invalid_option": {
+      "message": "El modo de carga seleccionado no está disponible."
     }
   },
   "entity": {

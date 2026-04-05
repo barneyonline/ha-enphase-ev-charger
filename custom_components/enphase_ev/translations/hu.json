@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Ütemezett töltés kiválasztása előtt engedélyezzen legalább egy ütemezést."
+    },
+    "charge_mode_invalid_option": {
+      "message": "A kiválasztott töltési mód nem érhető el."
     }
   },
   "entity": {

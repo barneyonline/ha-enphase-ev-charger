@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Włącz co najmniej jeden harmonogram przed wybraniem ładowania zaplanowanego."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Wybrany tryb ładowania jest niedostępny."
     }
   },
   "entity": {

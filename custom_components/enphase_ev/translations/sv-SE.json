@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Aktivera minst ett schema innan du väljer schemalagd laddning."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Det valda laddningsläget är inte tillgängligt."
     }
   },
   "entity": {

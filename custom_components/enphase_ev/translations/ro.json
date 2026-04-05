@@ -114,6 +114,9 @@
     },
     "schedule_required": {
       "message": "Activați cel puțin un program înainte de a selecta încărcarea programată."
+    },
+    "charge_mode_invalid_option": {
+      "message": "Modul de încărcare selectat nu este disponibil."
     }
   },
   "entity": {
