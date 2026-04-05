@@ -432,12 +432,20 @@ class DummyCoordinator(SimpleNamespace):
             "last_report_at": "2026-03-01T00:00:00+00:00",
             "source": "hems_heatpump_state:HP-1",
         }
+        self._heatpump_runtime_state_using_stale = False
+        self._heatpump_runtime_state_last_success_utc = datetime(
+            2026, 3, 1, 0, 0, tzinfo=timezone.utc
+        )
         self._heatpump_runtime_state_last_error = None
         self._heatpump_daily_consumption = {
             "device_uid": "HP-1",
             "daily_energy_wh": 230.0,
             "source": "hems_energy_consumption:HP-1",
         }
+        self._heatpump_daily_consumption_using_stale = False
+        self._heatpump_daily_consumption_last_success_utc = datetime(
+            2026, 3, 1, 0, 0, tzinfo=timezone.utc
+        )
         self._heatpump_daily_consumption_last_error = None
         self._show_livestream_payload = {"live_status": True, "live_vitals": True}
         self._heatpump_events_payloads = [
@@ -467,18 +475,32 @@ class DummyCoordinator(SimpleNamespace):
                     "requested_device_ref": "H...1",
                     "resolved_device_ref": "H...1",
                     "detail_count": 1,
-                    "detail_value_w": 550.0,
+                    "reported_detail_value": 550.0,
+                    "accepted_value_w": 550.0,
+                    "runtime_mode": "RUNNING",
+                    "validation": "accepted",
+                    "rejected": False,
                 }
             ],
             "selected_payload": {
                 "resolved_device_ref": "H...1",
-                "detail_value_w": 550.0,
+                "reported_detail_value": 550.0,
+                "accepted_value_w": 550.0,
+                "runtime_mode": "RUNNING",
+                "validation": "accepted",
+                "rejected": False,
             },
             "selected_source": "hems_energy_consumption:H...1",
             "selected_sample_at_utc": "2026-03-01T00:05:00+00:00",
             "last_error": None,
             "outcome": "selected_sample",
+            "using_stale": False,
+            "last_success_utc": "2026-03-01T00:00:00+00:00",
         }
+        self._heatpump_power_using_stale = False
+        self._heatpump_power_last_success_utc = datetime(
+            2026, 3, 1, 0, 0, tzinfo=timezone.utc
+        )
         self._heatpump_runtime_diagnostics_error = None
 
     def collect_site_metrics(self):
@@ -746,7 +768,7 @@ async def test_config_entry_diagnostics_includes_coordinator(
     )
     assert (
         diag["coordinator"]["heatpump_runtime"]["power_snapshot"]["selected_payload"][
-            "detail_value_w"
+            "accepted_value_w"
         ]
         == 550.0
     )
