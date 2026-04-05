@@ -4378,6 +4378,15 @@ def _heatpump_runtime_common_attrs(
             last_reported.isoformat() if last_reported is not None else None
         ),
         "source": snapshot.get("source"),
+        "using_stale": bool(
+            getattr(coord, "heatpump_runtime_state_using_stale", False)
+        ),
+        "last_success_utc": (
+            coord.heatpump_runtime_state_last_success_utc.isoformat()
+            if getattr(coord, "heatpump_runtime_state_last_success_utc", None)
+            is not None
+            else None
+        ),
         "last_error": getattr(coord, "heatpump_runtime_state_last_error", None),
     }
 
@@ -4398,6 +4407,15 @@ def _heatpump_daily_common_attrs(
         "day_key": snapshot.get("day_key"),
         "timezone": snapshot.get("timezone"),
         "source": snapshot.get("source"),
+        "using_stale": bool(
+            getattr(coord, "heatpump_daily_consumption_using_stale", False)
+        ),
+        "last_success_utc": (
+            coord.heatpump_daily_consumption_last_success_utc.isoformat()
+            if getattr(coord, "heatpump_daily_consumption_last_success_utc", None)
+            is not None
+            else None
+        ),
         "last_error": getattr(coord, "heatpump_daily_consumption_last_error", None),
     }
 
@@ -7614,6 +7632,16 @@ class EnphaseHeatPumpPowerSensor(_SiteBaseEntity):
             ),
             "device_uid": self._coord.heatpump_power_device_uid,
             "source": self._coord.heatpump_power_source,
+            "using_stale": bool(
+                getattr(self._coord, "heatpump_power_using_stale", False)
+            ),
+            "last_success_utc": (
+                self._coord.heatpump_power_last_success_utc.isoformat()
+                if getattr(self._coord, "heatpump_power_last_success_utc", None)
+                is not None
+                else None
+            ),
+            "last_error": self._coord.heatpump_power_last_error,
         }
         attrs.update(
             {
