@@ -4883,12 +4883,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return self.heatpump_runtime.heatpump_runtime_state_last_error
 
     @property
+    def heatpump_runtime_state_using_stale(self) -> bool:
+        return self.heatpump_runtime.heatpump_runtime_state_using_stale
+
+    @property
+    def heatpump_runtime_state_last_success_utc(self) -> datetime | None:
+        return self.heatpump_runtime.heatpump_runtime_state_last_success_utc
+
+    @property
     def heatpump_daily_consumption(self) -> dict[str, object]:
         return self.heatpump_runtime.heatpump_daily_consumption
 
     @property
     def heatpump_daily_consumption_last_error(self) -> str | None:
         return self.heatpump_runtime.heatpump_daily_consumption_last_error
+
+    @property
+    def heatpump_daily_consumption_using_stale(self) -> bool:
+        return self.heatpump_runtime.heatpump_daily_consumption_using_stale
+
+    @property
+    def heatpump_daily_consumption_last_success_utc(self) -> datetime | None:
+        return self.heatpump_runtime.heatpump_daily_consumption_last_success_utc
 
     @property
     def heatpump_power_w(self) -> float | None:
@@ -4909,6 +4925,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def heatpump_power_source(self) -> str | None:
         return self.heatpump_runtime.heatpump_power_source
+
+    @property
+    def heatpump_power_using_stale(self) -> bool:
+        return self.heatpump_runtime.heatpump_power_using_stale
+
+    @property
+    def heatpump_power_last_success_utc(self) -> datetime | None:
+        return self.heatpump_runtime.heatpump_power_last_success_utc
 
     @property
     def heatpump_power_last_error(self) -> str | None:

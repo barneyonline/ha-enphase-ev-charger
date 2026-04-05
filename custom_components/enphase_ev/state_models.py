@@ -180,11 +180,17 @@ class HeatpumpState:
     _heatpump_runtime_state_cache_until: float | None = None
     _heatpump_runtime_state_backoff_until: float | None = None
     _heatpump_runtime_state_last_error: str | None = None
+    _heatpump_runtime_state_last_success_mono: float | None = None
+    _heatpump_runtime_state_last_success_utc: datetime | None = None
+    _heatpump_runtime_state_using_stale: bool = False
     _heatpump_daily_consumption: dict[str, object] | None = None
     _heatpump_daily_consumption_cache_until: float | None = None
     _heatpump_daily_consumption_backoff_until: float | None = None
     _heatpump_daily_consumption_last_error: str | None = None
     _heatpump_daily_consumption_cache_key: tuple[str, str] | None = None
+    _heatpump_daily_consumption_last_success_mono: float | None = None
+    _heatpump_daily_consumption_last_success_utc: datetime | None = None
+    _heatpump_daily_consumption_using_stale: bool = False
     _current_power_consumption_w: float | None = None
     _current_power_consumption_sample_utc: datetime | None = None
     _current_power_consumption_reported_units: str | None = None
@@ -198,9 +204,13 @@ class HeatpumpState:
     _heatpump_power_cache_until: float | None = None
     _heatpump_power_backoff_until: float | None = None
     _heatpump_power_last_error: str | None = None
+    _heatpump_power_last_success_mono: float | None = None
+    _heatpump_power_last_success_utc: datetime | None = None
+    _heatpump_power_using_stale: bool = False
     _heatpump_power_selection_marker: tuple[tuple[str, str, str, str], ...] | None = (
         None
     )
+    _heatpump_power_snapshot: dict[str, object] | None = None
 
 
 @dataclass(slots=True)
