@@ -2312,3 +2312,241 @@ async def test_heatpump_runtime_power_and_diagnostics_paths(
         force=True
     )  # noqa: SLF001
     assert coord.heatpump_daily_consumption == {}
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_helper_branches_and_resets(coordinator_factory) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    assert (
+        runtime._heatpump_snapshot_is_fresh("bad", 10.0, time.monotonic()) is False
+    )  # noqa: SLF001
+
+    calls: list[dict[str, object]] = []
+
+    async def _plain_fetcher():
+        calls.append({})
+        return "ok"
+
+    async def _kwargs_fetcher(**kwargs):
+        calls.append(dict(kwargs))
+        return "ok"
+
+    async def _refresh_fetcher(*, refresh_data=False):
+        calls.append({"refresh_data": refresh_data})
+        return "refresh"
+
+    assert (
+        await runtime._async_call_refreshable_fetcher(
+            _plain_fetcher, force=False
+        )  # noqa: SLF001
+        == "ok"
+    )
+    assert calls[-1] == {}
+    assert (
+        await runtime._async_call_refreshable_fetcher(
+            _refresh_fetcher, force=True
+        )  # noqa: SLF001
+        == "refresh"
+    )
+    assert calls[-1] == {"refresh_data": True}
+    assert (
+        await runtime._async_call_refreshable_fetcher(
+            _plain_fetcher, force=True
+        )  # noqa: SLF001
+        == "ok"
+    )
+    assert calls[-1] == {}
+    assert (
+        await runtime._async_call_refreshable_fetcher(
+            _kwargs_fetcher, force=True
+        )  # noqa: SLF001
+        == "ok"
+    )
+    assert calls[-1] == {"refresh_data": True}
+
+    runtime._hems_support_preflight_cache_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(side_effect=AssertionError("cached"))  # type: ignore[assignment]
+    await runtime._async_refresh_hems_support_preflight(force=False)  # noqa: SLF001
+    coord.client.system_dashboard_summary.assert_not_awaited()
+
+    runtime._hems_support_preflight_cache_until = None  # noqa: SLF001
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = None  # type: ignore[assignment]
+    await runtime._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
+    assert coord._hems_support_preflight_cache_until is not None  # noqa: SLF001
+
+    runtime._type_device_buckets = {}  # noqa: SLF001
+    runtime._type_device_order = []  # noqa: SLF001
+    coord._heatpump_runtime_state = {"heatpump_status": "RUNNING"}  # noqa: SLF001
+    coord._heatpump_runtime_state_last_success_mono = 1.0  # noqa: SLF001
+    coord._heatpump_runtime_state_last_success_utc = datetime.now(
+        timezone.utc
+    )  # noqa: SLF001
+    await runtime._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+    assert coord.heatpump_runtime_state == {}
+    assert coord.heatpump_runtime_state_last_success_utc is None
+
+    coord._heatpump_daily_consumption = {"daily_energy_wh": 12.0}  # noqa: SLF001
+    coord._heatpump_daily_consumption_last_success_mono = 1.0  # noqa: SLF001
+    coord._heatpump_daily_consumption_last_success_utc = datetime.now(
+        timezone.utc
+    )  # noqa: SLF001
+    await runtime._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+    assert coord.heatpump_daily_consumption == {}
+    assert coord.heatpump_daily_consumption_last_success_utc is None
+
+
+def test_heatpump_runtime_misc_helper_guards_and_properties(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    assert (
+        runtime._heatpump_runtime_mode({"heatpump_status": ""}) is None
+    )  # noqa: SLF001
+
+    runtime._type_device_buckets = {  # noqa: SLF001
+        "heatpump": {
+            "devices": [
+                {"device_type": "HEAT_PUMP", "device_uid": "HP-1"},
+                {"device_type": "HEAT_PUMP", "device_uid": "HP-2"},
+                {"device_type": "HEAT_PUMP"},
+            ],
+            "count": 3,
+        }
+    }
+    runtime._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
+    runtime._heatpump_power_selection_marker = (
+        runtime._heatpump_power_inventory_marker()
+    )  # noqa: SLF001
+    ordered, compare_all, marker = runtime._heatpump_power_fetch_plan()  # noqa: SLF001
+    assert compare_all is False
+    assert ordered[0] == "HP-1"
+    assert ordered.count("HP-1") == 1
+    assert ordered[-1] is None
+    assert marker == runtime._heatpump_power_inventory_marker()  # noqa: SLF001
+
+    assert runtime._heatpump_power_candidate_device_uids() == [
+        "HP-1",
+        "HP-2",
+        None,
+    ]  # noqa: SLF001
+
+    assert runtime._heatpump_sample_utc_for_index({}, -1) is None  # noqa: SLF001
+    assert runtime._heatpump_sample_utc_for_index("bad", 0) is None  # noqa: SLF001
+    assert (
+        runtime._heatpump_sample_utc_for_index({"start_date": "bad"}, 0) is None
+    )  # noqa: SLF001
+    assert (  # noqa: SLF001
+        runtime._heatpump_sample_utc_for_index(
+            {
+                "start_date": "2026-01-01T00:00:00Z",
+                "heat_pump_consumption": [1],
+                "interval_minutes": 0,
+            },
+            0,
+        )
+        is None
+    )
+
+    class _BadTimedelta:
+        def __rmul__(self, other):
+            raise TypeError("bad minutes")
+
+    original_timedelta = heatpump_runtime_mod.timedelta
+    heatpump_runtime_mod.timedelta = _BadTimedelta()  # type: ignore[assignment]
+    try:
+        assert (  # noqa: SLF001
+            runtime._heatpump_sample_utc_for_index(
+                {
+                    "start_date": "2026-01-01T00:00:00Z",
+                    "heat_pump_consumption": [1],
+                    "interval_minutes": 5,
+                },
+                1,
+            )
+            is None
+        )
+    finally:
+        heatpump_runtime_mod.timedelta = original_timedelta  # type: ignore[assignment]
+
+    class _BadFloat:
+        def __float__(self):
+            raise TypeError("bad float")
+
+    class _BadStr:
+        def __str__(self):
+            raise TypeError("bad str")
+
+    coord._heatpump_power_w = _BadFloat()  # noqa: SLF001
+    coord._heatpump_power_device_uid = _BadStr()  # noqa: SLF001
+    coord._heatpump_power_source = _BadStr()  # noqa: SLF001
+    coord._heatpump_power_last_error = _BadStr()  # noqa: SLF001
+    coord._heatpump_power_last_success_utc = "bad"  # noqa: SLF001
+    coord._heatpump_daily_consumption_last_success_utc = "bad"  # noqa: SLF001
+    coord._heatpump_runtime_state_last_success_utc = "bad"  # noqa: SLF001
+    coord._heatpump_power_start_utc = "bad"  # noqa: SLF001
+    assert coord.heatpump_power_w is None
+    assert coord.heatpump_power_device_uid is None
+    assert coord.heatpump_power_source is None
+    assert coord.heatpump_power_last_error is None
+    assert coord.heatpump_power_last_success_utc is None
+    assert coord.heatpump_daily_consumption_last_success_utc is None
+    assert coord.heatpump_runtime_state_last_success_utc is None
+    assert coord.heatpump_power_start_utc is None
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_remaining_coverage_branches(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_payload = {"curr_date_site": "2026-04-05"}  # noqa: SLF001
+    coord.client.hems_energy_consumption = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-04-05T00:00:00Z",
+            "data": {"heat-pump": [{"device_uid": "HP-1", "consumption": []}]},
+        }
+    )
+    await runtime._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+    assert coord.heatpump_daily_consumption == {}
+    assert (
+        coord.heatpump_daily_consumption_last_error
+        == "No usable HEMS daily-consumption payload"
+    )
+
+    monkeypatch.setattr(
+        heatpump_runtime_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 1, 1, 0, 10, 0),
+    )
+    sample_utc = runtime._heatpump_sample_utc_for_index(  # noqa: SLF001
+        {"start_date": "2026-01-01T00:00:00Z", "heat_pump_consumption": [1, 2]},
+        1,
+    )
+    assert sample_utc == datetime(2026, 1, 1, 0, 5, tzinfo=timezone.utc)
+
+    coord._heatpump_power_w = float("nan")  # noqa: SLF001
+    coord._heatpump_power_start_utc = "bad"  # noqa: SLF001
+    assert coord.heatpump_power_w is None
+    assert coord.heatpump_power_start_utc is None
+    coord._heatpump_power_start_utc = datetime(
+        2026, 1, 1, tzinfo=timezone.utc
+    )  # noqa: SLF001
+    assert coord.heatpump_power_start_utc == datetime(2026, 1, 1, tzinfo=timezone.utc)
