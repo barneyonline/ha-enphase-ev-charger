@@ -1878,6 +1878,18 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     coord._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
     coord._heatpump_power_source = "hems_energy_consumption:HP-1"  # noqa: SLF001
     coord._heatpump_power_last_error = None  # noqa: SLF001
+    coord.heatpump_runtime._heatpump_power_last_success_utc = datetime(  # noqa: SLF001
+        2026, 2, 27, 9, 16, tzinfo=timezone.utc
+    )
+    coord.heatpump_runtime._heatpump_power_using_stale = True  # noqa: SLF001
+    coord._heatpump_power_last_success_utc = datetime(  # noqa: SLF001
+        2026, 2, 27, 9, 16, tzinfo=timezone.utc
+    )
+    coord._heatpump_power_using_stale = True  # noqa: SLF001
+    coord.heatpump_state._heatpump_power_last_success_utc = datetime(  # noqa: SLF001
+        2026, 2, 27, 9, 16, tzinfo=timezone.utc
+    )
+    coord.heatpump_state._heatpump_power_using_stale = True  # noqa: SLF001
     coord._heatpump_runtime_state = {  # noqa: SLF001
         "device_uid": "HP-1",
         "heatpump_status": "RUNNING",
@@ -1952,6 +1964,8 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     power_attrs = power_sensor.extra_state_attributes
     assert power_attrs["device_uid"] == "HP-1"
     assert power_attrs["source"] == "hems_energy_consumption:HP-1"
+    assert "using_stale" in power_attrs
+    assert "last_success_utc" in power_attrs
 
 
 def test_heatpump_power_sensor_unavailable_without_sample(coordinator_factory) -> None:
