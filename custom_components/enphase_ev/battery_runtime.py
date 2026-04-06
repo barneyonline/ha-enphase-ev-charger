@@ -1745,6 +1745,20 @@ class BatteryRuntime:
             state._storm_guard_state = storm_state
         self.sync_storm_guard_pending(storm_state)
         self._apply_battery_capability_blocks(data)
+        dtg_enabled = self._coerce_optional_bool(
+            (data.get("dtgControl") or {}).get("enabled")
+            if isinstance(data.get("dtgControl"), dict)
+            else None
+        )
+        if dtg_enabled is not None:
+            state._battery_dtg_schedule_enabled = dtg_enabled
+        rbd_enabled = self._coerce_optional_bool(
+            (data.get("rbdControl") or {}).get("enabled")
+            if isinstance(data.get("rbdControl"), dict)
+            else None
+        )
+        if rbd_enabled is not None:
+            state._battery_rbd_schedule_enabled = rbd_enabled
         raw_devices = data.get("devices")
         if isinstance(raw_devices, dict):
             iq_evse = raw_devices.get("iqEvse")
@@ -3129,21 +3143,49 @@ class BatteryRuntime:
             else self._schedule_default_limit_for_create(schedule_type)
         )
         await self.async_assert_battery_settings_write_allowed()
-        async with state._battery_settings_write_lock:
-            state._battery_settings_last_write_mono = time.monotonic()
-            await self._async_create_or_update_schedule_family(
-                schedule_type,
-                start_minutes=current_start,
-                end_minutes=current_end,
-                limit=next_limit,
-                is_enabled=enabled,
+        normalized_schedule_type = str(schedule_type).lower()
+        schedule_id = getattr(
+            state, self._battery_schedule_id_attr(schedule_type), None
+        )
+        if normalized_schedule_type in {"dtg", "rbd"} and (
+            schedule_id is not None or not enabled
+        ):
+            control_key = f"{normalized_schedule_type}Control"
+            payload = {control_key: {"enabled": bool(enabled)}}
+            async with state._battery_settings_write_lock:
+                state._battery_settings_last_write_mono = time.monotonic()
+                try:
+                    await coord.client.set_battery_settings(
+                        payload,
+                        schedule_type=normalized_schedule_type,
+                    )
+                except aiohttp.ClientResponseError as err:
+                    self.raise_schedule_update_validation_error(err)
+                    raise
+            self.parse_battery_settings_payload(
+                payload,
+                clear_missing_schedule_times=False,
+                clear_missing_reserve_bounds=False,
             )
+            state._battery_settings_cache_until = None
+            coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+            await coord.async_request_refresh()
+        else:
+            async with state._battery_settings_write_lock:
+                state._battery_settings_last_write_mono = time.monotonic()
+                await self._async_create_or_update_schedule_family(
+                    schedule_type,
+                    start_minutes=current_start,
+                    end_minutes=current_end,
+                    limit=next_limit,
+                    is_enabled=enabled,
+                )
+            state._battery_settings_cache_until = None
+            coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+            await coord.async_request_refresh()
         setattr(state, self._battery_schedule_enabled_attr(schedule_type), enabled)
         setattr(state, self._battery_schedule_start_attr(schedule_type), current_start)
         setattr(state, self._battery_schedule_end_attr(schedule_type), current_end)
-        state._battery_settings_cache_until = None
-        coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-        await coord.async_request_refresh()
 
     async def _async_set_schedule_family_time(
         self,
