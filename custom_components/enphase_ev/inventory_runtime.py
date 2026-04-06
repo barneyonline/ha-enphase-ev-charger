@@ -2333,7 +2333,7 @@ class InventoryRuntime:
         if not callable(fetch_inventory) or not callable(fetch_status):
             return
 
-        inventory_family = "inventory_topology"
+        inventory_family = "inverter_inventory"
         status_family = "inverter_status"
         production_family = "inverter_production"
         cached_inventory_payload = getattr(self, "_inverters_inventory_payload", None)

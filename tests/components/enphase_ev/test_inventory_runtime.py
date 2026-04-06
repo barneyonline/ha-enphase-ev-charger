@@ -950,7 +950,7 @@ async def test_inventory_runtime_refresh_inverters_paths(coordinator_factory) ->
     runtime = coord.inventory_runtime
 
     def _clear_family_windows() -> None:
-        for family in ("inventory_topology", "inverter_status", "inverter_production"):
+        for family in ("inverter_inventory", "inverter_status", "inverter_production"):
             health = coord._endpoint_family_state(family)  # noqa: SLF001
             health.next_retry_mono = None
             health.next_retry_utc = None
@@ -1932,7 +1932,7 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     runtime = coord.inventory_runtime
 
     def _clear_family_windows() -> None:
-        for family in ("inventory_topology", "inverter_status", "inverter_production"):
+        for family in ("inverter_inventory", "inverter_status", "inverter_production"):
             health = coord._endpoint_family_state(family)  # noqa: SLF001
             health.next_retry_mono = None
             health.next_retry_utc = None
@@ -2197,7 +2197,7 @@ async def test_inventory_runtime_refresh_inverters_uses_cached_payloads_during_c
         "2022-08-10",
         "2026-02-09",
     )
-    for family in ("inventory_topology", "inverter_status", "inverter_production"):
+    for family in ("inverter_inventory", "inverter_status", "inverter_production"):
         health = coord._endpoint_family_state(family)  # noqa: SLF001
         health.next_retry_mono = now + 600
         health.cooldown_active = True
@@ -2269,6 +2269,52 @@ async def test_inventory_runtime_refresh_inverters_uses_success_cache_ttls(
 
 
 @pytest.mark.asyncio
+async def test_inventory_runtime_refresh_inverters_not_blocked_by_topology_family_ttl(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    now = time.monotonic()
+
+    coord._devices_inventory_payload = {"curr_date_site": "2026-02-09"}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    topology_health = coord._endpoint_family_state("inventory_topology")  # noqa: SLF001
+    topology_health.next_retry_mono = now + 21_600
+    topology_health.cooldown_active = True
+    topology_health.last_success_mono = now
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 1,
+            "inverters": [
+                {"serial_number": "INV-A", "name": "IQ7", "status": "normal"}
+            ],
+        }
+    )
+    coord.client.inverter_status = AsyncMock(
+        return_value={
+            "1001": {
+                "serialNum": "INV-A",
+                "deviceId": 11,
+                "statusCode": "normal",
+                "type": "IQ7",
+            }
+        }
+    )
+    coord.client.inverter_production = AsyncMock(
+        return_value={
+            "production": {"1001": 456.0},
+            "start_date": "2022-08-10",
+            "end_date": "2026-02-09",
+        }
+    )
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    coord.client.inverters_inventory.assert_awaited_once()
+    assert coord.iter_inverter_serials() == ["INV-A"]
+
+
+@pytest.mark.asyncio
 async def test_inventory_runtime_refresh_inverters_manual_bypass_refetches_same_day_production(
     coordinator_factory,
 ) -> None:
@@ -2279,7 +2325,7 @@ async def test_inventory_runtime_refresh_inverters_manual_bypass_refetches_same_
     coord._devices_inventory_payload = {"curr_date_site": "2026-02-09"}  # noqa: SLF001
     coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
     coord._endpoint_manual_bypass_active = True  # noqa: SLF001
-    for family in ("inventory_topology", "inverter_status", "inverter_production"):
+    for family in ("inverter_inventory", "inverter_status", "inverter_production"):
         health = coord._endpoint_family_state(family)  # noqa: SLF001
         health.next_retry_mono = now + 600
         health.cooldown_active = True
