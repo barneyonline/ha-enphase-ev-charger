@@ -51,6 +51,7 @@ async def test_async_authenticate_populates_site_headers(monkeypatch):
     assert site_headers, "Site discovery request headers were not captured"
 
     captured = site_headers[0]
+    assert captured["Accept"] == "*/*"
     assert captured["X-CSRF-Token"] == "xsrf123"
     assert captured["X-Requested-With"] == "XMLHttpRequest"
     assert captured["Referer"] == f"{api.BASE_URL}/"

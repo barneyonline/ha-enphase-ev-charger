@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_AUTH_TIMEOUT,
     ENTREZ_URL,
     GREEN_BATTERY_SETTING,
+    LOGIN_FORM_URL,
     LOGIN_URL,
     MFA_RESEND_URL,
     MFA_VALIDATE_URL,
@@ -955,12 +956,8 @@ async def _request_mfa_json(
 def _mfa_headers(cookies: dict[str, str] | None) -> dict[str, str]:
     """Return headers for MFA endpoints with cookie/XSRF handling."""
 
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Referer": f"{BASE_URL}/",
-        "X-Requested-With": "XMLHttpRequest",
-    }
+    headers = _login_headers()
+    headers["Accept"] = "application/json, text/plain, */*"
     cookie_header = _cookie_header_from_map(cookies)
     if cookie_header:
         headers["Cookie"] = cookie_header
@@ -968,6 +965,80 @@ def _mfa_headers(cookies: dict[str, str] | None) -> dict[str, str]:
     if xsrf_token:
         headers["X-CSRF-Token"] = xsrf_token
     return headers
+
+
+def _login_headers() -> dict[str, str]:
+    """Return headers for the initial Enlighten login request."""
+
+    return {
+        "Accept": "*/*",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Referer": f"{BASE_URL}/",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+
+
+def _login_form_headers() -> dict[str, str]:
+    """Return browser-style headers for the HTML form login flow."""
+
+    return {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Origin": BASE_URL,
+        "Referer": f"{BASE_URL}/",
+    }
+
+
+def _extract_login_session_from_cookies(
+    cookies: dict[str, str] | None,
+) -> tuple[str | None, str | None]:
+    """Extract session details from post-login cookies."""
+
+    if not cookies:
+        return None, None
+
+    session_id = (
+        cookies.get("_enlighten_4_session")
+        or cookies.get("enlighten_session")
+        or cookies.get("_enlighten_session")
+    )
+    manager_token = cookies.get("enlighten_manager_token_production")
+    if not session_id and manager_token:
+        session_id = _jwt_session_id(manager_token)
+    return (
+        str(session_id) if session_id else None,
+        str(manager_token) if manager_token else None,
+    )
+
+
+async def _submit_login_form(
+    session: aiohttp.ClientSession,
+    email: str,
+    password: str,
+    *,
+    timeout: int,
+) -> tuple[str | None, str | None]:
+    """Submit the browser form login flow and derive auth state from cookies."""
+
+    payload = {"user[email]": email, "user[password]": password}
+
+    async with asyncio.timeout(timeout):
+        async with session.request(
+            "POST",
+            LOGIN_FORM_URL,
+            allow_redirects=True,
+            headers=_login_form_headers(),
+            data=payload,
+        ) as resp:
+            if resp.status >= 500:
+                raise EnlightenAuthUnavailable(
+                    f"Server error {resp.status} at {LOGIN_FORM_URL}"
+                )
+            resp.raise_for_status()
+            await resp.text()
+
+    _, cookie_map = _serialize_cookie_jar(session.cookie_jar, (BASE_URL, ENTREZ_URL))
+    return _extract_login_session_from_cookies(cookie_map)
 
 
 def _normalize_sites(payload: Any) -> list[SiteInfo]:
@@ -1131,7 +1202,7 @@ async def _build_tokens_and_sites(
 
     # Collect accessible sites for the authenticated user.
     site_headers = {
-        "Accept": "application/json, text/plain, */*",
+        "Accept": "*/*",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{BASE_URL}/",
     }
@@ -1194,10 +1265,8 @@ async def async_authenticate(
     """Authenticate with Enlighten and return auth tokens and accessible sites."""
 
     payload = {"user[email]": email, "user[password]": password}
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-    }
+    headers = _login_headers()
+    data: Any | None = None
 
     try:
         data = await _request_json(
@@ -1211,6 +1280,24 @@ async def async_authenticate(
     except aiohttp.ClientResponseError as err:
         if err.status in (401, 403):
             raise EnlightenAuthInvalidCredentials from err
+        if err.status == 406:
+            try:
+                session_id, manager_token = await _submit_login_form(
+                    session, email, password, timeout=timeout
+                )
+            except aiohttp.ClientResponseError as fallback_err:
+                if fallback_err.status in (401, 403):
+                    raise EnlightenAuthInvalidCredentials from fallback_err
+                raise
+            except aiohttp.ClientError as fallback_err:  # noqa: BLE001
+                raise EnlightenAuthUnavailable from fallback_err
+            if session_id or manager_token:
+                if not session_id:
+                    raise EnlightenAuthInvalidCredentials("Missing session identifier")
+                return await _build_tokens_and_sites(
+                    session, email, session_id, timeout=timeout
+                )
+            raise EnlightenAuthInvalidCredentials("Unexpected login response")
         raise
     except aiohttp.ClientError as err:  # noqa: BLE001
         raise EnlightenAuthUnavailable from err
@@ -1801,6 +1888,7 @@ class EnphaseEVClient:
         """Return headers for session history endpoints."""
 
         headers = dict(self._h)
+        headers["Accept"] = "application/json, text/javascript, */*; q=0.01"
         bearer = self._history_bearer()
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
@@ -1824,6 +1912,76 @@ class EnphaseEVClient:
 
         return self._session_history_headers(request_id, username)
 
+    def _site_web_graph_referer(self, view: str, *, graph_range: str = "years") -> str:
+        """Return a web-app graph referer for a site-scoped Enlighten view."""
+
+        query = ""
+        app_version = _cookie_map_from_header(self._cookie).get("appVersion")
+        if app_version:
+            query = f"?v={app_version}"
+        return f"{BASE_URL}/web/{self._site}/{view}/graph/{graph_range}{query}"
+
+    def _site_web_referer(self, view: str) -> str:
+        """Return the default years-graph referer for site XHR families."""
+
+        return self._site_web_graph_referer(view)
+
+    def _root_xhr_headers(self) -> dict[str, str]:
+        """Return base headers for root-scoped Enlighten XHR requests."""
+
+        headers = dict(self._h)
+        headers["Accept"] = "*/*"
+        headers["Referer"] = f"{BASE_URL}/"
+        return headers
+
+    def _history_headers(self) -> dict[str, str]:
+        """Return headers for app-api and pv/settings history-family requests."""
+
+        headers = dict(self._h)
+        headers["Accept"] = "*/*"
+        headers["Referer"] = self._site_web_referer("history")
+        return headers
+
+    def _today_headers(self) -> dict[str, str]:
+        """Return headers for EV today-page XHR requests."""
+
+        headers = dict(self._h)
+        headers["Accept"] = "*/*"
+        headers["Referer"] = self._site_web_graph_referer("today", graph_range="hours")
+        return headers
+
+    def _today_json_headers(self) -> dict[str, str]:
+        """Return headers for EV today-page JSON/XHR requests."""
+
+        headers = self._today_headers()
+        headers["Accept"] = "application/json, text/javascript, */*; q=0.01"
+        return headers
+
+    def _history_form_headers(self) -> dict[str, str]:
+        """Return headers for history-family form POST requests."""
+
+        headers = self._history_headers()
+        headers["Accept"] = "application/json, text/javascript, */*; q=0.01"
+        headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF-8"
+        headers["Origin"] = BASE_URL
+        return headers
+
+    def _layout_headers(self) -> dict[str, str]:
+        """Return headers for systems/layout-family requests."""
+
+        headers = dict(self._h)
+        headers["Accept"] = "application/json, text/javascript, */*; q=0.01"
+        headers["Referer"] = self._site_web_referer("layout")
+        return headers
+
+    def _systems_json_headers(self) -> dict[str, str]:
+        """Return headers for site-scoped /systems JSON endpoints."""
+
+        headers = dict(self._h)
+        headers["Accept"] = "application/json"
+        headers["Referer"] = self._site_web_referer("layout")
+        return headers
+
     def _control_headers(self) -> dict[str, str]:
         """Return Authorization header overrides for control-plane requests."""
 
@@ -1841,6 +1999,10 @@ class EnphaseEVClient:
         """Return headers for system dashboard read endpoints."""
 
         headers = dict(self._h)
+        headers["Accept"] = "application/json"
+        headers["Referer"] = (
+            f"{BASE_URL}/app/system_dashboard/sites/{self._site}/summary"
+        )
         headers.update(self._control_headers())
         return headers
 
@@ -1885,6 +2047,8 @@ class EnphaseEVClient:
         """Return headers for HEMS read endpoints."""
 
         headers = dict(self._h)
+        headers["Accept"] = "application/json"
+        headers["Origin"] = BASE_URL
         bearer, username = self._hems_auth_context()
         if bearer:
             headers["Authorization"] = f"Bearer {bearer}"
@@ -2596,7 +2760,7 @@ class EnphaseEVClient:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
         endpoint = f"/service/evse_controller/{self._site}/ev_chargers/status"
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=self._today_headers())
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
                 raise OptionalEndpointUnavailable(err.summary) from err
@@ -2887,12 +3051,13 @@ class EnphaseEVClient:
 
         last_exc: Exception | None = None
         variant_failures: list[dict[str, Any]] = []
-        base_headers = dict(self._h)
         extra_headers = self._control_headers()
+        base_headers = self._today_json_headers()
         base_headers.update(extra_headers)
         for idx in order:
             method, url, payload = candidates[idx]
-            headers = dict(extra_headers)
+            headers = self._today_json_headers()
+            headers.update(extra_headers)
             try:
                 if payload is None:
                     result = await self._json(method, url, headers=headers)
@@ -3012,13 +3177,13 @@ class EnphaseEVClient:
         extra_headers = self._control_headers()
         for idx in order:
             method, url, payload = candidates[idx]
+            headers = self._today_json_headers()
+            headers.update(extra_headers)
             try:
                 if payload is None:
-                    result = await self._json(method, url, headers=extra_headers)
+                    result = await self._json(method, url, headers=headers)
                 else:
-                    result = await self._json(
-                        method, url, json=payload, headers=extra_headers
-                    )
+                    result = await self._json(method, url, json=payload, headers=headers)
                 self._stop_variant_idx = idx
                 return result
             except aiohttp.ClientResponseError as e:
@@ -3036,17 +3201,23 @@ class EnphaseEVClient:
     async def trigger_message(self, sn: str, requested_message: str) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/trigger_message"
         payload = {"requestedMessage": requested_message}
+        headers = self._today_json_headers()
+        headers.update(self._control_headers())
         return await self._json(
-            "POST", url, json=payload, headers=self._control_headers()
+            "POST", url, json=payload, headers=headers
         )
 
     async def start_live_stream(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/start_live_stream"
-        return await self._json("GET", url, headers=self._control_headers())
+        headers = self._today_headers()
+        headers.update(self._control_headers())
+        return await self._json("GET", url, headers=headers)
 
     async def stop_live_stream(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/stop_live_stream"
-        return await self._json("GET", url, headers=self._control_headers())
+        headers = self._today_headers()
+        headers.update(self._control_headers())
+        return await self._json("GET", url, headers=headers)
 
     async def charge_mode(self, sn: str) -> str | None:
         """Fetch the current charge mode via scheduler API.
@@ -3057,7 +3228,7 @@ class EnphaseEVClient:
         MANUAL_CHARGING when enabled.
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         try:
             data = await self._json("GET", url, headers=headers)
@@ -3089,7 +3260,7 @@ class EnphaseEVClient:
         "GREEN_CHARGING" | "SMART_CHARGING" }
         """
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         payload = {"mode": str(mode)}
         try:
@@ -3108,7 +3279,7 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
             f"GREEN_CHARGING/{self._site}/{sn}/settings"
         )
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         try:
             payload = await self._json("GET", url, headers=headers)
@@ -3137,7 +3308,7 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
             f"GREEN_CHARGING/{self._site}/{sn}/settings"
         )
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         payload = {
             "chargerSettingList": [
@@ -3520,18 +3691,19 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
             f"{sn}/ev_charger_config"
         )
-        headers = dict(self._control_headers())
+        headers = self._today_json_headers()
+        headers.update(self._control_headers())
         payload = [{"key": key} for key in normalized_keys]
 
         async def _retry_without_control_auth() -> dict[str, Any]:
+            retry_headers = self._today_json_headers()
+            retry_headers["Authorization"] = None
+            retry_headers["e-auth-token"] = None
             return await self._json(
                 "POST",
                 url,
                 json=payload,
-                headers={
-                    "Authorization": None,
-                    "e-auth-token": None,
-                },
+                headers=retry_headers,
             )
 
         try:
@@ -3563,7 +3735,7 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_controller/api/v1/{self._site}/ev_chargers/"
             f"{sn}/ev_charger_config"
         )
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         payload = [
             {
@@ -3587,7 +3759,7 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
             f"SCHEDULED_CHARGING/{self._site}/{sn}/schedules"
         )
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         try:
             payload = await self._json("GET", url, headers=headers)
@@ -3615,7 +3787,7 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
             f"SCHEDULED_CHARGING/{self._site}/{sn}/schedules"
         )
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         payload = {
             "meta": {"serverTimeStamp": server_timestamp, "rowCount": len(slots)},
@@ -3639,7 +3811,7 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
             f"SCHEDULED_CHARGING/{self._site}/{sn}/schedules"
         )
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         payload = {
             str(slot_id): "ENABLED" if enabled else "DISABLED"
@@ -3661,7 +3833,7 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
             f"SCHEDULED_CHARGING/{self._site}/{sn}/schedule/{slot_id}"
         )
-        headers = dict(self._h)
+        headers = self._today_json_headers()
         headers.update(self._control_headers())
         try:
             return await self._json("PATCH", url, json=slot, headers=headers)
@@ -3677,7 +3849,7 @@ class EnphaseEVClient:
         """
         url = f"{BASE_URL}/pv/systems/{self._site}/lifetime_energy"
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=self._layout_headers())
         except aiohttp.ClientResponseError as err:
             if is_site_energy_unavailable_error(err.message, err.status, url):
                 raise SiteEnergyUnavailable(str(err)) from err
@@ -3746,7 +3918,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/app-api/{self._site}/get_latest_power"
-        data = await self._json("GET", url)
+        data = await self._json("GET", url, headers=self._history_headers())
         normalized = self._normalize_latest_power_payload(data)
         if normalized is not None:
             return normalized
@@ -3780,7 +3952,11 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/app-api/{self._site}/show_livestream"
         try:
-            data = await self._json("GET", url)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._system_dashboard_headers(),
+            )
         except Unauthorized:
             return None
         except InvalidPayloadError as err:
@@ -4372,7 +4548,12 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/systems/{self._site}/hems_consumption_lifetime"
         try:
-            data = await self._json("GET", url, headers=self._hems_headers)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._systems_json_headers(),
+                log_invalid_payload=False,
+            )
             self._hems_site_supported = True
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
@@ -4382,6 +4563,7 @@ class EnphaseEVClient:
                     redact_text(err.summary, site_ids=(self._site,)),
                 )
                 return None
+            self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
@@ -4883,7 +5065,11 @@ class EnphaseEVClient:
                 site_date=site_date,
             )
             try:
-                data = await self._json("GET", url, headers=self._hems_headers)
+                data = await self._json(
+                    "GET",
+                    url,
+                    headers=self._systems_json_headers(),
+                )
                 self._hems_site_supported = True
             except Unauthorized:
                 _LOGGER.debug(
@@ -4959,7 +5145,7 @@ class EnphaseEVClient:
             data = await self._json(
                 "GET",
                 url,
-                headers=self._hems_headers,
+                headers=self._systems_json_headers(),
                 log_invalid_payload=False,
             )
         except Unauthorized:
@@ -5005,7 +5191,7 @@ class EnphaseEVClient:
             data = await self._json(
                 "GET",
                 url,
-                headers=self._hems_headers,
+                headers=self._systems_json_headers(),
                 log_invalid_payload=False,
             )
         except Unauthorized:
@@ -5047,7 +5233,7 @@ class EnphaseEVClient:
         """
         url = f"{BASE_URL}/service/evse_controller/api/v2/{self._site}/ev_chargers/summary?filter_retired=true"
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=self._today_headers())
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err) or _is_optional_html_payload(err):
                 raise OptionalEndpointUnavailable(err.summary) from err
@@ -5066,7 +5252,12 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/service/evse_management/fwDetails/{self._site}"
         try:
-            data = await self._json("GET", url, mark_payload_success=False)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._today_headers(),
+                mark_payload_success=False,
+            )
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE firmware details endpoint unavailable for site %s (unauthorized)",
@@ -5118,7 +5309,7 @@ class EnphaseEVClient:
             )
         )
         try:
-            data = await self._json("GET", url)
+            data = await self._json("GET", url, headers=self._today_headers())
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE feature flags endpoint unavailable for site %s (unauthorized)",
@@ -5142,7 +5333,7 @@ class EnphaseEVClient:
         GET /app-api/<site_id>/devices.json
         """
         url = f"{BASE_URL}/app-api/{self._site}/devices.json"
-        data = await self._json("GET", url)
+        data = await self._json("GET", url, headers=self._history_headers())
         if isinstance(data, dict):
             return data
         return {}
@@ -5259,7 +5450,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/app-api/{self._site}/grid_control_check.json"
-        data = await self._json("GET", url)
+        data = await self._json("GET", url, headers=self._history_headers())
         if isinstance(data, dict):
             return data
         return {}
@@ -5271,7 +5462,8 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/app-api/{self._site}/grid_toggle_otp.json"
-        headers = dict(self._control_headers())
+        headers = self._history_headers()
+        headers.update(self._control_headers())
         data = await self._json("GET", url, headers=headers)
         if isinstance(data, dict):
             return data
@@ -5284,10 +5476,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/app-api/grid_toggle_otp.json"
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Origin": BASE_URL,
-        }
+        headers = self._history_form_headers()
         headers.update(self._control_headers())
         payload = {"otp": str(otp), "site_id": str(self._site)}
         data = await self._json("POST", url, data=payload, headers=headers)
@@ -5302,10 +5491,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/pv/settings/grid_state.json"
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Origin": BASE_URL,
-        }
+        headers = self._history_form_headers()
         headers.update(self._control_headers())
         payload = {
             "envoy_serial_number": str(envoy_serial_number),
@@ -5328,10 +5514,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/pv/settings/log_grid_change.json"
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Origin": BASE_URL,
-        }
+        headers = self._history_form_headers()
         headers.update(self._control_headers())
         payload = {
             "envoy_serial_number": str(envoy_serial_number),
@@ -5350,7 +5533,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/app-api/{self._site}/battery_backup_history.json"
-        data = await self._json("GET", url)
+        data = await self._json("GET", url, headers=self._history_headers())
         if isinstance(data, dict):
             return data
         return {}
@@ -5362,7 +5545,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/pv/settings/{self._site}/battery_status.json"
-        data = await self._json("GET", url)
+        data = await self._json("GET", url, headers=self._history_headers())
         if isinstance(data, dict):
             return data
         return {}
@@ -5374,7 +5557,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/pv/settings/{self._site}/dry_contacts"
-        data = await self._json("GET", url)
+        data = await self._json("GET", url, headers=self._history_headers())
         if isinstance(data, dict):
             return data
         return {}
@@ -5398,7 +5581,7 @@ class EnphaseEVClient:
                 "search": str(search),
             }
         )
-        data = await self._json("GET", str(url))
+        data = await self._json("GET", str(url), headers=self._history_headers())
         if not isinstance(data, dict):
             return {}
         return data
@@ -5410,7 +5593,7 @@ class EnphaseEVClient:
         """
 
         url = f"{BASE_URL}/systems/{self._site}/inverter_status_x.json"
-        data = await self._json("GET", url)
+        data = await self._json("GET", url, headers=self._layout_headers())
         if not isinstance(data, dict):
             return {}
         out: dict[str, dict[str, Any]] = {}
@@ -5437,7 +5620,7 @@ class EnphaseEVClient:
         url = URL(
             f"{BASE_URL}/systems/{self._site}/inverter_data_x/energy.json"
         ).with_query({"start_date": str(start_date), "end_date": str(end_date)})
-        data = await self._json("GET", str(url))
+        data = await self._json("GET", str(url), headers=self._layout_headers())
         if not isinstance(data, dict):
             return {}
         production_raw = data.get("production")

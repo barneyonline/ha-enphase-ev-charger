@@ -19,6 +19,24 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.7.2 - 2026-04-07
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Matched the documented Enlighten browser header profiles across implemented login, site, inverter, EV, and HEMS web endpoints so optional reads, EV controls, and initial authentication continue working when the cloud service enforces route-specific `Accept` and `Referer` handling more strictly, including a browser-form login fallback when `login.json` is rejected with `406 Not Acceptable`.
+
+### 🔧 Improvements
+- Added regression coverage for the route-specific request headers used by login, site inventory/runtime, EV, battery, inverter, and HEMS web API methods.
+- Suppressed noisy warning logs when the optional HEMS lifetime endpoint returns HTML instead of JSON and is already being treated as unavailable.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.2`.
+
 ## v2.7.1 - 2026-04-06
 
 ### 🚧 Breaking changes
