@@ -948,6 +948,17 @@ def test_inventory_runtime_inverter_helper_paths(coordinator_factory) -> None:
 async def test_inventory_runtime_refresh_inverters_paths(coordinator_factory) -> None:
     coord = coordinator_factory()
     runtime = coord.inventory_runtime
+
+    def _clear_family_windows() -> None:
+        for family in ("inventory_topology", "inverter_status", "inverter_production"):
+            health = coord._endpoint_family_state(family)  # noqa: SLF001
+            health.next_retry_mono = None
+            health.next_retry_utc = None
+            health.cooldown_active = False
+        coord._inverters_inventory_cache_until = None  # noqa: SLF001
+        coord._inverter_status_cache_until = None  # noqa: SLF001
+        coord._inverter_production_cache_until = None  # noqa: SLF001
+
     coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
     coord.client.inverters_inventory = AsyncMock(
         return_value={
@@ -1023,6 +1034,7 @@ async def test_inventory_runtime_refresh_inverters_paths(coordinator_factory) ->
     coord.client.inverters_inventory = AsyncMock(return_value={"inverters": {"bad": 1}})
     coord.client.inverter_status = AsyncMock(side_effect=RuntimeError("boom"))
     coord.client.inverter_production = AsyncMock(side_effect=RuntimeError("boom"))
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == []
 
@@ -1044,6 +1056,7 @@ async def test_inventory_runtime_refresh_inverters_paths(coordinator_factory) ->
     coord.client.inverter_production = AsyncMock(
         return_value={"production": {"1001": 1}}
     )
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     coord.client.inverter_production.assert_not_awaited()
 
@@ -1917,6 +1930,17 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
 ) -> None:
     coord = coordinator_factory()
     runtime = coord.inventory_runtime
+
+    def _clear_family_windows() -> None:
+        for family in ("inventory_topology", "inverter_status", "inverter_production"):
+            health = coord._endpoint_family_state(family)  # noqa: SLF001
+            health.next_retry_mono = None
+            health.next_retry_utc = None
+            health.cooldown_active = False
+        coord._inverters_inventory_cache_until = None  # noqa: SLF001
+        coord._inverter_status_cache_until = None  # noqa: SLF001
+        coord._inverter_production_cache_until = None  # noqa: SLF001
+
     coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
     runtime._merge_microinverter_type_bucket = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
     runtime._merge_heatpump_type_bucket = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
@@ -2027,6 +2051,7 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     assert runtime._inverter_panel_info is None  # noqa: SLF001
 
     coord.client.inverters_inventory = AsyncMock(return_value="bad")
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == ["INV-A", "INV-B", "INV-C"]
 
@@ -2046,6 +2071,7 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     coord.client.inverter_status = AsyncMock(return_value={})
     coord.client.inverter_production = AsyncMock(return_value={})
     coord._inverter_data = {}  # noqa: SLF001
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert runtime._inverter_summary_counts == {  # noqa: SLF001
         "total": 2,
@@ -2064,6 +2090,7 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     coord.client.inverters_inventory = AsyncMock(side_effect=legacy_inventory_fetcher)
     coord.client.inverter_status = AsyncMock(return_value=[])
     coord.client.inverter_production = AsyncMock(return_value="bad")
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     coord.client.inverter_production.assert_awaited_once()
 
@@ -2085,6 +2112,7 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     coord._inverter_data = {
         "INV-1": {"serial_number": "INV-1", "inverter_id": "1001"}
     }  # noqa: SLF001
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == ["INV-1"]
     assert coord.inverter_data("INV-1")["lifetime_production_wh"] is None
@@ -2100,6 +2128,7 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     coord.client.inverters_inventory = AsyncMock(
         side_effect=pagination_non_list_fetcher
     )
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == ["INV-2"]
 
@@ -2114,6 +2143,7 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     coord.client.inverters_inventory = AsyncMock(
         side_effect=pagination_empty_page_fetcher
     )
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == ["INV-3"]
 
@@ -2131,8 +2161,263 @@ async def test_inventory_runtime_refresh_inverters_pagination_and_error_paths(
     coord.client.inverters_inventory = AsyncMock(
         side_effect=pagination_total_growth_fetcher
     )
+    _clear_family_windows()
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == ["INV-4", "INV-5"]
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_inverters_uses_cached_payloads_during_cooldown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    now = time.monotonic()
+
+    coord._devices_inventory_payload = {"curr_date_site": "2026-02-09"}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord._inverters_inventory_payload = {  # noqa: SLF001
+        "total": 1,
+        "inverters": [{"serial_number": "INV-A", "name": "IQ7", "status": "normal"}],
+    }
+    coord._inverter_status_payload = {  # noqa: SLF001
+        "1001": {
+            "serialNum": "INV-A",
+            "deviceId": 11,
+            "statusCode": "normal",
+            "type": "IQ7",
+        }
+    }
+    coord._inverter_production_payload = {  # noqa: SLF001
+        "production": {"1001": 321.0},
+        "start_date": "2022-08-10",
+        "end_date": "2026-02-09",
+    }
+    coord._inverter_production_cache_key = (  # noqa: SLF001
+        "2022-08-10",
+        "2026-02-09",
+    )
+    for family in ("inventory_topology", "inverter_status", "inverter_production"):
+        health = coord._endpoint_family_state(family)  # noqa: SLF001
+        health.next_retry_mono = now + 600
+        health.cooldown_active = True
+        health.last_success_mono = now
+
+    coord.client.inverters_inventory = AsyncMock(side_effect=AssertionError("unused"))
+    coord.client.inverter_status = AsyncMock(side_effect=AssertionError("unused"))
+    coord.client.inverter_production = AsyncMock(side_effect=AssertionError("unused"))
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    coord.client.inverters_inventory.assert_not_awaited()
+    coord.client.inverter_status.assert_not_awaited()
+    coord.client.inverter_production.assert_not_awaited()
+    assert coord.iter_inverter_serials() == ["INV-A"]
+    assert coord.inverter_data("INV-A")["lifetime_production_wh"] == 321.0
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_inverters_uses_success_cache_ttls(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+
+    coord._devices_inventory_payload = {"curr_date_site": "2026-02-09"}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 1,
+            "inverters": [
+                {"serial_number": "INV-A", "name": "IQ7", "status": "normal"}
+            ],
+        }
+    )
+    coord.client.inverter_status = AsyncMock(
+        return_value={
+            "1001": {
+                "serialNum": "INV-A",
+                "deviceId": 11,
+                "statusCode": "normal",
+                "type": "IQ7",
+            }
+        }
+    )
+    coord.client.inverter_production = AsyncMock(
+        return_value={
+            "production": {"1001": 456.0},
+            "start_date": "2022-08-10",
+            "end_date": "2026-02-09",
+        }
+    )
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord.client.inverters_inventory.await_count == 1
+    assert coord.client.inverter_status.await_count == 1
+    assert coord.client.inverter_production.await_count == 1
+    assert coord._inverters_inventory_cache_until is not None  # noqa: SLF001
+    assert coord._inverter_status_cache_until is not None  # noqa: SLF001
+    assert coord._inverter_production_cache_until is not None  # noqa: SLF001
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord.client.inverters_inventory.await_count == 1
+    assert coord.client.inverter_status.await_count == 1
+    assert coord.client.inverter_production.await_count == 1
+    assert coord.inverter_data("INV-A")["lifetime_production_wh"] == 456.0
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_inverters_manual_bypass_refetches_same_day_production(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    now = time.monotonic()
+
+    coord._devices_inventory_payload = {"curr_date_site": "2026-02-09"}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord._endpoint_manual_bypass_active = True  # noqa: SLF001
+    for family in ("inventory_topology", "inverter_status", "inverter_production"):
+        health = coord._endpoint_family_state(family)  # noqa: SLF001
+        health.next_retry_mono = now + 600
+        health.cooldown_active = True
+        health.last_success_mono = now
+    coord._inverter_production_payload = {  # noqa: SLF001
+        "production": {"1001": 123.0},
+        "start_date": "2022-08-10",
+        "end_date": "2026-02-09",
+    }
+    coord._inverter_production_cache_key = (  # noqa: SLF001
+        "2022-08-10",
+        "2026-02-09",
+    )
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 1,
+            "inverters": [
+                {"serial_number": "INV-A", "name": "IQ7", "status": "normal"}
+            ],
+        }
+    )
+    coord.client.inverter_status = AsyncMock(
+        return_value={
+            "1001": {
+                "serialNum": "INV-A",
+                "deviceId": 11,
+                "statusCode": "normal",
+                "type": "IQ7",
+            }
+        }
+    )
+    coord.client.inverter_production = AsyncMock(
+        return_value={
+            "production": {"1001": 456.0},
+            "start_date": "2022-08-10",
+            "end_date": "2026-02-09",
+        }
+    )
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    coord.client.inverter_production.assert_awaited_once()
+    assert coord.inverter_data("INV-A")["lifetime_production_wh"] == 456.0
+    assert (
+        coord._endpoint_family_state("inverter_production").next_retry_utc is not None
+    )  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_system_dashboard_records_endpoint_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.client.devices_tree = AsyncMock(side_effect=RuntimeError("tree"))
+    coord.client.devices_details = AsyncMock(side_effect=RuntimeError("detail"))
+
+    await runtime._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    health = coord._endpoint_family_state("inventory_topology")  # noqa: SLF001
+    assert health.consecutive_failures == 1
+    assert health.cooldown_active is True
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_system_dashboard_respects_cache_and_details_error_branch(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._system_dashboard_cache_until = time.monotonic() + 300  # noqa: SLF001
+    coord.client.devices_tree = AsyncMock(side_effect=AssertionError("unused"))
+    coord.client.devices_details = AsyncMock(side_effect=AssertionError("unused"))
+
+    await runtime._async_refresh_system_dashboard()  # noqa: SLF001
+
+    coord.client.devices_tree.assert_not_awaited()
+    coord.client.devices_details.assert_not_awaited()
+
+    runtime._system_dashboard_cache_until = None  # noqa: SLF001
+    coord.client.devices_tree = None
+    coord.client.devices_details = AsyncMock(side_effect=RuntimeError("detail"))
+
+    await runtime._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    health = coord._endpoint_family_state("inventory_topology")  # noqa: SLF001
+    assert health.consecutive_failures >= 1
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_inverters_handles_inventory_exception_and_cached_bad_production(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    now = time.monotonic()
+
+    coord._devices_inventory_payload = {"curr_date_site": "2026-02-09"}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord._inverters_inventory_payload = {  # noqa: SLF001
+        "total": 1,
+        "inverters": [{"serial_number": "INV-A", "name": "IQ7", "status": "normal"}],
+    }
+    coord._inverter_status_payload = {  # noqa: SLF001
+        "1001": {
+            "serialNum": "INV-A",
+            "deviceId": 11,
+            "statusCode": "normal",
+            "type": "IQ7",
+        }
+    }
+    coord._inverter_production_payload = {  # noqa: SLF001
+        "production": {"1001": 222.0},
+        "start_date": "2022-08-10",
+        "end_date": "2026-02-09",
+    }
+    coord._inverter_data = {  # noqa: SLF001
+        "INV-A": {"serial_number": "INV-A", "inverter_id": "1001"}
+    }
+    coord._inverter_production_cache_key = (  # noqa: SLF001
+        "2022-08-10",
+        "2026-02-09",
+    )
+    status_health = coord._endpoint_family_state("inverter_status")  # noqa: SLF001
+    status_health.last_success_mono = now
+    production_health = coord._endpoint_family_state(
+        "inverter_production"
+    )  # noqa: SLF001
+    production_health.last_success_mono = now
+
+    coord.client.inverters_inventory = AsyncMock(side_effect=RuntimeError("boom"))
+    coord.client.inverter_status = AsyncMock(return_value={})
+    coord.client.inverter_production = AsyncMock(return_value="bad")
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord.iter_inverter_serials() == ["INV-A"]
+    assert coord.inverter_data("INV-A")["lifetime_production_wh"] == 222.0
 
 
 def test_inventory_runtime_misc_helper_edges(coordinator_factory) -> None:

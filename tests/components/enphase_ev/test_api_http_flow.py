@@ -97,6 +97,19 @@ class StubSession:
         self.cookie_jar = aiohttp.CookieJar()
 
 
+def test_should_limit_enlighten_read_request_handles_bad_string_casts() -> None:
+    class BadMethod:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    class BadUrl:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert api._should_limit_enlighten_read_request(BadMethod(), api.BASE_URL) is False
+    assert api._should_limit_enlighten_read_request("GET", BadUrl()) is False
+
+
 def test_cookie_header_from_map_empty() -> None:
     assert api._cookie_header_from_map(None) == ""
     assert api._cookie_header_from_map({}) == ""
@@ -262,6 +275,17 @@ def test_login_form_headers_match_browser_flow() -> None:
         "Content-Type": "application/x-www-form-urlencoded",
         "Origin": api.BASE_URL,
         "Referer": f"{api.BASE_URL}/",
+        "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
+    }
+
+
+def test_login_headers_match_xhr_flow() -> None:
+    assert api._login_headers() == {
+        "Accept": "*/*",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Referer": f"{api.BASE_URL}/",
+        "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
+        "X-Requested-With": "XMLHttpRequest",
     }
 
 
@@ -381,6 +405,7 @@ async def test_async_authenticate_success_with_jwt_fallback(monkeypatch) -> None
             "Accept": "*/*",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             "Referer": f"{api.BASE_URL}/",
+            "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
             "X-Requested-With": "XMLHttpRequest",
         }
     ]

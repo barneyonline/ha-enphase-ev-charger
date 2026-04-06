@@ -249,6 +249,7 @@ class CoordinatorDiagnostics:
             "type_device_keys": type_keys,
             "type_device_counts": type_counts,
             "payload_health": self.payload_health_diagnostics(),
+            "endpoint_family_health": self.endpoint_family_health_diagnostics(),
             "inverters_enabled": bool(getattr(coord, "include_inverters", True)),
             "inverters_count": len(getattr(coord, "_inverter_data", {}) or {}),
             "inverters_summary_counts": dict(
@@ -930,6 +931,45 @@ class CoordinatorDiagnostics:
                 out["evse_timeseries"] = evse_timeseries.diagnostics()
             except Exception:  # noqa: BLE001
                 pass
+        return out
+
+    def endpoint_family_health_diagnostics(self) -> dict[str, object]:
+        """Return diagnostics-safe endpoint family health details."""
+
+        coord = self.coordinator
+
+        def _iso(value: datetime | None) -> str | None:
+            if not value:
+                return None
+            try:
+                return value.isoformat()
+            except Exception:
+                return str(value)
+
+        out: dict[str, object] = {}
+        health_map = getattr(coord, "_endpoint_family_health", {})
+        if not isinstance(health_map, dict):
+            return out
+        for family, state in health_map.items():
+            if not isinstance(family, str):
+                continue
+            if state is None:
+                continue
+            support_state = getattr(state, "support_state", "unknown")
+            out[family] = {
+                "family": family,
+                "consecutive_failures": int(
+                    getattr(state, "consecutive_failures", 0) or 0
+                ),
+                "last_status": getattr(state, "last_status", None),
+                "last_success_utc": _iso(getattr(state, "last_success_utc", None)),
+                "last_failure_utc": _iso(getattr(state, "last_failure_utc", None)),
+                "next_retry_utc": _iso(getattr(state, "next_retry_utc", None)),
+                "cooldown_active": bool(getattr(state, "cooldown_active", False)),
+                "support_state": support_state,
+                "suppressed": support_state == "suppressed",
+                "last_error": getattr(state, "last_error", None),
+            }
         return out
 
     def sync_session_history_issue(self) -> None:

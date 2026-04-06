@@ -6,8 +6,9 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
@@ -34,6 +35,7 @@ from .runtime_helpers import (
     redact_battery_payload,
     resolve_inverter_start_date,
     resolve_site_local_current_date,
+    resolve_site_timezone_name,
 )
 from .state_models import install_state_descriptors
 from .system_dashboard_helpers import (
@@ -145,6 +147,18 @@ class InventoryRuntime:
             getattr(self, "_devices_inventory_payload", None),
             getattr(self.coordinator, "_battery_timezone", None),
         )
+
+    def _seconds_until_next_site_local_day(self) -> float:
+        tz_name = resolve_site_timezone_name(
+            getattr(self.coordinator, "_battery_timezone", None)
+        )
+        now_local = datetime.now(ZoneInfo(tz_name))
+        next_midnight = datetime.combine(
+            now_local.date() + timedelta(days=1),
+            datetime.min.time(),
+            tzinfo=now_local.tzinfo,
+        )
+        return max(1.0, (next_midnight - now_local).total_seconds())
 
     def _redact_battery_payload(self, payload: object) -> object:
         return redact_battery_payload(payload)
@@ -1706,7 +1720,11 @@ class InventoryRuntime:
         )
 
     async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
+        coord = self.coordinator
         now = time.monotonic()
+        family = "inventory_topology"
+        if not coord._endpoint_family_should_run(family, force=force):
+            return
         if not force and self._devices_inventory_cache_until:
             if now < self._devices_inventory_cache_until:
                 return
@@ -1716,10 +1734,7 @@ class InventoryRuntime:
         try:
             payload = await self._async_call_refreshable_fetcher(fetcher, force=force)
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Device inventory fetch failed: %s",
-                redact_text(err, site_ids=(self.site_id,)),
-            )
+            coord._note_endpoint_family_failure(family, err)
             return
         override = getattr(self.coordinator, "__dict__", {}).get(
             "_parse_devices_inventory_payload"
@@ -1729,9 +1744,8 @@ class InventoryRuntime:
         else:
             valid, grouped, ordered = self._parse_devices_inventory_payload(payload)
         if not valid:
-            _LOGGER.debug(
-                "Device inventory payload shape was invalid: %s",
-                redact_text(payload, site_ids=(self.site_id,)),
+            coord._note_endpoint_family_failure(
+                family, ValueError("Device inventory payload shape was invalid")
             )
             return
         summary = self._debug_devices_inventory_summary(grouped, ordered)
@@ -1741,6 +1755,10 @@ class InventoryRuntime:
                 "Device inventory discovery summary",
                 summary,
             )
+            self._set_shared_state_attr(
+                "_devices_inventory_cache_until", now + DEVICES_INVENTORY_CACHE_TTL
+            )
+            coord._note_endpoint_family_success(family)
             return
         has_active_members = False
         for bucket in grouped.values():
@@ -1756,6 +1774,7 @@ class InventoryRuntime:
                 redact_text(summary, site_ids=(self.site_id,)),
             )
             self._devices_inventory_cache_until = now + DEVICES_INVENTORY_CACHE_TTL
+            coord._note_endpoint_family_success(family)
             return
         self._set_type_device_buckets(grouped, ordered)
         redacted_payload = self._redact_battery_payload(payload)
@@ -1774,6 +1793,7 @@ class InventoryRuntime:
             "Device inventory discovery summary",
             summary,
         )
+        coord._note_endpoint_family_success(family)
 
     async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -1935,7 +1955,11 @@ class InventoryRuntime:
         return system_dashboard_battery_detail_subset(payload)
 
     async def _async_refresh_system_dashboard(self, *, force: bool = False) -> None:
+        coord = self.coordinator
         now = time.monotonic()
+        family = "inventory_topology"
+        if not coord._endpoint_family_should_run(family, force=force):
+            return
         if not force and self._system_dashboard_cache_until:
             if now < self._system_dashboard_cache_until:
                 return
@@ -1945,14 +1969,16 @@ class InventoryRuntime:
             return
 
         tree_payload = getattr(self, "_system_dashboard_devices_tree_raw", None)
+        first_error: Exception | None = None
+        fetched_payload = False
         if callable(tree_fetcher):
             try:
                 tree_payload = await tree_fetcher()
             except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "System dashboard devices-tree fetch failed: %s",
-                    redact_text(err, site_ids=(self.site_id,)),
-                )
+                first_error = err
+            else:
+                if isinstance(tree_payload, dict):
+                    fetched_payload = True
 
         details_payloads = (
             dict(getattr(self, "_system_dashboard_devices_details_raw", {}) or {})
@@ -1966,14 +1992,12 @@ class InventoryRuntime:
                 try:
                     payload = await details_fetcher(source_type)
                 except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug(
-                        "System dashboard devices_details fetch failed for type %s: %s",
-                        source_type,
-                        redact_text(err, site_ids=(self.site_id,)),
-                    )
+                    if first_error is None:
+                        first_error = err
                     continue
                 if not isinstance(payload, dict):
                     continue
+                fetched_payload = True
                 canonical_type = self._system_dashboard_type_key(source_type)
                 if not canonical_type:
                     continue
@@ -2035,6 +2059,10 @@ class InventoryRuntime:
                 hierarchy_summary,
             ),
         )
+        if fetched_payload or tree_raw is not None or details_raw:
+            coord._note_endpoint_family_success(family)
+        elif first_error is not None:
+            coord._note_endpoint_family_failure(family, first_error)
 
     def _inverter_start_date(self) -> str | None:
         energy = getattr(self.coordinator, "energy", None)
@@ -2271,16 +2299,22 @@ class InventoryRuntime:
 
     async def _async_refresh_inverters(self) -> None:
         """Refresh inverter metadata/status/production and build serial snapshots."""
+        coord = self.coordinator
+        now = time.monotonic()
         if not self.include_inverters:
             self._update_shared_state(
+                _inverters_inventory_cache_until=None,
                 _inverters_inventory_payload=None,
+                _inverter_status_cache_until=None,
                 _inverter_status_payload=None,
+                _inverter_production_cache_until=None,
                 _inverter_production_payload=None,
                 _inverter_data={},
                 _inverter_order=[],
                 _inverter_panel_info=None,
                 _inverter_status_type_counts={},
                 _inverter_model_counts={},
+                _inverter_production_cache_key=None,
                 _inverter_summary_counts={
                     "total": 0,
                     "normal": 0,
@@ -2299,6 +2333,16 @@ class InventoryRuntime:
         if not callable(fetch_inventory) or not callable(fetch_status):
             return
 
+        inventory_family = "inventory_topology"
+        status_family = "inverter_status"
+        production_family = "inverter_production"
+        cached_inventory_payload = getattr(self, "_inverters_inventory_payload", None)
+        if not isinstance(cached_inventory_payload, dict):
+            cached_inventory_payload = None
+        inventory_cache_until = getattr(self, "_inverters_inventory_cache_until", None)
+        if not isinstance(inventory_cache_until, (int, float)):
+            inventory_cache_until = None
+
         async def _fetch_inventory_page(offset: int) -> dict[str, object] | None:
             try:
                 payload = await fetch_inventory(
@@ -2310,18 +2354,41 @@ class InventoryRuntime:
                 if offset != 0:
                     return None
                 payload = await fetch_inventory()
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Inverters inventory fetch failed for site %s: %s",
-                    redact_site_id(self.site_id),
-                    redact_text(err, site_ids=(self.site_id,)),
-                )
-                return None
+            except Exception:
+                raise
             if not isinstance(payload, dict):
                 return None
             return payload
 
-        inventory_payload = await _fetch_inventory_page(0)
+        inventory_payload: dict[str, object] | None = None
+        fetch_inventory_now = True
+        if inventory_cache_until is not None and now < float(inventory_cache_until):
+            fetch_inventory_now = False
+        else:
+            fetch_inventory_now = coord._endpoint_family_should_run(inventory_family)
+        if fetch_inventory_now:
+            try:
+                inventory_payload = await _fetch_inventory_page(0)
+            except Exception as err:  # noqa: BLE001
+                coord._note_endpoint_family_failure(inventory_family, err)
+                self._set_shared_state_attr(
+                    "_inverters_inventory_cache_until",
+                    coord._endpoint_family_next_retry_mono(inventory_family),
+                )
+                inventory_payload = cached_inventory_payload
+            else:
+                if inventory_payload is None:
+                    coord._note_endpoint_family_failure(
+                        inventory_family,
+                        ValueError("Inverters inventory payload was not a dictionary"),
+                    )
+                    self._set_shared_state_attr(
+                        "_inverters_inventory_cache_until",
+                        coord._endpoint_family_next_retry_mono(inventory_family),
+                    )
+                    inventory_payload = cached_inventory_payload
+        else:
+            inventory_payload = cached_inventory_payload
         if inventory_payload is None:
             return
 
@@ -2356,41 +2423,130 @@ class InventoryRuntime:
             inventory_payload = dict(inventory_payload)
             inventory_payload["inverters"] = merged
             inverters_list = merged
-
-        try:
-            status_payload = await fetch_status()
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Inverter status fetch failed for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
+        if fetch_inventory_now and inventory_payload is not cached_inventory_payload:
+            coord._note_endpoint_family_success(inventory_family)
+            self._set_shared_state_attr(
+                "_inverters_inventory_cache_until",
+                coord._endpoint_family_next_retry_mono(inventory_family),
             )
-            status_payload = {}
-        if not isinstance(status_payload, dict):
-            status_payload = {}
+
+        cached_status_payload = getattr(self, "_inverter_status_payload", None)
+        if not isinstance(cached_status_payload, dict):
+            cached_status_payload = {}
+        status_payload: dict[str, object] = {}
+        status_cache_until = getattr(self, "_inverter_status_cache_until", None)
+        if isinstance(status_cache_until, (int, float)) and now < float(
+            status_cache_until
+        ):
+            status_payload = dict(cached_status_payload)
+        elif coord._endpoint_family_should_run(status_family):
+            try:
+                fetched_status = await fetch_status()
+            except Exception as err:  # noqa: BLE001
+                coord._note_endpoint_family_failure(status_family, err)
+                self._set_shared_state_attr(
+                    "_inverter_status_cache_until",
+                    coord._endpoint_family_next_retry_mono(status_family),
+                )
+                if coord._endpoint_family_can_use_stale(status_family):
+                    status_payload = dict(cached_status_payload)
+            else:
+                if isinstance(fetched_status, dict):
+                    status_payload = fetched_status
+                    coord._note_endpoint_family_success(status_family)
+                    self._set_shared_state_attr(
+                        "_inverter_status_cache_until",
+                        coord._endpoint_family_next_retry_mono(status_family),
+                    )
+                else:
+                    coord._note_endpoint_family_failure(
+                        status_family,
+                        ValueError("Inverter status payload was not a dictionary"),
+                    )
+                    self._set_shared_state_attr(
+                        "_inverter_status_cache_until",
+                        coord._endpoint_family_next_retry_mono(status_family),
+                    )
+                    if coord._endpoint_family_can_use_stale(status_family):
+                        status_payload = dict(cached_status_payload)
+        elif coord._endpoint_family_can_use_stale(status_family):
+            status_payload = dict(cached_status_payload)
 
         start_date = self._inverter_start_date()
         end_date = self._site_local_current_date()
         production_payload: dict[str, object] = {}
+        cached_production_payload = getattr(self, "_inverter_production_payload", None)
+        if not isinstance(cached_production_payload, dict):
+            cached_production_payload = {}
+        current_production_cache_key = (
+            (start_date, end_date) if start_date is not None else None
+        )
+        production_cache_until = getattr(
+            self,
+            "_inverter_production_cache_until",
+            None,
+        )
+        cached_production_matches = (
+            current_production_cache_key is not None
+            and getattr(self, "_inverter_production_cache_key", None)
+            == current_production_cache_key
+            and bool(cached_production_payload)
+        )
         if callable(fetch_production) and start_date is not None:
-            try:
-                production_payload = await fetch_production(
-                    start_date=start_date, end_date=end_date
-                )
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Inverter production fetch failed for site %s: %s",
-                    redact_site_id(self.site_id),
-                    redact_text(err, site_ids=(self.site_id,)),
-                )
-                production_payload = {}
+            if (
+                cached_production_matches
+                and isinstance(production_cache_until, (int, float))
+                and now < float(production_cache_until)
+            ):
+                production_payload = dict(cached_production_payload)
+            elif coord._endpoint_family_should_run(production_family):
+                try:
+                    fetched_production = await fetch_production(
+                        start_date=start_date, end_date=end_date
+                    )
+                except Exception as err:  # noqa: BLE001
+                    coord._note_endpoint_family_failure(production_family, err)
+                    self._set_shared_state_attr(
+                        "_inverter_production_cache_until",
+                        coord._endpoint_family_next_retry_mono(production_family),
+                    )
+                    if cached_production_matches:
+                        production_payload = dict(cached_production_payload)
+                else:
+                    if isinstance(fetched_production, dict):
+                        production_payload = fetched_production
+                        coord._note_endpoint_family_success(
+                            production_family,
+                            success_ttl_s=self._seconds_until_next_site_local_day(),
+                        )
+                        self._set_shared_state_attr(
+                            "_inverter_production_cache_key",
+                            current_production_cache_key,
+                        )
+                        self._set_shared_state_attr(
+                            "_inverter_production_cache_until",
+                            coord._endpoint_family_next_retry_mono(production_family),
+                        )
+                    else:
+                        coord._note_endpoint_family_failure(
+                            production_family,
+                            ValueError(
+                                "Inverter production payload was not a dictionary"
+                            ),
+                        )
+                        self._set_shared_state_attr(
+                            "_inverter_production_cache_until",
+                            coord._endpoint_family_next_retry_mono(production_family),
+                        )
+                        if cached_production_matches:
+                            production_payload = dict(cached_production_payload)
+            elif cached_production_matches:
+                production_payload = dict(cached_production_payload)
         elif start_date is None:
             _LOGGER.debug(
                 "Skipping inverter production fetch for site %s: start date unknown",
                 redact_site_id(self.site_id),
             )
-        if not isinstance(production_payload, dict):
-            production_payload = {}
         production_raw = production_payload.get("production")
         if not isinstance(production_raw, dict):
             production_raw = {}

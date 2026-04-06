@@ -171,6 +171,7 @@ def test_root_and_today_header_helpers_use_browser_profiles() -> None:
         "Accept": "*/*",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{api.BASE_URL}/",
+        "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
         "Cookie": "appVersion=3.4.0; a=1",
         "e-auth-token": "EAUTH",
     }
@@ -178,6 +179,7 @@ def test_root_and_today_header_helpers_use_browser_profiles() -> None:
         "Accept": "*/*",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{api.BASE_URL}/web/SITE/today/graph/hours?v=3.4.0",
+        "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
         "Cookie": "appVersion=3.4.0; a=1",
         "e-auth-token": "EAUTH",
     }
@@ -185,6 +187,7 @@ def test_root_and_today_header_helpers_use_browser_profiles() -> None:
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{api.BASE_URL}/web/SITE/today/graph/hours?v=3.4.0",
+        "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
         "Cookie": "appVersion=3.4.0; a=1",
         "e-auth-token": "EAUTH",
     }
@@ -1779,6 +1782,7 @@ async def test_grid_control_check_uses_grid_control_check_endpoint() -> None:
             "Accept": "*/*",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+            "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
             "Cookie": "COOKIE",
             "e-auth-token": "EAUTH",
         },
@@ -1918,6 +1922,7 @@ async def test_battery_backup_history_uses_endpoint() -> None:
             "Accept": "*/*",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+            "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
             "Cookie": "COOKIE",
             "e-auth-token": "EAUTH",
         },
@@ -1959,6 +1964,7 @@ async def test_battery_status_uses_battery_status_json_endpoint() -> None:
             "Accept": "*/*",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+            "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
             "Cookie": "COOKIE",
             "e-auth-token": "EAUTH",
         },
@@ -2017,6 +2023,7 @@ async def test_inverters_inventory_uses_inverters_json_endpoint() -> None:
         "Accept": "*/*",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+        "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
         "Cookie": "COOKIE",
         "e-auth-token": "EAUTH",
     }
@@ -2053,6 +2060,7 @@ async def test_inverter_status_normalizes_keyed_dict() -> None:
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{api.BASE_URL}/web/SITE/layout/graph/years",
+            "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
             "Cookie": "COOKIE",
             "e-auth-token": "EAUTH",
         },
@@ -2094,6 +2102,7 @@ async def test_inverter_production_normalizes_values() -> None:
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{api.BASE_URL}/web/SITE/layout/graph/years",
+            "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
             "Cookie": "COOKIE",
             "e-auth-token": "EAUTH",
         },
@@ -3773,6 +3782,7 @@ async def test_lifetime_energy_normalization() -> None:
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{api.BASE_URL}/web/SITE/layout/graph/years",
+        "User-Agent": api._ENLIGHTEN_BROWSER_USER_AGENT,
         "Cookie": "COOKIE",
     }
 
