@@ -19,6 +19,26 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.7.0 - 2026-04-06
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added support for managing DTG and RBD battery schedule toggles through the battery settings flows so affected sites can control those schedules more reliably from Home Assistant.
+
+### 🐛 Bug fixes
+- Improved heat-pump stale-data handling so older upstream samples are treated more safely and heat-pump entities stay more consistent when fresh telemetry is delayed.
+- Fixed stale EV charge-mode select alias cleanup so outdated aliases do not linger after the current charge-mode entity mapping changes.
+- Fixed EVSE suspended-charging power estimation so charger power reporting stays more accurate while a session is paused or otherwise suspended.
+
+### 🔧 Improvements
+- Continued the coordinator refresh-runner extraction work to simplify the refresh pipeline and reduce internal coordinator complexity without changing supported functionality.
+
+### 🔄 Other changes
+- Improved the GitHub issue-labeling automation workflow used for repository maintenance.
+- Updated GitHub Actions dependencies by bumping `actions/checkout` from v4 to v6 and `actions/setup-python` from v5 to v6.
+
 ## v2.6.9 - 2026-04-04
 
 ### 🚧 Breaking changes
