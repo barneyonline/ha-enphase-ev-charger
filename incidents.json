@@ -1,6 +1,6 @@
 {
-  "current_status": "Degraded",
-  "generated_at": "2026-04-06T07:42:09.964872Z",
+  "current_status": "Fully Operational",
+  "generated_at": "2026-04-06T09:08:02.503199Z",
   "incidents": [
     {
       "active": false,
@@ -81,9 +81,9 @@
       "status": "Degraded"
     },
     {
-      "active": true,
-      "duration_minutes": 0,
-      "ended_at": null,
+      "active": false,
+      "duration_minutes": 85,
+      "ended_at": "2026-04-06T09:08:02.503199Z",
       "failed_checks": [
         "battery_config",
         "session_history"

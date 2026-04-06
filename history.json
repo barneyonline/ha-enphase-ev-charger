@@ -1,6 +1,6 @@
 {
-  "current_status": "Degraded",
-  "generated_at": "2026-04-06T07:42:09.964872Z",
+  "current_status": "Fully Operational",
+  "generated_at": "2026-04-06T09:08:02.503199Z",
   "retention_days": 30,
   "samples": [
     {
@@ -3950,6 +3950,14 @@
         "session_history"
       ],
       "status": "Degraded"
+    },
+    {
+      "checked_at": "2026-04-06T09:08:02.503199Z",
+      "checks_failed": 1,
+      "failed_check_names": [
+        "battery_config"
+      ],
+      "status": "Fully Operational"
     }
   ]
 }
