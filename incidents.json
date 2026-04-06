@@ -1,6 +1,6 @@
 {
-  "current_status": "Fully Operational",
-  "generated_at": "2026-04-06T05:37:06.524681Z",
+  "current_status": "Degraded",
+  "generated_at": "2026-04-06T07:42:09.964872Z",
   "incidents": [
     {
       "active": false,
@@ -78,6 +78,18 @@
       ],
       "last_seen_at": "2026-04-04T20:30:40.261028Z",
       "started_at": "2026-04-04T20:30:40.261028Z",
+      "status": "Degraded"
+    },
+    {
+      "active": true,
+      "duration_minutes": 0,
+      "ended_at": null,
+      "failed_checks": [
+        "battery_config",
+        "session_history"
+      ],
+      "last_seen_at": "2026-04-06T07:42:09.964872Z",
+      "started_at": "2026-04-06T07:42:09.964872Z",
       "status": "Degraded"
     }
   ],
