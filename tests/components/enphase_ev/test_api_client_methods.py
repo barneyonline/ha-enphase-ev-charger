@@ -148,6 +148,48 @@ def test_update_credentials_handles_xsrf_extractor_exception(monkeypatch) -> Non
     assert "X-CSRF-Token" not in client._h
 
 
+def test_site_web_referer_uses_app_version_cookie_when_available() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="appVersion=3.4.0; a=1")
+
+    assert client._site_web_referer("history") == (
+        f"{api.BASE_URL}/web/SITE/history/graph/years?v=3.4.0"
+    )
+    assert client._site_web_referer("layout") == (
+        f"{api.BASE_URL}/web/SITE/layout/graph/years?v=3.4.0"
+    )
+    assert client._site_web_graph_referer("today", graph_range="hours") == (
+        f"{api.BASE_URL}/web/SITE/today/graph/hours?v=3.4.0"
+    )
+
+
+def test_root_and_today_header_helpers_use_browser_profiles() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="appVersion=3.4.0; a=1")
+
+    assert client._root_xhr_headers() == {
+        "Accept": "*/*",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{api.BASE_URL}/",
+        "Cookie": "appVersion=3.4.0; a=1",
+        "e-auth-token": "EAUTH",
+    }
+    assert client._today_headers() == {
+        "Accept": "*/*",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{api.BASE_URL}/web/SITE/today/graph/hours?v=3.4.0",
+        "Cookie": "appVersion=3.4.0; a=1",
+        "e-auth-token": "EAUTH",
+    }
+    assert client._today_json_headers() == {
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{api.BASE_URL}/web/SITE/today/graph/hours?v=3.4.0",
+        "Cookie": "appVersion=3.4.0; a=1",
+        "e-auth-token": "EAUTH",
+    }
+
+
 def test_extract_xsrf_token_branches(monkeypatch) -> None:
     class BadTokenValue:
         def __str__(self) -> str:
@@ -1043,6 +1085,7 @@ async def test_evse_feature_flags_uses_endpoint_and_optional_country() -> None:
     client._json.assert_awaited_once_with(
         "GET",
         f"{api.BASE_URL}/service/evse_management/api/v1/config/feature-flags?site_id=SITE&country=DE",
+        headers=client._today_headers(),
     )
 
 
@@ -1531,7 +1574,9 @@ async def test_devices_inventory_uses_devices_json_endpoint() -> None:
 
     assert result == {"result": []}
     client._json.assert_awaited_once_with(
-        "GET", f"{api.BASE_URL}/app-api/SITE/devices.json"
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/devices.json",
+        headers=client._history_headers(),
     )
 
 
@@ -1728,7 +1773,15 @@ async def test_grid_control_check_uses_grid_control_check_endpoint() -> None:
 
     assert result == {"disableGridControl": False}
     client._json.assert_awaited_once_with(
-        "GET", f"{api.BASE_URL}/app-api/SITE/grid_control_check.json"
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/grid_control_check.json",
+        headers={
+            "Accept": "*/*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+            "Cookie": "COOKIE",
+            "e-auth-token": "EAUTH",
+        },
     )
 
 
@@ -1740,10 +1793,12 @@ async def test_request_grid_toggle_otp_uses_endpoint() -> None:
     result = await client.request_grid_toggle_otp()
 
     assert result == {"success": "email sent successfully"}
+    expected_headers = client._history_headers()
+    expected_headers.update(client._control_headers())
     client._json.assert_awaited_once_with(
         "GET",
         f"{api.BASE_URL}/app-api/SITE/grid_toggle_otp.json",
-        headers={"Authorization": "Bearer EAUTH"},
+        headers=expected_headers,
     )
 
 
@@ -1765,15 +1820,13 @@ async def test_validate_grid_toggle_otp_success() -> None:
     result = await client.validate_grid_toggle_otp("1234")
 
     assert result is True
+    expected_headers = client._history_form_headers()
+    expected_headers.update(client._control_headers())
     client._json.assert_awaited_once_with(
         "POST",
         f"{api.BASE_URL}/app-api/grid_toggle_otp.json",
         data={"otp": "1234", "site_id": "SITE"},
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Origin": api.BASE_URL,
-            "Authorization": "Bearer EAUTH",
-        },
+        headers=expected_headers,
     )
 
 
@@ -1794,15 +1847,13 @@ async def test_set_grid_state_uses_endpoint() -> None:
     result = await client.set_grid_state("122447007044", 1)
 
     assert result == {"request_id": "req"}
+    expected_headers = client._history_form_headers()
+    expected_headers.update(client._control_headers())
     client._json.assert_awaited_once_with(
         "POST",
         f"{api.BASE_URL}/pv/settings/grid_state.json",
         data={"envoy_serial_number": "122447007044", "state": 1},
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Origin": api.BASE_URL,
-            "Authorization": "Bearer EAUTH",
-        },
+        headers=expected_headers,
     )
 
 
@@ -1828,6 +1879,8 @@ async def test_log_grid_change_uses_endpoint() -> None:
     )
 
     assert result == {"status": "Grid Change Logged"}
+    expected_headers = client._history_form_headers()
+    expected_headers.update(client._control_headers())
     client._json.assert_awaited_once_with(
         "POST",
         f"{api.BASE_URL}/pv/settings/log_grid_change.json",
@@ -1836,11 +1889,7 @@ async def test_log_grid_change_uses_endpoint() -> None:
             "old_state": "OPER_RELAY_CLOSED",
             "new_state": "OPER_RELAY_OFFGRID_AC_GRID_PRESENT",
         },
-        headers={
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Origin": api.BASE_URL,
-            "Authorization": "Bearer EAUTH",
-        },
+        headers=expected_headers,
     )
 
 
@@ -1863,7 +1912,15 @@ async def test_battery_backup_history_uses_endpoint() -> None:
 
     assert result == {"histories": []}
     client._json.assert_awaited_once_with(
-        "GET", f"{api.BASE_URL}/app-api/SITE/battery_backup_history.json"
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/battery_backup_history.json",
+        headers={
+            "Accept": "*/*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+            "Cookie": "COOKIE",
+            "e-auth-token": "EAUTH",
+        },
     )
 
 
@@ -1896,7 +1953,15 @@ async def test_battery_status_uses_battery_status_json_endpoint() -> None:
 
     assert result == {"current_charge": "48%"}
     client._json.assert_awaited_once_with(
-        "GET", f"{api.BASE_URL}/pv/settings/SITE/battery_status.json"
+        "GET",
+        f"{api.BASE_URL}/pv/settings/SITE/battery_status.json",
+        headers={
+            "Accept": "*/*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+            "Cookie": "COOKIE",
+            "e-auth-token": "EAUTH",
+        },
     )
 
 
@@ -1919,7 +1984,9 @@ async def test_dry_contacts_settings_uses_endpoint() -> None:
 
     assert result == {"contacts": []}
     client._json.assert_awaited_once_with(
-        "GET", f"{api.BASE_URL}/pv/settings/SITE/dry_contacts"
+        "GET",
+        f"{api.BASE_URL}/pv/settings/SITE/dry_contacts",
+        headers=client._history_headers(),
     )
 
 
@@ -1946,6 +2013,13 @@ async def test_inverters_inventory_uses_inverters_json_endpoint() -> None:
     assert "/app-api/SITE/inverters.json" in awaited.args[1]
     assert "limit=30" in awaited.args[1]
     assert "offset=0" in awaited.args[1]
+    assert awaited.kwargs["headers"] == {
+        "Accept": "*/*",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{api.BASE_URL}/web/SITE/history/graph/years",
+        "Cookie": "COOKIE",
+        "e-auth-token": "EAUTH",
+    }
 
 
 @pytest.mark.asyncio
@@ -1972,6 +2046,17 @@ async def test_inverter_status_normalizes_keyed_dict() -> None:
     result = await client.inverter_status()
 
     assert result == {"1": {"serialNum": "A", "deviceId": 10}}
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/systems/SITE/inverter_status_x.json",
+        headers={
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{api.BASE_URL}/web/SITE/layout/graph/years",
+            "Cookie": "COOKIE",
+            "e-auth-token": "EAUTH",
+        },
+    )
 
 
 @pytest.mark.asyncio
@@ -2002,6 +2087,17 @@ async def test_inverter_production_normalizes_values() -> None:
     assert result["production"] == {"a": 100.0, "b": 200.5}
     assert result["start_date"] == "2022-01-01"
     assert result["end_date"] == "2026-01-01"
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/systems/SITE/inverter_data_x/energy.json?start_date=2022-01-01&end_date=2026-01-01",
+        headers={
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{api.BASE_URL}/web/SITE/layout/graph/years",
+            "Cookie": "COOKIE",
+            "e-auth-token": "EAUTH",
+        },
+    )
 
 
 @pytest.mark.asyncio
@@ -3540,8 +3636,10 @@ async def test_charger_auth_settings_retries_without_authorization_on_401() -> N
     second_headers = session.calls[1][2]["headers"]
     assert "Authorization" in first_headers
     assert "e-auth-token" in first_headers
+    assert first_headers["Accept"] == "application/json, text/javascript, */*; q=0.01"
     assert "Authorization" not in second_headers
     assert "e-auth-token" not in second_headers
+    assert second_headers["Accept"] == "application/json, text/javascript, */*; q=0.01"
 
 
 @pytest.mark.asyncio
@@ -3587,6 +3685,9 @@ async def test_charger_config_filters_payload_and_passes_requested_keys() -> Non
         {"key": DEFAULT_CHARGE_LEVEL_SETTING},
         {"key": PHASE_SWITCH_CONFIG_SETTING},
     ]
+    expected_headers = client._today_json_headers()
+    expected_headers.update(client._control_headers())
+    assert kwargs["headers"] == expected_headers
 
 
 @pytest.mark.asyncio
@@ -3628,6 +3729,9 @@ async def test_set_app_authentication_passes_payload() -> None:
     assert out == {"status": "ok"}
     args, kwargs = client._json.await_args
     assert kwargs["json"] == [{"key": AUTH_APP_SETTING, "value": "disabled"}]
+    expected_headers = client._today_json_headers()
+    expected_headers.update(client._control_headers())
+    assert kwargs["headers"] == expected_headers
 
 
 @pytest.mark.asyncio
@@ -3665,6 +3769,12 @@ async def test_lifetime_energy_normalization() -> None:
     assert payload["heatpump"] == [None, 4.2, None]
     assert payload["water_heater"] == [0.0, 15.0]
     assert payload["interval_minutes"] == 15.0
+    assert session.calls[0][2]["headers"] == {
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{api.BASE_URL}/web/SITE/layout/graph/years",
+        "Cookie": "COOKIE",
+    }
 
 
 @pytest.mark.asyncio
@@ -3692,6 +3802,7 @@ async def test_latest_power_normalization() -> None:
     client._json.assert_awaited_once_with(
         "GET",
         f"{api.BASE_URL}/app-api/SITE/get_latest_power",
+        headers=client._history_headers(),
     )
 
 
@@ -3984,7 +4095,7 @@ async def test_hems_consumption_lifetime_normalization() -> None:
 
 
 @pytest.mark.asyncio
-async def test_hems_consumption_lifetime_uses_control_headers() -> None:
+async def test_hems_consumption_lifetime_uses_systems_json_headers() -> None:
     client = _make_client()
     client.update_credentials(
         cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
@@ -3997,11 +4108,8 @@ async def test_hems_consumption_lifetime_uses_control_headers() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert args[1].endswith("/systems/SITE/hems_consumption_lifetime")
-    assert callable(kwargs["headers"])
-    headers = kwargs["headers"]()
-    assert headers["Authorization"] == "Bearer BEAR"
-    assert headers["e-auth-token"] == "EAUTH"
-    assert headers["X-CSRF-Token"] == "xsrf"
+    assert kwargs["log_invalid_payload"] is False
+    assert kwargs["headers"] == client._systems_json_headers()
 
 
 @pytest.mark.asyncio
@@ -4596,6 +4704,7 @@ async def test_show_livestream_returns_capability_payload() -> None:
     client._json.assert_awaited_once_with(
         "GET",
         f"{api.BASE_URL}/app-api/SITE/show_livestream",
+        headers=client._system_dashboard_headers(),
     )
 
 
@@ -4668,7 +4777,7 @@ async def test_heat_pump_events_json_returns_payload() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert args[1].endswith("/systems/SITE/heat_pump/HP-1/events.json")
-    assert callable(kwargs["headers"])
+    assert kwargs["headers"] == client._systems_json_headers()
 
 
 @pytest.mark.asyncio
@@ -4922,7 +5031,7 @@ async def test_iq_er_events_json_returns_payload() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert args[1].endswith("/systems/SITE/iq_er/HP-SG/events.json")
-    assert callable(kwargs["headers"])
+    assert kwargs["headers"] == client._systems_json_headers()
 
 
 def test_is_optional_non_json_payload_false_for_invalid_status() -> None:
@@ -5249,7 +5358,7 @@ async def test_hems_power_timeseries_normalization() -> None:
 
 
 @pytest.mark.asyncio
-async def test_hems_power_timeseries_uses_control_headers() -> None:
+async def test_hems_power_timeseries_uses_systems_json_headers() -> None:
     client = _make_client()
     client.update_credentials(
         cookie="enlighten_manager_token_production=BEAR; XSRF-TOKEN=xsrf",
@@ -5262,11 +5371,7 @@ async def test_hems_power_timeseries_uses_control_headers() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert args[1].endswith("/systems/SITE/hems_power_timeseries?device-uid=HP-1")
-    assert callable(kwargs["headers"])
-    headers = kwargs["headers"]()
-    assert headers["Authorization"] == "Bearer BEAR"
-    assert headers["e-auth-token"] == "EAUTH"
-    assert headers["X-CSRF-Token"] == "xsrf"
+    assert kwargs["headers"] == client._systems_json_headers()
 
 
 @pytest.mark.asyncio
@@ -5993,11 +6098,13 @@ async def test_charger_auth_settings_retries_without_auth_on_403(monkeypatch) ->
     assert settings == [{"key": AUTH_APP_SETTING, "value": "enabled"}]
     first_call = client._json.await_args_list[0]
     second_call = client._json.await_args_list[1]
-    assert first_call.kwargs["headers"] == {"Authorization": "Bearer EAUTH"}
-    assert second_call.kwargs["headers"] == {
-        "Authorization": None,
-        "e-auth-token": None,
-    }
+    first_headers = client._today_json_headers()
+    first_headers.update(client._control_headers())
+    second_headers = client._today_json_headers()
+    second_headers["Authorization"] = None
+    second_headers["e-auth-token"] = None
+    assert first_call.kwargs["headers"] == first_headers
+    assert second_call.kwargs["headers"] == second_headers
 
 
 @pytest.mark.asyncio
