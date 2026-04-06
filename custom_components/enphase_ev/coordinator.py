@@ -534,6 +534,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 suppress_after_failures=3,
                 support_state_on_success=True,
             ),
+            "inverter_inventory": EndpointFamilyPolicy(
+                success_ttl_s=21600.0,
+                failure_backoff_schedule_s=(1800.0, 3600.0, 7200.0, 21600.0),
+                max_backoff_s=21600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
             "inverter_status": EndpointFamilyPolicy(
                 success_ttl_s=300.0,
                 stale_after_s=1800.0,
