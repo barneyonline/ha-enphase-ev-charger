@@ -28,7 +28,6 @@ All notable changes to this project will be documented in this file.
 - Added an optional `Migrate Envoy history` assistant to the integration Options flow. It can take over selected Enphase Envoy energy entity IDs for compatible site energy sensors so Home Assistant Energy history can continue under this integration, with backup warnings, explicit confirmation, validation, Envoy-to-Enphase mapping suggestions, archived legacy Envoy energy entities, and automatic Envoy unload/reload so other Envoy entities remain available after migration.
 
 ### 🐛 Bug fixes
-- Made EV charger charge-mode selection backward compatible with stale automation values like `Green` when Enphase now exposes the solar option as `Smart`, and reject unsupported select values locally instead of forwarding invalid scheduler payloads.
 - Treated battery LED/status state `16` as `idle` so battery status sensors no longer report that upstream state as unknown.
 
 ### 🔧 Improvements
