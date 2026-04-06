@@ -3219,10 +3219,15 @@ class EnphaseEVClient:
         headers = self._battery_config_headers()
         return await self._json("GET", url, headers=headers, params=params)
 
-    async def set_battery_settings(self, payload: dict[str, Any]) -> dict:
+    async def set_battery_settings(
+        self,
+        payload: dict[str, Any],
+        *,
+        schedule_type: str = "cfg",
+    ) -> dict:
         """Update BatteryConfig battery detail settings using a partial payload."""
 
-        await self._acquire_xsrf_token()
+        await self._acquire_xsrf_token(schedule_type)
 
         try:
             url = (

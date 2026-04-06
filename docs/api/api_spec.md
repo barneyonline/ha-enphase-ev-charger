@@ -3810,9 +3810,11 @@ Example response (anonymized):
 Observed field behavior:
 - `countryCode="DE"`, `region="DE"`, `locale="en-AU"`, and `timezone="Europe/Berlin"` can legitimately coexist when the account language differs from the site locale.
 - `isEmea=true`, `isDTSite=true`, and `isDTSupported=true` were observed together while `isDTEnabled=false`.
+- `showChargeFromGrid=false` can coexist with `isChargingModesEnabled=true`, `batteryGridMode="ImportExport"`, `isDTSupported=true`, `isDTSite=true`, `isIQGWScheduleSupported=true`, and `isHemsOptScheduleSupported=true`; do not infer DTG/RBD availability from the CFG visibility flag.
 - `isHemsSite=true`, `isHemsActivationPending=false`, `isHemsAuthPending=false`, and `isHemsOptScheduleSupported=true` were present on the same site.
 - `siteStatus.code="normal"` and `siteStatus.text="Normal"` coexisted with `siteStatus.severity="warning"`.
 - `batteryGridMode` was observed as `ImportExport`.
+- `acceptedGICDisclaimer=true` and `isChangePending=false` were observed together on a site with active DTG/RBD schedules.
 - `featureDetails` mixes opaque rollout keys with readable flags such as `HEMS_EV_Custom_Schedule` and `Disable_Storm_Guard_Grid_Charging`; preserve unknown keys verbatim and record new values instead of filtering them out.
 
 ### 5.3 Profile Details (System + EVSE)
@@ -4147,12 +4149,18 @@ Notes:
 - Captured writes used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
 - `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`. Observed values so far: `veryLowSoc=5` and `15`, `veryLowSocMin=5` and `10`, `veryLowSocMax=25`.
 - `dtgControl`, `cfgControl`, and `rbdControl` are per-feature UI capability blocks. In the homeowner capture they each exposed `show`, `enabled`, `locked`, and schedule-support fields even though the corresponding toggles were off. Observed booleans so far: `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true`, plus `cfgControl.forceScheduleSupported=true` and `cfgControl.forceScheduleOpted=true`.
+- Later captures showed `dtgControl.enabled=true` and `rbdControl.enabled=true` while `dtgControl.forceScheduleSupported` / `rbdControl.forceScheduleSupported` remained absent or `null`; schedule-family toggles should not assume CFG-style `forceScheduleSupported` metadata is present for DTG/RBD.
 - `hideChargeFromGrid` may be `true` even when charge-from-grid schedule fields are still present in the payload, so clients should not infer field absence from UI visibility. Observed values so far: `true`, `false`.
 - `systemTask` remained `false` in the capture and likely flags backend-owned operations that temporarily lock manual changes. Observed value so far: `false`.
 - `devices.iqEvse.useBatteryFrSelfConsumption` exposes whether an IQ EV charger can draw from battery during self-consumption mode. Observed value so far: `true`.
 - Two equivalent write variants were observed:
   - REST-only flows use `PUT /batterySettings/<site_id>?source=enho&userId=<user_id>`.
   - MQTT-backed RBD flows on `supportsMqtt=true` systems use `PUT /batterySettings/<site_id>?userId=<user_id>` after opening the MQTT response stream.
+- Additional partial payloads were observed on the same endpoint for DTG/RBD enablement toggles:
+  - `{"dtgControl":{"enabled":true}}`
+  - `{"dtgControl":{"enabled":false}}`
+  - `{"rbdControl":{"enabled":true}}`
+  - `{"rbdControl":{"enabled":false}}`
 
 ### 5.6 Storm Guard Alert Status, Opt-Out, and Toggle
 ```
@@ -4282,18 +4290,46 @@ Example response (anonymized):
   },
   "dtg": {
     "scheduleStatus": "active",
-    "count": 0
+    "count": 1,
+    "details": [
+      {
+        "scheduleId": "<schedule_uuid>",
+        "timezone": "Region/City",
+        "startTime": "18:00",
+        "endTime": "23:59",
+        "limit": 5,
+        "scheduleType": "DTG",
+        "scheduleStatus": "active",
+        "days": [1, 2, 3, 4, 5, 6, 7],
+        "isDeleted": false,
+        "isEnabled": true
+      }
+    ]
   },
   "rbd": {
     "scheduleStatus": "active",
-    "count": 0
+    "count": 1,
+    "details": [
+      {
+        "scheduleId": "<schedule_uuid>",
+        "timezone": "Region/City",
+        "startTime": "01:00",
+        "endTime": "16:00",
+        "limit": 100,
+        "scheduleType": "RBD",
+        "scheduleStatus": "active",
+        "days": [1, 2, 3, 4, 5, 6, 7],
+        "isDeleted": false,
+        "isEnabled": true
+      }
+    ]
   },
   "anySchedulePending": false
 }
 ```
 
 Observed structure:
-- `cfg`, `dtg`, and `rbd` are separate schedule families; only `cfg` contained `details[]` in the capture.
+- `cfg`, `dtg`, and `rbd` are separate schedule families; later captures showed all three families carrying populated `details[]` entries at the same time.
 - The captured `days` field used numeric weekday values, but the exact weekday-to-number mapping was not explicit in the trace.
 - `scheduleStatus` and per-entry `isEnabled` are separate flags; preserve both rather than collapsing them.
 
@@ -4357,6 +4393,16 @@ Body: { "scheduleType": "cfg", "forceScheduleOpted": true }
 ```
 Performs server-side validation before enabling a battery schedule.
 
+Additional request shapes observed:
+
+```json
+{ "scheduleType": "dtg" }
+```
+
+```json
+{ "scheduleType": "rbd" }
+```
+
 Example response (anonymized):
 ```json
 {
@@ -4366,7 +4412,8 @@ Example response (anonymized):
 
 Observed behavior:
 - The validation call appeared immediately before enabling charge-from-grid scheduling.
-- Only the lowercase request value `scheduleType: "cfg"` was observed, even though the stored schedule object used uppercase `scheduleType: "CFG"`.
+- The request used lowercase schedule-family values (`cfg`, `dtg`, `rbd`) even though stored schedule objects used uppercase `scheduleType` values.
+- `forceScheduleOpted: true` was only observed for CFG validation; DTG/RBD validation calls omitted that field.
 - In the current client, this validation route also serves as the XSRF bootstrap mechanism for later BatteryConfig writes.
 - Unlike later writes, the validation request is sent without `X-XSRF-Token`; the token is learned from the response `Set-Cookie` / cookie jar update.
 
@@ -4422,6 +4469,7 @@ Observed behavior:
 - `limit` is the maximum SoC percentage (5-100).
 - `days` is a 1-indexed day-of-week array (1=Monday through 7=Sunday).
 - This replaces the delete+create pattern previously used for schedule modifications.
+- Captured DTG/RBD enablement toggles were also observed as partial `PUT /batterySettings/<site_id>` payloads (`dtgControl.enabled` / `rbdControl.enabled`), so clients should not assume all schedule-family toggles go through `PUT /battery/sites/<site_id>/schedules/<schedule_id>`.
 
 ### 5.11 ITC Disclaimer Acknowledgement
 ```

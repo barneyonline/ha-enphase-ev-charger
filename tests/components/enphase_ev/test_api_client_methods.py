@@ -2958,6 +2958,26 @@ async def test_set_battery_settings_payload_and_xsrf() -> None:
 
 
 @pytest.mark.asyncio
+async def test_set_battery_settings_uses_requested_schedule_type_for_xsrf() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    async def _acquire(schedule_type: str = "cfg") -> str:
+        client._bp_xsrf_token = f"{schedule_type}-token"  # noqa: SLF001
+        return client._bp_xsrf_token  # noqa: SLF001
+
+    client._acquire_xsrf_token = AsyncMock(side_effect=_acquire)  # noqa: SLF001
+
+    await client.set_battery_settings(
+        {"dtgControl": {"enabled": True}},
+        schedule_type="dtg",
+    )
+
+    client._acquire_xsrf_token.assert_awaited_once_with("dtg")
+    assert client._json.await_args.kwargs["headers"]["X-XSRF-Token"] == "dtg-token"
+
+
+@pytest.mark.asyncio
 async def test_acquire_xsrf_token_uses_requested_validation_payload() -> None:
     token = _make_token({"user_id": "88"})
     response = _FakeResponse(status=200, json_body={"isValid": True})
@@ -3279,10 +3299,12 @@ async def test_set_battery_settings_reacquires_xsrf_for_each_write() -> None:
     client._json = AsyncMock(return_value={"message": "success"})
     call_number = 0
 
-    async def _acquire() -> str:
+    async def _acquire(schedule_type: str = "cfg") -> str:
         nonlocal call_number
         call_number += 1
-        client._bp_xsrf_token = f"fresh-token-{call_number}"  # noqa: SLF001
+        client._bp_xsrf_token = (  # noqa: SLF001
+            f"{schedule_type}-fresh-token-{call_number}"
+        )
         return client._bp_xsrf_token  # noqa: SLF001
 
     client._acquire_xsrf_token = AsyncMock(side_effect=_acquire)  # noqa: SLF001
@@ -3291,9 +3313,11 @@ async def test_set_battery_settings_reacquires_xsrf_for_each_write() -> None:
     await client.set_battery_settings({"veryLowSoc": 20})
 
     first_call, second_call = client._json.await_args_list
-    assert first_call.kwargs["headers"]["X-XSRF-Token"] == "fresh-token-1"
-    assert second_call.kwargs["headers"]["X-XSRF-Token"] == "fresh-token-2"
+    assert first_call.kwargs["headers"]["X-XSRF-Token"] == "cfg-fresh-token-1"
+    assert second_call.kwargs["headers"]["X-XSRF-Token"] == "cfg-fresh-token-2"
     assert client._acquire_xsrf_token.await_count == 2
+    assert client._acquire_xsrf_token.await_args_list[0].args == ("cfg",)
+    assert client._acquire_xsrf_token.await_args_list[1].args == ("cfg",)
     assert client._bp_xsrf_token is None  # noqa: SLF001
 
 
