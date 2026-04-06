@@ -5298,6 +5298,53 @@ async def test_async_setup_entry_prunes_stale_optional_site_energy_entities(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_keeps_renamed_active_site_energy_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 1,
+                "devices": [{"serial_number": "GW-1"}],
+            }
+        },
+        ["envoy"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    renamed_solar_unique_id = f"enphase_ev_site_{coord.site_id}_solar_production"
+    renamed_import_unique_id = f"enphase_ev_site_{coord.site_id}_grid_import"
+
+    def _fake_get_entity_id(domain, platform, unique_id):
+        if domain != "sensor" or platform != "enphase_ev":
+            return None
+        return {
+            renamed_solar_unique_id: "sensor.envoy_lifetime_production",
+            renamed_import_unique_id: "sensor.envoy_lifetime_net_consumption",
+        }.get(unique_id)
+
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_remove=MagicMock(),
+        async_get_entity_id=MagicMock(side_effect=_fake_get_entity_id),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.sensor.er.async_get",
+        lambda _hass: fake_registry,
+    )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    fake_registry.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_keeps_gateway_meters_when_meter_detection_errors(
     hass, config_entry, coordinator_factory
 ) -> None:

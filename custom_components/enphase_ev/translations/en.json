@@ -41,17 +41,17 @@
           "type_envoy": "Gateway",
           "type_encharge": "Battery",
           "type_iqevse": "EV Chargers",
+          "type_heatpump": "Heat Pump",
           "type_microinverter": "Microinverters",
-          "scan_interval": "Scan interval (s)",
-          "type_heatpump": "Heat Pump"
+          "scan_interval": "Scan interval (s)"
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
           "type_encharge": "Includes battery status and control entities when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
-          "scan_interval": "Seconds between cloud status polls. Default 60s.",
-          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors."
+          "scan_interval": "Seconds between cloud status polls. Default 60s."
         }
       }
     },
@@ -117,6 +117,151 @@
     },
     "charge_mode_invalid_option": {
       "message": "Selected charging mode is not available."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Energy Options",
+        "description": "Choose what to do with this integration entry.",
+        "menu_options": {
+          "settings": "Settings",
+          "migrate_envoy": "Migrate Envoy history"
+        },
+        "menu_option_descriptions": {
+          "settings": "Tune polling and behavior.",
+          "migrate_envoy": "Take over selected Enphase Envoy energy entity IDs so Home Assistant Energy history continues under this integration."
+        },
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Battery",
+          "type_iqevse": "EV Chargers",
+          "type_heatpump": "Heat Pump",
+          "type_microinverter": "Microinverters",
+          "fast_poll_interval": "Fast poll interval (s)",
+          "slow_poll_interval": "Slow poll interval (s)",
+          "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "api_timeout": "API timeout (s)",
+          "nominal_voltage": "Nominal voltage (V)",
+          "session_history_interval": "Session history interval (min)",
+          "schedule_sync_enabled": "Enable Scheduler Support",
+          "reauth": "Start reauthentication",
+          "forget_password": "Forget stored password"
+        },
+        "data_description": {
+          "type_envoy": "Includes gateway connectivity and meter diagnostics.",
+          "type_encharge": "Includes battery status and control entities when available.",
+          "type_iqevse": "Includes EV charger entities and controls.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
+          "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
+          "fast_poll_interval": "Interval to use while charging or streaming.",
+          "slow_poll_interval": "Interval to use when idle.",
+          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "api_timeout": "Seconds before API requests time out.",
+          "nominal_voltage": "Fallback voltage used for charger power estimates.",
+          "session_history_interval": "Minutes to wait between cloud session history fetches.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy Options",
+        "description": "Tune polling and behavior.",
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Battery",
+          "type_iqevse": "EV Chargers",
+          "type_heatpump": "Heat Pump",
+          "type_microinverter": "Microinverters",
+          "fast_poll_interval": "Fast poll interval (s)",
+          "slow_poll_interval": "Slow poll interval (s)",
+          "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "api_timeout": "API timeout (s)",
+          "nominal_voltage": "Nominal voltage (V)",
+          "session_history_interval": "Session history interval (min)",
+          "schedule_sync_enabled": "Enable Scheduler Support",
+          "reauth": "Start reauthentication",
+          "forget_password": "Forget stored password"
+        },
+        "data_description": {
+          "type_envoy": "Includes gateway connectivity and meter diagnostics.",
+          "type_encharge": "Includes battery status and control entities when available.",
+          "type_iqevse": "Includes EV charger entities and controls.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
+          "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
+          "fast_poll_interval": "Interval to use while charging or streaming.",
+          "slow_poll_interval": "Interval to use when idle.",
+          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "api_timeout": "Seconds before API requests time out.",
+          "nominal_voltage": "Fallback voltage used for charger power estimates.",
+          "session_history_interval": "Minutes to wait between cloud session history fetches.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Select Envoy Source",
+        "description": "Choose which Enphase Envoy config entry to migrate from.",
+        "data": {
+          "selected_envoy_source": "Envoy source"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrate Envoy History",
+        "description": "This assistant reassigns selected Enphase Envoy energy entity IDs to matching Enphase Energy sensors.\n\nHome Assistant Energy history is tied to the entity ID used for long-term statistics.\n\nCreate a full Home Assistant backup before continuing.\n\nOnly migrate sensors that represent the same cumulative energy total.\n\nThe selected Envoy integration will be temporarily unloaded while entity IDs are reassigned, then restored after the migration.\n\nThis updates the entity registry and cannot be reversed automatically.\n\nSelected Envoy source: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "I have a recent Home Assistant backup"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Map History Sensors",
+        "description": "Review the suggested mappings carefully. Only compatible cumulative energy totals are shown. Blank fields will be skipped.\n\nIf a suggestion is wrong or unclear, clear it and choose manually.",
+        "data": {
+          "solar_production": "Solar production",
+          "consumption": "Consumption",
+          "grid_import": "Grid import",
+          "grid_export": "Grid export",
+          "battery_charge": "Battery charge",
+          "battery_discharge": "Battery discharge"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Confirm Envoy History Migration",
+        "description": "The selected source entities will be renamed to archived legacy entity IDs.\n\nThe Enphase Energy entities will then be renamed to the original source entity IDs.\n\nIf any mapping is wrong, cancel now. Restoring from backup is the safest rollback.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "I understand the selected source entity IDs will be reassigned",
+          "disable_archived_envoy_sensors": "Disable archived source sensors after migration"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Select or enter at least one charger.",
+      "backup_required": "Strongly recommend creating a full backup before proceeding.",
+      "confirm_required": "Confirm that the selected source entity IDs will be reassigned before continuing.",
+      "migration_no_selection": "Select at least one compatible energy sensor to migrate.",
+      "migration_duplicate_selection": "The same source entity cannot be used more than once.",
+      "envoy_entry_loaded": "Envoy integration could not be temporarily unloaded for migration.",
+      "incompatible_energy_total": "Selected entities are not compatible energy totals.",
+      "new_value_lower": "New sensor value is lower than the existing Envoy value."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "No Enphase Envoy energy sensors are available to migrate.",
+      "migration_no_targets": "No compatible Enphase Energy site sensors are available for migration.",
+      "migration_partial_failure": "The migration stopped after partial completion.\n\nCompleted mappings:\n{completed_mappings}\n\nFailed while processing `{failed_entity_id}`: {failure_reason}\n\nRestore from backup if the result is not acceptable."
+    },
+    "create_entry": {
+      "migration_success": "Migration complete. Enphase Energy now owns the selected source entity IDs. Verify the Energy dashboard and Developer Tools > Statistics after the next refresh.",
+      "migration_success_reload_needed": "Migration complete, but one or more integrations could not be reloaded automatically. Reload Enphase Energy and Enphase Envoy manually if needed, then verify the Energy dashboard and Developer Tools > Statistics."
     }
   },
   "entity": {
@@ -287,6 +432,9 @@
           "disabled": "Disabled"
         }
       },
+      "storm_guard_state": {
+        "name": "Storm Guard"
+      },
       "set_amps": {
         "name": "Set Amps",
         "state_attributes": {
@@ -439,6 +587,119 @@
         },
         "state": {
           "none": "None"
+        }
+      },
+      "storm_alert": {
+        "name": "Storm Alert",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "state_attributes": {
+          "storm_alert_active": {
+            "name": "Storm Alert Active"
+          }
+        }
+      },
+      "battery_storage_charge": {
+        "name": "Battery Charge Level"
+      },
+      "battery_overall_charge": {
+        "name": "Battery Overall Charge"
+      },
+      "battery_overall_status": {
+        "name": "Battery Overall Status",
+        "state": {
+          "normal": "Normal",
+          "warning": "Warning",
+          "error": "Error",
+          "unknown": "Unknown"
+        }
+      },
+      "battery_cfg_schedule_status": {
+        "name": "Battery CFG Schedule Status",
+        "state": {
+          "none": "None",
+          "pending": "Pending",
+          "active": "Active"
+        }
+      },
+      "battery_mode": {
+        "name": "Battery Mode",
+        "state_attributes": {
+          "mode_raw": {
+            "name": "Mode Raw"
+          },
+          "charge_from_grid_allowed": {
+            "name": "Charge From Grid Allowed"
+          },
+          "discharge_to_grid_allowed": {
+            "name": "Discharge To Grid Allowed"
+          }
+        }
+      },
+      "grid_control_status": {
+        "name": "Grid Control Status",
+        "state": {
+          "ready": "Ready",
+          "blocked": "Blocked",
+          "pending": "Pending"
+        }
+      },
+      "system_profile_status": {
+        "name": "System Profile Status",
+        "state": {
+          "pending": "Pending"
+        },
+        "state_attributes": {
+          "effective_profile": {
+            "name": "Effective Profile"
+          },
+          "effective_profile_label": {
+            "name": "Effective Profile Label"
+          },
+          "effective_reserve_percentage": {
+            "name": "Effective Reserve (%)"
+          },
+          "effective_operation_mode_sub_type": {
+            "name": "Effective Operation Mode Sub Type"
+          },
+          "requested_profile": {
+            "name": "Requested Profile"
+          },
+          "requested_profile_label": {
+            "name": "Requested Profile Label"
+          },
+          "requested_reserve_percentage": {
+            "name": "Requested Reserve (%)"
+          },
+          "requested_operation_mode_sub_type": {
+            "name": "Requested Operation Mode Sub Type"
+          },
+          "pending": {
+            "name": "Pending"
+          },
+          "pending_requested_at": {
+            "name": "Pending Requested At"
+          },
+          "selected_profile": {
+            "name": "Selected Profile"
+          },
+          "selected_profile_label": {
+            "name": "Selected Profile Label"
+          },
+          "selected_reserve_percentage": {
+            "name": "Selected Reserve (%)"
+          },
+          "selected_operation_mode_sub_type": {
+            "name": "Selected Operation Mode Sub Type"
+          },
+          "available_profile_keys": {
+            "name": "Available Profile Keys"
+          },
+          "available_profile_labels": {
+            "name": "Available Profile Labels"
+          }
         }
       },
       "last_reported": {
@@ -716,122 +977,6 @@
           }
         }
       },
-      "storm_guard_state": {
-        "name": "Storm Guard"
-      },
-      "storm_alert": {
-        "name": "Storm Alert",
-        "state": {
-          "active": "Active",
-          "inactive": "Inactive"
-        },
-        "state_attributes": {
-          "storm_alert_active": {
-            "name": "Storm Alert Active"
-          }
-        }
-      },
-      "system_profile_status": {
-        "name": "System Profile Status",
-        "state": {
-          "pending": "Pending"
-        },
-        "state_attributes": {
-          "effective_profile": {
-            "name": "Effective Profile"
-          },
-          "effective_profile_label": {
-            "name": "Effective Profile Label"
-          },
-          "effective_reserve_percentage": {
-            "name": "Effective Reserve (%)"
-          },
-          "effective_operation_mode_sub_type": {
-            "name": "Effective Operation Mode Sub Type"
-          },
-          "requested_profile": {
-            "name": "Requested Profile"
-          },
-          "requested_profile_label": {
-            "name": "Requested Profile Label"
-          },
-          "requested_reserve_percentage": {
-            "name": "Requested Reserve (%)"
-          },
-          "requested_operation_mode_sub_type": {
-            "name": "Requested Operation Mode Sub Type"
-          },
-          "pending": {
-            "name": "Pending"
-          },
-          "pending_requested_at": {
-            "name": "Pending Requested At"
-          },
-          "selected_profile": {
-            "name": "Selected Profile"
-          },
-          "selected_profile_label": {
-            "name": "Selected Profile Label"
-          },
-          "selected_reserve_percentage": {
-            "name": "Selected Reserve (%)"
-          },
-          "selected_operation_mode_sub_type": {
-            "name": "Selected Operation Mode Sub Type"
-          },
-          "available_profile_keys": {
-            "name": "Available Profile Keys"
-          },
-          "available_profile_labels": {
-            "name": "Available Profile Labels"
-          }
-        }
-      },
-      "battery_mode": {
-        "name": "Battery Mode",
-        "state_attributes": {
-          "mode_raw": {
-            "name": "Mode Raw"
-          },
-          "charge_from_grid_allowed": {
-            "name": "Charge From Grid Allowed"
-          },
-          "discharge_to_grid_allowed": {
-            "name": "Discharge To Grid Allowed"
-          }
-        }
-      },
-      "battery_storage_charge": {
-        "name": "Battery Charge Level"
-      },
-      "battery_overall_charge": {
-        "name": "Battery Overall Charge"
-      },
-      "battery_overall_status": {
-        "name": "Battery Overall Status",
-        "state": {
-          "normal": "Normal",
-          "warning": "Warning",
-          "error": "Error",
-          "unknown": "Unknown"
-        }
-      },
-      "battery_cfg_schedule_status": {
-        "name": "Battery CFG Schedule Status",
-        "state": {
-          "none": "None",
-          "pending": "Pending",
-          "active": "Active"
-        }
-      },
-      "grid_control_status": {
-        "name": "Grid Control Status",
-        "state": {
-          "ready": "Ready",
-          "blocked": "Blocked",
-          "pending": "Pending"
-        }
-      },
       "grid_mode": {
         "name": "Grid Mode",
         "state": {
@@ -890,6 +1035,39 @@
       },
       "microinverter_last_reported": {
         "name": "Microinverter Last Reported"
+      },
+      "heat_pump_status": {
+        "name": "Heat Pump Runtime Status"
+      },
+      "heat_pump_connectivity_status": {
+        "name": "Heat Pump Connectivity Status"
+      },
+      "heat_pump_sg_ready_mode": {
+        "name": "Heat Pump SG-Ready Mode"
+      },
+      "heat_pump_energy_meter": {
+        "name": "Heat Pump Energy Meter Status"
+      },
+      "heat_pump_daily_energy": {
+        "name": "Heat Pump Daily Energy"
+      },
+      "heat_pump_daily_grid_energy": {
+        "name": "Heat Pump Daily Grid Energy"
+      },
+      "heat_pump_daily_solar_energy": {
+        "name": "Heat Pump Daily Solar Energy"
+      },
+      "heat_pump_daily_battery_energy": {
+        "name": "Heat Pump Daily Battery Energy"
+      },
+      "heat_pump_last_reported": {
+        "name": "Heat Pump Runtime Last Reported"
+      },
+      "heat_pump_power": {
+        "name": "Heat Pump Power"
+      },
+      "heat_pump_sg_ready_gateway": {
+        "name": "Heat Pump SG-Ready Gateway Status"
       },
       "site_evse_charging": {
         "name": "Site EVSE Charging",
@@ -981,39 +1159,6 @@
       "gateway_iq_energy_router": {
         "name": "IQ Energy Router_{index}"
       },
-      "heat_pump_status": {
-        "name": "Heat Pump Runtime Status"
-      },
-      "heat_pump_energy_meter": {
-        "name": "Heat Pump Energy Meter Status"
-      },
-      "heat_pump_last_reported": {
-        "name": "Heat Pump Runtime Last Reported"
-      },
-      "heat_pump_power": {
-        "name": "Heat Pump Power"
-      },
-      "heat_pump_connectivity_status": {
-        "name": "Heat Pump Connectivity Status"
-      },
-      "heat_pump_sg_ready_mode": {
-        "name": "Heat Pump SG-Ready Mode"
-      },
-      "heat_pump_daily_energy": {
-        "name": "Heat Pump Daily Energy"
-      },
-      "heat_pump_daily_grid_energy": {
-        "name": "Heat Pump Daily Grid Energy"
-      },
-      "heat_pump_daily_solar_energy": {
-        "name": "Heat Pump Daily Solar Energy"
-      },
-      "heat_pump_daily_battery_energy": {
-        "name": "Heat Pump Daily Battery Energy"
-      },
-      "heat_pump_sg_ready_gateway": {
-        "name": "Heat Pump SG-Ready Gateway Status"
-      },
       "shared_labels": {
         "name": "Shared Labels",
         "state": {
@@ -1043,9 +1188,6 @@
       }
     },
     "number": {
-      "charging_amps": {
-        "name": "Charging Amps"
-      },
       "battery_reserve": {
         "name": "Battery Reserve"
       },
@@ -1054,6 +1196,9 @@
       },
       "battery_cfg_schedule_limit": {
         "name": "Battery Charge Limit"
+      },
+      "charging_amps": {
+        "name": "Charging Amps"
       },
       "battery_dtg_schedule_limit": {
         "name": "Discharge To Grid Limit"
@@ -1120,48 +1265,23 @@
       "storm_guard": {
         "name": "Storm Guard"
       },
-      "storm_guard_evse_charge": {
-        "name": "Storm Guard EV Charge"
-      },
-      "savings_use_battery_after_peak": {
-        "name": "Use Battery After Peak Hours"
-      },
       "charge_from_grid": {
         "name": "Charge Battery From Grid"
       },
       "charge_from_grid_schedule": {
         "name": "Charge From Grid Schedule"
       },
+      "savings_use_battery_after_peak": {
+        "name": "Use Battery After Peak Hours"
+      },
+      "storm_guard_evse_charge": {
+        "name": "Storm Guard EV Charge"
+      },
       "discharge_to_grid_schedule": {
         "name": "Discharge To Grid Schedule"
       },
       "restrict_battery_discharge_schedule": {
         "name": "Restrict Battery Discharge Schedule"
-      }
-    },
-    "select": {
-      "charge_mode": {
-        "name": "Charge Mode"
-      },
-      "system_profile": {
-        "name": "System Profile"
-      }
-    },
-    "button": {
-      "start_charging": {
-        "name": "Start Charging"
-      },
-      "stop_charging": {
-        "name": "Stop Charging"
-      },
-      "cancel_pending_profile_change": {
-        "name": "Cancel Pending Profile Change"
-      },
-      "request_grid_toggle_otp": {
-        "name": "Request Grid Toggle OTP"
-      },
-      "storm_alert_opt_out": {
-        "name": "Storm Alert Opt Out"
       }
     },
     "time": {
@@ -1187,6 +1307,31 @@
     "calendar": {
       "backup_history": {
         "name": "Backup History"
+      }
+    },
+    "select": {
+      "system_profile": {
+        "name": "System Profile"
+      },
+      "charge_mode": {
+        "name": "Charge Mode"
+      }
+    },
+    "button": {
+      "cancel_pending_profile_change": {
+        "name": "Cancel Pending Profile Change"
+      },
+      "start_charging": {
+        "name": "Start Charging"
+      },
+      "stop_charging": {
+        "name": "Stop Charging"
+      },
+      "request_grid_toggle_otp": {
+        "name": "Request Grid Toggle OTP"
+      },
+      "storm_alert_opt_out": {
+        "name": "Storm Alert Opt Out"
       }
     },
     "update": {
@@ -1216,49 +1361,6 @@
       "charging_stopped": "Charging stopped",
       "plugged_in": "Plugged in",
       "unplugged": "Unplugged"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy Options",
-        "description": "Tune polling and behavior.",
-        "data": {
-          "type_envoy": "Gateway",
-          "type_encharge": "Battery",
-          "type_iqevse": "EV Chargers",
-          "type_microinverter": "Microinverters",
-          "fast_poll_interval": "Fast poll interval (s)",
-          "slow_poll_interval": "Slow poll interval (s)",
-          "fast_while_streaming": "Prefer fast polling while cloud stream active",
-          "api_timeout": "API timeout (s)",
-          "nominal_voltage": "Nominal voltage (V)",
-          "session_history_interval": "Session history interval (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
-          "reauth": "Start reauthentication",
-          "forget_password": "Forget stored password",
-          "type_heatpump": "Heat Pump"
-        },
-        "data_description": {
-          "type_envoy": "Includes gateway connectivity and meter diagnostics.",
-          "type_encharge": "Includes battery status and control entities when available.",
-          "type_iqevse": "Includes EV charger entities and controls.",
-          "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
-          "fast_poll_interval": "Interval to use while charging or streaming.",
-          "slow_poll_interval": "Interval to use when idle.",
-          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
-          "api_timeout": "Seconds before API requests time out.",
-          "nominal_voltage": "Fallback voltage used for charger power estimates.",
-          "session_history_interval": "Minutes to wait between cloud session history fetches.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
-          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
-          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted.",
-          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Select or enter at least one charger."
     }
   },
   "issues": {
@@ -1315,18 +1417,6 @@
       "scheduler_failures": "Scheduler failures",
       "scheduler_backoff_active": "Scheduler backoff active",
       "scheduler_backoff_ends_utc": "Scheduler backoff ends (UTC)",
-      "backoff_active": "Backoff active",
-      "network_errors": "Consecutive network errors",
-      "http_errors": "Consecutive HTTP errors",
-      "site_count": "Site count",
-      "site_name": "Site name",
-      "site_ids": "Site IDs",
-      "site_names": "Site names",
-      "last_failure_status": "Last failure status",
-      "last_failure_description": "Last failure description",
-      "phase_timings": "Phase timings",
-      "session_cache_ttl_s": "Session cache TTL (s)",
-      "sites": "Sites",
       "auth_settings_available": "Auth settings available",
       "auth_settings_last_error": "Auth settings last error",
       "auth_settings_failures": "Auth settings failures",
@@ -1341,7 +1431,19 @@
       "site_energy_last_error": "Site energy last error",
       "site_energy_failures": "Site energy failures",
       "site_energy_backoff_active": "Site energy backoff active",
-      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)"
+      "site_energy_backoff_ends_utc": "Site energy backoff ends (UTC)",
+      "backoff_active": "Backoff active",
+      "network_errors": "Consecutive network errors",
+      "http_errors": "Consecutive HTTP errors",
+      "site_count": "Site count",
+      "site_name": "Site name",
+      "site_ids": "Site IDs",
+      "site_names": "Site names",
+      "last_failure_status": "Last failure status",
+      "last_failure_description": "Last failure description",
+      "phase_timings": "Phase timings",
+      "session_cache_ttl_s": "Session cache TTL (s)",
+      "sites": "Sites"
     }
   },
   "services": {

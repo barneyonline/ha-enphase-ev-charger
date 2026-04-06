@@ -4,10 +4,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+import voluptuous as vol
 from voluptuous.schema_builder import Optional as VolOptional
 from voluptuous.schema_builder import Required as VolRequired
 from homeassistant import config_entries
+from homeassistant.const import UnitOfEnergy
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_ev import config_flow
@@ -29,6 +32,9 @@ from custom_components.enphase_ev.config_flow import (
     CONF_TYPE_HEATPUMP,
     CONF_TYPE_IQEVSE,
     CONF_TYPE_MICROINVERTER,
+    CONF_MIGRATION_BACKUP_CONFIRMED,
+    CONF_MIGRATION_CONFIRM_REASSIGN,
+    CONF_MIGRATION_DISABLE_ARCHIVED,
     EnphaseEVConfigFlow,
     OptionsFlowHandler,
 )
@@ -56,6 +62,10 @@ from custom_components.enphase_ev.const import (
     OPT_SLOW_POLL_INTERVAL,
     OPT_SCHEDULE_SYNC_ENABLED,
 )
+from custom_components.enphase_ev.envoy_history import migration_target_unique_id
+from custom_components.enphase_ev.envoy_history import skip_option_value
+from custom_components.enphase_ev.envoy_history import EnvoyHistoryExecutionError
+from custom_components.enphase_ev.envoy_history import EnvoyHistoryMapping
 
 TOKENS = AuthTokens(
     cookie="jar=1",
@@ -70,6 +80,39 @@ def _make_flow(hass) -> EnphaseEVConfigFlow:
     flow.hass = hass
     flow.context = {}
     return flow
+
+
+def _add_registry_sensor(
+    hass,
+    *,
+    entry: MockConfigEntry,
+    platform: str,
+    unique_id: str,
+    object_id: str,
+    state: str | None,
+    attrs: dict[str, object] | None,
+) -> str:
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "sensor",
+        platform,
+        unique_id,
+        config_entry=entry,
+        suggested_object_id=object_id,
+    )
+    if state is not None:
+        hass.states.async_set(reg_entry.entity_id, state, attrs or {})
+    return reg_entry.entity_id
+
+
+def _patch_entry_lookup(monkeypatch, hass, *entries: MockConfigEntry) -> None:
+    original = hass.config_entries.async_get_entry
+    lookup = {entry.entry_id: entry for entry in entries}
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_get_entry",
+        lambda entry_id: lookup.get(entry_id) or original(entry_id),
+    )
 
 
 @pytest.mark.asyncio
@@ -839,6 +882,9 @@ async def test_devices_step_schema_has_type_fields_only(hass) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings(
+    "ignore:It is recommended to use web.AppKey instances for keys\\.:aiohttp.web_exceptions.NotAppKeyWarning"
+)
 async def test_devices_step_allows_site_only_entry(hass) -> None:
     site = SiteInfo(site_id="12345", name="Garage Site")
 
@@ -1976,6 +2022,19 @@ async def test_options_flow_reauth_invokes_callback(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_options_flow_init_shows_menu(hass) -> None:
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_SITE_ID: "12345"})
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_init()
+
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "init"
+    assert result["menu_options"] == ["settings", "migrate_envoy"]
+
+
+@pytest.mark.asyncio
 async def test_options_flow_show_form_with_defaults(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -1994,10 +2053,10 @@ async def test_options_flow_show_form_with_defaults(hass) -> None:
         "add_suggested_values_to_schema",
         wraps=handler.add_suggested_values_to_schema,
     ) as mock_add:
-        result = await handler.async_step_init()
+        result = await handler.async_step_settings()
 
     assert result["type"] is FlowResultType.FORM
-    assert result["step_id"] == "init"
+    assert result["step_id"] == "settings"
     mock_add.assert_called_once()
     schema_keys = list(result["data_schema"].schema.keys())
     assert any(
@@ -2052,7 +2111,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     handler = OptionsFlowHandler(entry)
     handler.hass = hass
 
-    result = await handler.async_step_init()
+    result = await handler.async_step_settings()
 
     assert result["type"] is FlowResultType.FORM
     schema = result["data_schema"]
@@ -2374,3 +2433,1246 @@ async def test_options_flow_reauth_updates_entry_before_starting_flow(hass) -> N
         "microinverter",
     ]
     assert entry.data[CONF_INCLUDE_INVERTERS] is True
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_envoy_shows_source_step_for_multiple_entries(
+    hass,
+    monkeypatch,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy_a = MockConfigEntry(
+        domain="enphase_envoy", entry_id="envoy-a", title="Envoy A"
+    )
+    envoy_b = MockConfigEntry(
+        domain="enphase_envoy", entry_id="envoy-b", title="Envoy B"
+    )
+    _patch_entry_lookup(monkeypatch, hass, envoy_a, envoy_b)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="3.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=envoy_a,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_a_lifetime_production",
+        state="3.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=envoy_b,
+        platform="enphase_envoy",
+        unique_id="envoy-b-prod",
+        object_id="envoy_b_lifetime_production",
+        state="3.0",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_migrate_envoy()
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_source"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_envoy_aborts_without_sources_or_targets(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_migrate_envoy()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "migration_no_envoy_sources"
+
+    handler._migration_sources = [
+        config_flow.EnvoyHistorySource("envoy-a", "Envoy", [])
+    ]
+    result = await handler.async_step_migrate_envoy()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "migration_no_targets"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_envoy_uses_statistics_for_unloaded_sources(
+    hass,
+    monkeypatch,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="3.0",
+        attrs=attrs,
+    )
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state=None,
+        attrs=None,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.envoy_history.recorder_statistics.async_list_statistic_ids",
+        AsyncMock(
+            return_value=[
+                {
+                    "statistic_id": old_entity,
+                    "has_sum": True,
+                    "name": "Lifetime PV",
+                    "statistics_unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+                }
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.envoy_history.recorder_statistics.get_last_statistics",
+        lambda *_args, **_kwargs: {old_entity: [{"sum": 3.0}]},
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_migrate_envoy()
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_intro"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_envoy_source_accepts_selected_entry(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy_a = MockConfigEntry(
+        domain="enphase_envoy", entry_id="envoy-a", title="Envoy A"
+    )
+    _patch_entry_lookup(monkeypatch, hass, envoy_a)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="3.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=envoy_a,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="3.0",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_migrate_envoy_source(
+        {config_flow.CONF_MIGRATION_SOURCE_ENTRY: "envoy-a"}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_intro"
+    assert handler._selected_migration_source_id == "envoy-a"
+    assert handler._migration_selection == {}
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_envoy_intro_requires_backup(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="3.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="3.0",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_intro(
+        {CONF_MIGRATION_BACKUP_CONFIRMED: False}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_intro"
+    assert result["errors"] == {"base": "backup_required"}
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_intro_redirects_when_source_missing(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_migrate_envoy_intro()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "migration_no_envoy_sources"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_intro_advances_when_backup_confirmed(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="3.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="3.0",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_intro(
+        {CONF_MIGRATION_BACKUP_CONFIRMED: True}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_mapping"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_mapping_preselects_candidates(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    prod_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    cons_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-cons",
+        object_id="envoy_lifetime_consumption",
+        state="4.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "consumption"),
+        object_id="site_consumption",
+        state="4.2",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_mapping()
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_mapping"
+    validated = result["data_schema"]({})
+    assert validated["solar_production"] == prod_entity
+    assert validated["consumption"] == cons_entity
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_mapping_has_no_skip_default_without_suggestion(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._migration_targets = {
+        "solar_production": config_flow.EnvoyHistoryTarget(
+            flow_key="solar_production",
+            label="Site Solar Production",
+            unique_id="uid",
+            entity_id="sensor.site_solar_production",
+            current_value_kwh=1.0,
+        )
+    }
+    schema = handler._build_migration_mapping_schema(
+        config_flow.EnvoyHistorySource("envoy-a", "Envoy", []),
+        [],
+        {},
+    )
+
+    marker = next(iter(schema.schema))
+    assert marker.schema == "solar_production"
+    assert marker.default is vol.UNDEFINED
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_mapping_includes_external_compatible_sensors(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    template_entry = MockConfigEntry(domain="template", entry_id="template-entry")
+    _patch_entry_lookup(monkeypatch, hass, envoy, template_entry)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    envoy_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    template_entity = _add_registry_sensor(
+        hass,
+        entry=template_entry,
+        platform="template",
+        unique_id="template-total",
+        object_id="template_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_mapping()
+
+    assert result["type"] is FlowResultType.FORM
+    schema = result["data_schema"]
+    selector_config = next(iter(schema.schema.values())).config
+    options = selector_config["options"]
+    assert [option["value"] for option in options] == [
+        "",
+        envoy_entity,
+        template_entity,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_mapping_handles_user_input_paths(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_mapping(
+        {"solar_production": skip_option_value()}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "migration_no_selection"}
+
+    result = await handler.async_step_migrate_envoy_mapping(
+        {"solar_production": old_entity}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_confirm"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_mapping_redirects_when_source_missing(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_migrate_envoy_mapping()
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "migration_no_envoy_sources"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_temporarily_unloads_loaded_envoy(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.LOADED)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    async def _unload(entry_id):
+        assert entry_id == "envoy-a"
+        object.__setattr__(envoy, "state", config_entries.ConfigEntryState.NOT_LOADED)
+        return True
+
+    unload_spy = AsyncMock(side_effect=_unload)
+    monkeypatch.setattr(hass.config_entries, "async_unload", unload_spy)
+    reload_spy = AsyncMock(side_effect=[True, True])
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload_spy)
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    ent_reg = er.async_get(hass)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    unload_spy.assert_awaited_once_with("envoy-a")
+    assert reload_spy.await_args_list[0].args == (entry.entry_id,)
+    assert reload_spy.await_args_list[1].args == ("envoy-a",)
+    assert ent_reg.async_get(old_entity).platform == DOMAIN
+    archived_entity = ent_reg.async_get("sensor.envoy_lifetime_production_envoy_legacy")
+    assert archived_entity is not None
+    assert archived_entity.platform == "enphase_envoy"
+    assert archived_entity.disabled_by == er.RegistryEntryDisabler.USER
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_redirects_when_source_or_selection_missing(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_migrate_envoy_confirm()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "migration_no_envoy_sources"
+
+    handler._migration_sources = [
+        config_flow.EnvoyHistorySource("envoy-a", "Envoy", [])
+    ]
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_targets = {
+        "solar_production": config_flow.EnvoyHistoryTarget(
+            flow_key="solar_production",
+            label="Solar",
+            unique_id="uid",
+            entity_id="sensor.site_solar_production",
+            current_value_kwh=1.0,
+        )
+    }
+    result = await handler.async_step_migrate_envoy_confirm()
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_mapping"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_mapping_suggests_external_candidate(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    template_entry = MockConfigEntry(domain="template", entry_id="template-entry")
+    _patch_entry_lookup(monkeypatch, hass, envoy, template_entry)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-other",
+        object_id="envoy_other_total",
+        state="5.0",
+        attrs=attrs,
+    )
+    template_entity = _add_registry_sensor(
+        hass,
+        entry=template_entry,
+        platform="template",
+        unique_id="template-total",
+        object_id="template_total_energy",
+        state="5.0",
+        attrs={**attrs, "friendly_name": "Lifetime PV"},
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_mapping()
+
+    assert result["type"] is FlowResultType.FORM
+    validated = result["data_schema"]({})
+    assert validated["solar_production"] == template_entity
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_skips_envoy_unload_for_external_source_only(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    template_entry = MockConfigEntry(domain="template", entry_id="template-entry")
+    _patch_entry_lookup(monkeypatch, hass, envoy, template_entry)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.LOADED)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-other",
+        object_id="envoy_other_total",
+        state="5.0",
+        attrs=attrs,
+    )
+    template_entity = _add_registry_sensor(
+        hass,
+        entry=template_entry,
+        platform="template",
+        unique_id="template-total",
+        object_id="template_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": template_entity}
+
+    form = await handler.async_step_migrate_envoy_confirm()
+    validated = form["data_schema"]({CONF_MIGRATION_CONFIRM_REASSIGN: False})
+    assert validated[CONF_MIGRATION_DISABLE_ARCHIVED] is False
+
+    unload_spy = AsyncMock(return_value=True)
+    reload_spy = AsyncMock(return_value=True)
+    monkeypatch.setattr(hass.config_entries, "async_unload", unload_spy)
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload_spy)
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    ent_reg = er.async_get(hass)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    unload_spy.assert_not_awaited()
+    reload_spy.assert_awaited_once_with(entry.entry_id)
+    assert ent_reg.async_get(template_entity).platform == DOMAIN
+    archived_entity = ent_reg.async_get("sensor.template_lifetime_production_legacy")
+    assert archived_entity is not None
+    assert archived_entity.platform == "template"
+    assert archived_entity.disabled_by is None
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_requires_confirmation(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: False}
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "confirm_required"}
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_errors_when_auto_unload_fails(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.LOADED)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_unload",
+        AsyncMock(return_value=False),
+    )
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_confirm"
+    assert result["errors"] == {"base": "envoy_entry_loaded"}
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_reloads_source_after_validation_error(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.LOADED)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="4.0",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    monkeypatch.setattr(
+        hass.config_entries, "async_unload", AsyncMock(return_value=True)
+    )
+    reload_spy = AsyncMock(return_value=True)
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload_spy)
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "new_value_lower"}
+    assert reload_spy.awaited
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_successfully_reassigns_entity_ids(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.NOT_LOADED)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    new_entity = _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    reload_spy = AsyncMock(return_value=True)
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload_spy)
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {
+            CONF_MIGRATION_CONFIRM_REASSIGN: True,
+            CONF_MIGRATION_DISABLE_ARCHIVED: False,
+        }
+    )
+
+    ent_reg = er.async_get(hass)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["description"] == "migration_success"
+    reload_spy.assert_awaited_once_with(entry.entry_id)
+    assert ent_reg.async_get(old_entity).platform == DOMAIN
+    assert ent_reg.async_get(new_entity) is None
+    archived_entity = ent_reg.async_get("sensor.envoy_lifetime_production_envoy_legacy")
+    assert archived_entity is not None
+    assert archived_entity.disabled_by is None
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_reports_current_reload_needed(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.NOT_LOADED)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_reload",
+        AsyncMock(return_value=False),
+    )
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["description"] == "migration_success_reload_needed"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_reports_current_reload_exception(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.NOT_LOADED)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_reload",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    )
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["description"] == "migration_success_reload_needed"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_reload_migration_source_helper_handles_none_and_errors(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    source = config_flow.EnvoyHistorySource("envoy-a", "Envoy A", [])
+
+    assert await handler._async_reload_migration_source_entry(source, None) is True
+
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_reload",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    )
+    source_entry = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a")
+    assert (
+        await handler._async_reload_migration_source_entry(source, source_entry)
+        is False
+    )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_reports_partial_failure_after_source_reload(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.LOADED)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    monkeypatch.setattr(
+        hass.config_entries, "async_unload", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.config_flow.execute_takeover",
+        lambda *_args, **_kwargs: EnvoyHistoryExecutionError(
+            completed=[],
+            failed=EnvoyHistoryMapping(
+                flow_key="solar_production",
+                label="Solar",
+                old_entity_id=old_entity,
+                archived_entity_id="sensor.archived",
+                old_value_kwh=5.0,
+                new_entity_id="sensor.site_solar_production",
+                new_value_kwh=5.1,
+                target_unique_id=migration_target_unique_id(
+                    "12345", "solar_production"
+                ),
+            ),
+            reason="boom",
+        ),
+    )
+    reload_spy = AsyncMock(return_value=True)
+    monkeypatch.setattr(hass.config_entries, "async_reload", reload_spy)
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "migration_partial_failure"
+    assert reload_spy.awaited
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_reports_envoy_reload_needed(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.LOADED)
+
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    async def _unload(entry_id):
+        assert entry_id == "envoy-a"
+        object.__setattr__(envoy, "state", config_entries.ConfigEntryState.NOT_LOADED)
+        return True
+
+    monkeypatch.setattr(
+        hass.config_entries, "async_unload", AsyncMock(side_effect=_unload)
+    )
+    monkeypatch.setattr(
+        hass.config_entries,
+        "async_reload",
+        AsyncMock(side_effect=[True, False]),
+    )
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["description"] == "migration_success_reload_needed"

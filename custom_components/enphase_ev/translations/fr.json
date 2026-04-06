@@ -119,6 +119,143 @@
       "message": "Le mode de charge sélectionné n’est pas disponible."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Enphase Energy",
+        "description": "Choisissez ce que vous voulez faire avec cette entrée d’intégration.",
+        "menu_options": {
+          "settings": "Paramètres",
+          "migrate_envoy": "Migrer l’historique Envoy"
+        },
+        "menu_option_descriptions": {
+          "settings": "Ajuster l’interrogation et le comportement.",
+          "migrate_envoy": "Récupérez les identifiants d’entité d’énergie Enphase Envoy sélectionnés afin que l’historique Home Assistant Energy continue sous cette intégration."
+        },
+        "data": {
+          "type_envoy": "Passerelle",
+          "type_encharge": "Batterie",
+          "type_iqevse": "Chargeurs",
+          "type_microinverter": "Micro-onduleurs",
+          "fast_poll_interval": "Intervalle de scrutation rapide (s)",
+          "slow_poll_interval": "Intervalle de scrutation lent (s)",
+          "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
+          "api_timeout": "Délai d'expiration API (s)",
+          "nominal_voltage": "Tension nominale (V)",
+          "session_history_interval": "Intervalle d'historique de session (min)",
+          "schedule_sync_enabled": "Activer la prise en charge du planificateur",
+          "reauth": "Démarrer la réauthentification",
+          "forget_password": "Oublier le mot de passe stocké",
+          "type_heatpump": "Pompe à chaleur"
+        },
+        "data_description": {
+          "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
+          "type_encharge": "Inclut l’état des batteries et les entités de contrôle lorsque disponibles.",
+          "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
+          "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
+          "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
+          "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
+          "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
+          "api_timeout": "Secondes avant l’expiration des requêtes API.",
+          "nominal_voltage": "Tension de secours utilisée pour estimer la puissance du chargeur.",
+          "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
+          "schedule_sync_enabled": "Gérer la gestion des plannings Enphase",
+          "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
+          "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
+          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
+        }
+      },
+      "settings": {
+        "title": "Options Enphase Energy",
+        "description": "Ajuster la scrutation et le comportement.",
+        "data": {
+          "type_envoy": "Passerelle",
+          "type_encharge": "Batterie",
+          "type_iqevse": "Chargeurs",
+          "type_microinverter": "Micro-onduleurs",
+          "fast_poll_interval": "Intervalle de scrutation rapide (s)",
+          "slow_poll_interval": "Intervalle de scrutation lent (s)",
+          "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
+          "api_timeout": "Délai d'expiration API (s)",
+          "nominal_voltage": "Tension nominale (V)",
+          "session_history_interval": "Intervalle d'historique de session (min)",
+          "schedule_sync_enabled": "Activer la prise en charge du planificateur",
+          "reauth": "Démarrer la réauthentification",
+          "forget_password": "Oublier le mot de passe stocké",
+          "type_heatpump": "Pompe à chaleur"
+        },
+        "data_description": {
+          "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
+          "type_encharge": "Inclut l’état des batteries et les entités de contrôle lorsque disponibles.",
+          "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
+          "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
+          "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
+          "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
+          "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
+          "api_timeout": "Secondes avant l’expiration des requêtes API.",
+          "nominal_voltage": "Tension de secours utilisée pour estimer la puissance du chargeur.",
+          "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
+          "schedule_sync_enabled": "Gérer la gestion des plannings Enphase",
+          "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
+          "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
+          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Sélectionner la source Envoy",
+        "description": "Choisissez depuis quelle entrée Enphase Envoy migrer.",
+        "data": {
+          "selected_envoy_source": "Source Envoy"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrer l’historique Envoy",
+        "description": "Cet assistant réattribue les identifiants d’entité d’énergie Enphase Envoy sélectionnés à des capteurs Enphase Energy correspondants.\n\nL’historique Home Assistant Energy est lié à l’identifiant d’entité utilisé pour les statistiques à long terme.\n\nCréez une sauvegarde complète de Home Assistant avant de continuer.\n\nMigrez uniquement des capteurs qui représentent le même total d’énergie cumulée.\n\nL’intégration Envoy sélectionnée sera temporairement déchargée pendant la réattribution des identifiants d’entité, puis restaurée après la migration.\n\nCela met à jour le registre des entités et ne peut pas être annulé automatiquement.\n\nSource Envoy sélectionnée : **{source_title}**.",
+        "data": {
+          "backup_confirmed": "J’ai une sauvegarde récente de Home Assistant"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Associer les capteurs d’historique",
+        "description": "Vérifiez attentivement les associations suggérées. Seuls les totaux d’énergie cumulés compatibles sont affichés. Les champs vides seront ignorés.\n\nSi une suggestion est erronée ou ambiguë, effacez-la puis choisissez manuellement.",
+        "data": {
+          "solar_production": "Production solaire",
+          "consumption": "Consommation",
+          "grid_import": "Import réseau",
+          "grid_export": "Export réseau",
+          "battery_charge": "Charge batterie",
+          "battery_discharge": "Décharge batterie"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Confirmer la migration de l’historique Envoy",
+        "description": "Les entités source sélectionnées seront renommées avec des identifiants d’entité hérités archivés.\n\nLes entités Enphase Energy seront ensuite renommées avec les identifiants d’entité source d’origine.\n\nSi une association est incorrecte, annulez maintenant. Restaurer depuis une sauvegarde est la solution de retour arrière la plus sûre.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Je comprends que les identifiants d’entité source sélectionnés seront réattribués",
+          "disable_archived_envoy_sensors": "Désactiver les capteurs source archivés après la migration"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Sélectionnez ou saisissez au moins un chargeur.",
+      "backup_required": "Il est fortement recommandé de créer une sauvegarde complète avant de continuer.",
+      "confirm_required": "Confirmez que les identifiants d’entité source sélectionnés seront réattribués avant de continuer.",
+      "migration_no_selection": "Sélectionnez au moins un capteur d’énergie compatible à migrer.",
+      "migration_duplicate_selection": "La même entité source ne peut pas être utilisée plus d’une fois.",
+      "envoy_entry_loaded": "L’intégration Envoy n’a pas pu être temporairement déchargée pour la migration.",
+      "incompatible_energy_total": "Les entités sélectionnées ne sont pas des totaux d’énergie compatibles.",
+      "new_value_lower": "La nouvelle valeur du capteur est inférieure à la valeur Envoy existante."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Aucun capteur d’énergie Enphase Envoy n’est disponible pour la migration.",
+      "migration_no_targets": "Aucun capteur Enphase Energy compatible n’est disponible pour la migration.",
+      "migration_partial_failure": "La migration s’est arrêtée après une réalisation partielle.\n\nAssociations terminées :\n{completed_mappings}\n\nÉchec lors du traitement de `{failed_entity_id}` : {failure_reason}\n\nRestaurez la sauvegarde si le résultat n’est pas acceptable."
+    },
+    "create_entry": {
+      "migration_success": "Migration terminée. Enphase Energy possède maintenant les identifiants d’entité source sélectionnés. Vérifiez le tableau de bord Energy et Developer Tools > Statistics après la prochaine actualisation.",
+      "migration_success_reload_needed": "La migration est terminée, mais une ou plusieurs intégrations n’ont pas pu être rechargées automatiquement. Rechargez manuellement Enphase Energy et Enphase Envoy si nécessaire, puis vérifiez le tableau de bord Energy et Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1216,49 +1353,6 @@
       "charging_stopped": "Charge arrêtée",
       "plugged_in": "Branché",
       "unplugged": "Débranché"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Options Enphase Energy",
-        "description": "Ajuster la scrutation et le comportement.",
-        "data": {
-          "type_envoy": "Passerelle",
-          "type_encharge": "Batterie",
-          "type_iqevse": "Chargeurs",
-          "type_microinverter": "Micro-onduleurs",
-          "fast_poll_interval": "Intervalle de scrutation rapide (s)",
-          "slow_poll_interval": "Intervalle de scrutation lent (s)",
-          "fast_while_streaming": "Préférer la scrutation rapide pendant le streaming cloud actif",
-          "api_timeout": "Délai d'expiration API (s)",
-          "nominal_voltage": "Tension nominale (V)",
-          "session_history_interval": "Intervalle d'historique de session (min)",
-          "schedule_sync_enabled": "Activer la prise en charge du planificateur",
-          "reauth": "Démarrer la réauthentification",
-          "forget_password": "Oublier le mot de passe stocké",
-          "type_heatpump": "Pompe à chaleur"
-        },
-        "data_description": {
-          "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
-          "type_encharge": "Inclut l’état des batteries et les entités de contrôle lorsque disponibles.",
-          "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
-          "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
-          "fast_poll_interval": "Intervalle à utiliser pendant la charge ou le streaming.",
-          "slow_poll_interval": "Intervalle à utiliser en mode inactif.",
-          "fast_while_streaming": "Lorsqu'activé, scrutation rapide pendant le streaming cloud actif.",
-          "api_timeout": "Secondes avant l’expiration des requêtes API.",
-          "nominal_voltage": "Tension de secours utilisée pour estimer la puissance du chargeur.",
-          "session_history_interval": "Minutes d'attente entre les récupérations de l'historique de session depuis le cloud.",
-          "schedule_sync_enabled": "Gérer la gestion des plannings Enphase",
-          "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
-          "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
-          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Sélectionnez ou saisissez au moins un chargeur."
     }
   },
   "issues": {
