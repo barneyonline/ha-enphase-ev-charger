@@ -60,6 +60,20 @@ class BatteryControlCapability:
 
 
 @dataclass(slots=True)
+class EndpointFamilyHealth:
+    consecutive_failures: int = 0
+    last_success_utc: datetime | None = None
+    last_success_mono: float | None = None
+    last_failure_utc: datetime | None = None
+    last_status: int | None = None
+    next_retry_mono: float | None = None
+    next_retry_utc: datetime | None = None
+    cooldown_active: bool = False
+    support_state: str = "unknown"
+    last_error: str | None = None
+
+
+@dataclass(slots=True)
 class RefreshHealthState:
     last_set_amps: dict[str, int] = field(default_factory=dict)
     _amp_restart_tasks: dict[str, Any] = field(default_factory=dict)
@@ -120,10 +134,16 @@ class RefreshHealthState:
     _session_history_day_retention: int = 0
     _operating_v: dict[str, int] = field(default_factory=dict)
     _fast_until: float | None = None
+    _endpoint_family_health: dict[str, EndpointFamilyHealth] = field(
+        default_factory=dict
+    )
+    _endpoint_manual_bypass_requested: bool = False
+    _endpoint_manual_bypass_active: bool = False
 
 
 @dataclass(slots=True)
 class InventoryState:
+    _inverters_inventory_cache_until: float | None = None
     _devices_inventory_cache_until: float | None = None
     _devices_inventory_payload: dict[str, object] | None = None
     _status_payload_cache: dict[str, object] | None = None
@@ -144,7 +164,9 @@ class InventoryState:
         default_factory=dict
     )
     _inverters_inventory_payload: dict[str, object] | None = None
+    _inverter_status_cache_until: float | None = None
     _inverter_status_payload: dict[str, object] | None = None
+    _inverter_production_cache_until: float | None = None
     _inverter_production_payload: dict[str, object] | None = None
     _inverter_data: dict[str, dict[str, object]] = field(default_factory=dict)
     _inverter_order: list[str] = field(default_factory=list)
@@ -162,6 +184,7 @@ class InventoryState:
     _inverter_model_counts: dict[str, int] = field(default_factory=dict)
     _type_device_buckets: dict[str, dict[str, object]] = field(default_factory=dict)
     _type_device_order: list[str] = field(default_factory=list)
+    _inverter_production_cache_key: tuple[str, str] | None = None
 
 
 @dataclass(slots=True)
@@ -371,6 +394,7 @@ class BatteryState:
     _battery_site_settings_payload: dict[str, object] | None = None
     _battery_profile_payload: dict[str, object] | None = None
     _battery_settings_payload: dict[str, object] | None = None
+    _battery_status_cache_until: float | None = None
     _battery_status_payload: dict[str, object] | None = None
     _battery_backup_history_payload: dict[str, object] | None = None
     _battery_backup_history_events: list[dict[str, object]] = field(

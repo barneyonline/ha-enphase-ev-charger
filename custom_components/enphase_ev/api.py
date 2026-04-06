@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import re
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import unquote
 import uuid
@@ -36,6 +37,12 @@ _DEBUG_KV_RE = re.compile(
     r"(?P<key>[A-Za-z][A-Za-z0-9_\-]*)(?P<sep>\s*[=:]\s*)(?P<value>[^,\s)]+)"
 )
 _XSRF_COOKIE_NAMES = ("xsrf-token", "bp-xsrf-token")
+_ENLIGHTEN_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
+)
+_ENLIGHTEN_READ_CONCURRENCY_LIMIT = 2
+_enlighten_read_semaphore: asyncio.Semaphore | None = None
 
 
 class Unauthorized(Exception):
@@ -690,6 +697,42 @@ def _request_failure_debug_family(method: object, path_or_url: object) -> str | 
     return None
 
 
+def _should_limit_enlighten_read_request(method: object, url: object) -> bool:
+    """Return True when the request should use the shared Enlighten read limiter."""
+
+    try:
+        method_text = str(method).strip().upper()
+    except Exception:  # noqa: BLE001 - defensive casting
+        return False
+    if method_text not in {"GET", "HEAD"}:
+        return False
+    try:
+        url_text = str(url).strip()
+    except Exception:  # noqa: BLE001 - defensive casting
+        return False
+    return url_text.startswith(f"{BASE_URL}/")
+
+
+def _get_enlighten_read_semaphore() -> asyncio.Semaphore:
+    """Return the shared semaphore used to limit concurrent Enlighten reads."""
+
+    global _enlighten_read_semaphore
+    if _enlighten_read_semaphore is None:
+        _enlighten_read_semaphore = asyncio.Semaphore(_ENLIGHTEN_READ_CONCURRENCY_LIMIT)
+    return _enlighten_read_semaphore
+
+
+@asynccontextmanager
+async def _enlighten_read_request_guard(method: object, url: object):
+    """Limit concurrent GET/HEAD requests to the Enlighten web host."""
+
+    if not _should_limit_enlighten_read_request(method, url):
+        yield
+        return
+    async with _get_enlighten_read_semaphore():
+        yield
+
+
 def _seed_cookie_jar(session: aiohttp.ClientSession, cookies: dict[str, str]) -> None:
     """Ensure the session cookie jar contains the supplied cookies."""
 
@@ -897,20 +940,23 @@ async def _request_json(
     if json_data is not None:
         req_kwargs["json"] = json_data
 
-    async with asyncio.timeout(timeout):
-        async with session.request(
-            method, url, allow_redirects=True, **req_kwargs
-        ) as resp:
-            if resp.status >= 500:
-                raise EnlightenAuthUnavailable(f"Server error {resp.status} at {url}")
-            resp.raise_for_status()
-            ctype = resp.headers.get("Content-Type", "")
-            if "json" not in ctype:
-                text = await resp.text()
-                raise EnlightenAuthUnavailable(
-                    f"Unexpected response content-type {ctype!r} at {url}: {text[:120]}"
-                )
-            return await resp.json()
+    async with _enlighten_read_request_guard(method, url):
+        async with asyncio.timeout(timeout):
+            async with session.request(
+                method, url, allow_redirects=True, **req_kwargs
+            ) as resp:
+                if resp.status >= 500:
+                    raise EnlightenAuthUnavailable(
+                        f"Server error {resp.status} at {url}"
+                    )
+                resp.raise_for_status()
+                ctype = resp.headers.get("Content-Type", "")
+                if "json" not in ctype:
+                    text = await resp.text()
+                    raise EnlightenAuthUnavailable(
+                        f"Unexpected response content-type {ctype!r} at {url}: {text[:120]}"
+                    )
+                return await resp.json()
 
 
 async def _request_mfa_json(
@@ -974,6 +1020,7 @@ def _login_headers() -> dict[str, str]:
         "Accept": "*/*",
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         "Referer": f"{BASE_URL}/",
+        "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
         "X-Requested-With": "XMLHttpRequest",
     }
 
@@ -986,6 +1033,7 @@ def _login_form_headers() -> dict[str, str]:
         "Content-Type": "application/x-www-form-urlencoded",
         "Origin": BASE_URL,
         "Referer": f"{BASE_URL}/",
+        "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
     }
 
 
@@ -1205,6 +1253,7 @@ async def _build_tokens_and_sites(
         "Accept": "*/*",
         "X-Requested-With": "XMLHttpRequest",
         "Referer": f"{BASE_URL}/",
+        "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
     }
     if xsrf_token:
         site_headers["X-CSRF-Token"] = xsrf_token
@@ -1717,6 +1766,7 @@ class EnphaseEVClient:
             "Accept": "application/json, text/plain, */*",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{BASE_URL}/pv/systems/{site_id}/summary",
+            "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
         }
         self.update_credentials(eauth=eauth, cookie=cookie)
 
@@ -2606,155 +2656,165 @@ class EnphaseEVClient:
                     else:
                         base_headers[header_key] = header_value
 
-            async with asyncio.timeout(self._timeout):
-                async with self._s.request(
-                    method, url, headers=base_headers, **kwargs
-                ) as r:
-                    if r.status == 401:
-                        self._last_unauthorized_request = request_label
-                        if self._reauth_cb and attempt == 0:
-                            _LOGGER.debug(
-                                "Received 401 for %s; attempting stored-credential refresh",
-                                request_label,
-                            )
-                            attempt += 1
-                            reauth_ok = await self._reauth_cb()
-                            if reauth_ok:
+            async with _enlighten_read_request_guard(method, url):
+                async with asyncio.timeout(self._timeout):
+                    async with self._s.request(
+                        method, url, headers=base_headers, **kwargs
+                    ) as r:
+                        if r.status == 401:
+                            self._last_unauthorized_request = request_label
+                            if self._reauth_cb and attempt == 0:
                                 _LOGGER.debug(
-                                    "Stored-credential refresh succeeded for %s; retrying request",
+                                    "Received 401 for %s; attempting stored-credential refresh",
                                     request_label,
                                 )
-                                continue
-                            _LOGGER.debug(
-                                "Stored-credential refresh failed for %s",
-                                request_label,
+                                attempt += 1
+                                reauth_ok = await self._reauth_cb()
+                                if reauth_ok:
+                                    _LOGGER.debug(
+                                        "Stored-credential refresh succeeded for %s; retrying request",
+                                        request_label,
+                                    )
+                                    continue
+                                _LOGGER.debug(
+                                    "Stored-credential refresh failed for %s",
+                                    request_label,
+                                )
+                            else:
+                                _LOGGER.debug(
+                                    "Received 401 for %s with no stored-credential refresh available",
+                                    request_label,
+                                )
+                            raise Unauthorized()
+                        if r.status in (204, 205):
+                            if mark_payload_success:
+                                self._mark_payload_healthy(endpoint or None)
+                            return {}
+                        if r.status >= 400:
+                            try:
+                                body_text = await r.text()
+                            except (
+                                Exception
+                            ):  # noqa: BLE001 - fall back to generic message
+                                body_text = ""
+                            message = (body_text or r.reason or "").strip()
+                            if len(message) > 512:
+                                message = f"{message[:512]}…"
+                            family = _request_failure_debug_family(
+                                method,
+                                endpoint or url,
                             )
-                        else:
-                            _LOGGER.debug(
-                                "Received 401 for %s with no stored-credential refresh available",
-                                request_label,
+                            if family is not None:
+                                params = kwargs.get("params")
+                                if isinstance(params, dict):
+                                    params_summary: object = _redact_debug_json_body(
+                                        params,
+                                        site_ids=(self._site,),
+                                    )
+                                elif params is None:
+                                    params_summary = None
+                                else:
+                                    params_summary = redact_text(
+                                        params,
+                                        site_ids=(self._site,),
+                                        max_length=256,
+                                    )
+                                payload_summary: object = None
+                                json_payload = kwargs.get("json")
+                                data_payload = kwargs.get("data")
+                                if isinstance(json_payload, dict):
+                                    payload_summary = {
+                                        "scheduleType": json_payload.get(
+                                            "scheduleType"
+                                        ),
+                                        "json_keys": sorted(
+                                            str(key) for key in json_payload.keys()
+                                        ),
+                                    }
+                                elif isinstance(json_payload, list):
+                                    key_union: set[str] = set()
+                                    for item in json_payload:
+                                        if isinstance(item, dict):
+                                            key_union.update(
+                                                str(key) for key in item.keys()
+                                            )
+                                    payload_summary = {
+                                        "json_item_count": len(json_payload),
+                                        "json_keys": sorted(key_union),
+                                    }
+                                elif isinstance(data_payload, dict):
+                                    payload_summary = {
+                                        "data_keys": sorted(
+                                            str(key) for key in data_payload.keys()
+                                        )
+                                    }
+                                header_flags = {
+                                    "has_authorization": "Authorization"
+                                    in base_headers,
+                                    "has_e_auth_token": "e-auth-token" in base_headers,
+                                    "has_username": "Username" in base_headers,
+                                    "has_x_xsrf_token": "X-XSRF-Token" in base_headers,
+                                }
+                                _LOGGER.debug(
+                                    "%s failed for %s: status=%s params=%s payload=%s "
+                                    "header_flags=%s cookie_names=%s headers=%s response=%s",
+                                    family,
+                                    request_label,
+                                    r.status,
+                                    params_summary,
+                                    payload_summary,
+                                    header_flags,
+                                    _cookie_names_from_header(
+                                        base_headers.get("Cookie")
+                                    ),
+                                    self._redact_headers(base_headers),
+                                    redact_text(
+                                        message,
+                                        site_ids=(self._site,),
+                                        max_length=256,
+                                    ),
+                                )
+                            raise aiohttp.ClientResponseError(
+                                r.request_info,
+                                r.history,
+                                status=r.status,
+                                message=message or r.reason,
+                                headers=r.headers,
                             )
-                        raise Unauthorized()
-                    if r.status in (204, 205):
+                        try:
+                            payload = await r.json()
+                        except (aiohttp.ContentTypeError, ValueError) as err:
+                            status = int(getattr(r, "status", 0) or 0)
+                            content_type = ""
+                            try:
+                                content_type = str(
+                                    r.headers.get("Content-Type", "")
+                                ).strip()
+                            except Exception:  # noqa: BLE001 - defensive header parsing
+                                content_type = ""
+                            try:
+                                body_text = await r.text()
+                            except Exception as text_err:  # noqa: BLE001
+                                body_text = (
+                                    f"<unavailable:{text_err.__class__.__name__}>"
+                                )
+                            failure_kind = (
+                                "content_type"
+                                if isinstance(err, aiohttp.ContentTypeError)
+                                else "json_decode"
+                            )
+                            raise self._invalid_payload_error(
+                                endpoint=endpoint or None,
+                                status=status or None,
+                                content_type=content_type or None,
+                                failure_kind=failure_kind,
+                                decode_error=err.__class__.__name__,
+                                payload=body_text,
+                                log_warning=log_invalid_payload,
+                            ) from err
                         if mark_payload_success:
                             self._mark_payload_healthy(endpoint or None)
-                        return {}
-                    if r.status >= 400:
-                        try:
-                            body_text = await r.text()
-                        except Exception:  # noqa: BLE001 - fall back to generic message
-                            body_text = ""
-                        message = (body_text or r.reason or "").strip()
-                        if len(message) > 512:
-                            message = f"{message[:512]}…"
-                        family = _request_failure_debug_family(
-                            method,
-                            endpoint or url,
-                        )
-                        if family is not None:
-                            params = kwargs.get("params")
-                            if isinstance(params, dict):
-                                params_summary: object = _redact_debug_json_body(
-                                    params,
-                                    site_ids=(self._site,),
-                                )
-                            elif params is None:
-                                params_summary = None
-                            else:
-                                params_summary = redact_text(
-                                    params,
-                                    site_ids=(self._site,),
-                                    max_length=256,
-                                )
-                            payload_summary: object = None
-                            json_payload = kwargs.get("json")
-                            data_payload = kwargs.get("data")
-                            if isinstance(json_payload, dict):
-                                payload_summary = {
-                                    "scheduleType": json_payload.get("scheduleType"),
-                                    "json_keys": sorted(
-                                        str(key) for key in json_payload.keys()
-                                    ),
-                                }
-                            elif isinstance(json_payload, list):
-                                key_union: set[str] = set()
-                                for item in json_payload:
-                                    if isinstance(item, dict):
-                                        key_union.update(
-                                            str(key) for key in item.keys()
-                                        )
-                                payload_summary = {
-                                    "json_item_count": len(json_payload),
-                                    "json_keys": sorted(key_union),
-                                }
-                            elif isinstance(data_payload, dict):
-                                payload_summary = {
-                                    "data_keys": sorted(
-                                        str(key) for key in data_payload.keys()
-                                    )
-                                }
-                            header_flags = {
-                                "has_authorization": "Authorization" in base_headers,
-                                "has_e_auth_token": "e-auth-token" in base_headers,
-                                "has_username": "Username" in base_headers,
-                                "has_x_xsrf_token": "X-XSRF-Token" in base_headers,
-                            }
-                            _LOGGER.debug(
-                                "%s failed for %s: status=%s params=%s payload=%s "
-                                "header_flags=%s cookie_names=%s headers=%s response=%s",
-                                family,
-                                request_label,
-                                r.status,
-                                params_summary,
-                                payload_summary,
-                                header_flags,
-                                _cookie_names_from_header(base_headers.get("Cookie")),
-                                self._redact_headers(base_headers),
-                                redact_text(
-                                    message,
-                                    site_ids=(self._site,),
-                                    max_length=256,
-                                ),
-                            )
-                        raise aiohttp.ClientResponseError(
-                            r.request_info,
-                            r.history,
-                            status=r.status,
-                            message=message or r.reason,
-                            headers=r.headers,
-                        )
-                    try:
-                        payload = await r.json()
-                    except (aiohttp.ContentTypeError, ValueError) as err:
-                        status = int(getattr(r, "status", 0) or 0)
-                        content_type = ""
-                        try:
-                            content_type = str(
-                                r.headers.get("Content-Type", "")
-                            ).strip()
-                        except Exception:  # noqa: BLE001 - defensive header parsing
-                            content_type = ""
-                        try:
-                            body_text = await r.text()
-                        except Exception as text_err:  # noqa: BLE001
-                            body_text = f"<unavailable:{text_err.__class__.__name__}>"
-                        failure_kind = (
-                            "content_type"
-                            if isinstance(err, aiohttp.ContentTypeError)
-                            else "json_decode"
-                        )
-                        raise self._invalid_payload_error(
-                            endpoint=endpoint or None,
-                            status=status or None,
-                            content_type=content_type or None,
-                            failure_kind=failure_kind,
-                            decode_error=err.__class__.__name__,
-                            payload=body_text,
-                            log_warning=log_invalid_payload,
-                        ) from err
-                    if mark_payload_success:
-                        self._mark_payload_healthy(endpoint or None)
-                    return payload
+                        return payload
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"

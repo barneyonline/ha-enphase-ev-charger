@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
@@ -1140,6 +1141,92 @@ async def test_battery_runtime_refresh_status_wraps_non_dict_redacted_payload(
     await coord.battery_runtime.async_refresh_battery_status()
 
     assert coord.battery_status_payload == {"value": ["unexpected"]}
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_refresh_status_uses_success_cache_ttl(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.battery_status = AsyncMock(
+        return_value={"storages": [{"serial_number": "BAT-1", "current_charge": 48}]}
+    )
+
+    await coord.battery_runtime.async_refresh_battery_status()
+
+    assert coord.client.battery_status.await_count == 1
+    assert coord._battery_status_cache_until is not None  # noqa: SLF001
+
+    await coord.battery_runtime.async_refresh_battery_status()
+
+    assert coord.client.battery_status.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_refresh_status_skips_during_endpoint_cooldown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    health = coord._endpoint_family_state("battery_status")  # noqa: SLF001
+    health.next_retry_mono = time.monotonic() + 300
+    health.cooldown_active = True
+    coord.client.battery_status = AsyncMock(side_effect=AssertionError("no fetch"))
+
+    await coord.battery_runtime.async_refresh_battery_status()
+
+    coord.client.battery_status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_optional_refreshes_respect_cooldown_and_clear_stale_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    backup_health = coord._endpoint_family_state(
+        "battery_backup_history"
+    )  # noqa: SLF001
+    backup_health.next_retry_mono = time.monotonic() + 300
+    backup_health.cooldown_active = True
+    coord._battery_backup_history_cache_until = None  # noqa: SLF001
+    coord.client.battery_backup_history = AsyncMock(
+        side_effect=AssertionError("unused")
+    )
+    await coord.battery_runtime.async_refresh_battery_backup_history()
+    coord.client.battery_backup_history.assert_not_awaited()
+
+    site_health = coord._endpoint_family_state("battery_site_settings")  # noqa: SLF001
+    site_health.next_retry_mono = time.monotonic() + 300
+    site_health.cooldown_active = True
+    coord._battery_site_settings_cache_until = None  # noqa: SLF001
+    coord.client.battery_site_settings = AsyncMock(side_effect=AssertionError("unused"))
+    await coord.battery_runtime.async_refresh_battery_site_settings()
+    coord.client.battery_site_settings.assert_not_awaited()
+
+    grid_health = coord._endpoint_family_state("grid_control_check")  # noqa: SLF001
+    grid_health.next_retry_mono = time.monotonic() + 300
+    grid_health.cooldown_active = True
+    grid_health.last_success_mono = time.monotonic() - 500
+    coord._grid_control_check_cache_until = None  # noqa: SLF001
+    coord._grid_control_supported = True  # noqa: SLF001
+    coord._grid_control_disable = False  # noqa: SLF001
+    coord._grid_control_active_download = True  # noqa: SLF001
+    coord._grid_control_sunlight_backup_system_check = True  # noqa: SLF001
+    coord._grid_control_grid_outage_check = True  # noqa: SLF001
+    coord._grid_control_user_initiated_toggle = True  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_grid_control_check()
+    assert coord._grid_control_supported is None  # noqa: SLF001
+    assert coord._grid_control_disable is None  # noqa: SLF001
+    assert coord._grid_control_active_download is None  # noqa: SLF001
+
+    dry_health = coord._endpoint_family_state("dry_contact_settings")  # noqa: SLF001
+    dry_health.next_retry_mono = time.monotonic() + 300
+    dry_health.cooldown_active = True
+    dry_health.last_success_mono = time.monotonic() - 2_000
+    coord._dry_contact_settings_cache_until = None  # noqa: SLF001
+    coord._dry_contact_settings_supported = True  # noqa: SLF001
+    await coord.battery_runtime.async_refresh_dry_contact_settings()
+    assert coord._dry_contact_settings_supported is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
