@@ -116,6 +116,143 @@
       "message": "Pirms plānotās uzlādes izvēles iespējojiet vismaz vienu grafiku."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Energy opcijas",
+        "description": "Izvēlieties, ko darīt ar šo integrācijas ierakstu.",
+        "menu_options": {
+          "settings": "Iestatījumi",
+          "migrate_envoy": "Migrēt Envoy vēsturi"
+        },
+        "menu_option_descriptions": {
+          "settings": "Pielāgojiet aptauju un darbību.",
+          "migrate_envoy": "Pārņemiet izvēlētos Enphase Envoy enerģijas entītiju ID, lai Home Assistant Energy vēsture turpinātos šajā integrācijā."
+        },
+        "data": {
+          "type_envoy": "Vārteja",
+          "type_encharge": "Akumulators",
+          "type_iqevse": "Lādētāji",
+          "type_microinverter": "Mikroinvertori",
+          "fast_poll_interval": "Ātrs aptaujas intervāls (s)",
+          "slow_poll_interval": "Lēns aptaujas intervāls (s)",
+          "fast_while_streaming": "Dod priekšroku ātrai aptaujai, kad mākoņa straume aktīva",
+          "api_timeout": "API noildze (s)",
+          "nominal_voltage": "Nominālais spriegums (V)",
+          "session_history_interval": "Sesijas vēstures intervāls (min)",
+          "schedule_sync_enabled": "Iespējot plānotāja atbalstu",
+          "reauth": "Sākt atkārtotu autentifikāciju",
+          "forget_password": "Aizmirst saglabāto paroli",
+          "type_heatpump": "Siltumsūknis"
+        },
+        "data_description": {
+          "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
+          "type_encharge": "Ietver akumulatoru statusu un vadības entītijas, kad pieejamas.",
+          "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
+          "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
+          "fast_poll_interval": "Intervāls, ko izmantot uzlādes vai straumēšanas laikā.",
+          "slow_poll_interval": "Intervāls, ko izmantot dīkstāvē.",
+          "fast_while_streaming": "Ja iespējots, ātra aptauja aktīvas mākoņa straumes laikā.",
+          "api_timeout": "Sekundes līdz API pieprasījumu noildzei.",
+          "nominal_voltage": "Rezerves spriegums lādētāja jaudas novērtējumam.",
+          "session_history_interval": "Minūtes starp mākoņa sesiju vēstures pieprasījumiem.",
+          "schedule_sync_enabled": "Pārvaldīt Enphase grafiku pārvaldību",
+          "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
+          "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
+          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy opcijas",
+        "description": "Pielāgot aptauju un uzvedību.",
+        "data": {
+          "type_envoy": "Vārteja",
+          "type_encharge": "Akumulators",
+          "type_iqevse": "Lādētāji",
+          "type_microinverter": "Mikroinvertori",
+          "fast_poll_interval": "Ātrs aptaujas intervāls (s)",
+          "slow_poll_interval": "Lēns aptaujas intervāls (s)",
+          "fast_while_streaming": "Dod priekšroku ātrai aptaujai, kad mākoņa straume aktīva",
+          "api_timeout": "API noildze (s)",
+          "nominal_voltage": "Nominālais spriegums (V)",
+          "session_history_interval": "Sesijas vēstures intervāls (min)",
+          "schedule_sync_enabled": "Iespējot plānotāja atbalstu",
+          "reauth": "Sākt atkārtotu autentifikāciju",
+          "forget_password": "Aizmirst saglabāto paroli",
+          "type_heatpump": "Siltumsūknis"
+        },
+        "data_description": {
+          "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
+          "type_encharge": "Ietver akumulatoru statusu un vadības entītijas, kad pieejamas.",
+          "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
+          "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
+          "fast_poll_interval": "Intervāls, ko izmantot uzlādes vai straumēšanas laikā.",
+          "slow_poll_interval": "Intervāls, ko izmantot dīkstāvē.",
+          "fast_while_streaming": "Ja iespējots, ātra aptauja aktīvas mākoņa straumes laikā.",
+          "api_timeout": "Sekundes līdz API pieprasījumu noildzei.",
+          "nominal_voltage": "Rezerves spriegums lādētāja jaudas novērtējumam.",
+          "session_history_interval": "Minūtes starp mākoņa sesiju vēstures pieprasījumiem.",
+          "schedule_sync_enabled": "Pārvaldīt Enphase grafiku pārvaldību",
+          "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
+          "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
+          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Atlasīt Envoy avotu",
+        "description": "Izvēlieties, no kura Enphase Envoy ieraksta migrēt.",
+        "data": {
+          "selected_envoy_source": "Envoy avots"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrēt Envoy vēsturi",
+        "description": "Šis vednis pāradresē atlasītos Enphase Envoy enerģijas entītiju ID uz atbilstošiem Enphase Energy sensoriem.\n\nHome Assistant Energy vēsture ir saistīta ar entītijas ID, kas tiek izmantots ilgtermiņa statistikai.\n\nPirms turpināt, izveido pilnu Home Assistant dublējumu.\n\nMigrē tikai sensorus, kas attēlo to pašu uzkrāto kopējo enerģiju.\n\nAtlasītā Envoy integrācija tiks īslaicīgi izlādēta, kamēr tiek pāradresēti entītiju ID, un pēc migrācijas tiks atjaunota.\n\nTas atjaunina entītiju reģistru un to nevar automātiski atsaukt.\n\nAtlasītais Envoy avots: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Man ir nesens Home Assistant dublējums"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Vēstures sensoru sasaistīšana",
+        "description": "Rūpīgi pārskatiet ieteiktās sasaistes. Tiek rādītas tikai saderīgas kumulatīvās enerģijas summas. Tukšie lauki tiks izlaisti.\n\nJa ieteikums ir nepareizs vai neskaidrs, notīriet to un izvēlieties manuāli.",
+        "data": {
+          "solar_production": "Saules ražošana",
+          "consumption": "Patēriņš",
+          "grid_import": "Imports no tīkla",
+          "grid_export": "Eksports uz tīklu",
+          "battery_charge": "Akumulatora uzlāde",
+          "battery_discharge": "Akumulatora izlāde"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Apstiprināt Envoy vēstures migrāciju",
+        "description": "Atlasītās avota entītijas tiks pārdēvētas par arhivētiem mantotajiem entītiju ID.\n\nPēc tam Enphase Energy entītijas tiks pārdēvētas uz sākotnējiem avota entītiju ID.\n\nJa kāda sasaiste ir nepareiza, atceliet tagad. Atjaunošana no dublējuma ir drošākais atgriešanās veids.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Es saprotu, ka atlasītie avota entītiju ID tiks pārdalīti",
+          "disable_archived_envoy_sensors": "Atspējot arhivētos avota sensorus pēc migrācijas"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Izvēlieties vai ievadiet vismaz vienu lādētāju.",
+      "backup_required": "Pirms turpināšanas ļoti ieteicams izveidot pilnu dublējumu.",
+      "confirm_required": "Apstipriniet, ka atlasītie avota entītiju ID tiks pārdalīti, pirms turpināt.",
+      "migration_no_selection": "Atlasiet vismaz vienu saderīgu enerģijas sensoru migrācijai.",
+      "migration_duplicate_selection": "Vienu un to pašu avota entītiju nevar izmantot vairāk nekā vienu reizi.",
+      "envoy_entry_loaded": "Envoy integrāciju migrācijai nevarēja īslaicīgi izlādēt.",
+      "incompatible_energy_total": "Atlasītās entītijas nav saderīgi kumulatīvie enerģijas kopsummu sensori.",
+      "new_value_lower": "Jaunā sensora vērtība ir zemāka par esošo Envoy vērtību."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Migrācijai nav pieejami Enphase Envoy enerģijas sensori.",
+      "migration_no_targets": "Migrācijai nav pieejami saderīgi Enphase Energy sensori.",
+      "migration_partial_failure": "Migrācija apstājās pēc daļējas pabeigšanas.\n\nPabeigtās sasaistes:\n{completed_mappings}\n\nKļūda, apstrādājot `{failed_entity_id}`: {failure_reason}\n\nJa rezultāts nav pieņemams, atjaunojiet no dublējuma."
+    },
+    "create_entry": {
+      "migration_success": "Migrācija pabeigta. Enphase Energy tagad izmanto atlasītos avota entītiju ID. Pēc nākamās atjaunināšanas pārbaudiet Energy informācijas paneli un Developer Tools > Statistics.",
+      "migration_success_reload_needed": "Migrācija ir pabeigta, bet vienu vai vairākas integrācijas nevarēja automātiski pārlādēt. Ja nepieciešams, manuāli pārlādējiet Enphase Energy un Enphase Envoy, pēc tam pārbaudiet Energy informācijas paneli un Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Uzlāde apturēta",
       "plugged_in": "Pieslēgts",
       "unplugged": "Atvienots"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy opcijas",
-        "description": "Pielāgot aptauju un uzvedību.",
-        "data": {
-          "type_envoy": "Vārteja",
-          "type_encharge": "Akumulators",
-          "type_iqevse": "Lādētāji",
-          "type_microinverter": "Mikroinvertori",
-          "fast_poll_interval": "Ātrs aptaujas intervāls (s)",
-          "slow_poll_interval": "Lēns aptaujas intervāls (s)",
-          "fast_while_streaming": "Dod priekšroku ātrai aptaujai, kad mākoņa straume aktīva",
-          "api_timeout": "API noildze (s)",
-          "nominal_voltage": "Nominālais spriegums (V)",
-          "session_history_interval": "Sesijas vēstures intervāls (min)",
-          "schedule_sync_enabled": "Iespējot plānotāja atbalstu",
-          "reauth": "Sākt atkārtotu autentifikāciju",
-          "forget_password": "Aizmirst saglabāto paroli",
-          "type_heatpump": "Siltumsūknis"
-        },
-        "data_description": {
-          "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
-          "type_encharge": "Ietver akumulatoru statusu un vadības entītijas, kad pieejamas.",
-          "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
-          "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
-          "fast_poll_interval": "Intervāls, ko izmantot uzlādes vai straumēšanas laikā.",
-          "slow_poll_interval": "Intervāls, ko izmantot dīkstāvē.",
-          "fast_while_streaming": "Ja iespējots, ātra aptauja aktīvas mākoņa straumes laikā.",
-          "api_timeout": "Sekundes līdz API pieprasījumu noildzei.",
-          "nominal_voltage": "Rezerves spriegums lādētāja jaudas novērtējumam.",
-          "session_history_interval": "Minūtes starp mākoņa sesiju vēstures pieprasījumiem.",
-          "schedule_sync_enabled": "Pārvaldīt Enphase grafiku pārvaldību",
-          "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
-          "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
-          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Izvēlieties vai ievadiet vismaz vienu lādētāju."
     }
   },
   "issues": {

@@ -98,6 +98,7 @@ Manual install steps: see the wiki Installation page.
 - Minimum supported Home Assistant version is `2024.12.0` (Python `3.13`+).
 - In v2.0.0, the integration display name changed to `Enphase Energy`.
 - The integration domain remains `enphase_ev`, so existing entity IDs, automations, and scripts do not require migration.
+- Users migrating from the core Enphase Envoy integration can optionally use the `Migrate Envoy history` assistant in the integration Options flow to take over compatible Energy-dashboard entity IDs. The assistant archives the migrated Envoy energy entities, swaps the entity IDs, and restores the remaining Envoy entities after the migration. Create a full Home Assistant backup first; the detailed steps are documented in [docs/migration-envoy-history.md](docs/migration-envoy-history.md).
 
 ## Authentication
 

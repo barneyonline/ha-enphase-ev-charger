@@ -116,6 +116,143 @@
       "message": "Prieš pasirinkdami planinį įkrovimą įjunkite bent vieną tvarkaraštį."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Energy parinktys",
+        "description": "Pasirinkite, ką norite daryti su šiuo integracijos įrašu.",
+        "menu_options": {
+          "settings": "Nustatymai",
+          "migrate_envoy": "Perkelti Envoy istoriją"
+        },
+        "menu_option_descriptions": {
+          "settings": "Reguliuokite apklausą ir veikimą.",
+          "migrate_envoy": "Perimkite pasirinktus Enphase Envoy energijos objektų ID, kad Home Assistant Energy istorija tęstųsi šioje integracijoje."
+        },
+        "data": {
+          "type_envoy": "Šliuzas",
+          "type_encharge": "Baterija",
+          "type_iqevse": "Įkrovikliai",
+          "type_microinverter": "Mikroinverteriai",
+          "fast_poll_interval": "Greitas apklausos intervalas (s)",
+          "slow_poll_interval": "Lėtas apklausos intervalas (s)",
+          "fast_while_streaming": "Pirmenybė greitai apklausai, kai aktyvi debesies srauto funkcija",
+          "api_timeout": "API užklausos laiko limitas (s)",
+          "nominal_voltage": "Nominali įtampa (V)",
+          "session_history_interval": "Sesijos istorijos intervalas (min)",
+          "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
+          "reauth": "Pradėti perautentifikavimą",
+          "forget_password": "Pamiršti išsaugotą slaptažodį",
+          "type_heatpump": "Šilumos siurblys"
+        },
+        "data_description": {
+          "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
+          "type_encharge": "Apima baterijų būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
+          "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
+          "fast_poll_interval": "Intervalas, kai įkraunama arba transliuojama.",
+          "slow_poll_interval": "Intervalas, kai nenaudojama.",
+          "fast_while_streaming": "Kai įjungta, greita apklausa aktyvios debesies transliacijos metu.",
+          "api_timeout": "Sekundės iki API užklausų laiko limito pabaigos.",
+          "nominal_voltage": "Atsarginė įtampa įkroviklio galios įverčiui.",
+          "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
+          "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
+          "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
+          "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
+          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy parinktys",
+        "description": "Reguliuoti apklausą ir elgseną.",
+        "data": {
+          "type_envoy": "Šliuzas",
+          "type_encharge": "Baterija",
+          "type_iqevse": "Įkrovikliai",
+          "type_microinverter": "Mikroinverteriai",
+          "fast_poll_interval": "Greitas apklausos intervalas (s)",
+          "slow_poll_interval": "Lėtas apklausos intervalas (s)",
+          "fast_while_streaming": "Pirmenybė greitai apklausai, kai aktyvi debesies srauto funkcija",
+          "api_timeout": "API užklausos laiko limitas (s)",
+          "nominal_voltage": "Nominali įtampa (V)",
+          "session_history_interval": "Sesijos istorijos intervalas (min)",
+          "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
+          "reauth": "Pradėti perautentifikavimą",
+          "forget_password": "Pamiršti išsaugotą slaptažodį",
+          "type_heatpump": "Šilumos siurblys"
+        },
+        "data_description": {
+          "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
+          "type_encharge": "Apima baterijų būseną ir valdymo esybes, kai jos pasiekiamos.",
+          "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
+          "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
+          "fast_poll_interval": "Intervalas, kai įkraunama arba transliuojama.",
+          "slow_poll_interval": "Intervalas, kai nenaudojama.",
+          "fast_while_streaming": "Kai įjungta, greita apklausa aktyvios debesies transliacijos metu.",
+          "api_timeout": "Sekundės iki API užklausų laiko limito pabaigos.",
+          "nominal_voltage": "Atsarginė įtampa įkroviklio galios įverčiui.",
+          "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
+          "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
+          "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
+          "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
+          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Pasirinkti Envoy šaltinį",
+        "description": "Pasirinkite, iš kurio Enphase Envoy įrašo migruoti.",
+        "data": {
+          "selected_envoy_source": "Envoy šaltinis"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Perkelti Envoy istoriją",
+        "description": "Šis vedlys perkelia pasirinktus Enphase Envoy energijos objektų ID į atitinkamus Enphase Energy jutiklius.\n\nHome Assistant Energy istorija susieta su objekto ID, naudojamu ilgalaikei statistikai.\n\nPrieš tęsdami sukurkite visą Home Assistant atsarginę kopiją.\n\nMigruokite tik jutiklius, kurie žymi tą pačią sukauptą bendrą energiją.\n\nPasirinkta Envoy integracija bus laikinai iškrauta, kol bus perpriskirti objektų ID, o po migracijos bus atkurta.\n\nTai atnaujina objektų registrą ir negali būti automatiškai atšaukta.\n\nPasirinktas Envoy šaltinis: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Turiu naują Home Assistant atsarginę kopiją"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Susieti istorijos jutiklius",
+        "description": "Atidžiai peržiūrėkite siūlomus susiejimus. Rodomos tik suderinamos kaupiamosios energijos sumos. Tušti laukai bus praleisti.\n\nJei pasiūlymas neteisingas arba neaiškus, išvalykite jį ir pasirinkite rankiniu būdu.",
+        "data": {
+          "solar_production": "Saulės gamyba",
+          "consumption": "Suvartojimas",
+          "grid_import": "Importas iš tinklo",
+          "grid_export": "Eksportas į tinklą",
+          "battery_charge": "Baterijos įkrovimas",
+          "battery_discharge": "Baterijos iškrovimas"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Patvirtinti Envoy istorijos migraciją",
+        "description": "Pasirinkti šaltinio objektai bus pervadinti į archyvuotus senus objektų identifikatorius.\n\nTuomet Enphase Energy objektai bus pervadinti į pradinius šaltinio objektų identifikatorius.\n\nJei kuris nors susiejimas neteisingas, atšaukite dabar. Atkūrimas iš atsarginės kopijos yra saugiausias būdas grįžti atgal.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Suprantu, kad pasirinkti šaltinio objektų identifikatoriai bus priskirti iš naujo",
+          "disable_archived_envoy_sensors": "Išjungti archyvuotus šaltinio jutiklius po migracijos"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Pasirinkite arba įveskite bent vieną įkroviklį.",
+      "backup_required": "Prieš tęsiant labai rekomenduojama sukurti pilną atsarginę kopiją.",
+      "confirm_required": "Prieš tęsdami patvirtinkite, kad pasirinkti šaltinio objektų identifikatoriai bus priskirti iš naujo.",
+      "migration_no_selection": "Pasirinkite bent vieną suderinamą energijos jutiklį migracijai.",
+      "migration_duplicate_selection": "Tas pats šaltinio objektas negali būti naudojamas daugiau nei vieną kartą.",
+      "envoy_entry_loaded": "Envoy integracijos nepavyko laikinai iškrauti migracijai.",
+      "incompatible_energy_total": "Pasirinkti objektai nėra suderinami kaupiamosios energijos kiekiai.",
+      "new_value_lower": "Nauja jutiklio reikšmė yra mažesnė už esamą Envoy reikšmę."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Nėra Enphase Envoy energijos jutiklių, kuriuos būtų galima migruoti.",
+      "migration_no_targets": "Nėra suderinamų Enphase Energy jutiklių, kuriuos būtų galima migruoti.",
+      "migration_partial_failure": "Migracija sustojo po dalinio užbaigimo.\n\nUžbaigti susiejimai:\n{completed_mappings}\n\nNepavyko apdoroti `{failed_entity_id}`: {failure_reason}\n\nJei rezultatas netenkina, atkurkite atsarginę kopiją."
+    },
+    "create_entry": {
+      "migration_success": "Migracija baigta. Enphase Energy dabar naudoja pasirinktus šaltinio objektų identifikatorius. Po kito atnaujinimo patikrinkite Energy skydelį ir Developer Tools > Statistics.",
+      "migration_success_reload_needed": "Migracija baigta, tačiau viena ar daugiau integracijų nebuvo automatiškai įkeltos iš naujo. Jei reikia, rankiniu būdu iš naujo įkelkite Enphase Energy ir Enphase Envoy, tada patikrinkite Energy skydelį ir Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Įkrovimas sustabdytas",
       "plugged_in": "Prijungta",
       "unplugged": "Atjungta"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy parinktys",
-        "description": "Reguliuoti apklausą ir elgseną.",
-        "data": {
-          "type_envoy": "Šliuzas",
-          "type_encharge": "Baterija",
-          "type_iqevse": "Įkrovikliai",
-          "type_microinverter": "Mikroinverteriai",
-          "fast_poll_interval": "Greitas apklausos intervalas (s)",
-          "slow_poll_interval": "Lėtas apklausos intervalas (s)",
-          "fast_while_streaming": "Pirmenybė greitai apklausai, kai aktyvi debesies srauto funkcija",
-          "api_timeout": "API užklausos laiko limitas (s)",
-          "nominal_voltage": "Nominali įtampa (V)",
-          "session_history_interval": "Sesijos istorijos intervalas (min)",
-          "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
-          "reauth": "Pradėti perautentifikavimą",
-          "forget_password": "Pamiršti išsaugotą slaptažodį",
-          "type_heatpump": "Šilumos siurblys"
-        },
-        "data_description": {
-          "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
-          "type_encharge": "Apima baterijų būseną ir valdymo esybes, kai jos pasiekiamos.",
-          "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
-          "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
-          "fast_poll_interval": "Intervalas, kai įkraunama arba transliuojama.",
-          "slow_poll_interval": "Intervalas, kai nenaudojama.",
-          "fast_while_streaming": "Kai įjungta, greita apklausa aktyvios debesies transliacijos metu.",
-          "api_timeout": "Sekundės iki API užklausų laiko limito pabaigos.",
-          "nominal_voltage": "Atsarginė įtampa įkroviklio galios įverčiui.",
-          "session_history_interval": "Minutės, kurias reikia palaukti tarp debesies sesijų istorijos užklausų.",
-          "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
-          "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
-          "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
-          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Pasirinkite arba įveskite bent vieną įkroviklį."
     }
   },
   "issues": {

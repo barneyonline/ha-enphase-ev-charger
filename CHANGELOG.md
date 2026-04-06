@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added an optional `Migrate Envoy history` assistant to the integration Options flow. It can take over selected Enphase Envoy energy entity IDs for compatible site energy sensors so Home Assistant Energy history can continue under this integration, with backup warnings, explicit confirmation, validation, Envoy-to-Enphase mapping suggestions, archived legacy Envoy energy entities, and automatic Envoy unload/reload so other Envoy entities remain available after migration.
 
 ### 🐛 Bug fixes
 - None

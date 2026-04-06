@@ -116,6 +116,143 @@
       "message": "Schakel ten minste één schema in voordat je Gepland laden selecteert."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Energy-opties",
+        "description": "Kies wat je met deze integratie-invoer wilt doen.",
+        "menu_options": {
+          "settings": "Instellingen",
+          "migrate_envoy": "Envoy-geschiedenis migreren"
+        },
+        "menu_option_descriptions": {
+          "settings": "Pas polling en gedrag aan.",
+          "migrate_envoy": "Neem geselecteerde energie-entiteit-ID's van Enphase Envoy over zodat de Home Assistant Energy-geschiedenis onder deze integratie doorgaat."
+        },
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batterij",
+          "type_iqevse": "Laders",
+          "type_microinverter": "Micro-omvormers",
+          "fast_poll_interval": "Snelle polling-interval (s)",
+          "slow_poll_interval": "Langzame polling-interval (s)",
+          "fast_while_streaming": "Geef voorkeur aan snelle polling terwijl cloudstream actief is",
+          "api_timeout": "API-time-out (s)",
+          "nominal_voltage": "Nominale spanning (V)",
+          "session_history_interval": "Sessieverleden-interval (min)",
+          "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
+          "reauth": "Herautenticatie starten",
+          "forget_password": "Opgeslagen wachtwoord vergeten",
+          "type_heatpump": "Warmtepomp"
+        },
+        "data_description": {
+          "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
+          "type_encharge": "Bevat batterijstatus en bedieningsentiteiten wanneer beschikbaar.",
+          "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
+          "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
+          "fast_poll_interval": "Interval voor gebruik tijdens laden of streamen.",
+          "slow_poll_interval": "Interval voor gebruik bij inactiviteit.",
+          "fast_while_streaming": "Wanneer ingeschakeld, snelle polling tijdens actieve cloudstreaming.",
+          "api_timeout": "Seconden voordat API-aanvragen een time-out krijgen.",
+          "nominal_voltage": "Fallbackspanning voor het schatten van laadvermogen.",
+          "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
+          "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
+          "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
+          "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy-opties",
+        "description": "Stem polling en gedrag af.",
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batterij",
+          "type_iqevse": "Laders",
+          "type_microinverter": "Micro-omvormers",
+          "fast_poll_interval": "Snelle polling-interval (s)",
+          "slow_poll_interval": "Langzame polling-interval (s)",
+          "fast_while_streaming": "Geef voorkeur aan snelle polling terwijl cloudstream actief is",
+          "api_timeout": "API-time-out (s)",
+          "nominal_voltage": "Nominale spanning (V)",
+          "session_history_interval": "Sessieverleden-interval (min)",
+          "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
+          "reauth": "Herautenticatie starten",
+          "forget_password": "Opgeslagen wachtwoord vergeten",
+          "type_heatpump": "Warmtepomp"
+        },
+        "data_description": {
+          "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
+          "type_encharge": "Bevat batterijstatus en bedieningsentiteiten wanneer beschikbaar.",
+          "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
+          "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
+          "fast_poll_interval": "Interval voor gebruik tijdens laden of streamen.",
+          "slow_poll_interval": "Interval voor gebruik bij inactiviteit.",
+          "fast_while_streaming": "Wanneer ingeschakeld, snelle polling tijdens actieve cloudstreaming.",
+          "api_timeout": "Seconden voordat API-aanvragen een time-out krijgen.",
+          "nominal_voltage": "Fallbackspanning voor het schatten van laadvermogen.",
+          "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
+          "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
+          "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
+          "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Envoy-bron selecteren",
+        "description": "Kies vanuit welke Enphase Envoy-invoer je wilt migreren.",
+        "data": {
+          "selected_envoy_source": "Envoy-bron"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Envoy-geschiedenis migreren",
+        "description": "Deze assistent wijst geselecteerde energie-entiteit-ID’s van Enphase Envoy opnieuw toe aan overeenkomende Enphase Energy-sensoren.\n\nDe geschiedenis van Home Assistant Energy is gekoppeld aan de entiteit-ID die voor langetermijnstatistieken wordt gebruikt.\n\nMaak een volledige back-up van Home Assistant voordat je doorgaat.\n\nMigreer alleen sensoren die dezelfde cumulatieve energietotaal vertegenwoordigen.\n\nDe geselecteerde Envoy-integratie wordt tijdelijk ontladen terwijl de entiteit-ID’s opnieuw worden toegewezen en daarna na de migratie hersteld.\n\nHiermee wordt het entiteitenregister bijgewerkt en dit kan niet automatisch ongedaan worden gemaakt.\n\nGeselecteerde Envoy-bron: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Ik heb een recente Home Assistant-back-up"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Geschiedenissensoren koppelen",
+        "description": "Controleer de voorgestelde koppelingen zorgvuldig. Alleen compatibele cumulatieve energietotalen worden getoond. Lege velden worden overgeslagen.\n\nAls een suggestie onjuist of onduidelijk is, wis die dan en kies handmatig.",
+        "data": {
+          "solar_production": "Zonneproductie",
+          "consumption": "Verbruik",
+          "grid_import": "Netimport",
+          "grid_export": "Netexport",
+          "battery_charge": "Batterijlading",
+          "battery_discharge": "Batterijontlading"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Migratie van Envoy-geschiedenis bevestigen",
+        "description": "De geselecteerde bron-entiteiten worden hernoemd naar gearchiveerde oude entiteits-ID's.\n\nDe Enphase Energy-entiteiten worden daarna hernoemd naar de oorspronkelijke bron-entiteits-ID's.\n\nAls een koppeling onjuist is, annuleer dan nu. Herstellen vanaf een back-up is de veiligste manier om terug te draaien.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Ik begrijp dat de geselecteerde bron-entiteits-ID's opnieuw worden toegewezen",
+          "disable_archived_envoy_sensors": "Gearchiveerde bronsensoren uitschakelen na de migratie"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Selecteer of voer ten minste één lader in.",
+      "backup_required": "Het wordt sterk aanbevolen om een volledige back-up te maken voordat je doorgaat.",
+      "confirm_required": "Bevestig dat de geselecteerde bron-entiteits-ID's opnieuw worden toegewezen voordat je doorgaat.",
+      "migration_no_selection": "Selecteer ten minste één compatibele energiesensor om te migreren.",
+      "migration_duplicate_selection": "Dezelfde bron-entiteit kan niet meer dan één keer worden gebruikt.",
+      "envoy_entry_loaded": "De Envoy-integratie kon niet tijdelijk worden ontladen voor de migratie.",
+      "incompatible_energy_total": "De geselecteerde entiteiten zijn geen compatibele cumulatieve energietotalen.",
+      "new_value_lower": "De nieuwe sensorwaarde is lager dan de bestaande Envoy-waarde."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Er zijn geen Enphase Envoy-energiesensoren beschikbaar om te migreren.",
+      "migration_no_targets": "Er zijn geen compatibele Enphase Energy-sensoren beschikbaar om te migreren.",
+      "migration_partial_failure": "De migratie is gestopt na gedeeltelijke voltooiing.\n\nVoltooide koppelingen:\n{completed_mappings}\n\nMislukt tijdens verwerken van `{failed_entity_id}`: {failure_reason}\n\nHerstel vanaf een back-up als het resultaat niet acceptabel is."
+    },
+    "create_entry": {
+      "migration_success": "Migratie voltooid. Enphase Energy bezit nu de geselecteerde bron-entiteits-ID's. Controleer het Energy-dashboard en Developer Tools > Statistics na de volgende vernieuwing.",
+      "migration_success_reload_needed": "De migratie is voltooid, maar een of meer integraties konden niet automatisch opnieuw worden geladen. Laad Enphase Energy en Enphase Envoy indien nodig handmatig opnieuw en controleer daarna het Energy-dashboard en Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Laden gestopt",
       "plugged_in": "Ingeplugd",
       "unplugged": "Uitgeplugd"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy-opties",
-        "description": "Stem polling en gedrag af.",
-        "data": {
-          "type_envoy": "Gateway",
-          "type_encharge": "Batterij",
-          "type_iqevse": "Laders",
-          "type_microinverter": "Micro-omvormers",
-          "fast_poll_interval": "Snelle polling-interval (s)",
-          "slow_poll_interval": "Langzame polling-interval (s)",
-          "fast_while_streaming": "Geef voorkeur aan snelle polling terwijl cloudstream actief is",
-          "api_timeout": "API-time-out (s)",
-          "nominal_voltage": "Nominale spanning (V)",
-          "session_history_interval": "Sessieverleden-interval (min)",
-          "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
-          "reauth": "Herautenticatie starten",
-          "forget_password": "Opgeslagen wachtwoord vergeten",
-          "type_heatpump": "Warmtepomp"
-        },
-        "data_description": {
-          "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
-          "type_encharge": "Bevat batterijstatus en bedieningsentiteiten wanneer beschikbaar.",
-          "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
-          "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
-          "fast_poll_interval": "Interval voor gebruik tijdens laden of streamen.",
-          "slow_poll_interval": "Interval voor gebruik bij inactiviteit.",
-          "fast_while_streaming": "Wanneer ingeschakeld, snelle polling tijdens actieve cloudstreaming.",
-          "api_timeout": "Seconden voordat API-aanvragen een time-out krijgen.",
-          "nominal_voltage": "Fallbackspanning voor het schatten van laadvermogen.",
-          "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
-          "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
-          "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
-          "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
-          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Selecteer of voer ten minste één lader in."
     }
   },
   "issues": {

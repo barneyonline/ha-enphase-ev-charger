@@ -116,6 +116,143 @@
       "message": "Habilita al menos un horario antes de seleccionar la carga programada."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de Enphase Energy",
+        "description": "Elige qué quieres hacer con esta entrada de integración.",
+        "menu_options": {
+          "settings": "Ajustes",
+          "migrate_envoy": "Migrar historial de Envoy"
+        },
+        "menu_option_descriptions": {
+          "settings": "Ajusta el sondeo y el comportamiento.",
+          "migrate_envoy": "Asume los identificadores de entidad de energía seleccionados de Enphase Envoy para que el historial de Home Assistant Energy continúe con esta integración."
+        },
+        "data": {
+          "type_envoy": "Puerta de enlace",
+          "type_encharge": "Batería",
+          "type_iqevse": "Cargadores",
+          "type_microinverter": "Microinversores",
+          "fast_poll_interval": "Intervalo de sondeo rápido (s)",
+          "slow_poll_interval": "Intervalo de sondeo lento (s)",
+          "fast_while_streaming": "Preferir sondeo rápido mientras el flujo en la nube esté activo",
+          "api_timeout": "Tiempo de espera de API (s)",
+          "nominal_voltage": "Voltaje nominal (V)",
+          "session_history_interval": "Intervalo del historial de sesiones (min)",
+          "schedule_sync_enabled": "Habilitar la compatibilidad con el programador",
+          "reauth": "Iniciar reautenticación",
+          "forget_password": "Olvidar contraseña almacenada",
+          "type_heatpump": "Bomba de calor"
+        },
+        "data_description": {
+          "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
+          "type_encharge": "Incluye estado de baterías y entidades de control cuando estén disponibles.",
+          "type_iqevse": "Incluye entidades y controles de cargadores EV.",
+          "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
+          "fast_poll_interval": "Intervalo que se usa durante la carga o cuando hay streaming.",
+          "slow_poll_interval": "Intervalo que se usa cuando está inactivo.",
+          "fast_while_streaming": "Si se activa, realiza sondeo rápido durante el streaming en la nube.",
+          "api_timeout": "Segundos antes de que las solicitudes a la API agoten el tiempo de espera.",
+          "nominal_voltage": "Voltaje de respaldo para estimar la potencia del cargador.",
+          "session_history_interval": "Minutos de espera entre obtenciones del historial de sesiones en la nube.",
+          "schedule_sync_enabled": "Gestionar la gestión de horarios de Enphase",
+          "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
+          "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática.",
+          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor."
+        }
+      },
+      "settings": {
+        "title": "Opciones de Enphase Energy",
+        "description": "Ajuste el sondeo y el comportamiento.",
+        "data": {
+          "type_envoy": "Puerta de enlace",
+          "type_encharge": "Batería",
+          "type_iqevse": "Cargadores",
+          "type_microinverter": "Microinversores",
+          "fast_poll_interval": "Intervalo de sondeo rápido (s)",
+          "slow_poll_interval": "Intervalo de sondeo lento (s)",
+          "fast_while_streaming": "Preferir sondeo rápido mientras el flujo en la nube esté activo",
+          "api_timeout": "Tiempo de espera de API (s)",
+          "nominal_voltage": "Voltaje nominal (V)",
+          "session_history_interval": "Intervalo del historial de sesiones (min)",
+          "schedule_sync_enabled": "Habilitar la compatibilidad con el programador",
+          "reauth": "Iniciar reautenticación",
+          "forget_password": "Olvidar contraseña almacenada",
+          "type_heatpump": "Bomba de calor"
+        },
+        "data_description": {
+          "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
+          "type_encharge": "Incluye estado de baterías y entidades de control cuando estén disponibles.",
+          "type_iqevse": "Incluye entidades y controles de cargadores EV.",
+          "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
+          "fast_poll_interval": "Intervalo que se usa durante la carga o cuando hay streaming.",
+          "slow_poll_interval": "Intervalo que se usa cuando está inactivo.",
+          "fast_while_streaming": "Si se activa, realiza sondeo rápido durante el streaming en la nube.",
+          "api_timeout": "Segundos antes de que las solicitudes a la API agoten el tiempo de espera.",
+          "nominal_voltage": "Voltaje de respaldo para estimar la potencia del cargador.",
+          "session_history_interval": "Minutos de espera entre obtenciones del historial de sesiones en la nube.",
+          "schedule_sync_enabled": "Gestionar la gestión de horarios de Enphase",
+          "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
+          "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática.",
+          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Seleccionar origen Envoy",
+        "description": "Elige desde qué entrada de Enphase Envoy quieres migrar.",
+        "data": {
+          "selected_envoy_source": "Origen Envoy"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrar historial de Envoy",
+        "description": "Este asistente reasigna los identificadores de entidad de energía seleccionados de Enphase Envoy a sensores equivalentes de Enphase Energy.\n\nEl historial de Home Assistant Energy está vinculado al identificador de entidad usado para las estadísticas a largo plazo.\n\nCrea una copia de seguridad completa de Home Assistant antes de continuar.\n\nMigra solo sensores que representen el mismo total acumulado de energía.\n\nLa integración Envoy seleccionada se descargará temporalmente mientras se reasignan los identificadores de entidad y se restaurará después de la migración.\n\nEsto actualiza el registro de entidades y no puede revertirse automáticamente.\n\nOrigen de Envoy seleccionado: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Tengo una copia de seguridad reciente de Home Assistant"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Asignar sensores de historial",
+        "description": "Revisa cuidadosamente las asignaciones sugeridas. Solo se muestran totales de energía acumulados compatibles. Los campos vacíos se omitirán.\n\nSi una sugerencia es incorrecta o no está clara, bórrala y elige manualmente.",
+        "data": {
+          "solar_production": "Producción solar",
+          "consumption": "Consumo",
+          "grid_import": "Importación de red",
+          "grid_export": "Exportación a red",
+          "battery_charge": "Carga de batería",
+          "battery_discharge": "Descarga de batería"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Confirmar migración del historial de Envoy",
+        "description": "Las entidades de origen seleccionadas se renombrarán a identificadores de entidad heredados archivados.\n\nLas entidades de Enphase Energy se renombrarán después a los identificadores originales de las entidades de origen.\n\nSi alguna asignación es incorrecta, cancela ahora. Restaurar desde una copia de seguridad es la forma más segura de revertirlo.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Entiendo que los identificadores de entidad de origen seleccionados se reasignarán",
+          "disable_archived_envoy_sensors": "Desactivar los sensores de origen archivados después de la migración"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Seleccione o introduzca al menos un cargador.",
+      "backup_required": "Se recomienda encarecidamente crear una copia de seguridad completa antes de continuar.",
+      "confirm_required": "Confirma que los identificadores de entidad de origen seleccionados se reasignarán antes de continuar.",
+      "migration_no_selection": "Selecciona al menos un sensor de energía compatible para migrar.",
+      "migration_duplicate_selection": "La misma entidad de origen no se puede usar más de una vez.",
+      "envoy_entry_loaded": "No se pudo descargar temporalmente la integración Envoy para la migración.",
+      "incompatible_energy_total": "Las entidades seleccionadas no son totales de energía compatibles.",
+      "new_value_lower": "El nuevo valor del sensor es inferior al valor existente de Envoy."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "No hay sensores de energía de Enphase Envoy disponibles para migrar.",
+      "migration_no_targets": "No hay sensores compatibles de Enphase Energy disponibles para migrar.",
+      "migration_partial_failure": "La migración se detuvo tras completarse parcialmente.\n\nAsignaciones completadas:\n{completed_mappings}\n\nFalló al procesar `{failed_entity_id}`: {failure_reason}\n\nRestaura desde la copia de seguridad si el resultado no es aceptable."
+    },
+    "create_entry": {
+      "migration_success": "Migración completada. Enphase Energy ahora posee los identificadores de entidad de origen seleccionados. Verifica el panel de Energy y Developer Tools > Statistics después de la próxima actualización.",
+      "migration_success_reload_needed": "La migración se completó, pero una o más integraciones no se pudieron recargar automáticamente. Recarga manualmente Enphase Energy y Enphase Envoy si es necesario y luego verifica el panel de Energy y Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Carga detenida",
       "plugged_in": "Conectado",
       "unplugged": "Desconectado"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Opciones de Enphase Energy",
-        "description": "Ajuste el sondeo y el comportamiento.",
-        "data": {
-          "type_envoy": "Puerta de enlace",
-          "type_encharge": "Batería",
-          "type_iqevse": "Cargadores",
-          "type_microinverter": "Microinversores",
-          "fast_poll_interval": "Intervalo de sondeo rápido (s)",
-          "slow_poll_interval": "Intervalo de sondeo lento (s)",
-          "fast_while_streaming": "Preferir sondeo rápido mientras el flujo en la nube esté activo",
-          "api_timeout": "Tiempo de espera de API (s)",
-          "nominal_voltage": "Voltaje nominal (V)",
-          "session_history_interval": "Intervalo del historial de sesiones (min)",
-          "schedule_sync_enabled": "Habilitar la compatibilidad con el programador",
-          "reauth": "Iniciar reautenticación",
-          "forget_password": "Olvidar contraseña almacenada",
-          "type_heatpump": "Bomba de calor"
-        },
-        "data_description": {
-          "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
-          "type_encharge": "Incluye estado de baterías y entidades de control cuando estén disponibles.",
-          "type_iqevse": "Incluye entidades y controles de cargadores EV.",
-          "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
-          "fast_poll_interval": "Intervalo que se usa durante la carga o cuando hay streaming.",
-          "slow_poll_interval": "Intervalo que se usa cuando está inactivo.",
-          "fast_while_streaming": "Si se activa, realiza sondeo rápido durante el streaming en la nube.",
-          "api_timeout": "Segundos antes de que las solicitudes a la API agoten el tiempo de espera.",
-          "nominal_voltage": "Voltaje de respaldo para estimar la potencia del cargador.",
-          "session_history_interval": "Minutos de espera entre obtenciones del historial de sesiones en la nube.",
-          "schedule_sync_enabled": "Gestionar la gestión de horarios de Enphase",
-          "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
-          "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática.",
-          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Seleccione o introduzca al menos un cargador."
     }
   },
   "issues": {

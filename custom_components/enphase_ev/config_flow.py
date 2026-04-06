@@ -64,6 +64,27 @@ from .device_types import (
     member_is_retired,
     normalize_type_key,
 )
+from .envoy_history import (
+    EnvoyHistoryCandidate,
+    EnvoyHistorySource,
+    EnvoyHistoryTarget,
+    candidate_options,
+    discover_enphase_targets,
+    discover_external_migration_candidates,
+    discover_envoy_sources,
+    execute_takeover,
+    format_completed_preview,
+    format_mapping_preview,
+    format_selection_preview,
+    migration_flow_fields,
+    selection_uses_source,
+    selected_mappings,
+    skip_option_value,
+    source_by_entry_id,
+    source_options,
+    suggest_mappings,
+    validate_selected_mappings,
+)
 from .log_redaction import redact_text
 from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
 
@@ -77,6 +98,10 @@ CONF_TYPE_ENCHARGE = "type_encharge"
 CONF_TYPE_IQEVSE = "type_iqevse"
 CONF_TYPE_HEATPUMP = "type_heatpump"
 CONF_TYPE_MICROINVERTER = "type_microinverter"
+CONF_MIGRATION_SOURCE_ENTRY = "selected_envoy_source"
+CONF_MIGRATION_BACKUP_CONFIRMED = "backup_confirmed"
+CONF_MIGRATION_CONFIRM_REASSIGN = "confirm_reassign"
+CONF_MIGRATION_DISABLE_ARCHIVED = "disable_archived_envoy_sensors"
 
 _TYPE_FIELD_BY_KEY: dict[str, str] = {
     "envoy": CONF_TYPE_ENVOY,
@@ -948,6 +973,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         super().__init__()
         self._entry = config_entry
+        self._migration_sources: list[EnvoyHistorySource] | None = None
+        self._migration_targets: dict[str, EnvoyHistoryTarget] | None = None
+        self._migration_extra_candidates: list[EnvoyHistoryCandidate] | None = None
+        self._selected_migration_source_id: str | None = None
+        self._migration_selection: dict[str, str] = {}
 
     @staticmethod
     def _normalize_serials(value: Any) -> list[str]:
@@ -1046,7 +1076,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         return resolve_nominal_voltage_for_hass(self.hass)
 
-    def _build_schema(self) -> vol.Schema:
+    def _build_settings_schema(self) -> vol.Schema:
         default_selected_type_keys = self._default_selected_type_keys()
         nominal_default = self._default_nominal_voltage()
         schema_fields: dict[vol.Marker, object] = {}
@@ -1101,6 +1131,120 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         base_schema = vol.Schema(schema_fields)
         return self.add_suggested_values_to_schema(base_schema, self._entry.options)
 
+    def _build_schema(self) -> vol.Schema:
+        """Backward-compatible alias for tests and legacy direct calls."""
+
+        return self._build_settings_schema()
+
+    async def _load_migration_sources(self) -> list[EnvoyHistorySource]:
+        if self._migration_sources is None:
+            self._migration_sources = await discover_envoy_sources(self.hass)
+        return self._migration_sources
+
+    def _load_migration_targets(self) -> dict[str, EnvoyHistoryTarget]:
+        if self._migration_targets is None:
+            self._migration_targets = discover_enphase_targets(self.hass, self._entry)
+        return self._migration_targets
+
+    async def _load_migration_extra_candidates(self) -> list[EnvoyHistoryCandidate]:
+        if self._migration_extra_candidates is None:
+            self._migration_extra_candidates = (
+                await discover_external_migration_candidates(self.hass, self._entry)
+            )
+        return self._migration_extra_candidates
+
+    async def _selected_migration_source(self) -> EnvoyHistorySource | None:
+        return source_by_entry_id(
+            await self._load_migration_sources(), self._selected_migration_source_id
+        )
+
+    async def _async_reload_migration_source_entry(
+        self,
+        source: EnvoyHistorySource,
+        source_entry: ConfigEntry | None,
+    ) -> bool:
+        if source_entry is None:
+            return True
+        try:
+            reloaded = await self.hass.config_entries.async_reload(source.entry_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed reloading Envoy source entry after migration: %s",
+                redact_text(err),
+            )
+            return False
+        if reloaded:
+            object.__setattr__(
+                source_entry,
+                "state",
+                config_entries.ConfigEntryState.LOADED,
+            )
+        return reloaded
+
+    def _migration_flow_keys(self) -> tuple[str, ...]:
+        targets = self._load_migration_targets()
+        return tuple(
+            flow_key for flow_key in migration_flow_fields() if flow_key in targets
+        )
+
+    def _build_migration_source_schema(
+        self, sources: list[EnvoyHistorySource]
+    ) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required(CONF_MIGRATION_SOURCE_ENTRY): selector(
+                    {
+                        "select": {
+                            "options": source_options(sources),
+                            "mode": "dropdown",
+                        }
+                    }
+                )
+            }
+        )
+
+    def _build_migration_intro_schema(self) -> vol.Schema:
+        return vol.Schema(
+            {vol.Required(CONF_MIGRATION_BACKUP_CONFIRMED, default=False): bool}
+        )
+
+    def _build_migration_mapping_schema(
+        self,
+        source: EnvoyHistorySource,
+        extra_candidates: list[EnvoyHistoryCandidate],
+        defaults: dict[str, str] | None = None,
+    ) -> vol.Schema:
+        defaults = defaults or {}
+        field_schema: dict[vol.Marker, object] = {}
+        selector_config = {
+            "select": {
+                "options": candidate_options(source, extra_candidates),
+                "mode": "dropdown",
+            }
+        }
+        for flow_key in self._migration_flow_keys():
+            default_value = defaults.get(flow_key)
+            marker = (
+                vol.Optional(flow_key)
+                if default_value is None
+                else vol.Optional(flow_key, default=default_value)
+            )
+            field_schema[marker] = selector(selector_config)
+        return vol.Schema(field_schema)
+
+    def _build_migration_confirm_schema(
+        self, *, disable_archived_default: bool
+    ) -> vol.Schema:
+        return vol.Schema(
+            {
+                vol.Required(CONF_MIGRATION_CONFIRM_REASSIGN, default=False): bool,
+                vol.Required(
+                    CONF_MIGRATION_DISABLE_ARCHIVED,
+                    default=disable_archived_default,
+                ): bool,
+            }
+        )
+
     async def _discover_iqevse_serials(self) -> list[str]:
         site_id = str(self._entry.data.get(CONF_SITE_ID, "")).strip()
         if not site_id:
@@ -1135,7 +1279,17 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        schema = self._build_schema()
+        if user_input is not None:
+            return await self.async_step_settings(user_input)
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["settings", "migrate_envoy"],
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        schema = self._build_settings_schema()
         if user_input is not None:
             option_data = dict(user_input)
             forget_password = bool(option_data.pop("forget_password", False))
@@ -1168,10 +1322,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 serials = await self._discover_iqevse_serials()
                 if not serials:
                     error_schema = self.add_suggested_values_to_schema(
-                        self._build_schema(), user_input
+                        self._build_settings_schema(), user_input
                     )
                     return self.async_show_form(
-                        step_id="init",
+                        step_id="settings",
                         data_schema=error_schema,
                         errors={"base": "serials_required"},
                     )
@@ -1194,4 +1348,249 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 self._entry.async_start_reauth(self.hass, data=new_data)
             return self.async_create_entry(data=option_data)
 
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="settings", data_schema=schema)
+
+    async def async_step_migrate_envoy(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        del user_input
+        sources = await self._load_migration_sources()
+        targets = self._load_migration_targets()
+        if not sources:
+            return self.async_abort(reason="migration_no_envoy_sources")
+        if not targets:
+            return self.async_abort(reason="migration_no_targets")
+        if len(sources) == 1:
+            self._selected_migration_source_id = sources[0].entry_id
+            return await self.async_step_migrate_envoy_intro()
+        return await self.async_step_migrate_envoy_source()
+
+    async def async_step_migrate_envoy_source(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        sources = await self._load_migration_sources()
+        if user_input is not None:
+            self._selected_migration_source_id = user_input.get(
+                CONF_MIGRATION_SOURCE_ENTRY
+            )
+            self._migration_selection = {}
+            return await self.async_step_migrate_envoy_intro()
+
+        return self.async_show_form(
+            step_id="migrate_envoy_source",
+            data_schema=self._build_migration_source_schema(sources),
+        )
+
+    async def async_step_migrate_envoy_intro(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        source = await self._selected_migration_source()
+        if source is None:
+            return await self.async_step_migrate_envoy()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if bool(user_input.get(CONF_MIGRATION_BACKUP_CONFIRMED)):
+                return await self.async_step_migrate_envoy_mapping()
+            errors["base"] = "backup_required"
+
+        return self.async_show_form(
+            step_id="migrate_envoy_intro",
+            data_schema=self._build_migration_intro_schema(),
+            errors=errors,
+            description_placeholders={
+                "source_title": source.title,
+            },
+        )
+
+    async def async_step_migrate_envoy_mapping(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        source = await self._selected_migration_source()
+        if source is None:
+            return await self.async_step_migrate_envoy()
+        extra_candidates = await self._load_migration_extra_candidates()
+
+        defaults = dict(self._migration_selection)
+        if not defaults:
+            defaults.update(
+                suggest_mappings(
+                    source,
+                    self._load_migration_targets(),
+                    extra_candidates,
+                )
+            )
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._migration_selection = selected_mappings(user_input)
+            defaults = {
+                flow_key: str(user_input.get(flow_key, skip_option_value()))
+                for flow_key in self._migration_flow_keys()
+            }
+            validation = validate_selected_mappings(
+                self.hass,
+                self._entry,
+                source,
+                self._load_migration_targets(),
+                self._migration_selection,
+                extra_candidates,
+                require_source_unloaded=False,
+            )
+            if validation.error is None:
+                return await self.async_step_migrate_envoy_confirm()
+            errors["base"] = validation.error
+
+        return self.async_show_form(
+            step_id="migrate_envoy_mapping",
+            data_schema=self._build_migration_mapping_schema(
+                source,
+                extra_candidates,
+                defaults,
+            ),
+            errors=errors,
+        )
+
+    async def async_step_migrate_envoy_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        source = await self._selected_migration_source()
+        if source is None:
+            return await self.async_step_migrate_envoy()
+        extra_candidates = await self._load_migration_extra_candidates()
+
+        validation = validate_selected_mappings(
+            self.hass,
+            self._entry,
+            source,
+            self._load_migration_targets(),
+            self._migration_selection,
+            extra_candidates,
+            require_source_unloaded=False,
+        )
+        if not self._migration_selection:
+            return await self.async_step_migrate_envoy_mapping(
+                {**self._migration_selection}
+            )
+        disable_archived_default = selection_uses_source(
+            source,
+            self._migration_selection,
+            extra_candidates,
+        )
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if not bool(user_input.get(CONF_MIGRATION_CONFIRM_REASSIGN)):
+                errors["base"] = "confirm_required"
+            else:
+                source_entry = self.hass.config_entries.async_get_entry(source.entry_id)
+                disable_archived_entities = bool(
+                    user_input.get(
+                        CONF_MIGRATION_DISABLE_ARCHIVED, disable_archived_default
+                    )
+                )
+                source_selected = selection_uses_source(
+                    source,
+                    self._migration_selection,
+                    extra_candidates,
+                )
+                source_was_loaded = (
+                    source_selected
+                    and source_entry is not None
+                    and source_entry.state is config_entries.ConfigEntryState.LOADED
+                )
+                if source_was_loaded:
+                    unloaded = await self.hass.config_entries.async_unload(
+                        source.entry_id
+                    )
+                    if not unloaded:
+                        errors["base"] = "envoy_entry_loaded"
+                    elif source_entry is not None:
+                        object.__setattr__(
+                            source_entry,
+                            "state",
+                            config_entries.ConfigEntryState.NOT_LOADED,
+                        )
+
+                validation = validate_selected_mappings(
+                    self.hass,
+                    self._entry,
+                    source,
+                    self._load_migration_targets(),
+                    self._migration_selection,
+                    extra_candidates,
+                    require_source_unloaded=source_was_loaded,
+                )
+                if errors:
+                    pass
+                elif validation.error is not None:
+                    if source_was_loaded:
+                        await self._async_reload_migration_source_entry(
+                            source, source_entry
+                        )
+                    errors["base"] = validation.error
+                else:
+                    execution_error = execute_takeover(
+                        self.hass,
+                        validation.mappings,
+                        disable_archived_entities=disable_archived_entities,
+                    )
+                    if execution_error is not None:
+                        if source_was_loaded:
+                            await self._async_reload_migration_source_entry(
+                                source, source_entry
+                            )
+                        return self.async_abort(
+                            reason="migration_partial_failure",
+                            description_placeholders={
+                                "completed_mappings": format_completed_preview(
+                                    execution_error.completed
+                                ),
+                                "failed_entity_id": (
+                                    execution_error.failed.old_entity_id
+                                    if execution_error.failed is not None
+                                    else "unknown"
+                                ),
+                                "failure_reason": execution_error.reason,
+                            },
+                        )
+                    reload_description = "migration_success"
+                    try:
+                        current_reloaded = await self.hass.config_entries.async_reload(
+                            self._entry.entry_id
+                        )
+                        if not current_reloaded:
+                            reload_description = "migration_success_reload_needed"
+                    except Exception as err:  # noqa: BLE001
+                        _LOGGER.debug(
+                            "Failed reloading config entry after Envoy migration: %s",
+                            redact_text(err),
+                        )
+                        reload_description = "migration_success_reload_needed"
+                    if source_was_loaded:
+                        if not await self._async_reload_migration_source_entry(
+                            source, source_entry
+                        ):
+                            reload_description = "migration_success_reload_needed"
+                    return self.async_create_entry(
+                        title="",
+                        data=dict(self._entry.options),
+                        description=reload_description,
+                    )
+
+        return self.async_show_form(
+            step_id="migrate_envoy_confirm",
+            data_schema=self._build_migration_confirm_schema(
+                disable_archived_default=disable_archived_default
+            ),
+            errors=errors,
+            description_placeholders={
+                "mapping_preview": (
+                    format_mapping_preview(validation.mappings)
+                    if validation.error is None
+                    else format_selection_preview(
+                        self._migration_selection,
+                        self._load_migration_targets(),
+                    )
+                ),
+            },
+        )

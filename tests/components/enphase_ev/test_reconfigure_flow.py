@@ -449,6 +449,9 @@ async def test_reauth_flow_manager_submit_routes_to_user_step(hass) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.filterwarnings(
+    "ignore:It is recommended to use web.AppKey instances for keys\\.:aiohttp.web_exceptions.NotAppKeyWarning"
+)
 async def test_reauth_allows_empty_device_selection(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
