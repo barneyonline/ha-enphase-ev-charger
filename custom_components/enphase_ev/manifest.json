@@ -4,6 +4,9 @@
   "codeowners": [
     "@barneyonline"
   ],
+  "after_dependencies": [
+    "recorder"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/barneyonline/ha-enphase-energy",
   "import_executor": true,
