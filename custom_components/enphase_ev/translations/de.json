@@ -116,6 +116,143 @@
       "message": "Aktivieren Sie mindestens einen Zeitplan, bevor Sie geplantes Laden auswählen."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Energy Optionen",
+        "description": "Wählen Sie aus, was Sie mit diesem Integrationseintrag tun möchten.",
+        "menu_options": {
+          "settings": "Einstellungen",
+          "migrate_envoy": "Envoy-Verlauf migrieren"
+        },
+        "menu_option_descriptions": {
+          "settings": "Abfrageintervalle und Verhalten anpassen.",
+          "migrate_envoy": "Übernehmen Sie ausgewählte Energie-Entitäts-IDs von Enphase Envoy, damit der Verlauf in Home Assistant Energy unter dieser Integration weiterläuft."
+        },
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batterie",
+          "type_iqevse": "Ladegeräte",
+          "type_microinverter": "Mikrowechselrichter",
+          "fast_poll_interval": "Schnelles Abfrageintervall (s)",
+          "slow_poll_interval": "Langsames Abfrageintervall (s)",
+          "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
+          "api_timeout": "API-Zeitlimit (s)",
+          "nominal_voltage": "Nennspannung (V)",
+          "session_history_interval": "Intervall für Sitzungsverlauf (min)",
+          "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
+          "reauth": "Reauthentifizierung starten",
+          "forget_password": "Gespeichertes Passwort löschen",
+          "type_heatpump": "Wärmepumpe"
+        },
+        "data_description": {
+          "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
+          "type_encharge": "Enthält Batterie-Status- und Steuerungs-Entitäten, wenn verfügbar.",
+          "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
+          "type_microinverter": "Enthält Sensoren für Mikrowechselrichter-Konnektivität, aktive Anzahl und Lebenszeit-Erzeugung.",
+          "fast_poll_interval": "Intervall während des Ladevorgangs oder Streams.",
+          "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
+          "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
+          "api_timeout": "Sekunden, bevor API-Anfragen abbrechen.",
+          "nominal_voltage": "Ersatzspannung für die Leistungsberechnung des Ladegeräts.",
+          "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
+          "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
+          "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
+          "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy-Optionen",
+        "description": "Abfrage und Verhalten anpassen.",
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batterie",
+          "type_iqevse": "Ladegeräte",
+          "type_microinverter": "Mikrowechselrichter",
+          "fast_poll_interval": "Schnelles Abfrageintervall (s)",
+          "slow_poll_interval": "Langsames Abfrageintervall (s)",
+          "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
+          "api_timeout": "API-Zeitlimit (s)",
+          "nominal_voltage": "Nennspannung (V)",
+          "session_history_interval": "Intervall für Sitzungsverlauf (min)",
+          "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
+          "reauth": "Reauthentifizierung starten",
+          "forget_password": "Gespeichertes Passwort löschen",
+          "type_heatpump": "Wärmepumpe"
+        },
+        "data_description": {
+          "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
+          "type_encharge": "Enthält Batterie-Status- und Steuerungs-Entitäten, wenn verfügbar.",
+          "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
+          "type_microinverter": "Enthält Sensoren für Mikrowechselrichter-Konnektivität, aktive Anzahl und Lebenszeit-Erzeugung.",
+          "fast_poll_interval": "Intervall während des Ladevorgangs oder Streams.",
+          "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
+          "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
+          "api_timeout": "Sekunden, bevor API-Anfragen abbrechen.",
+          "nominal_voltage": "Ersatzspannung für die Leistungsberechnung des Ladegeräts.",
+          "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
+          "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
+          "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
+          "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Envoy-Quelle auswählen",
+        "description": "Wählen Sie aus, von welchem Enphase-Envoy-Eintrag migriert werden soll.",
+        "data": {
+          "selected_envoy_source": "Envoy-Quelle"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Envoy-Verlauf migrieren",
+        "description": "Dieser Assistent weist ausgewählte Energie-Entitäts-IDs von Enphase Envoy passenden Enphase-Energy-Sensoren neu zu.\n\nDer Verlauf in Home Assistant Energy ist an die Entitäts-ID gebunden, die für Langzeitstatistiken verwendet wird.\n\nErstellen Sie vor dem Fortfahren ein vollständiges Home-Assistant-Backup.\n\nMigrieren Sie nur Sensoren, die denselben kumulativen Gesamtenergiewert darstellen.\n\nDie ausgewählte Envoy-Integration wird während der Neuzuweisung der Entitäts-IDs vorübergehend entladen und nach der Migration wiederhergestellt.\n\nDadurch wird die Entitätsregistrierung aktualisiert und die Änderung kann nicht automatisch rückgängig gemacht werden.\n\nAusgewählte Envoy-Quelle: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Ich habe ein aktuelles Home-Assistant-Backup"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Verlaufssensoren zuordnen",
+        "description": "Prüfen Sie die vorgeschlagenen Zuordnungen sorgfältig. Es werden nur kompatible kumulative Energie-Gesamtwerte angezeigt. Leere Felder werden übersprungen.\n\nWenn ein Vorschlag falsch oder unklar ist, löschen Sie ihn und wählen Sie manuell.",
+        "data": {
+          "solar_production": "Solarproduktion",
+          "consumption": "Verbrauch",
+          "grid_import": "Netzbezug",
+          "grid_export": "Netzeinspeisung",
+          "battery_charge": "Batterieladung",
+          "battery_discharge": "Batterieentladung"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Envoy-Verlaufsmigration bestätigen",
+        "description": "Die ausgewählten Quell-Entitäten werden in archivierte Legacy-Entitäts-IDs umbenannt.\n\nDie Enphase-Energy-Entitäten werden anschließend auf die ursprünglichen Quell-Entitäts-IDs umbenannt.\n\nWenn eine Zuordnung falsch ist, brechen Sie jetzt ab. Das Wiederherstellen aus einem Backup ist der sicherste Rollback-Weg.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Ich verstehe, dass die ausgewählten Quell-Entitäts-IDs neu zugewiesen werden",
+          "disable_archived_envoy_sensors": "Archivierte Quell-Sensoren nach der Migration deaktivieren"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Wählen oder geben Sie mindestens ein Ladegerät an.",
+      "backup_required": "Es wird dringend empfohlen, vor dem Fortfahren ein vollständiges Backup zu erstellen.",
+      "confirm_required": "Bestätigen Sie vor dem Fortfahren, dass die ausgewählten Quell-Entitäts-IDs neu zugewiesen werden.",
+      "migration_no_selection": "Wählen Sie mindestens einen kompatiblen Energiesensor zur Migration aus.",
+      "migration_duplicate_selection": "Dieselbe Quell-Entität kann nicht mehr als einmal verwendet werden.",
+      "envoy_entry_loaded": "Die Envoy-Integration konnte für die Migration nicht vorübergehend entladen werden.",
+      "incompatible_energy_total": "Die ausgewählten Entitäten sind keine kompatiblen kumulativen Energiewerte.",
+      "new_value_lower": "Der neue Sensorwert ist niedriger als der bestehende Envoy-Wert."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Es sind keine Enphase-Envoy-Energiesensoren für die Migration verfügbar.",
+      "migration_no_targets": "Es sind keine kompatiblen Enphase-Energy-Sensoren für die Migration verfügbar.",
+      "migration_partial_failure": "Die Migration wurde nach einer Teilverarbeitung gestoppt.\n\nAbgeschlossene Zuordnungen:\n{completed_mappings}\n\nFehler bei `{failed_entity_id}`: {failure_reason}\n\nStellen Sie das Backup wieder her, wenn das Ergebnis nicht akzeptabel ist."
+    },
+    "create_entry": {
+      "migration_success": "Migration abgeschlossen. Enphase Energy besitzt nun die ausgewählten Quell-Entitäts-IDs. Prüfen Sie nach der nächsten Aktualisierung das Energy-Dashboard und Entwicklerwerkzeuge > Statistiken.",
+      "migration_success_reload_needed": "Die Migration wurde abgeschlossen, aber eine oder mehrere Integrationen konnten nicht automatisch neu geladen werden. Laden Sie Enphase Energy und Enphase Envoy bei Bedarf manuell neu und prüfen Sie anschließend das Energy-Dashboard und Entwicklerwerkzeuge > Statistiken."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Laden gestoppt",
       "plugged_in": "Eingesteckt",
       "unplugged": "Ausgesteckt"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy-Optionen",
-        "description": "Abfrage und Verhalten anpassen.",
-        "data": {
-          "type_envoy": "Gateway",
-          "type_encharge": "Batterie",
-          "type_iqevse": "Ladegeräte",
-          "type_microinverter": "Mikrowechselrichter",
-          "fast_poll_interval": "Schnelles Abfrageintervall (s)",
-          "slow_poll_interval": "Langsames Abfrageintervall (s)",
-          "fast_while_streaming": "Schnelle Abfrage während aktivem Cloud-Stream bevorzugen",
-          "api_timeout": "API-Zeitlimit (s)",
-          "nominal_voltage": "Nennspannung (V)",
-          "session_history_interval": "Intervall für Sitzungsverlauf (min)",
-          "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
-          "reauth": "Reauthentifizierung starten",
-          "forget_password": "Gespeichertes Passwort löschen",
-          "type_heatpump": "Wärmepumpe"
-        },
-        "data_description": {
-          "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
-          "type_encharge": "Enthält Batterie-Status- und Steuerungs-Entitäten, wenn verfügbar.",
-          "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
-          "type_microinverter": "Enthält Sensoren für Mikrowechselrichter-Konnektivität, aktive Anzahl und Lebenszeit-Erzeugung.",
-          "fast_poll_interval": "Intervall während des Ladevorgangs oder Streams.",
-          "slow_poll_interval": "Intervall, wenn das Gerät im Leerlauf ist.",
-          "fast_while_streaming": "Wenn aktiviert, wird während eines aktiven Cloud-Streams schnell abgefragt.",
-          "api_timeout": "Sekunden, bevor API-Anfragen abbrechen.",
-          "nominal_voltage": "Ersatzspannung für die Leistungsberechnung des Ladegeräts.",
-          "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
-          "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
-          "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
-          "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
-          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Wählen oder geben Sie mindestens ein Ladegerät an."
     }
   },
   "issues": {

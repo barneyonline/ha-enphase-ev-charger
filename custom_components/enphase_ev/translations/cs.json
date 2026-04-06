@@ -116,6 +116,143 @@
       "message": "Před výběrem plánovaného nabíjení povolte alespoň jeden plán."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Možnosti Enphase Energy",
+        "description": "Vyberte, co chcete s tímto záznamem integrace udělat.",
+        "menu_options": {
+          "settings": "Nastavení",
+          "migrate_envoy": "Migrovat historii Envoy"
+        },
+        "menu_option_descriptions": {
+          "settings": "Upravte intervaly a chování.",
+          "migrate_envoy": "Převezměte vybraná ID energetických entit Enphase Envoy, aby historie v Home Assistant Energy pokračovala pod touto integrací."
+        },
+        "data": {
+          "type_envoy": "Brána",
+          "type_encharge": "Baterie",
+          "type_iqevse": "Nabíječky",
+          "type_microinverter": "Mikroinvertory",
+          "fast_poll_interval": "Rychlý interval dotazování (s)",
+          "slow_poll_interval": "Pomalý interval dotazování (s)",
+          "fast_while_streaming": "Preferovat rychlé dotazování při aktivním cloud streamu",
+          "api_timeout": "Časový limit API (s)",
+          "nominal_voltage": "Jmenovité napětí (V)",
+          "session_history_interval": "Interval historie relací (min)",
+          "schedule_sync_enabled": "Povolit podporu plánovače",
+          "reauth": "Spustit reautentizaci",
+          "forget_password": "Zapomenout uložené heslo",
+          "type_heatpump": "Tepelné čerpadlo"
+        },
+        "data_description": {
+          "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
+          "type_encharge": "Zahrnuje stav a ovládací entity baterií, pokud jsou dostupné.",
+          "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
+          "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
+          "fast_poll_interval": "Interval používaný při nabíjení nebo streamování.",
+          "slow_poll_interval": "Interval používaný při nečinnosti.",
+          "fast_while_streaming": "Když je povoleno, rychlé dotazování během aktivního cloudového streamu.",
+          "api_timeout": "Sekundy, než požadavky API vyprší.",
+          "nominal_voltage": "Záložní napětí pro odhad výkonu nabíječky.",
+          "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
+          "schedule_sync_enabled": "Správa správy plánu Enphase",
+          "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
+          "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
+          "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla."
+        }
+      },
+      "settings": {
+        "title": "Možnosti Enphase Energy",
+        "description": "Upravit dotazování a chování.",
+        "data": {
+          "type_envoy": "Brána",
+          "type_encharge": "Baterie",
+          "type_iqevse": "Nabíječky",
+          "type_microinverter": "Mikroinvertory",
+          "fast_poll_interval": "Rychlý interval dotazování (s)",
+          "slow_poll_interval": "Pomalý interval dotazování (s)",
+          "fast_while_streaming": "Preferovat rychlé dotazování při aktivním cloud streamu",
+          "api_timeout": "Časový limit API (s)",
+          "nominal_voltage": "Jmenovité napětí (V)",
+          "session_history_interval": "Interval historie relací (min)",
+          "schedule_sync_enabled": "Povolit podporu plánovače",
+          "reauth": "Spustit reautentizaci",
+          "forget_password": "Zapomenout uložené heslo",
+          "type_heatpump": "Tepelné čerpadlo"
+        },
+        "data_description": {
+          "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
+          "type_encharge": "Zahrnuje stav a ovládací entity baterií, pokud jsou dostupné.",
+          "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
+          "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
+          "fast_poll_interval": "Interval používaný při nabíjení nebo streamování.",
+          "slow_poll_interval": "Interval používaný při nečinnosti.",
+          "fast_while_streaming": "Když je povoleno, rychlé dotazování během aktivního cloudového streamu.",
+          "api_timeout": "Sekundy, než požadavky API vyprší.",
+          "nominal_voltage": "Záložní napětí pro odhad výkonu nabíječky.",
+          "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
+          "schedule_sync_enabled": "Správa správy plánu Enphase",
+          "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
+          "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
+          "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Vyberte zdroj Envoy",
+        "description": "Vyberte, ze kterého záznamu Enphase Envoy chcete migrovat.",
+        "data": {
+          "selected_envoy_source": "Zdroj Envoy"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrovat historii Envoy",
+        "description": "Tento průvodce přenese vybraná ID energetických entit Enphase Envoy na odpovídající senzory Enphase Energy.\n\nHistorie Home Assistant Energy je navázána na ID entity používané pro dlouhodobé statistiky.\n\nPřed pokračováním vytvořte úplnou zálohu Home Assistantu.\n\nMigrujte pouze senzory, které představují stejný kumulativní součet energie.\n\nVybraná integrace Envoy bude během přeřazení ID entit dočasně odpojena a po migraci znovu obnovena.\n\nTím se aktualizuje registr entit a změnu nelze automaticky vrátit.\n\nVybraný zdroj Envoy: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Mám aktuální zálohu Home Assistant"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Mapovat senzory historie",
+        "description": "Pečlivě zkontrolujte navržená mapování. Zobrazují se pouze kompatibilní kumulativní energetické součty. Prázdná pole budou přeskočena.\n\nPokud je návrh chybný nebo nejasný, vymažte jej a vyberte ručně.",
+        "data": {
+          "solar_production": "Solární výroba",
+          "consumption": "Spotřeba",
+          "grid_import": "Import ze sítě",
+          "grid_export": "Export do sítě",
+          "battery_charge": "Nabíjení baterie",
+          "battery_discharge": "Vybíjení baterie"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Potvrďte migraci historie Envoy",
+        "description": "Vybrané zdrojové entity budou přejmenovány na archivovaná starší ID entit.\n\nEntity Enphase Energy budou poté přejmenovány na původní ID zdrojových entit.\n\nPokud je některé mapování chybné, nyní to zrušte. Obnovení ze zálohy je nejbezpečnější způsob návratu.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Rozumím, že vybraná ID zdrojových entit budou znovu přiřazena",
+          "disable_archived_envoy_sensors": "Po migraci zakázat archivované zdrojové senzory"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Vyberte nebo zadejte alespoň jednu nabíječku.",
+      "backup_required": "Před pokračováním důrazně doporučujeme vytvořit úplnou zálohu.",
+      "confirm_required": "Před pokračováním potvrďte, že vybraná ID zdrojových entit budou znovu přiřazena.",
+      "migration_no_selection": "Vyberte alespoň jeden kompatibilní energetický senzor k migraci.",
+      "migration_duplicate_selection": "Stejnou zdrojovou entitu nelze použít více než jednou.",
+      "envoy_entry_loaded": "Integraci Envoy se nepodařilo pro migraci dočasně odpojit.",
+      "incompatible_energy_total": "Vybrané entity nejsou kompatibilní kumulativní energetické hodnoty.",
+      "new_value_lower": "Nová hodnota senzoru je nižší než stávající hodnota Envoy."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Nejsou k dispozici žádné energetické senzory Enphase Envoy pro migraci.",
+      "migration_no_targets": "Nejsou k dispozici žádné kompatibilní senzory Enphase Energy pro migraci.",
+      "migration_partial_failure": "Migrace se zastavila po částečném dokončení.\n\nDokončená mapování:\n{completed_mappings}\n\nSelhalo při zpracování `{failed_entity_id}`: {failure_reason}\n\nPokud výsledek nevyhovuje, obnovte zálohu."
+    },
+    "create_entry": {
+      "migration_success": "Migrace dokončena. Enphase Energy nyní vlastní vybraná ID zdrojových entit. Po příští aktualizaci zkontrolujte panel Energy a Developer Tools > Statistics.",
+      "migration_success_reload_needed": "Migrace byla dokončena, ale jednu nebo více integrací se nepodařilo automaticky znovu načíst. V případě potřeby ručně znovu načtěte Enphase Energy a Enphase Envoy a poté zkontrolujte panel Energy a Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Nabíjení zastaveno",
       "plugged_in": "Připojeno",
       "unplugged": "Odpojeno"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Možnosti Enphase Energy",
-        "description": "Upravit dotazování a chování.",
-        "data": {
-          "type_envoy": "Brána",
-          "type_encharge": "Baterie",
-          "type_iqevse": "Nabíječky",
-          "type_microinverter": "Mikroinvertory",
-          "fast_poll_interval": "Rychlý interval dotazování (s)",
-          "slow_poll_interval": "Pomalý interval dotazování (s)",
-          "fast_while_streaming": "Preferovat rychlé dotazování při aktivním cloud streamu",
-          "api_timeout": "Časový limit API (s)",
-          "nominal_voltage": "Jmenovité napětí (V)",
-          "session_history_interval": "Interval historie relací (min)",
-          "schedule_sync_enabled": "Povolit podporu plánovače",
-          "reauth": "Spustit reautentizaci",
-          "forget_password": "Zapomenout uložené heslo",
-          "type_heatpump": "Tepelné čerpadlo"
-        },
-        "data_description": {
-          "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
-          "type_encharge": "Zahrnuje stav a ovládací entity baterií, pokud jsou dostupné.",
-          "type_iqevse": "Zahrnuje entity a ovládání EV nabíječek.",
-          "type_microinverter": "Zahrnuje senzory konektivity mikroinvertorů, počtu aktivních zařízení a celoživotní výroby.",
-          "fast_poll_interval": "Interval používaný při nabíjení nebo streamování.",
-          "slow_poll_interval": "Interval používaný při nečinnosti.",
-          "fast_while_streaming": "Když je povoleno, rychlé dotazování během aktivního cloudového streamu.",
-          "api_timeout": "Sekundy, než požadavky API vyprší.",
-          "nominal_voltage": "Záložní napětí pro odhad výkonu nabíječky.",
-          "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
-          "schedule_sync_enabled": "Správa správy plánu Enphase",
-          "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
-          "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
-          "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Vyberte nebo zadejte alespoň jednu nabíječku."
     }
   },
   "issues": {

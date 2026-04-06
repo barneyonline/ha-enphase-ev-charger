@@ -116,6 +116,143 @@
       "message": "Activați cel puțin un program înainte de a selecta încărcarea programată."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opțiuni Enphase Energy",
+        "description": "Alegeți ce doriți să faceți cu această intrare de integrare.",
+        "menu_options": {
+          "settings": "Setări",
+          "migrate_envoy": "Migrare istoric Envoy"
+        },
+        "menu_option_descriptions": {
+          "settings": "Ajustați interogarea și comportamentul.",
+          "migrate_envoy": "Preluați ID-urile entităților de energie Enphase Envoy selectate pentru ca istoricul Home Assistant Energy să continue în această integrare."
+        },
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Baterie",
+          "type_iqevse": "Încărcătoare",
+          "type_microinverter": "Microinvertoare",
+          "fast_poll_interval": "Interval rapid de interogare (s)",
+          "slow_poll_interval": "Interval lent de interogare (s)",
+          "fast_while_streaming": "Preferă interogarea rapidă când fluxul cloud este activ",
+          "api_timeout": "Timeout API (s)",
+          "nominal_voltage": "Tensiune nominală (V)",
+          "session_history_interval": "Interval istoric sesiuni (min)",
+          "schedule_sync_enabled": "Activați asistența pentru programator",
+          "reauth": "Pornește reautentificarea",
+          "forget_password": "Uită parola salvată",
+          "type_heatpump": "Pompă de căldură"
+        },
+        "data_description": {
+          "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
+          "type_encharge": "Include starea bateriei și entitățile de control când sunt disponibile.",
+          "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
+          "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
+          "fast_poll_interval": "Interval de folosit în timpul încărcării sau streamingului.",
+          "slow_poll_interval": "Interval de folosit când este inactiv.",
+          "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",
+          "api_timeout": "Secunde până la expirarea solicitărilor API.",
+          "nominal_voltage": "Tensiune de rezervă folosită pentru estimarea puterii încărcătorului.",
+          "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
+          "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
+          "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
+          "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
+          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
+        }
+      },
+      "settings": {
+        "title": "Opțiuni Enphase Energy",
+        "description": "Reglați interogarea și comportamentul.",
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Baterie",
+          "type_iqevse": "Încărcătoare",
+          "type_microinverter": "Microinvertoare",
+          "fast_poll_interval": "Interval rapid de interogare (s)",
+          "slow_poll_interval": "Interval lent de interogare (s)",
+          "fast_while_streaming": "Preferă interogarea rapidă când fluxul cloud este activ",
+          "api_timeout": "Timeout API (s)",
+          "nominal_voltage": "Tensiune nominală (V)",
+          "session_history_interval": "Interval istoric sesiuni (min)",
+          "schedule_sync_enabled": "Activați asistența pentru programator",
+          "reauth": "Pornește reautentificarea",
+          "forget_password": "Uită parola salvată",
+          "type_heatpump": "Pompă de căldură"
+        },
+        "data_description": {
+          "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
+          "type_encharge": "Include starea bateriei și entitățile de control când sunt disponibile.",
+          "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
+          "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
+          "fast_poll_interval": "Interval de folosit în timpul încărcării sau streamingului.",
+          "slow_poll_interval": "Interval de folosit când este inactiv.",
+          "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",
+          "api_timeout": "Secunde până la expirarea solicitărilor API.",
+          "nominal_voltage": "Tensiune de rezervă folosită pentru estimarea puterii încărcătorului.",
+          "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
+          "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
+          "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
+          "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
+          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Selectați sursa Envoy",
+        "description": "Alegeți din ce intrare Enphase Envoy doriți să migrați.",
+        "data": {
+          "selected_envoy_source": "Sursă Envoy"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrare istoric Envoy",
+        "description": "Acest asistent reatribuie ID-urile entităților de energie Enphase Envoy selectate către senzori Enphase Energy corespunzători.\n\nIstoricul Home Assistant Energy este legat de ID-ul entității folosit pentru statisticile pe termen lung.\n\nCreează o copie de siguranță completă pentru Home Assistant înainte de a continua.\n\nMigrează doar senzorii care reprezintă același total cumulativ de energie.\n\nIntegrarea Envoy selectată va fi descărcată temporar în timp ce ID-urile entităților sunt reatribuite și va fi restaurată după migrare.\n\nAcest lucru actualizează registrul entităților și nu poate fi inversat automat.\n\nSursă Envoy selectată: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Am un backup recent Home Assistant"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Mapare senzori de istoric",
+        "description": "Verificați cu atenție mapările sugerate. Sunt afișate doar totalurile cumulative de energie compatibile. Câmpurile goale vor fi omise.\n\nDacă o sugestie este greșită sau neclară, ștergeți-o și alegeți manual.",
+        "data": {
+          "solar_production": "Producție solară",
+          "consumption": "Consum",
+          "grid_import": "Import din rețea",
+          "grid_export": "Export în rețea",
+          "battery_charge": "Încărcare baterie",
+          "battery_discharge": "Descărcare baterie"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Confirmați migrarea istoricului Envoy",
+        "description": "Entitățile sursă selectate vor fi redenumite în ID-uri de entitate vechi arhivate.\n\nEntitățile Enphase Energy vor fi apoi redenumite în ID-urile originale ale entităților sursă.\n\nDacă vreo mapare este greșită, anulați acum. Restaurarea dintr-un backup este cea mai sigură metodă de revenire.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Înțeleg că ID-urile entităților sursă selectate vor fi realocate",
+          "disable_archived_envoy_sensors": "Dezactivează senzorii sursă arhivați după migrare"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Selectați sau introduceți cel puțin un încărcător.",
+      "backup_required": "Este recomandat insistent să creați un backup complet înainte de a continua.",
+      "confirm_required": "Confirmați că ID-urile entităților sursă selectate vor fi realocate înainte de a continua.",
+      "migration_no_selection": "Selectați cel puțin un senzor de energie compatibil pentru migrare.",
+      "migration_duplicate_selection": "Aceeași entitate sursă nu poate fi folosită de mai multe ori.",
+      "envoy_entry_loaded": "Integrarea Envoy nu a putut fi descărcată temporar pentru migrare.",
+      "incompatible_energy_total": "Entitățile selectate nu sunt totaluri cumulative de energie compatibile.",
+      "new_value_lower": "Noua valoare a senzorului este mai mică decât valoarea existentă Envoy."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Nu există senzori de energie Enphase Envoy disponibili pentru migrare.",
+      "migration_no_targets": "Nu există senzori Enphase Energy compatibili disponibili pentru migrare.",
+      "migration_partial_failure": "Migrarea s-a oprit după finalizare parțială.\n\nMapări finalizate:\n{completed_mappings}\n\nEroare la procesarea `{failed_entity_id}`: {failure_reason}\n\nRestaurați din backup dacă rezultatul nu este acceptabil."
+    },
+    "create_entry": {
+      "migration_success": "Migrare finalizată. Enphase Energy deține acum ID-urile entităților sursă selectate. Verificați tabloul Energy și Developer Tools > Statistics după următoarea actualizare.",
+      "migration_success_reload_needed": "Migrarea s-a finalizat, dar una sau mai multe integrări nu au putut fi reîncărcate automat. Reîncărcați manual Enphase Energy și Enphase Envoy dacă este necesar, apoi verificați tabloul Energy și Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Încărcare oprită",
       "plugged_in": "Conectat",
       "unplugged": "Deconectat"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Opțiuni Enphase Energy",
-        "description": "Reglați interogarea și comportamentul.",
-        "data": {
-          "type_envoy": "Gateway",
-          "type_encharge": "Baterie",
-          "type_iqevse": "Încărcătoare",
-          "type_microinverter": "Microinvertoare",
-          "fast_poll_interval": "Interval rapid de interogare (s)",
-          "slow_poll_interval": "Interval lent de interogare (s)",
-          "fast_while_streaming": "Preferă interogarea rapidă când fluxul cloud este activ",
-          "api_timeout": "Timeout API (s)",
-          "nominal_voltage": "Tensiune nominală (V)",
-          "session_history_interval": "Interval istoric sesiuni (min)",
-          "schedule_sync_enabled": "Activați asistența pentru programator",
-          "reauth": "Pornește reautentificarea",
-          "forget_password": "Uită parola salvată",
-          "type_heatpump": "Pompă de căldură"
-        },
-        "data_description": {
-          "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
-          "type_encharge": "Include starea bateriei și entitățile de control când sunt disponibile.",
-          "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
-          "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
-          "fast_poll_interval": "Interval de folosit în timpul încărcării sau streamingului.",
-          "slow_poll_interval": "Interval de folosit când este inactiv.",
-          "fast_while_streaming": "Când este activat, interogare rapidă în timpul fluxului cloud activ.",
-          "api_timeout": "Secunde până la expirarea solicitărilor API.",
-          "nominal_voltage": "Tensiune de rezervă folosită pentru estimarea puterii încărcătorului.",
-          "session_history_interval": "Minute de așteptare între preluările istoricului sesiunilor din cloud.",
-          "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
-          "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
-          "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
-          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Selectați sau introduceți cel puțin un încărcător."
     }
   },
   "issues": {

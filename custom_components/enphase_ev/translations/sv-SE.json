@@ -116,6 +116,143 @@
       "message": "Aktivera minst ett schema innan du väljer schemalagd laddning."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Energy-alternativ",
+        "description": "Välj vad du vill göra med den här integrationsposten.",
+        "menu_options": {
+          "settings": "Inställningar",
+          "migrate_envoy": "Migrera Envoy-historik"
+        },
+        "menu_option_descriptions": {
+          "settings": "Justera polling och beteende.",
+          "migrate_envoy": "Ta över valda energi-entitets-ID:n från Enphase Envoy så att historiken i Home Assistant Energy fortsätter under denna integration."
+        },
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Laddare",
+          "type_microinverter": "Mikroväxelriktare",
+          "fast_poll_interval": "Snabbt pollningsintervall (s)",
+          "slow_poll_interval": "Långsamt pollningsintervall (s)",
+          "fast_while_streaming": "Föredra snabb pollning när molnströmmen är aktiv",
+          "api_timeout": "API-timeout (s)",
+          "nominal_voltage": "Nominell spänning (V)",
+          "session_history_interval": "Sessionshistorikintervall (min)",
+          "schedule_sync_enabled": "Aktivera Scheduler Support",
+          "reauth": "Starta omautentisering",
+          "forget_password": "Glöm lagrat lösenord",
+          "type_heatpump": "Värmepump"
+        },
+        "data_description": {
+          "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
+          "type_encharge": "Inkluderar batteristatus och styrentiteter när de är tillgängliga.",
+          "type_iqevse": "Inkluderar EV-laddarentiteter och styrning.",
+          "type_microinverter": "Inkluderar sensorer för mikroväxelriktaranslutning, aktivt antal och livstidsproduktion.",
+          "fast_poll_interval": "Intervall att använda under laddning eller strömning.",
+          "slow_poll_interval": "Intervall att använda när inaktiv.",
+          "fast_while_streaming": "När aktiverad, snabb pollning under aktiv molnströmning.",
+          "api_timeout": "Sekunder innan API-begäranden får timeout.",
+          "nominal_voltage": "Reservspänning för uppskattning av laddarens effekt.",
+          "session_history_interval": "Minuter att vänta mellan hämtningar av moln-sessionshistorik.",
+          "schedule_sync_enabled": "Hantera Enphase schemahantering",
+          "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
+          "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
+          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy-alternativ",
+        "description": "Justera pollning och beteende.",
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Laddare",
+          "type_microinverter": "Mikroväxelriktare",
+          "fast_poll_interval": "Snabbt pollningsintervall (s)",
+          "slow_poll_interval": "Långsamt pollningsintervall (s)",
+          "fast_while_streaming": "Föredra snabb pollning när molnströmmen är aktiv",
+          "api_timeout": "API-timeout (s)",
+          "nominal_voltage": "Nominell spänning (V)",
+          "session_history_interval": "Sessionshistorikintervall (min)",
+          "schedule_sync_enabled": "Aktivera Scheduler Support",
+          "reauth": "Starta omautentisering",
+          "forget_password": "Glöm lagrat lösenord",
+          "type_heatpump": "Värmepump"
+        },
+        "data_description": {
+          "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
+          "type_encharge": "Inkluderar batteristatus och styrentiteter när de är tillgängliga.",
+          "type_iqevse": "Inkluderar EV-laddarentiteter och styrning.",
+          "type_microinverter": "Inkluderar sensorer för mikroväxelriktaranslutning, aktivt antal och livstidsproduktion.",
+          "fast_poll_interval": "Intervall att använda under laddning eller strömning.",
+          "slow_poll_interval": "Intervall att använda när inaktiv.",
+          "fast_while_streaming": "När aktiverad, snabb pollning under aktiv molnströmning.",
+          "api_timeout": "Sekunder innan API-begäranden får timeout.",
+          "nominal_voltage": "Reservspänning för uppskattning av laddarens effekt.",
+          "session_history_interval": "Minuter att vänta mellan hämtningar av moln-sessionshistorik.",
+          "schedule_sync_enabled": "Hantera Enphase schemahantering",
+          "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
+          "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
+          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Välj Envoy-källa",
+        "description": "Välj vilken Enphase Envoy-post du vill migrera från.",
+        "data": {
+          "selected_envoy_source": "Envoy-källa"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrera Envoy-historik",
+        "description": "Den här guiden flyttar valda energi-entitets-ID:n från Enphase Envoy till motsvarande Enphase Energy-sensorer.\n\nHistoriken i Home Assistant Energy är knuten till det entitets-ID som används för långtidsstatistik.\n\nSkapa en fullständig säkerhetskopia av Home Assistant innan du fortsätter.\n\nMigrera bara sensorer som representerar samma kumulativa energitotal.\n\nDen valda Envoy-integrationen kommer att avlastas tillfälligt medan entitets-ID:n tilldelas om och återställs sedan efter migreringen.\n\nDetta uppdaterar entitetsregistret och kan inte återställas automatiskt.\n\nVald Envoy-källa: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Jag har en aktuell Home Assistant-säkerhetskopia"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Mappa historiksensorer",
+        "description": "Granska de föreslagna mappningarna noggrant. Endast kompatibla kumulativa energitotaler visas. Tomma fält hoppas över.\n\nOm ett förslag är fel eller oklart, rensa det och välj manuellt.",
+        "data": {
+          "solar_production": "Solproduktion",
+          "consumption": "Förbrukning",
+          "grid_import": "Import från nätet",
+          "grid_export": "Export till nätet",
+          "battery_charge": "Batteriladdning",
+          "battery_discharge": "Batteriurladdning"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Bekräfta migrering av Envoy-historik",
+        "description": "De valda källentiteterna kommer att byta namn till arkiverade äldre entitets-ID:n.\n\nEnphase Energy-entiteterna kommer sedan att byta namn till de ursprungliga källentitets-ID:na.\n\nOm någon mappning är fel, avbryt nu. Återställning från säkerhetskopia är det säkraste sättet att återgå.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Jag förstår att de valda källentitets-ID:na kommer att tilldelas om",
+          "disable_archived_envoy_sensors": "Inaktivera arkiverade källsensorer efter migreringen"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Välj eller ange minst en laddare.",
+      "backup_required": "Det rekommenderas starkt att skapa en fullständig säkerhetskopia innan du fortsätter.",
+      "confirm_required": "Bekräfta att de valda källentitets-ID:na kommer att tilldelas om innan du fortsätter.",
+      "migration_no_selection": "Välj minst en kompatibel energisensor att migrera.",
+      "migration_duplicate_selection": "Samma källentitet kan inte användas mer än en gång.",
+      "envoy_entry_loaded": "Envoy-integrationen kunde inte avlastas tillfälligt för migreringen.",
+      "incompatible_energy_total": "De valda entiteterna är inte kompatibla kumulativa energitotaler.",
+      "new_value_lower": "Det nya sensorvärdet är lägre än det befintliga Envoy-värdet."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Inga Enphase Envoy-energisensorer är tillgängliga för migrering.",
+      "migration_no_targets": "Inga kompatibla Enphase Energy-sensorer är tillgängliga för migrering.",
+      "migration_partial_failure": "Migreringen stoppade efter delvis slutförande.\n\nSlutförda mappningar:\n{completed_mappings}\n\nMisslyckades vid bearbetning av `{failed_entity_id}`: {failure_reason}\n\nÅterställ från säkerhetskopia om resultatet inte är acceptabelt."
+    },
+    "create_entry": {
+      "migration_success": "Migreringen är klar. Enphase Energy äger nu de valda källentitets-ID:na. Kontrollera Energy-instrumentpanelen och Developer Tools > Statistics efter nästa uppdatering.",
+      "migration_success_reload_needed": "Migreringen är klar, men en eller flera integrationer kunde inte laddas om automatiskt. Ladda om Enphase Energy och Enphase Envoy manuellt vid behov och kontrollera sedan Energy-instrumentpanelen och Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1213,49 +1350,6 @@
       "charging_stopped": "Laddning stoppad",
       "plugged_in": "Ansluten",
       "unplugged": "Frånkopplad"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy-alternativ",
-        "description": "Justera pollning och beteende.",
-        "data": {
-          "type_envoy": "Gateway",
-          "type_encharge": "Batteri",
-          "type_iqevse": "Laddare",
-          "type_microinverter": "Mikroväxelriktare",
-          "fast_poll_interval": "Snabbt pollningsintervall (s)",
-          "slow_poll_interval": "Långsamt pollningsintervall (s)",
-          "fast_while_streaming": "Föredra snabb pollning när molnströmmen är aktiv",
-          "api_timeout": "API-timeout (s)",
-          "nominal_voltage": "Nominell spänning (V)",
-          "session_history_interval": "Sessionshistorikintervall (min)",
-          "schedule_sync_enabled": "Aktivera Scheduler Support",
-          "reauth": "Starta omautentisering",
-          "forget_password": "Glöm lagrat lösenord",
-          "type_heatpump": "Värmepump"
-        },
-        "data_description": {
-          "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
-          "type_encharge": "Inkluderar batteristatus och styrentiteter när de är tillgängliga.",
-          "type_iqevse": "Inkluderar EV-laddarentiteter och styrning.",
-          "type_microinverter": "Inkluderar sensorer för mikroväxelriktaranslutning, aktivt antal och livstidsproduktion.",
-          "fast_poll_interval": "Intervall att använda under laddning eller strömning.",
-          "slow_poll_interval": "Intervall att använda när inaktiv.",
-          "fast_while_streaming": "När aktiverad, snabb pollning under aktiv molnströmning.",
-          "api_timeout": "Sekunder innan API-begäranden får timeout.",
-          "nominal_voltage": "Reservspänning för uppskattning av laddarens effekt.",
-          "session_history_interval": "Minuter att vänta mellan hämtningar av moln-sessionshistorik.",
-          "schedule_sync_enabled": "Hantera Enphase schemahantering",
-          "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
-          "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
-          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Välj eller ange minst en laddare."
     }
   },
   "issues": {
