@@ -1006,6 +1006,28 @@ def test_parse_battery_settings_payload_keeps_reserve_bounds_for_partial_update(
     assert coord.battery_reserve_max == 95
 
 
+def test_parse_battery_settings_payload_updates_schedule_enabled_from_control_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_dtg_schedule_enabled = False  # noqa: SLF001
+    coord._battery_rbd_schedule_enabled = True  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "dtgControl": {"enabled": True},
+                "rbdControl": {"enabled": False},
+            }
+        },
+        clear_missing_schedule_times=False,
+        clear_missing_reserve_bounds=False,
+    )
+
+    assert coord._battery_dtg_schedule_enabled is True  # noqa: SLF001
+    assert coord._battery_rbd_schedule_enabled is False  # noqa: SLF001
+
+
 @pytest.mark.asyncio
 async def test_refresh_battery_settings_handles_non_dict_payload(
     coordinator_factory,
@@ -2155,17 +2177,15 @@ async def test_dtg_schedule_enabled_uses_in_place_put(
 ) -> None:
     coord = coordinator_factory()
     _seed_schedule_family(coord, "dtg")
+    coord.client.set_battery_settings = AsyncMock(return_value={})
 
     await coord.async_set_discharge_to_grid_schedule_enabled(False)
 
-    call = coord.client.update_battery_schedule.await_args
-    assert call.args[0] == "sched-dtg"
-    assert call.kwargs["schedule_type"] == "DTG"
-    assert call.kwargs["start_time"] == "18:00"
-    assert call.kwargs["end_time"] == "23:00"
-    assert call.kwargs["limit"] == 5
-    assert call.kwargs["timezone"] == "Europe/London"
-    assert call.kwargs["is_enabled"] is False
+    coord.client.update_battery_schedule.assert_not_awaited()
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {"dtgControl": {"enabled": False}},
+        schedule_type="dtg",
+    )
     assert coord._battery_dtg_schedule_enabled is False  # noqa: SLF001
 
 
@@ -2222,6 +2242,64 @@ async def test_rbd_schedule_limit_update_uses_in_place_put(
 
 
 @pytest.mark.asyncio
+async def test_rbd_schedule_enabled_uses_battery_settings(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "rbd")
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+
+    await coord.async_set_restrict_battery_discharge_schedule_enabled(False)
+
+    coord.client.update_battery_schedule.assert_not_awaited()
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {"rbdControl": {"enabled": False}},
+        schedule_type="rbd",
+    )
+    assert coord._battery_rbd_schedule_enabled is False  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_dtg_schedule_enabled_creates_missing_schedule_when_enabling(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_no_schedule_family(coord, "dtg")
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+
+    await coord.async_set_discharge_to_grid_schedule_enabled(True)
+
+    coord.client.set_battery_settings.assert_not_awaited()
+    call = coord.client.create_battery_schedule.await_args
+    assert call.kwargs["schedule_type"] == "DTG"
+    assert call.kwargs["start_time"] == "19:00"
+    assert call.kwargs["end_time"] == "22:00"
+    assert call.kwargs["limit"] == 5
+    assert call.kwargs["is_enabled"] is True
+    assert coord._battery_dtg_schedule_enabled is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_rbd_schedule_enabled_creates_missing_schedule_when_enabling(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_no_schedule_family(coord, "rbd")
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+
+    await coord.async_set_restrict_battery_discharge_schedule_enabled(True)
+
+    coord.client.set_battery_settings.assert_not_awaited()
+    call = coord.client.create_battery_schedule.await_args
+    assert call.kwargs["schedule_type"] == "RBD"
+    assert call.kwargs["start_time"] == "01:00"
+    assert call.kwargs["end_time"] == "16:00"
+    assert call.kwargs["limit"] is None
+    assert call.kwargs["is_enabled"] is True
+    assert coord._battery_rbd_schedule_enabled is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_rbd_schedule_limit_update_preserves_disabled_state(
     coordinator_factory,
 ) -> None:
@@ -2232,6 +2310,89 @@ async def test_rbd_schedule_limit_update_preserves_disabled_state(
     await coord.async_set_restrict_battery_discharge_schedule_limit(80)
 
     call = coord.client.update_battery_schedule.await_args
+    assert call.kwargs["is_enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_dtg_schedule_toggle_forbidden_uses_schedule_validation_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.FORBIDDEN,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="Schedule update was rejected"):
+        await coord.async_set_discharge_to_grid_schedule_enabled(False)
+
+
+@pytest.mark.asyncio
+async def test_rbd_schedule_toggle_unauthorized_uses_schedule_validation_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "rbd")
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.UNAUTHORIZED,
+            message="Unauthorized",
+        )
+    )
+
+    with pytest.raises(
+        ServiceValidationError, match="Schedule update could not be authenticated"
+    ):
+        await coord.async_set_restrict_battery_discharge_schedule_enabled(False)
+
+
+@pytest.mark.asyncio
+async def test_dtg_schedule_toggle_unexpected_client_error_reraises(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.async_set_discharge_to_grid_schedule_enabled(False)
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_enabled_helper_still_uses_schedule_write_path(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+
+    await coord.battery_runtime._async_set_schedule_family_enabled(  # noqa: SLF001
+        "cfg", False
+    )
+
+    call = coord.client.update_battery_schedule.await_args
+    assert call.args[0] == "sched-1"
+    assert call.kwargs["schedule_type"] == "CFG"
+    assert call.kwargs["start_time"] == "02:00"
+    assert call.kwargs["end_time"] == "05:00"
+    assert call.kwargs["limit"] == 80
     assert call.kwargs["is_enabled"] is False
 
 
@@ -2269,7 +2430,7 @@ async def test_dtg_schedule_time_create_uses_control_window_defaults(
     assert call.kwargs["start_time"] == "17:30"
     assert call.kwargs["end_time"] == "22:00"
     assert call.kwargs["limit"] == 5
-    assert call.kwargs["is_enabled"] is None
+    assert call.kwargs["is_enabled"] is False
     assert coord._battery_dtg_begin_time == 1050  # noqa: SLF001
     assert coord._battery_dtg_end_time == 1320  # noqa: SLF001
 
@@ -2288,7 +2449,7 @@ async def test_rbd_schedule_time_create_omits_limit_when_unknown(
     assert call.kwargs["start_time"] == "01:00"
     assert call.kwargs["end_time"] == "15:00"
     assert call.kwargs["limit"] is None
-    assert call.kwargs["is_enabled"] is None
+    assert call.kwargs["is_enabled"] is False
 
 
 async def test_async_update_data_site_only_ignores_battery_schedule_refresh_errors(
