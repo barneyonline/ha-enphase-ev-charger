@@ -1,6 +1,9 @@
 {
   "domain": "enphase_ev",
   "name": "Enphase Energy",
+  "after_dependencies": [
+    "recorder"
+  ],
   "codeowners": [
     "@barneyonline"
   ],

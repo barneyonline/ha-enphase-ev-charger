@@ -119,6 +119,143 @@
       "message": "Den valgte opladningstilstand er ikke tilgængelig."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Indstillinger for Enphase Energy",
+        "description": "Vælg, hvad du vil gøre med denne integrationspost.",
+        "menu_options": {
+          "settings": "Indstillinger",
+          "migrate_envoy": "Migrer Envoy-historik"
+        },
+        "menu_option_descriptions": {
+          "settings": "Juster polling og adfærd.",
+          "migrate_envoy": "Overtag valgte Enphase Envoy-energi-entitets-id'er, så Home Assistant Energy-historikken fortsætter under denne integration."
+        },
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Ladere",
+          "type_microinverter": "Mikroinvertere",
+          "fast_poll_interval": "Hurtigt polling-interval (s)",
+          "slow_poll_interval": "Langsomt polling-interval (s)",
+          "fast_while_streaming": "Foretræk hurtig polling mens cloud-stream er aktiv",
+          "api_timeout": "API-timeout (s)",
+          "nominal_voltage": "Nominel spænding (V)",
+          "session_history_interval": "Sessionshistorik-interval (min)",
+          "schedule_sync_enabled": "Aktiver Scheduler Support",
+          "reauth": "Start reautentificering",
+          "forget_password": "Glem gemt adgangskode",
+          "type_heatpump": "Varmepumpe"
+        },
+        "data_description": {
+          "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
+          "type_encharge": "Inkluderer batteristatus og styringsentiteter, når de er tilgængelige.",
+          "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
+          "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
+          "fast_poll_interval": "Interval der bruges under opladning eller streaming.",
+          "slow_poll_interval": "Interval der bruges ved inaktivitet.",
+          "fast_while_streaming": "Når aktiveret, hurtig polling under aktiv cloud-streaming.",
+          "api_timeout": "Sekunder før API-anmodninger udløber.",
+          "nominal_voltage": "Fallback-spænding brugt til effektestimat for laderen.",
+          "session_history_interval": "Minutter at vente mellem hentninger af cloud-sessionhistorik.",
+          "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
+          "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
+          "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy-indstillinger",
+        "description": "Justér polling og adfærd.",
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Batteri",
+          "type_iqevse": "Ladere",
+          "type_microinverter": "Mikroinvertere",
+          "fast_poll_interval": "Hurtigt polling-interval (s)",
+          "slow_poll_interval": "Langsomt polling-interval (s)",
+          "fast_while_streaming": "Foretræk hurtig polling mens cloud-stream er aktiv",
+          "api_timeout": "API-timeout (s)",
+          "nominal_voltage": "Nominel spænding (V)",
+          "session_history_interval": "Sessionshistorik-interval (min)",
+          "schedule_sync_enabled": "Aktiver Scheduler Support",
+          "reauth": "Start reautentificering",
+          "forget_password": "Glem gemt adgangskode",
+          "type_heatpump": "Varmepumpe"
+        },
+        "data_description": {
+          "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
+          "type_encharge": "Inkluderer batteristatus og styringsentiteter, når de er tilgængelige.",
+          "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
+          "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
+          "fast_poll_interval": "Interval der bruges under opladning eller streaming.",
+          "slow_poll_interval": "Interval der bruges ved inaktivitet.",
+          "fast_while_streaming": "Når aktiveret, hurtig polling under aktiv cloud-streaming.",
+          "api_timeout": "Sekunder før API-anmodninger udløber.",
+          "nominal_voltage": "Fallback-spænding brugt til effektestimat for laderen.",
+          "session_history_interval": "Minutter at vente mellem hentninger af cloud-sessionhistorik.",
+          "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
+          "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
+          "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Vælg Envoy-kilde",
+        "description": "Vælg hvilken Enphase Envoy-konfigurationspost der skal migreres fra.",
+        "data": {
+          "selected_envoy_source": "Envoy-kilde"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrer Envoy-historik",
+        "description": "Denne guide flytter valgte energi-enheds-id'er fra Enphase Envoy til tilsvarende Enphase Energy-sensorer.\n\nHome Assistant Energy-historikken er knyttet til det enheds-id, der bruges til langtidsstatistik.\n\nOpret en fuld Home Assistant-backup, før du fortsætter.\n\nMigrer kun sensorer, der repræsenterer den samme kumulative energitotal.\n\nDen valgte Envoy-integration bliver midlertidigt afindlæst, mens enheds-id'erne omfordeles, og gendannes derefter efter migreringen.\n\nDette opdaterer enhedsregistret og kan ikke automatisk fortrydes.\n\nValgt Envoy-kilde: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Jeg har en nyere Home Assistant-backup"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Tilknyt historiksensorer",
+        "description": "Gennemgå de foreslåede tilknytninger nøje. Kun kompatible kumulative energitotaler vises. Tomme felter springes over.\n\nHvis et forslag er forkert eller uklart, så ryd det og vælg manuelt.",
+        "data": {
+          "solar_production": "Solproduktion",
+          "consumption": "Forbrug",
+          "grid_import": "Netimport",
+          "grid_export": "Neteksport",
+          "battery_charge": "Batteriopladning",
+          "battery_discharge": "Batteriafladning"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Bekræft migrering af Envoy-historik",
+        "description": "De valgte kildeentiteter omdøbes til arkiverede ældre entitets-id'er.\n\nEnphase Energy-entiteterne omdøbes derefter til de oprindelige kildeentitets-id'er.\n\nHvis en tilknytning er forkert, så annuller nu. Gendannelse fra backup er den sikreste tilbageførsel.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Jeg forstår, at de valgte kildeentitets-id'er bliver omfordelt",
+          "disable_archived_envoy_sensors": "Deaktiver arkiverede kildesensorer efter migreringen"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Vælg eller indtast mindst én lader.",
+      "backup_required": "Det anbefales kraftigt at oprette en fuld backup, før du fortsætter.",
+      "confirm_required": "Bekræft, at de valgte kildeentitets-id'er bliver omfordelt, før du fortsætter.",
+      "migration_no_selection": "Vælg mindst én kompatibel energisensor, der skal migreres.",
+      "migration_duplicate_selection": "Den samme kildeentitet kan ikke bruges mere end én gang.",
+      "envoy_entry_loaded": "Envoy-integrationen kunne ikke midlertidigt afindlæses til migreringen.",
+      "incompatible_energy_total": "De valgte entiteter er ikke kompatible kumulative energitotaler.",
+      "new_value_lower": "Den nye sensorværdi er lavere end den eksisterende Envoy-værdi."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Ingen Enphase Envoy-energisensorer er tilgængelige til migrering.",
+      "migration_no_targets": "Ingen kompatible Enphase Energy-sensorer er tilgængelige til migrering.",
+      "migration_partial_failure": "Migreringen stoppede efter delvis gennemførelse.\n\nFuldførte kortlægninger:\n{completed_mappings}\n\nFejl ved behandling af `{failed_entity_id}`: {failure_reason}\n\nGendan fra backup, hvis resultatet ikke er acceptabelt."
+    },
+    "create_entry": {
+      "migration_success": "Migrering fuldført. Enphase Energy ejer nu de valgte kildeentitets-id'er. Kontrollér Energy-dashboardet og Developer Tools > Statistics efter næste opdatering.",
+      "migration_success_reload_needed": "Migreringen er fuldført, men en eller flere integrationer kunne ikke genindlæses automatisk. Genindlæs Enphase Energy og Enphase Envoy manuelt efter behov, og kontrollér derefter Energy-dashboardet og Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1216,49 +1353,6 @@
       "charging_stopped": "Opladning stoppet",
       "plugged_in": "Tilsluttet",
       "unplugged": "Frakoblet"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy-indstillinger",
-        "description": "Justér polling og adfærd.",
-        "data": {
-          "type_envoy": "Gateway",
-          "type_encharge": "Batteri",
-          "type_iqevse": "Ladere",
-          "type_microinverter": "Mikroinvertere",
-          "fast_poll_interval": "Hurtigt polling-interval (s)",
-          "slow_poll_interval": "Langsomt polling-interval (s)",
-          "fast_while_streaming": "Foretræk hurtig polling mens cloud-stream er aktiv",
-          "api_timeout": "API-timeout (s)",
-          "nominal_voltage": "Nominel spænding (V)",
-          "session_history_interval": "Sessionshistorik-interval (min)",
-          "schedule_sync_enabled": "Aktiver Scheduler Support",
-          "reauth": "Start reautentificering",
-          "forget_password": "Glem gemt adgangskode",
-          "type_heatpump": "Varmepumpe"
-        },
-        "data_description": {
-          "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
-          "type_encharge": "Inkluderer batteristatus og styringsentiteter, når de er tilgængelige.",
-          "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
-          "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
-          "fast_poll_interval": "Interval der bruges under opladning eller streaming.",
-          "slow_poll_interval": "Interval der bruges ved inaktivitet.",
-          "fast_while_streaming": "Når aktiveret, hurtig polling under aktiv cloud-streaming.",
-          "api_timeout": "Sekunder før API-anmodninger udløber.",
-          "nominal_voltage": "Fallback-spænding brugt til effektestimat for laderen.",
-          "session_history_interval": "Minutter at vente mellem hentninger af cloud-sessionhistorik.",
-          "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
-          "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
-          "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
-          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Vælg eller indtast mindst én lader."
     }
   },
   "issues": {

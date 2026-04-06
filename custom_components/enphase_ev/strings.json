@@ -123,6 +123,50 @@
     "step": {
       "init": {
         "title": "Enphase Energy Options",
+        "description": "Choose what to do with this integration entry.",
+        "menu_options": {
+          "settings": "Settings",
+          "migrate_envoy": "Migrate Envoy history"
+        },
+        "menu_option_descriptions": {
+          "settings": "Tune polling and behavior.",
+          "migrate_envoy": "Take over selected Enphase Envoy energy entity IDs so Home Assistant Energy history continues under this integration."
+        },
+        "data": {
+          "type_envoy": "Gateway",
+          "type_encharge": "Battery",
+          "type_iqevse": "EV Chargers",
+          "type_heatpump": "Heat Pump",
+          "type_microinverter": "Microinverters",
+          "fast_poll_interval": "Fast poll interval (s)",
+          "slow_poll_interval": "Slow poll interval (s)",
+          "fast_while_streaming": "Prefer fast polling while cloud stream active",
+          "api_timeout": "API timeout (s)",
+          "nominal_voltage": "Nominal voltage (V)",
+          "session_history_interval": "Session history interval (min)",
+          "schedule_sync_enabled": "Enable Scheduler Support",
+          "reauth": "Start reauthentication",
+          "forget_password": "Forget stored password"
+        },
+        "data_description": {
+          "type_envoy": "Includes gateway connectivity and meter diagnostics.",
+          "type_encharge": "Includes battery status and control entities when available.",
+          "type_iqevse": "Includes EV charger entities and controls.",
+          "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
+          "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
+          "fast_poll_interval": "Interval to use while charging or streaming.",
+          "slow_poll_interval": "Interval to use when idle.",
+          "fast_while_streaming": "When enabled, fast poll during active cloud streaming.",
+          "api_timeout": "Seconds before API requests time out.",
+          "nominal_voltage": "Fallback voltage used for charger power estimates.",
+          "session_history_interval": "Minutes to wait between cloud session history fetches.",
+          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "reauth": "Launch the login flow to refresh credentials without removing the integration.",
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy Options",
         "description": "Tune polling and behavior.",
         "data": {
           "type_envoy": "Gateway",
@@ -156,10 +200,68 @@
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
           "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
         }
+      },
+      "migrate_envoy_source": {
+        "title": "Select Envoy Source",
+        "description": "Choose which Enphase Envoy config entry to migrate from.",
+        "data": {
+          "selected_envoy_source": "Envoy source"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Migrate Envoy History",
+        "description": "This assistant reassigns selected Enphase Envoy energy entity IDs to matching Enphase Energy sensors.\n\nHome Assistant Energy history is tied to the entity ID used for long-term statistics.\n\nCreate a full Home Assistant backup before continuing.\n\nOnly migrate sensors that represent the same cumulative energy total.\n\nThe selected Envoy integration will be temporarily unloaded while entity IDs are reassigned, then restored after the migration.\n\nThis updates the entity registry and cannot be reversed automatically.\n\nSelected Envoy source: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "I have a recent Home Assistant backup"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Map History Sensors",
+        "description": "Review the suggested mappings carefully. Only compatible cumulative energy totals are shown. Blank fields will be skipped.\n\nIf a suggestion is wrong or unclear, clear it and choose manually.",
+        "data": {
+          "solar_production": "Solar production",
+          "consumption": "Consumption",
+          "grid_import": "Grid import",
+          "grid_export": "Grid export",
+          "battery_charge": "Battery charge",
+          "battery_discharge": "Battery discharge"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Confirm Envoy History Migration",
+        "description": "The selected source entities will be renamed to archived legacy entity IDs.\n\nThe Enphase Energy entities will then be renamed to the original source entity IDs.\n\nIf any mapping is wrong, cancel now. Restoring from backup is the safest rollback.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "I understand the selected source entity IDs will be reassigned",
+          "disable_archived_envoy_sensors": "Disable archived source sensors after migration"
+        }
       }
     },
     "error": {
-      "serials_required": "Select or enter at least one charger."
+      "serials_required": "Select or enter at least one charger.",
+      "backup_required": "Strongly recommend creating a full backup before proceeding.",
+      "confirm_required": "Confirm that the selected source entity IDs will be reassigned before continuing.",
+      "migration_no_selection": "Select at least one compatible energy sensor to migrate.",
+      "migration_duplicate_selection": "The same source entity cannot be used more than once.",
+      "envoy_entry_loaded": "Envoy integration could not be temporarily unloaded for migration.",
+      "incompatible_energy_total": "Selected entities are not compatible energy totals.",
+      "new_value_lower": "New sensor value is lower than the existing Envoy value."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "No Enphase Envoy energy sensors are available to migrate.",
+      "migration_no_targets": "No compatible Enphase Energy site sensors are available for migration.",
+      "migration_partial_failure": "The migration stopped after partial completion.\n\nCompleted mappings:\n{completed_mappings}\n\nFailed while processing `{failed_entity_id}`: {failure_reason}\n\nRestore from backup if the result is not acceptable."
+    },
+    "create_entry": {
+      "migration_success": "Migration complete. Enphase Energy now owns the selected source entity IDs. Verify the Energy dashboard and Developer Tools > Statistics after the next refresh.",
+      "migration_success_reload_needed": "Migration complete, but one or more integrations could not be reloaded automatically. Reload Enphase Energy and Enphase Envoy manually if needed, then verify the Energy dashboard and Developer Tools > Statistics."
     }
   },
   "entity": {

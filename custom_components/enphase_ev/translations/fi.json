@@ -119,6 +119,143 @@
       "message": "Valittu lataustila ei ole käytettävissä."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Energyn asetukset",
+        "description": "Valitse, mitä haluat tehdä tälle integraatiomerkinnälle.",
+        "menu_options": {
+          "settings": "Asetukset",
+          "migrate_envoy": "Siirrä Envoy-historia"
+        },
+        "menu_option_descriptions": {
+          "settings": "Säädä kyselyä ja toimintaa.",
+          "migrate_envoy": "Ota valitut Enphase Envoyn energiaentiteettien tunnukset käyttöön, jotta Home Assistant Energyn historia jatkuu tämän integraation alla."
+        },
+        "data": {
+          "type_envoy": "Yhdyskäytävä",
+          "type_encharge": "Akku",
+          "type_iqevse": "Laturit",
+          "type_microinverter": "Mikroinvertterit",
+          "fast_poll_interval": "Nopea kyselyväli (s)",
+          "slow_poll_interval": "Hidas kyselyväli (s)",
+          "fast_while_streaming": "Valitse nopea kysely, kun pilvivirta on aktiivinen",
+          "api_timeout": "API-aikakatkaisu (s)",
+          "nominal_voltage": "Nimellisjännite (V)",
+          "session_history_interval": "Istuntohistorian väli (min)",
+          "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
+          "reauth": "Aloita uudelleentodennus",
+          "forget_password": "Unohda tallennettu salasana",
+          "type_heatpump": "Lämpöpumppu"
+        },
+        "data_description": {
+          "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
+          "type_encharge": "Sisältää akkujen tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
+          "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
+          "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",
+          "slow_poll_interval": "Aikaväli, jota käytetään tyhjäkäynnillä.",
+          "fast_while_streaming": "Kun tämä on käytössä, nopea kysely aktiivisen pilvisuoratoiston aikana.",
+          "api_timeout": "Sekuntia ennen kuin API-pyynnöt aikakatkaistaan.",
+          "nominal_voltage": "Varajännite laturin tehoarvion laskentaan.",
+          "session_history_interval": "Minuuttia odotettavana pilvikäyttöhistorian hakujen välillä.",
+          "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
+          "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
+          "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
+          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
+        }
+      },
+      "settings": {
+        "title": "Enphase Energy -asetukset",
+        "description": "Säädä äänestystä ja käyttäytymistä.",
+        "data": {
+          "type_envoy": "Yhdyskäytävä",
+          "type_encharge": "Akku",
+          "type_iqevse": "Laturit",
+          "type_microinverter": "Mikroinvertterit",
+          "fast_poll_interval": "Nopea kyselyväli (s)",
+          "slow_poll_interval": "Hidas kyselyväli (s)",
+          "fast_while_streaming": "Valitse nopea kysely, kun pilvivirta on aktiivinen",
+          "api_timeout": "API-aikakatkaisu (s)",
+          "nominal_voltage": "Nimellisjännite (V)",
+          "session_history_interval": "Istuntohistorian väli (min)",
+          "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
+          "reauth": "Aloita uudelleentodennus",
+          "forget_password": "Unohda tallennettu salasana",
+          "type_heatpump": "Lämpöpumppu"
+        },
+        "data_description": {
+          "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
+          "type_encharge": "Sisältää akkujen tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
+          "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
+          "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
+          "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",
+          "slow_poll_interval": "Aikaväli, jota käytetään tyhjäkäynnillä.",
+          "fast_while_streaming": "Kun tämä on käytössä, nopea kysely aktiivisen pilvisuoratoiston aikana.",
+          "api_timeout": "Sekuntia ennen kuin API-pyynnöt aikakatkaistaan.",
+          "nominal_voltage": "Varajännite laturin tehoarvion laskentaan.",
+          "session_history_interval": "Minuuttia odotettavana pilvikäyttöhistorian hakujen välillä.",
+          "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
+          "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
+          "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
+          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
+        }
+      },
+      "migrate_envoy_source": {
+        "title": "Valitse Envoy-lähde",
+        "description": "Valitse, mistä Enphase Envoy -merkinnästä siirretään.",
+        "data": {
+          "selected_envoy_source": "Envoy-lähde"
+        }
+      },
+      "migrate_envoy_intro": {
+        "title": "Siirrä Envoy-historia",
+        "description": "Tämä ohjattu toiminto siirtää valitut Enphase Envoyn energiaentiteettien tunnukset vastaaville Enphase Energyn sensoreille.\n\nHome Assistant Energyn historia on sidottu entiteettitunnukseen, jota käytetään pitkän aikavälin tilastoissa.\n\nLuo täydellinen Home Assistant -varmuuskopio ennen jatkamista.\n\nSiirrä vain antureita, jotka edustavat samaa kumulatiivista energian kokonaissummaa.\n\nValittu Envoy-integraatio poistetaan tilapäisesti käytöstä entiteettitunnusten uudelleenmäärityksen ajaksi ja palautetaan siirron jälkeen.\n\nTämä päivittää entiteettirekisterin, eikä muutosta voi perua automaattisesti.\n\nValittu Envoy-lähde: **{source_title}**.",
+        "data": {
+          "backup_confirmed": "Minulla on tuore Home Assistant -varmuuskopio"
+        }
+      },
+      "migrate_envoy_mapping": {
+        "title": "Yhdistä historiatunnistimet",
+        "description": "Tarkista ehdotetut yhdistykset huolellisesti. Vain yhteensopivat kumulatiiviset energiasummat näytetään. Tyhjät kentät ohitetaan.\n\nJos ehdotus on väärä tai epäselvä, tyhjennä se ja valitse käsin.",
+        "data": {
+          "solar_production": "Aurinkotuotanto",
+          "consumption": "Kulutus",
+          "grid_import": "Verkko-tuonti",
+          "grid_export": "Verkko-vienti",
+          "battery_charge": "Akun lataus",
+          "battery_discharge": "Akun purku"
+        }
+      },
+      "migrate_envoy_confirm": {
+        "title": "Vahvista Envoy-historian siirto",
+        "description": "Valitut lähde-entiteetit nimetään uudelleen arkistoiduiksi vanhoiksi entiteettitunnuksiksi.\n\nEnphase Energy -entiteetit nimetään sen jälkeen alkuperäisiksi lähde-entiteettien tunnuksiksi.\n\nJos jokin yhdistys on väärä, peruuta nyt. Varmuuskopiosta palauttaminen on turvallisin tapa peruuttaa muutos.\n\n{mapping_preview}",
+        "data": {
+          "confirm_reassign": "Ymmärrän, että valitut lähde-entiteettien tunnukset määritetään uudelleen",
+          "disable_archived_envoy_sensors": "Poista arkistoidut lähdetunnistimet käytöstä siirron jälkeen"
+        }
+      }
+    },
+    "error": {
+      "serials_required": "Valitse tai syötä vähintään yksi laturi.",
+      "backup_required": "On erittäin suositeltavaa luoda täydellinen varmuuskopio ennen jatkamista.",
+      "confirm_required": "Vahvista ennen jatkamista, että valitut lähde-entiteettien tunnukset määritetään uudelleen.",
+      "migration_no_selection": "Valitse vähintään yksi yhteensopiva energiatunnistin siirrettäväksi.",
+      "migration_duplicate_selection": "Samaa lähde-entiteettiä ei voi käyttää useammin kuin kerran.",
+      "envoy_entry_loaded": "Envoy-integraatiota ei voitu poistaa tilapäisesti käytöstä siirtoa varten.",
+      "incompatible_energy_total": "Valitut entiteetit eivät ole yhteensopivia kumulatiivisia energiasummia.",
+      "new_value_lower": "Uuden anturin arvo on pienempi kuin nykyinen Envoyn arvo."
+    },
+    "abort": {
+      "migration_no_envoy_sources": "Yhtään Enphase Envoy -energia-anturia ei ole saatavilla siirtoon.",
+      "migration_no_targets": "Yhtään yhteensopivaa Enphase Energy -anturia ei ole saatavilla siirtoon.",
+      "migration_partial_failure": "Siirto pysähtyi osittaisen valmistumisen jälkeen.\n\nValmiit yhdistelmät:\n{completed_mappings}\n\nVirhe käsiteltäessä `{failed_entity_id}`: {failure_reason}\n\nPalauta varmuuskopiosta, jos tulos ei ole hyväksyttävä."
+    },
+    "create_entry": {
+      "migration_success": "Siirto valmis. Enphase Energy omistaa nyt valitut lähde-entiteettien tunnukset. Tarkista seuraavan päivityksen jälkeen Energy-koontinäyttö ja Developer Tools > Statistics.",
+      "migration_success_reload_needed": "Siirto valmistui, mutta yhtä tai useampaa integraatiota ei voitu ladata automaattisesti uudelleen. Lataa tarvittaessa Enphase Energy ja Enphase Envoy käsin uudelleen ja tarkista sitten Energy-koontinäyttö ja Developer Tools > Statistics."
+    }
+  },
   "entity": {
     "sensor": {
       "last_session": {
@@ -1216,49 +1353,6 @@
       "charging_stopped": "Lataus pysähtyi",
       "plugged_in": "kytkettynä",
       "unplugged": "Irrotettu"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Enphase Energy -asetukset",
-        "description": "Säädä äänestystä ja käyttäytymistä.",
-        "data": {
-          "type_envoy": "Yhdyskäytävä",
-          "type_encharge": "Akku",
-          "type_iqevse": "Laturit",
-          "type_microinverter": "Mikroinvertterit",
-          "fast_poll_interval": "Nopea kyselyväli (s)",
-          "slow_poll_interval": "Hidas kyselyväli (s)",
-          "fast_while_streaming": "Valitse nopea kysely, kun pilvivirta on aktiivinen",
-          "api_timeout": "API-aikakatkaisu (s)",
-          "nominal_voltage": "Nimellisjännite (V)",
-          "session_history_interval": "Istuntohistorian väli (min)",
-          "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
-          "reauth": "Aloita uudelleentodennus",
-          "forget_password": "Unohda tallennettu salasana",
-          "type_heatpump": "Lämpöpumppu"
-        },
-        "data_description": {
-          "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
-          "type_encharge": "Sisältää akkujen tilan ja ohjausentiteetit, kun ne ovat saatavilla.",
-          "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
-          "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
-          "fast_poll_interval": "Latauksen tai suoratoiston aikana käytettävä aikaväli.",
-          "slow_poll_interval": "Aikaväli, jota käytetään tyhjäkäynnillä.",
-          "fast_while_streaming": "Kun tämä on käytössä, nopea kysely aktiivisen pilvisuoratoiston aikana.",
-          "api_timeout": "Sekuntia ennen kuin API-pyynnöt aikakatkaistaan.",
-          "nominal_voltage": "Varajännite laturin tehoarvion laskentaan.",
-          "session_history_interval": "Minuuttia odotettavana pilvikäyttöhistorian hakujen välillä.",
-          "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
-          "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
-          "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
-          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
-        }
-      }
-    },
-    "error": {
-      "serials_required": "Valitse tai syötä vähintään yksi laturi."
     }
   },
   "issues": {
