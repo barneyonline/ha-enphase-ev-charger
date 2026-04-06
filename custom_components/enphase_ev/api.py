@@ -3183,7 +3183,9 @@ class EnphaseEVClient:
                 if payload is None:
                     result = await self._json(method, url, headers=headers)
                 else:
-                    result = await self._json(method, url, json=payload, headers=headers)
+                    result = await self._json(
+                        method, url, json=payload, headers=headers
+                    )
                 self._stop_variant_idx = idx
                 return result
             except aiohttp.ClientResponseError as e:
@@ -3203,9 +3205,7 @@ class EnphaseEVClient:
         payload = {"requestedMessage": requested_message}
         headers = self._today_json_headers()
         headers.update(self._control_headers())
-        return await self._json(
-            "POST", url, json=payload, headers=headers
-        )
+        return await self._json("POST", url, json=payload, headers=headers)
 
     async def start_live_stream(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/start_live_stream"
