@@ -1,11 +1,11 @@
 {
   "domain": "enphase_ev",
   "name": "Enphase Energy",
-  "codeowners": [
-    "@barneyonline"
-  ],
   "after_dependencies": [
     "recorder"
+  ],
+  "codeowners": [
+    "@barneyonline"
   ],
   "config_flow": true,
   "documentation": "https://github.com/barneyonline/ha-enphase-energy",
