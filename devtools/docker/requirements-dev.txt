@@ -1,4 +1,7 @@
 homeassistant>=2024.12.0
+home-assistant-frontend
+hassil
+mutagen
 pytest
 pytest-asyncio
 pytest-homeassistant-custom-component

@@ -256,8 +256,87 @@ def test_mfa_headers_adds_xsrf_and_cookie() -> None:
     assert "Cookie" in headers
 
 
+def test_login_form_headers_match_browser_flow() -> None:
+    assert api._login_form_headers() == {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Origin": api.BASE_URL,
+        "Referer": f"{api.BASE_URL}/",
+    }
+
+
+def test_extract_login_session_from_cookies_uses_cookie_and_jwt_fallback() -> None:
+    payload = {"data": {"session_id": "sid-cookie"}}
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+    manager_token = f"hdr.{payload_b64.rstrip('=')}.sig"
+
+    assert api._extract_login_session_from_cookies(
+        {
+            "_enlighten_4_session": "sid123",
+            "enlighten_manager_token_production": "jwt123",
+        }
+    ) == ("sid123", "jwt123")
+    assert api._extract_login_session_from_cookies(
+        {"enlighten_manager_token_production": manager_token}
+    ) == ("sid-cookie", manager_token)
+    assert api._extract_login_session_from_cookies({}) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_submit_login_form_uses_browser_flow_and_reads_cookies() -> None:
+    payload = {"data": {"session_id": "sid-cookie"}}
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+    manager_token = f"hdr.{payload_b64.rstrip('=')}.sig"
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/html"},
+                text_body="<html></html>",
+            )
+        ]
+    )
+    session.cookie_jar.update_cookies(
+        {
+            "_enlighten_4_session": "sid123",
+            "enlighten_manager_token_production": manager_token,
+        },
+        response_url=URL(api.BASE_URL),
+    )
+
+    session_id, token = await api._submit_login_form(
+        session, "user@example.com", "secret", timeout=5
+    )
+
+    assert (session_id, token) == ("sid123", manager_token)
+    method, url, kwargs = session.calls[0]
+    assert method == "POST"
+    assert url == api.LOGIN_FORM_URL
+    assert kwargs["headers"] == api._login_form_headers()
+    assert kwargs["data"] == {
+        "user[email]": "user@example.com",
+        "user[password]": "secret",
+    }
+
+
+@pytest.mark.asyncio
+async def test_submit_login_form_raises_unavailable_on_server_error() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                status=503,
+                headers={"Content-Type": "text/html"},
+                text_body="<html></html>",
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthUnavailable):
+        await api._submit_login_form(session, "user@example.com", "secret", timeout=5)
+
+
 @pytest.mark.asyncio
 async def test_async_authenticate_success_with_jwt_fallback(monkeypatch) -> None:
+    login_headers: list[dict[str, str]] = []
     site_headers: list[dict[str, str]] = []
 
     async def fake_request_json(
@@ -271,6 +350,7 @@ async def test_async_authenticate_success_with_jwt_fallback(monkeypatch) -> None
         json_data=None,
     ):
         if url == api.LOGIN_URL:
+            login_headers.append(headers or {})
             session.cookie_jar.update_cookies(
                 {
                     "XSRF-TOKEN": "xsrf123",
@@ -296,8 +376,160 @@ async def test_async_authenticate_success_with_jwt_fallback(monkeypatch) -> None
     assert tokens.token_expires_at == 1_700_000_001
     assert tokens.cookie and "enlighten_session" in tokens.cookie
     assert sites and sites[0].site_id == "9001"
+    assert login_headers == [
+        {
+            "Accept": "*/*",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "Referer": f"{api.BASE_URL}/",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+    ]
     assert any("Authorization" in hdr for hdr in site_headers)
+    assert all(hdr.get("Accept") == "*/*" for hdr in site_headers if hdr)
     assert all(hdr.get("X-CSRF-Token") == "xsrf123" for hdr in site_headers if hdr)
+
+
+@pytest.mark.asyncio
+async def test_async_authenticate_falls_back_to_form_login_on_406(monkeypatch) -> None:
+    login_headers: list[dict[str, str]] = []
+    fallback_calls: list[tuple[str, str, int]] = []
+    site_headers: list[dict[str, str]] = []
+
+    async def fake_request_json(
+        session: StubSession,
+        method: str,
+        url: str,
+        *,
+        timeout: int,
+        headers: dict[str, str] | None = None,
+        data=None,
+        json_data=None,
+    ):
+        if url == api.LOGIN_URL:
+            login_headers.append(headers or {})
+            raise _make_cre(406, "Not Acceptable")
+        if url == f"{api.ENTREZ_URL}/tokens":
+            return {"token": "token123", "expires_at": 1_700_000_000}
+        if url == api.SITE_SEARCH_URL:
+            site_headers.append(headers or {})
+            return {"sites": [{"id": 7812456, "title": "Garage"}]}
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    async def fake_submit_login_form(
+        session: StubSession,
+        email: str,
+        password: str,
+        *,
+        timeout: int,
+    ) -> tuple[str | None, str | None]:
+        fallback_calls.append((email, password, timeout))
+        session.cookie_jar.update_cookies(
+            {
+                "_enlighten_4_session": "sid123",
+                "XSRF-TOKEN": "xsrf123",
+            },
+            response_url=URL(api.BASE_URL),
+        )
+        return ("sid123", None)
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_submit_login_form", fake_submit_login_form)
+
+    session = StubSession()
+    tokens, sites = await api.async_authenticate(session, "user@example.com", "secret")
+
+    assert tokens.session_id == "sid123"
+    assert tokens.access_token == "token123"
+    assert sites and sites[0].site_id == "7812456"
+    assert login_headers == [api._login_headers()]
+    assert fallback_calls == [("user@example.com", "secret", api.DEFAULT_AUTH_TIMEOUT)]
+    assert site_headers and site_headers[0]["Accept"] == "*/*"
+    assert site_headers[0]["X-CSRF-Token"] == "xsrf123"
+
+
+@pytest.mark.asyncio
+async def test_async_authenticate_form_login_401_maps_to_invalid_credentials(
+    monkeypatch,
+) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(406, "Not Acceptable")
+
+    async def fake_submit_login_form(*args, **kwargs):
+        raise _make_cre(401)
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_submit_login_form", fake_submit_login_form)
+
+    with pytest.raises(api.EnlightenAuthInvalidCredentials):
+        await api.async_authenticate(StubSession(), "user@example.com", "secret")
+
+
+@pytest.mark.asyncio
+async def test_async_authenticate_form_login_re_raises_other_response_errors(
+    monkeypatch,
+) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(406, "Not Acceptable")
+
+    async def fake_submit_login_form(*args, **kwargs):
+        raise _make_cre(500)
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_submit_login_form", fake_submit_login_form)
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await api.async_authenticate(StubSession(), "user@example.com", "secret")
+
+
+@pytest.mark.asyncio
+async def test_async_authenticate_form_login_client_error_maps_to_unavailable(
+    monkeypatch,
+) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(406, "Not Acceptable")
+
+    async def fake_submit_login_form(*args, **kwargs):
+        raise aiohttp.ClientConnectionError()
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_submit_login_form", fake_submit_login_form)
+
+    with pytest.raises(api.EnlightenAuthUnavailable):
+        await api.async_authenticate(StubSession(), "user@example.com", "secret")
+
+
+@pytest.mark.asyncio
+async def test_async_authenticate_form_login_manager_token_without_session_fails(
+    monkeypatch,
+) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(406, "Not Acceptable")
+
+    async def fake_submit_login_form(*args, **kwargs):
+        return (None, "jwt")
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_submit_login_form", fake_submit_login_form)
+
+    with pytest.raises(api.EnlightenAuthInvalidCredentials, match="Missing session"):
+        await api.async_authenticate(StubSession(), "user@example.com", "secret")
+
+
+@pytest.mark.asyncio
+async def test_async_authenticate_form_login_without_auth_state_fails(
+    monkeypatch,
+) -> None:
+    async def fake_request_json(*args, **kwargs):
+        raise _make_cre(406, "Not Acceptable")
+
+    async def fake_submit_login_form(*args, **kwargs):
+        return (None, None)
+
+    monkeypatch.setattr(api, "_request_json", fake_request_json)
+    monkeypatch.setattr(api, "_submit_login_form", fake_submit_login_form)
+
+    with pytest.raises(api.EnlightenAuthInvalidCredentials, match="Unexpected login"):
+        await api.async_authenticate(StubSession(), "user@example.com", "secret")
 
 
 @pytest.mark.asyncio
