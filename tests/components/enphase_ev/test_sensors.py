@@ -702,6 +702,10 @@ def test_battery_storage_detail_sensors_state_and_attributes():
     assert status.native_value == "idle"
     assert status.extra_state_attributes["state"] == 15
 
+    snapshot["led_status"] = 16
+    assert status.native_value == "idle"
+    assert status.extra_state_attributes["state"] == 16
+
     snapshot["led_status"] = 99
     assert status.native_value == "unknown"
     assert status.extra_state_attributes["state"] == 99
