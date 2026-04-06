@@ -55,6 +55,7 @@ async def test_async_authenticate_populates_site_headers(monkeypatch):
     assert captured["X-CSRF-Token"] == "xsrf123"
     assert captured["X-Requested-With"] == "XMLHttpRequest"
     assert captured["Referer"] == f"{api.BASE_URL}/"
+    assert captured["User-Agent"] == api._ENLIGHTEN_BROWSER_USER_AGENT
     assert captured["Authorization"] == "Bearer token123"
     assert captured["e-auth-token"] == "token123"
     # Ensure the caller explicitly sets Cookie so the request works without relying on session defaults

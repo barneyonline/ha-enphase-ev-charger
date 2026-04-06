@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
-## v2.7.2 - 2026-04-07
+## v2.7.3 - 2026-04-07
 
 ### 🚧 Breaking changes
 - None
@@ -29,13 +29,16 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Matched the documented Enlighten browser header profiles across implemented login, site, inverter, EV, and HEMS web endpoints so optional reads, EV controls, and initial authentication continue working when the cloud service enforces route-specific `Accept` and `Referer` handling more strictly, including a browser-form login fallback when `login.json` is rejected with `406 Not Acceptable`.
+- Switched Enlighten web and auth traffic to a browser-style `User-Agent` after Enphase started rejecting Home Assistant-branded requests with `406 Not Acceptable`, restoring the affected battery, inverter, and grid-control reads in local verification.
 
 ### 🔧 Improvements
-- Added regression coverage for the route-specific request headers used by login, site inventory/runtime, EV, battery, inverter, and HEMS web API methods.
+- Added a shared guardrail layer for read-only Enlighten endpoint families, including bounded concurrency, cooldown tracking, optional-endpoint suppression, manual-refresh bypass handling, and diagnostics-safe per-family health reporting.
+- Reduced repeat traffic to optional/detail endpoints by caching successful battery-status, inverter inventory/status, and inverter production refreshes against their endpoint-family TTLs, keeping inverter production on a once-per-day cache by default and preventing repeated failed retries from hammering Enphase.
+- Added regression coverage for the route-specific request headers, auth fallback, endpoint-family guardrails, and the new success-cache behavior used by login, site inventory/runtime, EV, battery, inverter, and HEMS web API methods.
 - Suppressed noisy warning logs when the optional HEMS lifetime endpoint returns HTML instead of JSON and is already being treated as unavailable.
 
 ### 🔄 Other changes
-- Bumped the integration manifest version to `2.7.2`.
+- Bumped the integration manifest version to `2.7.3`.
 
 ## v2.7.1 - 2026-04-06
 

@@ -134,6 +134,7 @@ from .state_models import (
     BatteryControlCapability,
     BatteryState,
     DiscoveryState,
+    EndpointFamilyHealth,
     EVSEState,
     HeatpumpState,
     InventoryState,
@@ -197,6 +198,19 @@ class ChargerState:
     connector_status: str | None
     session_kwh: float | None
     session_start: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class EndpointFamilyPolicy:
+    """Coordinator policy for read-only Enlighten endpoint families."""
+
+    success_ttl_s: float | None = None
+    stale_after_s: float | None = None
+    failure_backoff_schedule_s: tuple[float, ...] = ()
+    max_backoff_s: float | None = None
+    optional: bool = False
+    suppress_after_failures: int | None = None
+    support_state_on_success: bool = False
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
@@ -396,6 +410,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.inventory_view = InventoryView(self)
         self.diagnostics = CoordinatorDiagnostics(self)
         self.refresh_runner = RefreshRunner(self)
+        self._endpoint_family_policies = self._build_endpoint_family_policies()
 
     def __setattr__(self, name, value):
         if name == "_async_fetch_sessions_today" and hasattr(self, "session_history"):
@@ -441,6 +456,335 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def _async_setup(self) -> None:
         """Prepare lightweight state before the first refresh."""
         self._phase_timings = {}
+
+    def _build_endpoint_family_policies(self) -> dict[str, EndpointFamilyPolicy]:
+        """Return cooldown/cache policies for read-only endpoint families."""
+
+        return {
+            "core_realtime": EndpointFamilyPolicy(
+                failure_backoff_schedule_s=(60.0, 120.0, 300.0, 600.0),
+                max_backoff_s=600.0,
+            ),
+            "battery_status": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=1800.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "grid_control_check": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=180.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+            "dry_contact_settings": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=900.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+            "battery_backup_history": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "battery_settings": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "battery_site_settings": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "battery_schedules": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "storm_guard": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "storm_alert": EndpointFamilyPolicy(
+                success_ttl_s=60.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "inventory_topology": EndpointFamilyPolicy(
+                success_ttl_s=21600.0,
+                failure_backoff_schedule_s=(1800.0, 3600.0, 7200.0, 21600.0),
+                max_backoff_s=21600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+            "inverter_status": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=1800.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+            "inverter_production": EndpointFamilyPolicy(
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+        }
+
+    async def async_request_refresh(self) -> None:
+        """Request a coordinator refresh and allow one cooldown-bypass cycle."""
+
+        self._endpoint_manual_bypass_requested = True
+        self._endpoint_manual_bypass_active = True
+        try:
+            await super().async_request_refresh()
+        finally:
+            self._endpoint_manual_bypass_requested = False
+            self._endpoint_manual_bypass_active = False
+
+    def _endpoint_family_policy(self, family: str) -> EndpointFamilyPolicy | None:
+        return self._endpoint_family_policies.get(family)
+
+    def _endpoint_family_state(self, family: str) -> EndpointFamilyHealth:
+        state = self._endpoint_family_health.get(family)
+        if state is None:
+            state = EndpointFamilyHealth()
+            self._endpoint_family_health[family] = state
+        return state
+
+    def _consume_endpoint_manual_bypass(self) -> bool:
+        requested = bool(self._endpoint_manual_bypass_requested)
+        self._endpoint_manual_bypass_requested = False
+        self._endpoint_manual_bypass_active = requested
+        return requested
+
+    def _clear_endpoint_manual_bypass(self) -> None:
+        self._endpoint_manual_bypass_active = False
+
+    def endpoint_manual_bypass_active(self) -> bool:
+        """Return True when the current refresh cycle is bypassing wait windows."""
+
+        return bool(self._endpoint_manual_bypass_active)
+
+    def _endpoint_family_wait_active(self, family: str) -> bool:
+        health = self._endpoint_family_state(family)
+        next_retry = health.next_retry_mono
+        if not isinstance(next_retry, (int, float)):
+            return False
+        if time.monotonic() < float(next_retry):
+            return True
+        health.next_retry_mono = None
+        health.next_retry_utc = None
+        health.cooldown_active = False
+        return False
+
+    def _endpoint_family_should_run(self, family: str, *, force: bool = False) -> bool:
+        if self._endpoint_family_policy(family) is None:
+            return True
+        if force or self.endpoint_manual_bypass_active():
+            return True
+        return not self._endpoint_family_wait_active(family)
+
+    def _endpoint_family_can_use_stale(self, family: str) -> bool:
+        policy = self._endpoint_family_policy(family)
+        if policy is None or policy.stale_after_s is None:
+            return False
+        last_success = self._endpoint_family_state(family).last_success_mono
+        if not isinstance(last_success, (int, float)):
+            return False
+        return (time.monotonic() - float(last_success)) <= float(policy.stale_after_s)
+
+    def _endpoint_family_next_retry_mono(self, family: str) -> float | None:
+        """Return the current monotonic retry/cache deadline for an endpoint family."""
+
+        next_retry = self._endpoint_family_state(family).next_retry_mono
+        if not isinstance(next_retry, (int, float)):
+            return None
+        return float(next_retry)
+
+    @staticmethod
+    def _endpoint_family_status_from_error(err: Exception) -> int | None:
+        if isinstance(err, aiohttp.ClientResponseError):
+            return int(err.status)
+        if isinstance(err, InvalidPayloadError):
+            return int(err.status) if isinstance(err.status, int) else None
+        return None
+
+    def _endpoint_family_backoff_delay(
+        self,
+        family: str,
+        consecutive_failures: int,
+    ) -> float:
+        policy = self._endpoint_family_policy(family)
+        if policy is None or not policy.failure_backoff_schedule_s:
+            return 0.0
+        index = min(
+            max(consecutive_failures - 1, 0),
+            len(policy.failure_backoff_schedule_s) - 1,
+        )
+        delay = float(policy.failure_backoff_schedule_s[index])
+        if policy.max_backoff_s is not None:
+            delay = min(delay, float(policy.max_backoff_s))
+        return delay * random.uniform(1.0, 1.1)
+
+    def _endpoint_family_failure_is_cooldown_worthy(
+        self,
+        family: str,
+        err: Exception,
+    ) -> bool:
+        status = self._endpoint_family_status_from_error(err)
+        if isinstance(err, (InvalidPayloadError, OptionalEndpointUnavailable)):
+            return True
+        if status is not None:
+            if status in (406, 429) or status >= 500:
+                return True
+            policy = self._endpoint_family_policy(family)
+            return bool(policy and policy.optional and status in (401, 403, 404))
+        if isinstance(err, (aiohttp.ClientError, asyncio.TimeoutError)):
+            return True
+        return True
+
+    def _log_endpoint_family_transition(
+        self,
+        family: str,
+        *,
+        previous_wait_active: bool,
+        previous_support_state: str,
+        health: EndpointFamilyHealth,
+        status: int | None = None,
+        delay_s: float | None = None,
+    ) -> None:
+        site = redact_site_id(self.site_id)
+        if (
+            previous_support_state != "suppressed"
+            and health.support_state == "suppressed"
+        ):
+            _LOGGER.info(
+                "Endpoint family %s suppressed for site %s after repeated failures (status=%s, retry_in_s=%s)",
+                family,
+                site,
+                status,
+                round(delay_s, 1) if isinstance(delay_s, (int, float)) else None,
+            )
+            return
+        if not previous_wait_active and health.cooldown_active:
+            _LOGGER.info(
+                "Endpoint family %s entered cooldown for site %s (status=%s, retry_in_s=%s)",
+                family,
+                site,
+                status,
+                round(delay_s, 1) if isinstance(delay_s, (int, float)) else None,
+            )
+            return
+        if (
+            (previous_wait_active or previous_support_state == "suppressed")
+            and not health.cooldown_active
+            and health.support_state in {"unknown", "supported"}
+        ):
+            _LOGGER.info(
+                "Endpoint family %s recovered for site %s",
+                family,
+                site,
+            )
+
+    def _note_endpoint_family_success(
+        self,
+        family: str,
+        *,
+        success_ttl_s: float | None = None,
+    ) -> None:
+        policy = self._endpoint_family_policy(family)
+        if policy is None:
+            return
+        health = self._endpoint_family_state(family)
+        previous_wait_active = self._endpoint_family_wait_active(family)
+        previous_support_state = health.support_state
+        now_mono = time.monotonic()
+        now_utc = dt_util.utcnow()
+        ttl = policy.success_ttl_s if success_ttl_s is None else success_ttl_s
+        health.consecutive_failures = 0
+        health.last_status = None
+        health.last_error = None
+        health.last_success_mono = now_mono
+        health.last_success_utc = now_utc
+        health.cooldown_active = False
+        if policy.support_state_on_success or previous_support_state == "suppressed":
+            health.support_state = "supported"
+        if isinstance(ttl, (int, float)) and ttl > 0:
+            health.next_retry_mono = now_mono + float(ttl)
+            try:
+                health.next_retry_utc = now_utc + timedelta(seconds=float(ttl))
+            except Exception:
+                health.next_retry_utc = None
+        else:
+            health.next_retry_mono = None
+            health.next_retry_utc = None
+        self._log_endpoint_family_transition(
+            family,
+            previous_wait_active=previous_wait_active,
+            previous_support_state=previous_support_state,
+            health=health,
+        )
+
+    def _note_endpoint_family_failure(self, family: str, err: Exception) -> bool:
+        policy = self._endpoint_family_policy(family)
+        if policy is None or not self._endpoint_family_failure_is_cooldown_worthy(
+            family, err
+        ):
+            return False
+        health = self._endpoint_family_state(family)
+        previous_wait_active = self._endpoint_family_wait_active(family)
+        previous_support_state = health.support_state
+        now_utc = dt_util.utcnow()
+        now_mono = time.monotonic()
+        status = self._endpoint_family_status_from_error(err)
+        health.consecutive_failures += 1
+        health.last_failure_utc = now_utc
+        health.last_status = status
+        health.last_error = redact_text(err, site_ids=(self.site_id,))
+        delay = self._endpoint_family_backoff_delay(family, health.consecutive_failures)
+        if policy.suppress_after_failures is not None and (
+            health.consecutive_failures >= int(policy.suppress_after_failures)
+        ):
+            health.support_state = "suppressed"
+            if policy.max_backoff_s is not None:
+                delay = max(delay, float(policy.max_backoff_s))
+        health.cooldown_active = True
+        health.next_retry_mono = now_mono + delay
+        try:
+            health.next_retry_utc = now_utc + timedelta(seconds=delay)
+        except Exception:
+            health.next_retry_utc = None
+        self._log_endpoint_family_transition(
+            family,
+            previous_wait_active=previous_wait_active,
+            previous_support_state=previous_support_state,
+            health=health,
+            status=status,
+            delay_s=delay,
+        )
+        return True
 
     @property
     def phase_timings(self) -> dict[str, float]:
@@ -5821,10 +6165,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     async def async_refresh_storm_guard_profile(self, *, force: bool = False) -> None:
         await self._async_refresh_storm_guard_profile(force=force)
 
-    async def _async_refresh_storm_alert(self, *, force: bool = False) -> None:
+    async def _async_refresh_storm_alert(
+        self,
+        *,
+        force: bool = False,
+        raise_on_error: bool = False,
+    ) -> None:
+        if raise_on_error:
+            await self.battery_runtime.async_refresh_storm_alert(
+                force=force,
+                raise_on_error=True,
+            )
+            return
         await self.battery_runtime.async_refresh_storm_alert(force=force)
 
-    async def async_refresh_storm_alert(self, *, force: bool = False) -> None:
+    async def async_refresh_storm_alert(
+        self,
+        *,
+        force: bool = False,
+        raise_on_error: bool = False,
+    ) -> None:
+        if raise_on_error:
+            await self._async_refresh_storm_alert(force=force, raise_on_error=True)
+            return
         await self._async_refresh_storm_alert(force=force)
 
     async def async_opt_out_all_storm_alerts(self) -> None:
