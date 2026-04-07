@@ -38,6 +38,8 @@ from .api import (
     is_scheduler_unavailable_error,
 )
 from .const import (
+    AUTH_REFRESH_REJECTED_COOLDOWN_S,
+    AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S,
     BATTERY_MIN_SOC_FALLBACK,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
@@ -3892,41 +3894,113 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if not self._email or not self._remember_password or not self._stored_password:
             return False
 
+        if self._auth_refresh_recent_success_active():
+            return True
+
+        if self._auth_refresh_rejected_active():
+            return False
+
+        task = getattr(self, "_auth_refresh_task", None)
+        if task is not None and not task.done():
+            return await asyncio.shield(task)
+
         async with self._refresh_lock:
-            session = async_get_clientsession(self.hass)
-            try:
-                tokens, _ = await async_authenticate(
-                    session, self._email, self._stored_password
-                )
-            except EnlightenAuthInvalidCredentials:
-                _LOGGER.warning(
-                    "Stored Enlighten credentials were rejected; reauthenticate via the integration options"
-                )
-                return False
-            except EnlightenAuthMFARequired:
-                _LOGGER.warning(
-                    "Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate"
-                )
-                return False
-            except EnlightenAuthUnavailable:
-                _LOGGER.debug(
-                    "Auth service unavailable while refreshing tokens; will retry later"
-                )
-                return False
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(
-                    "Unexpected error refreshing Enlighten auth: %s",
-                    redact_text(err),
-                )
+            if self._auth_refresh_rejected_active():
                 return False
 
-            self._tokens = tokens
-            self.client.update_credentials(
-                eauth=tokens.access_token,
-                cookie=tokens.cookie,
-            )
-            self._persist_tokens(tokens)
+            if self._auth_refresh_recent_success_active():
+                return True
+
+            task = getattr(self, "_auth_refresh_task", None)
+            if task is None or task.done():
+                task = asyncio.create_task(self._async_run_auto_refresh())
+                self._auth_refresh_task = task
+                task.add_done_callback(self._clear_auth_refresh_task)
+
+        return await asyncio.shield(task)
+
+    def _clear_auth_refresh_task(self, task: asyncio.Task[bool]) -> None:
+        """Clear the shared auth-refresh task once it completes."""
+
+        if getattr(self, "_auth_refresh_task", None) is task:
+            self._auth_refresh_task = None
+
+    def _auth_refresh_rejected_active(self) -> bool:
+        """Return True while stored-credential refresh is in cooldown."""
+
+        cooldown_until = getattr(self, "_auth_refresh_rejected_until", None)
+        if not isinstance(cooldown_until, (int, float)):
+            return False
+        if time.monotonic() < float(cooldown_until):
             return True
+        self._auth_refresh_rejected_until = None
+        self._auth_refresh_rejected_ends_utc = None
+        return False
+
+    def _note_auth_refresh_rejected(self, message: str) -> None:
+        """Start a cooldown after stored credentials are rejected."""
+
+        delay = float(AUTH_REFRESH_REJECTED_COOLDOWN_S)
+        self._auth_refresh_last_success_mono = None
+        self._auth_refresh_rejected_until = time.monotonic() + delay
+        try:
+            self._auth_refresh_rejected_ends_utc = dt_util.utcnow() + timedelta(
+                seconds=delay
+            )
+        except Exception:
+            self._auth_refresh_rejected_ends_utc = None
+        _LOGGER.warning(message)
+
+    def _auth_refresh_recent_success_active(self) -> bool:
+        """Return True when a recent successful refresh can satisfy stale 401s."""
+
+        last_success = getattr(self, "_auth_refresh_last_success_mono", None)
+        if not isinstance(last_success, (int, float)):
+            return False
+        return (time.monotonic() - float(last_success)) <= float(
+            AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S
+        )
+
+    async def _async_run_auto_refresh(self) -> bool:
+        """Run one stored-credential refresh attempt for all concurrent waiters."""
+
+        session = async_get_clientsession(self.hass)
+        try:
+            tokens, _ = await async_authenticate(
+                session, self._email, self._stored_password
+            )
+        except EnlightenAuthInvalidCredentials:
+            self._note_auth_refresh_rejected(
+                "Stored Enlighten credentials were rejected; reauthenticate via the integration options"
+            )
+            return False
+        except EnlightenAuthMFARequired:
+            self._note_auth_refresh_rejected(
+                "Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate"
+            )
+            return False
+        except EnlightenAuthUnavailable:
+            _LOGGER.debug(
+                "Auth service unavailable while refreshing tokens; will retry later"
+            )
+            return False
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Unexpected error refreshing Enlighten auth: %s",
+                redact_text(err),
+            )
+            return False
+
+        self._auth_refresh_rejected_until = None
+        self._auth_refresh_rejected_ends_utc = None
+        self._auth_refresh_last_success_mono = time.monotonic()
+        self._tokens = tokens
+        self.client.update_credentials(
+            eauth=tokens.access_token,
+            cookie=tokens.cookie,
+        )
+        self._persist_tokens(tokens)
+        return True
 
     async def _handle_client_unauthorized(self) -> bool:
         """Handle client Unauthorized responses and retry when possible."""

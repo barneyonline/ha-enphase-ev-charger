@@ -119,6 +119,10 @@ class RefreshHealthState:
     _auth_settings_backoff_until: float | None = None
     _auth_settings_backoff_ends_utc: datetime | None = None
     _auth_settings_issue_reported: bool = False
+    _auth_refresh_task: Any = None
+    _auth_refresh_rejected_until: float | None = None
+    _auth_refresh_rejected_ends_utc: datetime | None = None
+    _auth_refresh_last_success_mono: float | None = None
     _session_history_issue_reported: bool = False
     _site_energy_issue_reported: bool = False
     _payload_health: dict[str, dict[str, object]] = field(default_factory=dict)
