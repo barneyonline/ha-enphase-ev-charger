@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -718,6 +719,229 @@ async def test_attempt_auto_refresh_success(monkeypatch, hass):
     )
     coord._persist_tokens.assert_called_once_with(new_tokens)
     assert coord._tokens == new_tokens
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_coalesces_concurrent_calls(monkeypatch, hass):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import AuthTokens
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = None
+    coord.client = SimpleNamespace(update_credentials=MagicMock())
+    coord._persist_tokens = MagicMock()
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+    new_tokens = AuthTokens(
+        cookie="cookie",
+        session_id="sess",
+        access_token="token",
+        token_expires_at=12345,
+    )
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    async def _authenticate(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        started.set()
+        await release.wait()
+        return new_tokens, {}
+
+    monkeypatch.setattr(coord_mod, "async_authenticate", _authenticate)
+
+    first = asyncio.create_task(coord._attempt_auto_refresh())
+    await started.wait()
+    second = asyncio.create_task(coord._attempt_auto_refresh())
+    await asyncio.sleep(0)
+    release.set()
+
+    assert await first is True
+    assert await second is True
+    assert calls == 1
+    coord.client.update_credentials.assert_called_once_with(
+        eauth="token", cookie="cookie"
+    )
+    coord._persist_tokens.assert_called_once_with(new_tokens)
+    assert coord._auth_refresh_task is None
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_invalid_credentials_enter_cooldown(
+    monkeypatch, hass
+):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import EnlightenAuthInvalidCredentials
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = None
+    coord.client = SimpleNamespace(update_credentials=MagicMock())
+    coord._persist_tokens = MagicMock()
+
+    calls = 0
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    async def _authenticate(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise EnlightenAuthInvalidCredentials()
+
+    monkeypatch.setattr(coord_mod, "async_authenticate", _authenticate)
+
+    assert await coord._attempt_auto_refresh() is False
+    assert await coord._attempt_auto_refresh() is False
+    assert calls == 1
+    assert coord._auth_refresh_rejected_active() is True
+    coord.client.update_credentials.assert_not_called()
+    coord._persist_tokens.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_reuses_recent_success(monkeypatch, hass):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import AuthTokens
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = None
+    coord._auth_refresh_last_success_mono = None
+    coord.client = SimpleNamespace(update_credentials=MagicMock())
+    coord._persist_tokens = MagicMock()
+
+    calls = 0
+    new_tokens = AuthTokens(
+        cookie="cookie",
+        session_id="sess",
+        access_token="token",
+        token_expires_at=12345,
+    )
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    async def _authenticate(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return new_tokens, {}
+
+    monkeypatch.setattr(coord_mod, "async_authenticate", _authenticate)
+
+    assert await coord._attempt_auto_refresh() is True
+    assert await coord._attempt_auto_refresh() is True
+    assert calls == 1
+    coord.client.update_credentials.assert_called_once_with(
+        eauth="token", cookie="cookie"
+    )
+    coord._persist_tokens.assert_called_once_with(new_tokens)
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_rechecks_rejected_cooldown_inside_lock(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+
+    rejected_states = iter([False, True])
+    coord._auth_refresh_rejected_active = lambda: next(rejected_states)  # type: ignore[method-assign]
+    coord._auth_refresh_recent_success_active = lambda: False  # type: ignore[method-assign]
+    coord._async_run_auto_refresh = AsyncMock(return_value=True)
+
+    assert await coord._attempt_auto_refresh() is False
+    coord._async_run_auto_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_rechecks_recent_success_inside_lock(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+
+    recent_states = iter([False, True])
+    coord._auth_refresh_recent_success_active = lambda: next(recent_states)  # type: ignore[method-assign]
+    coord._auth_refresh_rejected_active = lambda: False  # type: ignore[method-assign]
+    coord._async_run_auto_refresh = AsyncMock(return_value=True)
+
+    assert await coord._attempt_auto_refresh() is True
+    coord._async_run_auto_refresh.assert_not_called()
+
+
+def test_auth_refresh_rejected_active_clears_expired_window(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_rejected_until = time.monotonic() - 1
+    coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc)
+
+    assert coord._auth_refresh_rejected_active() is False
+    assert coord._auth_refresh_rejected_until is None
+    assert coord._auth_refresh_rejected_ends_utc is None
+
+
+def test_note_auth_refresh_rejected_handles_utcnow_error(monkeypatch, hass):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_last_success_mono = 10.0
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = "sentinel"
+
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "utcnow",
+        MagicMock(side_effect=RuntimeError("boom")),
+    )
+
+    coord._note_auth_refresh_rejected("invalid")
+
+    assert coord._auth_refresh_last_success_mono is None
+    assert coord._auth_refresh_rejected_until is not None
+    assert coord._auth_refresh_rejected_ends_utc is None
 
 
 @pytest.mark.asyncio
