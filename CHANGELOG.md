@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Prevented `Grid Control Status` from flapping between `Ready` and `Unknown` after transient `grid_control_check` failures by keeping the last confirmed state valid for the full endpoint cooldown window before the next retry.
 
 ### 🔧 Improvements
 - None

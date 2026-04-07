@@ -474,7 +474,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
             "grid_control_check": EndpointFamilyPolicy(
                 success_ttl_s=300.0,
-                stale_after_s=180.0,
+                stale_after_s=GRID_CONTROL_CHECK_STALE_AFTER_S,
                 failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
                 max_backoff_s=3600.0,
                 optional=True,
