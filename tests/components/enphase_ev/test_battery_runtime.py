@@ -1230,6 +1230,33 @@ async def test_battery_runtime_optional_refreshes_respect_cooldown_and_clear_sta
 
 
 @pytest.mark.asyncio
+async def test_battery_runtime_grid_control_refresh_keeps_recent_state_during_cooldown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    grid_health = coord._endpoint_family_state("grid_control_check")  # noqa: SLF001
+    grid_health.next_retry_mono = time.monotonic() + 300
+    grid_health.cooldown_active = True
+    grid_health.last_success_mono = time.monotonic() - 240
+    coord._grid_control_check_last_success_mono = (
+        grid_health.last_success_mono
+    )  # noqa: SLF001
+    coord._grid_control_check_cache_until = None  # noqa: SLF001
+    coord._grid_control_supported = True  # noqa: SLF001
+    coord._grid_control_disable = False  # noqa: SLF001
+    coord._grid_control_active_download = False  # noqa: SLF001
+    coord._grid_control_sunlight_backup_system_check = False  # noqa: SLF001
+    coord._grid_control_grid_outage_check = False  # noqa: SLF001
+    coord._grid_control_user_initiated_toggle = False  # noqa: SLF001
+
+    await coord.battery_runtime.async_refresh_grid_control_check()
+
+    assert coord._grid_control_supported is True  # noqa: SLF001
+    assert coord._grid_control_disable is False  # noqa: SLF001
+    assert coord._grid_control_active_download is False  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_battery_runtime_async_set_grid_connection_uses_runtime_grid_mode() -> (
     None
 ):
