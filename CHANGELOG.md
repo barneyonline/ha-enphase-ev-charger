@@ -11,13 +11,31 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Prevented `Grid Control Status` from flapping between `Ready` and `Unknown` after transient `grid_control_check` failures by keeping the last confirmed state valid for the full endpoint cooldown window before the next retry.
+- None
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
 - None
+
+## v2.7.4 - 2026-04-07
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Restored microinverter sensor availability after the `v2.7.3` Enlighten compatibility changes by separating inverter inventory refreshes from the broader topology endpoint cooldown, preventing successful topology polls from suppressing later inverter fetches and leaving microinverter entities unavailable.
+- Prevented `Grid Control Status` from flapping between `Ready` and `Unknown` after transient `grid_control_check` failures by keeping the last confirmed state valid for the full endpoint cooldown window before the next retry.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.4`.
 
 ## v2.7.3 - 2026-04-07
 
