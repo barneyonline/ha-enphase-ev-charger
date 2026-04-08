@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Coalesced concurrent stored-credential reauthentication attempts into a single in-flight login and added a cooldown after rejected auth refreshes so one expired or blocked Enlighten session does not fan out into a login storm or hit the account’s active-session cap.
+- Stabilized derived EV charger power around suspend and resume transitions by treating `SUSPENDED_EV` as non-charging for power purposes and reseeding the lifetime baseline when charging starts again, preventing stale non-zero readings after pauses and inflated first values after a resume.
 
 ### 🔧 Improvements
 - None
