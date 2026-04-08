@@ -15,6 +15,7 @@ from custom_components.enphase_ev.evse_runtime import (
     ChargeModeResolution,
     ChargeModeStartPreferences,
     EvseRuntime,
+    evse_power_is_actively_charging,
 )
 
 
@@ -289,6 +290,11 @@ async def test_evse_runtime_streaming_and_record_actual_paths(
     coord.kick_fast.assert_called_with(FAST_TOGGLE_POLL_HOLD_S)
     coord._schedule_stream_stop.assert_called_once_with(force=True)
     assert runtime.streaming_active() is False
+
+
+def test_evse_power_is_actively_charging_coerces_numeric_flags() -> None:
+    assert evse_power_is_actively_charging(None, 1) is True
+    assert evse_power_is_actively_charging(None, 0) is False
 
 
 def test_evse_runtime_require_plugged_and_desired_state(coordinator_factory) -> None:

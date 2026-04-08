@@ -59,6 +59,10 @@ EFFECTIVE_CHARGE_MODE_VALUES: frozenset[str] = frozenset(
 SUSPENDED_EVSE_STATUS = "SUSPENDED_EVSE"
 AMP_RESTART_DELAY_S = 30.0
 STREAMING_DEFAULT_DURATION_S = 900.0
+EVSE_INACTIVE_POWER_STATUSES: frozenset[str] = frozenset(
+    {"SUSPENDED", "SUSPENDED_EV", SUSPENDED_EVSE_STATUS}
+)
+EVSE_ACTIVE_POWER_STATUSES: frozenset[str] = frozenset({"CHARGING", "FINISHING"})
 
 
 @dataclass(slots=True)
@@ -73,6 +77,38 @@ class ChargeModeStartPreferences:
 class ChargeModeResolution:
     mode: str | None = None
     source: str | None = None
+
+
+def evse_power_is_actively_charging(
+    connector_status: object,
+    charging: object,
+    *,
+    suspended_by_evse: object = False,
+) -> bool:
+    """Infer whether EVSE power should be treated as actively charging."""
+
+    def _coerce_bool_like(value: object) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            return normalized in {"true", "1", "yes", "y", "on"}
+        return bool(value)
+
+    if suspended_by_evse:
+        return False
+
+    status_norm = ""
+    if isinstance(connector_status, str):
+        status_norm = connector_status.strip().upper()
+
+    if status_norm in EVSE_INACTIVE_POWER_STATUSES:
+        return False
+    if status_norm in EVSE_ACTIVE_POWER_STATUSES:
+        return True
+    return _coerce_bool_like(charging)
 
 
 class EvseRuntime:

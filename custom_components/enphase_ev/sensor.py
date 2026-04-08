@@ -47,6 +47,7 @@ from .entity import (
 from .labels import friendly_status_text, status_label
 from .parsing_helpers import heatpump_status_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
+from .evse_runtime import evse_power_is_actively_charging
 
 PARALLEL_UPDATES = 0
 
@@ -2049,20 +2050,13 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
 
     @staticmethod
     def _is_actually_charging(data: dict) -> bool:
-        status = data.get("connector_status")
-        status_norm = ""
-        if isinstance(status, str):
-            status_norm = status.strip().upper()
-        if data.get("suspended_by_evse"):
-            return False
-        if status_norm in {"SUSPENDED", "SUSPENDED_EVSE"}:
-            return False
-        if status_norm in {
-            "CHARGING",
-            "FINISHING",
-        } or status_norm.startswith("SUSPENDED_EV"):
-            return True
-        return bool(data.get("charging"))
+        if "actual_charging" in data:
+            return bool(data.get("actual_charging"))
+        return evse_power_is_actively_charging(
+            data.get("connector_status"),
+            data.get("charging"),
+            suspended_by_evse=data.get("suspended_by_evse"),
+        )
 
     def _resolve_max_throughput(
         self, data: dict
@@ -2277,7 +2271,7 @@ class EnphasePowerSensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             "last_power_w": self._last_power_w,
             "last_window_seconds": self._last_window_s,
             "method": self._last_method,
-            "charging": bool(data.get("charging")),
+            "charging": actual_charging,
             "actual_charging": actual_charging,
             "operating_v": operating_v,
             "max_throughput_w": self._max_throughput_w,
