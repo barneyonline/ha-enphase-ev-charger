@@ -1436,7 +1436,9 @@ def test_type_inventory_sensor_iqevse_fallback_handles_iter_errors(
     coord = coordinator_factory(serials=["EV1", "EV2"])
     coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord._type_device_buckets = {"iqevse": {"count": "bad", "devices": "bad"}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "iqevse": {"count": "bad", "devices": "bad"}
+    }  # noqa: SLF001
     coord.serials = {"EV1", "", "EV2"}
     coord.data = {}
 
@@ -1458,7 +1460,9 @@ def test_type_inventory_sensor_iqevse_fallback_uses_serials_without_iterator(
     coord = coordinator_factory(serials=["EV1", "EV2"])
     coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
     coord._devices_inventory_ready = True  # noqa: SLF001
-    coord._type_device_buckets = {"iqevse": {"count": "bad", "devices": "bad"}}  # noqa: SLF001
+    coord._type_device_buckets = {
+        "iqevse": {"count": "bad", "devices": "bad"}
+    }  # noqa: SLF001
     coord.serials = {"EV1", "", "EV2"}
     coord.data = {}
     coord.iter_serials = None
