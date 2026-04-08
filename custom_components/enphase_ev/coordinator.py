@@ -86,6 +86,7 @@ from .evse_runtime import (
     SUSPENDED_EVSE_STATUS,
     ChargeModeStartPreferences,
     EvseRuntime,
+    evse_power_is_actively_charging,
 )
 from .heatpump_runtime import HeatpumpRuntime
 from .inventory_runtime import CoordinatorTopologySnapshot, InventoryRuntime
@@ -2831,22 +2832,35 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return (19200, "static_default", None, voltage, 19200, topology, 1.0)
 
         def _is_actually_charging(entry: dict[str, object]) -> bool:
-            status = entry.get("connector_status")
-            status_norm = ""
-            if isinstance(status, str):
-                status_norm = status.strip().upper()
-            if entry.get("suspended_by_evse"):
-                return False
-            if status_norm in {"SUSPENDED", SUSPENDED_EVSE_STATUS}:
-                return False
-            if status_norm in {"CHARGING", "FINISHING"} or any(
-                status_norm.startswith(prefix) for prefix in ACTIVE_SUSPENDED_PREFIXES
+            if "actual_charging" in entry:
+                return bool(entry.get("actual_charging"))
+            return evse_power_is_actively_charging(
+                entry.get("connector_status"),
+                entry.get("charging"),
+                suspended_by_evse=entry.get("suspended_by_evse"),
+            )
+
+        def _known_previous_charging_state(
+            entry: dict[str, object] | None,
+        ) -> bool | None:
+            if not isinstance(entry, dict):
+                return None
+            if not any(
+                key in entry
+                for key in (
+                    "connector_status",
+                    "charging",
+                    "actual_charging",
+                    "suspended_by_evse",
+                )
             ):
-                return True
-            return bool(entry.get("charging"))
+                return None
+            return _is_actually_charging(entry)
 
         def _build_evse_power_snapshot(
-            serial: str, entry: dict[str, object]
+            serial: str,
+            entry: dict[str, object],
+            previous_entry: dict[str, object] | None,
         ) -> dict[str, object]:
             previous = self.evse_state._evse_power_snapshots.get(serial, {})
             (
@@ -2880,6 +2894,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             lifetime = _power_as_float(entry.get("lifetime_kwh"))
             is_charging = _is_actually_charging(entry)
+            previous_is_charging = _known_previous_charging_state(previous_entry)
 
             last_power_w = _power_as_int(previous.get("derived_power_w"))
             if last_power_w is None:
@@ -2948,6 +2963,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     "derived_power_method": last_method,
                 }
             )
+
+            if previous_is_charging is False and is_charging:
+                snapshot["derived_power_w"] = 0
+                snapshot["derived_power_method"] = "seeded"
+                snapshot["derived_power_window_seconds"] = None
+                if lifetime is not None:
+                    snapshot["derived_last_lifetime_kwh"] = lifetime
+                if sample_ts is not None:
+                    snapshot["derived_last_energy_ts"] = sample_ts
+                self.evse_state._evse_power_snapshots[serial] = snapshot
+                return snapshot
 
             if lifetime is None:
                 if not is_charging:
@@ -3112,17 +3138,23 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             suspended_by_evse = False
             if isinstance(connector_status, str):
                 connector_status_norm = connector_status.strip().upper()
-            charging_now_flag = _as_bool(obj.get("charging"))
+            reported_charging_flag = _as_bool(obj.get("charging"))
+            charging_now_flag = reported_charging_flag
+            if connector_status_norm == SUSPENDED_EVSE_STATUS:
+                suspended_by_evse = True
             if connector_status_norm:
                 if connector_status_norm == SUSPENDED_EVSE_STATUS:
-                    suspended_by_evse = True
                     charging_now_flag = False
                 elif connector_status_norm in ACTIVE_CONNECTOR_STATUSES or any(
                     connector_status_norm.startswith(prefix)
                     for prefix in ACTIVE_SUSPENDED_PREFIXES
                 ):
                     charging_now_flag = True
-            actual_charging_flag = charging_now_flag
+            actual_charging_flag = evse_power_is_actively_charging(
+                connector_status_norm,
+                reported_charging_flag,
+                suspended_by_evse=suspended_by_evse,
+            )
             self._record_actual_charging(sn, actual_charging_flag)
             pending_expectation = self._pending_charging.get(sn)
             if pending_expectation:
@@ -3364,6 +3396,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "connected": _as_bool(obj.get("connected")),
                 "plugged": _as_bool(obj.get("pluggedIn")),
                 "charging": charging_now_flag,
+                "actual_charging": actual_charging_flag,
                 "faulted": _as_bool(obj.get("faulted")),
                 "connector_status": connector_status,
                 "connector_reason": conn0.get("connectorStatusReason"),
@@ -3442,7 +3475,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 if previous_lifetime_kwh is not None:
                     entry.setdefault("lifetime_kwh", previous_lifetime_kwh)
-            entry.update(_build_evse_power_snapshot(sn, entry))
+            entry.update(_build_evse_power_snapshot(sn, entry, previous_entry))
             if PHASE_SWITCH_CONFIG_SETTING in config_values:
                 entry["phase_switch_config"] = config_values[
                     PHASE_SWITCH_CONFIG_SETTING
@@ -3755,7 +3788,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._seed_nominal_voltage_option_from_api()
 
         for sn, cur in out.items():
-            cur.update(_build_evse_power_snapshot(sn, cur))
+            previous_entry = prev_data.get(sn) if isinstance(prev_data, dict) else None
+            cur.update(_build_evse_power_snapshot(sn, cur, previous_entry))
 
         # Attach session history using cached data, deferring expensive fetches when possible
         sessions_start = time.monotonic()

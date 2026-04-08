@@ -351,9 +351,7 @@ async def test_same_sample_timestamp_still_drops_power_when_charging_stops(
 
 
 @pytest.mark.asyncio
-async def test_suspended_ev_status_still_updates_power_from_lifetime_delta(
-    hass, monkeypatch
-):
+async def test_suspended_ev_status_zeroes_power_and_charging(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -444,8 +442,133 @@ async def test_suspended_ev_status_still_updates_power_from_lifetime_delta(
     second = await coord._async_update_data()
 
     assert first[RANDOM_SERIAL]["derived_power_method"] == "seeded"
-    assert second[RANDOM_SERIAL]["derived_power_method"] == "lifetime_energy_window"
-    assert second[RANDOM_SERIAL]["derived_power_w"] == 6000
+    assert first[RANDOM_SERIAL]["charging"] is True
+    assert first[RANDOM_SERIAL]["actual_charging"] is False
+    assert second[RANDOM_SERIAL]["derived_power_method"] == "idle"
+    assert second[RANDOM_SERIAL]["derived_power_w"] == 0
+    assert second[RANDOM_SERIAL]["charging"] is True
+    assert second[RANDOM_SERIAL]["actual_charging"] is False
+
+
+@pytest.mark.asyncio
+async def test_power_snapshot_reseeds_when_charging_resumes(hass, monkeypatch):
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+    }
+
+    class DummyEntry:
+        options = {}
+
+        def async_on_unload(self, cb):
+            return None
+
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg, config_entry=DummyEntry())
+
+    class StubClient:
+        def __init__(self, payloads):
+            self._payloads = list(payloads)
+
+        async def status(self):
+            return self._payloads.pop(0)
+
+    coord.client = StubClient(
+        [
+            {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": False,
+                        "pluggedIn": True,
+                        "connectorStatusType": "AVAILABLE",
+                        "lastReportedAt": "2024-01-01T00:00:00+00:00",
+                    }
+                ]
+            },
+            {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": True,
+                        "pluggedIn": True,
+                        "connectorStatusType": "CHARGING",
+                        "lastReportedAt": "2024-01-01T00:05:00+00:00",
+                    }
+                ]
+            },
+            {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "charging": True,
+                        "pluggedIn": True,
+                        "connectorStatusType": "CHARGING",
+                        "lastReportedAt": "2024-01-01T00:10:00+00:00",
+                    }
+                ]
+            },
+        ]
+    )
+    coord.summary.prepare_refresh = lambda **kwargs: True
+    coord.summary.async_fetch = AsyncMock(
+        side_effect=[
+            [
+                {
+                    "serialNumber": RANDOM_SERIAL,
+                    "lifeTimeConsumption": 2.0,
+                    "lastReportedAt": "2024-01-01T00:00:00+00:00",
+                }
+            ],
+            [
+                {
+                    "serialNumber": RANDOM_SERIAL,
+                    "lifeTimeConsumption": 2.0,
+                    "lastReportedAt": "2024-01-01T00:05:00+00:00",
+                }
+            ],
+            [
+                {
+                    "serialNumber": RANDOM_SERIAL,
+                    "lifeTimeConsumption": 2.5,
+                    "lastReportedAt": "2024-01-01T00:10:00+00:00",
+                }
+            ],
+        ]
+    )
+
+    first = await coord._async_update_data()
+    coord.data = first
+    second = await coord._async_update_data()
+    coord.data = second
+    third = await coord._async_update_data()
+
+    assert second[RANDOM_SERIAL]["derived_power_method"] == "seeded"
+    assert second[RANDOM_SERIAL]["derived_power_w"] == 0
+    assert second[RANDOM_SERIAL]["derived_last_energy_ts"] == pytest.approx(
+        datetime(2024, 1, 1, 0, 5, 0, tzinfo=timezone.utc).timestamp()
+    )
+    assert third[RANDOM_SERIAL]["derived_power_method"] == "lifetime_energy_window"
+    assert third[RANDOM_SERIAL]["derived_power_w"] == 6000
 
 
 @pytest.mark.asyncio
