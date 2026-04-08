@@ -54,7 +54,7 @@ def test_cfg_schedule_edit_available_handles_supported_and_existing_windows() ->
     coord.battery_charge_from_grid_start_time = dt_time(1, 0)
     coord.battery_charge_from_grid_end_time = dt_time(2, 0)
 
-    assert time_mod._cfg_schedule_edit_available(coord) is False
+    assert time_mod._cfg_schedule_edit_available(coord) is True
 
     coord._battery_cfg_schedule_id = "sched-1"
     coord.battery_charge_from_grid_start_time = None
@@ -63,6 +63,30 @@ def test_cfg_schedule_edit_available_handles_supported_and_existing_windows() ->
     coord._battery_charge_end_time = 120
 
     assert time_mod._cfg_schedule_edit_available(coord) is True
+
+
+def test_charge_from_grid_time_entity_extra_state_attributes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
+    coord._battery_settings_last_write_mono = 0.0  # noqa: SLF001
+
+    start = ChargeFromGridStartTimeEntity(coord)
+    attrs = start.extra_state_attributes
+
+    assert attrs["start_time"] == "02:00"
+    assert attrs["end_time"] == "05:00"
+    assert attrs["schedule_status"] == "pending"
+    assert attrs["schedule_pending"] is True
+    assert attrs["schedule_enabled"] is True
+    assert "write_pending" in attrs
 
 
 def test_dtg_and_rbd_schedule_edit_available_cover_control_window_fallbacks() -> None:
@@ -714,6 +738,27 @@ async def test_base_named_battery_schedule_time_entity_fallbacks(
     assert entity.available is False
 
 
+def test_base_named_battery_schedule_time_entity_extra_state_attributes_empty(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev import time as time_mod
+
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+
+    entity = time_mod._BaseNamedBatteryScheduleTimeEntity(
+        coord,
+        suffix="custom_schedule_time",
+        availability_check=lambda _: True,
+        value_attr="custom_schedule_time",
+        setter_name="async_custom_schedule_time",
+        suggested_object_id="custom_schedule_time",
+    )
+
+    assert entity._extra_schedule_state_attributes() == {}  # noqa: SLF001
+    assert "schedule_status" not in entity.extra_state_attributes
+
+
 def test_charge_from_grid_time_entity_device_info_fallback(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord.inventory_view.type_device_info = lambda _type_key: None
@@ -837,6 +882,33 @@ async def test_discharge_to_grid_time_entities_availability_and_setters(
     )
 
 
+def test_discharge_to_grid_time_entities_expose_schedule_attributes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord._battery_dtg_schedule_enabled = True  # noqa: SLF001
+    coord._battery_dtg_schedule_status = "pending"  # noqa: SLF001
+
+    start_attrs = DischargeToGridStartTimeEntity(coord).extra_state_attributes
+    end_attrs = DischargeToGridEndTimeEntity(coord).extra_state_attributes
+
+    for attrs in (start_attrs, end_attrs):
+        assert attrs["start_time"] == "18:00"
+        assert attrs["end_time"] == "23:00"
+        assert attrs["schedule_status"] == "pending"
+        assert attrs["schedule_pending"] is True
+        assert attrs["schedule_enabled"] is True
+
+
 def test_discharge_to_grid_time_entities_available_from_control_window(
     coordinator_factory,
 ) -> None:
@@ -907,3 +979,30 @@ async def test_restrict_battery_discharge_time_entities_availability_and_setters
     coord.async_set_restrict_battery_discharge_schedule_time.assert_awaited_with(
         end=dt_time(15, 30)
     )
+
+
+def test_restrict_battery_discharge_time_entities_expose_schedule_attributes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    coord._battery_rbd_schedule_enabled = False  # noqa: SLF001
+    coord._battery_rbd_schedule_status = "active"  # noqa: SLF001
+
+    start_attrs = RestrictBatteryDischargeStartTimeEntity(coord).extra_state_attributes
+    end_attrs = RestrictBatteryDischargeEndTimeEntity(coord).extra_state_attributes
+
+    for attrs in (start_attrs, end_attrs):
+        assert attrs["start_time"] == "01:00"
+        assert attrs["end_time"] == "16:00"
+        assert attrs["schedule_status"] == "active"
+        assert attrs["schedule_pending"] is False
+        assert attrs["schedule_enabled"] is False

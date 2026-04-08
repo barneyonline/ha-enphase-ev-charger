@@ -80,6 +80,7 @@ from .evse_timeseries import EVSETimeseriesManager
 from .evse_feature_flags_runtime import EvseFeatureFlagsRuntime
 from .evse_runtime import (
     AMP_RESTART_DELAY_S,
+    FAST_TOGGLE_POLL_HOLD_S,
     SUSPENDED_EVSE_STATUS,
     ChargeModeStartPreferences,
     EvseRuntime,
@@ -4629,7 +4630,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         installer = self.battery_user_is_installer
         if owner is False and installer is False:
             return False
-        return getattr(self, "_battery_charge_from_grid", None) is not None
+        if getattr(self, "_battery_charge_from_grid", None) is not None:
+            return True
+        if (
+            getattr(self, "_battery_charge_from_grid_schedule_enabled", None)
+            is not None
+        ):
+            return True
+        if getattr(self, "_battery_cfg_schedule_limit", None) is not None:
+            return True
+        if getattr(self, "_battery_cfg_schedule_id", None) is not None:
+            return True
+        begin = getattr(self, "_battery_charge_begin_time", None)
+        end = getattr(self, "_battery_charge_end_time", None)
+        return begin is not None and end is not None
 
     @property
     def battery_charge_from_grid_enabled(self) -> bool | None:
@@ -4655,9 +4669,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def charge_from_grid_schedule_available(self) -> bool:
-        if not self.charge_from_grid_schedule_supported:
-            return False
-        return self.battery_charge_from_grid_enabled is True
+        return self.charge_from_grid_schedule_supported
 
     @property
     def charge_from_grid_force_schedule_supported(self) -> bool:
@@ -4679,9 +4691,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def charge_from_grid_force_schedule_available(self) -> bool:
-        if not self.charge_from_grid_force_schedule_supported:
-            return False
-        return self.battery_charge_from_grid_enabled is True
+        return self.charge_from_grid_force_schedule_supported
 
     def _battery_schedule_control_available(self, control: object) -> bool:
         if getattr(self, "_battery_has_encharge", None) is False:
@@ -4767,6 +4777,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_cfg_schedule_pending(self) -> bool:
         """Return True if a CFG schedule change is pending Envoy sync."""
         return self.battery_cfg_schedule_status == "pending"
+
+    @property
+    def battery_settings_write_age_seconds(self) -> float | None:
+        value = getattr(self, "_battery_settings_last_write_mono", None)
+        if not isinstance(value, (int, float)):
+            return None
+        try:
+            age = time.monotonic() - float(value)
+        except Exception:  # noqa: BLE001
+            return None
+        return age if age >= 0 else 0.0
+
+    @property
+    def battery_settings_write_pending(self) -> bool:
+        age = self.battery_settings_write_age_seconds
+        return age is not None and age < FAST_TOGGLE_POLL_HOLD_S
 
     @property
     def discharge_to_grid_schedule_supported(self) -> bool:
