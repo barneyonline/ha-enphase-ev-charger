@@ -1864,7 +1864,9 @@ def test_sync_charger_devices_clears_legacy_type_parent(config_entry) -> None:
     assert charger.via_device_id is None
 
 
-def test_sync_charger_devices_marks_existing_legacy_parent_for_update(config_entry) -> None:
+def test_sync_charger_devices_marks_existing_legacy_parent_for_update(
+    config_entry,
+) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
     dev_reg.async_get_or_create(
