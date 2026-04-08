@@ -604,6 +604,8 @@ class BatteryRuntime:
         state._battery_pending_sub_type = None
         state._battery_pending_requested_at = None
         state._battery_pending_require_exact_settings = True
+        state._battery_backend_profile_update_pending = None
+        state._battery_backend_not_pending_observed_at = None
         self._sync_battery_profile_pending_issue()
 
     def set_battery_pending(
@@ -623,7 +625,46 @@ class BatteryRuntime:
         )
         state._battery_pending_requested_at = dt_util.utcnow()
         state._battery_pending_require_exact_settings = bool(require_exact_settings)
+        state._battery_backend_profile_update_pending = None
+        state._battery_backend_not_pending_observed_at = None
         self._sync_battery_profile_pending_issue()
+
+    def _backend_not_pending_clear_grace_seconds(self) -> int:
+        polling_interval = self._coerce_optional_int(
+            getattr(self.battery_state, "_battery_polling_interval_s", None)
+        )
+        if polling_interval is None or polling_interval <= 0:
+            return FAST_TOGGLE_POLL_HOLD_S
+        return max(int(polling_interval), FAST_TOGGLE_POLL_HOLD_S)
+
+    def sync_backend_battery_profile_pending(self, value: object) -> None:
+        state = self.battery_state
+        backend_pending = self._coerce_optional_bool(value)
+        if backend_pending is not None:
+            state._battery_backend_profile_update_pending = backend_pending
+        if backend_pending is None:
+            return
+        if backend_pending:
+            state._battery_backend_not_pending_observed_at = None
+            return
+        if getattr(state, "_battery_pending_profile", None) is None:
+            state._battery_backend_not_pending_observed_at = None
+            return
+        if self.effective_profile_matches_pending():
+            self.clear_battery_pending()
+            return
+        now = dt_util.utcnow()
+        first_observed = getattr(
+            state, "_battery_backend_not_pending_observed_at", None
+        )
+        if first_observed is None:
+            state._battery_backend_not_pending_observed_at = now
+            return
+        pending_age = self.coordinator.battery_pending_age_seconds
+        if pending_age is None:
+            return
+        if pending_age >= self._backend_not_pending_clear_grace_seconds():
+            self.clear_battery_pending()
 
     def effective_profile_matches_pending(self) -> bool:
         state = self.battery_state
@@ -1384,6 +1425,7 @@ class BatteryRuntime:
             state._battery_profile_devices = []
         if profile_evse_device is not None:
             state._battery_profile_evse_device = profile_evse_device
+        self.sync_backend_battery_profile_pending(data.get("isBatteryChangePending"))
 
         if self.effective_profile_matches_pending():
             self.clear_battery_pending()
@@ -1768,6 +1810,7 @@ class BatteryRuntime:
                 )
                 if use_battery is not None:
                     state._battery_use_battery_for_self_consumption = use_battery
+        self.sync_backend_battery_profile_pending(data.get("isBatteryChangePending"))
 
         if self.effective_profile_matches_pending():
             self.clear_battery_pending()
