@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 import aiohttp
 import pytest
 
+from custom_components.enphase_ev.const import FAST_TOGGLE_POLL_HOLD_S
 from custom_components.enphase_ev.state_models import BatteryControlCapability
 
 
@@ -1117,6 +1118,60 @@ def test_profile_only_pending_match_allows_reserve_drift(coordinator_factory) ->
     coord._battery_backup_percentage = 45  # noqa: SLF001
 
     assert coord._effective_profile_matches_pending() is True  # noqa: SLF001
+
+
+def test_profile_payload_keeps_recent_local_pending_when_backend_still_mismatched(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_reserve = 100  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is True
+    assert coord._battery_backend_profile_update_pending is False  # noqa: SLF001
+    assert coord._battery_backend_not_pending_observed_at is not None  # noqa: SLF001
+
+
+def test_settings_payload_clears_stale_local_pending_when_backend_change_completed(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_reserve = 100  # noqa: SLF001
+    now = datetime.now(timezone.utc)
+    coord._battery_pending_requested_at = now - timedelta(
+        seconds=FAST_TOGGLE_POLL_HOLD_S + 5
+    )  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = now - timedelta(
+        seconds=5
+    )  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is False
+    assert coord._battery_backend_profile_update_pending is None  # noqa: SLF001
+    assert coord._battery_backend_not_pending_observed_at is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
