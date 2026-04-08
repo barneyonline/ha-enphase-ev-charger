@@ -351,9 +351,7 @@ async def test_same_sample_timestamp_still_drops_power_when_charging_stops(
 
 
 @pytest.mark.asyncio
-async def test_suspended_ev_status_zeroes_power_and_charging(
-    hass, monkeypatch
-):
+async def test_suspended_ev_status_zeroes_power_and_charging(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
@@ -453,9 +451,7 @@ async def test_suspended_ev_status_zeroes_power_and_charging(
 
 
 @pytest.mark.asyncio
-async def test_power_snapshot_reseeds_when_charging_resumes(
-    hass, monkeypatch
-):
+async def test_power_snapshot_reseeds_when_charging_resumes(hass, monkeypatch):
     from custom_components.enphase_ev.const import (
         CONF_COOKIE,
         CONF_EAUTH,
