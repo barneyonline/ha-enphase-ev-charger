@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -413,6 +414,8 @@ class DummyCoordinator(SimpleNamespace):
         self._inverters_inventory_payload = {"total": 2}
         self._inverter_status_payload = {"key": {"serialNum": "INV-A"}}
         self._inverter_production_payload = {"production": {"key": 100}}
+        self._inverter_production_cache_key = ("2022-08-10", "2026-03-08")
+        self._inverter_production_cache_until = time.monotonic() + 300
         self.firmware_catalog_manager = SimpleNamespace(
             status_snapshot=lambda: {
                 "last_fetch_utc": "2026-03-01T00:00:00+00:00",
@@ -603,6 +606,9 @@ class DummyCoordinator(SimpleNamespace):
             "inventory_payload": self._inverters_inventory_payload,
             "status_payload": self._inverter_status_payload,
             "production_payload": self._inverter_production_payload,
+            "production_cache_key": self._inverter_production_cache_key,
+            "production_cache_remaining_seconds": 300.0,
+            "production_cache_age_seconds": 120.0,
         }
 
     def evse_diagnostics_payloads(self):
@@ -685,6 +691,14 @@ async def test_config_entry_diagnostics_includes_coordinator(
         ]
         == '{"site":"[site]","serial":"SERI...5678"}'
     )
+    assert diag["coordinator"]["inverters"]["production_cache_key"] == (
+        "2022-08-10",
+        "2026-03-08",
+    )
+    assert (
+        diag["coordinator"]["inverters"]["production_cache_remaining_seconds"] is not None
+    )
+    assert diag["coordinator"]["inverters"]["production_cache_age_seconds"] is not None
     assert (
         diag["coordinator"]["battery_config"]["site_settings_payload"]["userId"]
         == "[redacted]"
