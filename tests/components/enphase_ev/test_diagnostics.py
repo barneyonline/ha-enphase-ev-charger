@@ -696,7 +696,8 @@ async def test_config_entry_diagnostics_includes_coordinator(
         "2026-03-08",
     )
     assert (
-        diag["coordinator"]["inverters"]["production_cache_remaining_seconds"] is not None
+        diag["coordinator"]["inverters"]["production_cache_remaining_seconds"]
+        is not None
     )
     assert diag["coordinator"]["inverters"]["production_cache_age_seconds"] is not None
     assert (
