@@ -1472,6 +1472,26 @@ def test_type_inventory_sensor_iqevse_fallback_uses_serials_without_iterator(
     assert entity.native_value == 2
 
 
+def test_type_inventory_sensor_iqevse_fallback_returns_zero_without_serials(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=[])
+    coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {
+        "iqevse": {"count": "bad", "devices": "bad"}
+    }  # noqa: SLF001
+    coord.serials = object()
+    coord.data = {}
+    coord.iter_serials = None
+
+    entity = EnphaseTypeInventorySensor(coord, "iqevse")
+
+    assert entity.native_value == 0
+
+
 def test_type_inventory_sensor_device_info_prefers_provider_and_fallback(
     coordinator_factory,
 ) -> None:
@@ -5858,6 +5878,48 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     assert wind.native_value == 2
     assert wind.extra_state_attributes["type_label"] == "Wind Turbine"
     assert wind.device_info["name"] == "Wind Turbine"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_type_inventory_listener_skips_known_non_dry_contact(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "wind_turbine": {
+                "type_key": "wind_turbine",
+                "type_label": "Wind Turbine",
+                "count": 1,
+                "devices": [{"name": "Wind 1"}],
+            }
+        },
+        ["wind_turbine"],
+    )
+    callbacks: list[Any] = []
+
+    def _add_listener(callback):
+        callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = _add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    sync_topology_cb = next(
+        cb for cb in callbacks if cb.__name__ == "_async_sync_topology"
+    )
+    before = len(added)
+    sync_topology_cb()
+    assert len(added) == before
 
 
 @pytest.mark.asyncio
