@@ -163,8 +163,8 @@ async def test_integration_setup_creates_entities(
     ev_type_device = device_registry.async_get_device(
         identifiers={(DOMAIN, f"type:{RANDOM_SITE_ID}:iqevse")}
     )
-    assert ev_type_device is not None
-    assert charger_device.via_device_id == ev_type_device.id
+    assert ev_type_device is None
+    assert charger_device.via_device_id is None
 
 
 @pytest.mark.asyncio

@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 - Stabilized derived EV charger power around suspend and resume transitions by treating `SUSPENDED_EV` as non-charging for power purposes and reseeding the lifetime baseline when charging starts again, preventing stale non-zero readings after pauses and inflated first values after a resume.
 
 ### 🔧 Improvements
-- None
+- Split the repository Docker workflows into a pinned `ha-dev` contributor container and a separate `ha-runtime` Home Assistant runtime container based on the official image, making local UI verification more reliable.
 
 ### 🔄 Other changes
 - None

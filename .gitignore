@@ -3,3 +3,5 @@ __pycache__/
 .ruff_cache/
 .venv*/
 .DS_Store
+.ha-config/
+.tmp-ha-verify/
