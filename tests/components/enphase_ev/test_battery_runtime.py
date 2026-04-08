@@ -11,7 +11,10 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from custom_components.enphase_ev.battery_runtime import BatteryRuntime
-from custom_components.enphase_ev.const import SAVINGS_OPERATION_MODE_SUBTYPE
+from custom_components.enphase_ev.const import (
+    FAST_TOGGLE_POLL_HOLD_S,
+    SAVINGS_OPERATION_MODE_SUBTYPE,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -57,7 +60,131 @@ def test_battery_runtime_pending_helpers_and_matching(
 
     assert coord._battery_pending_profile is None  # noqa: SLF001
     assert coord._battery_pending_requested_at is None  # noqa: SLF001
+    assert coord._battery_backend_profile_update_pending is None  # noqa: SLF001
+    assert coord._battery_backend_not_pending_observed_at is None  # noqa: SLF001
     assert mock_issue_registry.created == []
+
+
+def test_backend_pending_flag_does_not_clear_recent_mismatched_request(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    requested_at = datetime.now(UTC)
+    observed_at = requested_at + timedelta(seconds=FAST_TOGGLE_POLL_HOLD_S - 1)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_reserve = 100  # noqa: SLF001
+    coord._battery_pending_requested_at = requested_at  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: observed_at,
+    )
+
+    runtime.sync_backend_battery_profile_pending(False)
+
+    assert coord._battery_backend_profile_update_pending is False  # noqa: SLF001
+    assert coord.battery_profile_pending is True
+    assert coord._battery_backend_not_pending_observed_at == observed_at  # noqa: SLF001
+
+
+def test_backend_pending_flag_clears_stale_mismatched_request_after_grace(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    requested_at = datetime.now(UTC)
+    first_false = requested_at + timedelta(seconds=10)
+    second_false = requested_at + timedelta(seconds=FAST_TOGGLE_POLL_HOLD_S + 5)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_reserve = 100  # noqa: SLF001
+    coord._battery_pending_requested_at = requested_at  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: first_false,
+    )
+    runtime.sync_backend_battery_profile_pending(False)
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: second_false,
+    )
+    runtime.sync_backend_battery_profile_pending(False)
+
+    assert coord.battery_profile_pending is False
+    assert coord._battery_backend_profile_update_pending is None  # noqa: SLF001
+    assert coord._battery_backend_not_pending_observed_at is None  # noqa: SLF001
+
+
+def test_backend_pending_true_resets_not_pending_observation(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    coord._battery_backend_not_pending_observed_at = datetime.now(UTC)  # noqa: SLF001
+
+    runtime.sync_backend_battery_profile_pending(True)
+
+    assert coord._battery_backend_profile_update_pending is True  # noqa: SLF001
+    assert coord._battery_backend_not_pending_observed_at is None  # noqa: SLF001
+
+
+def test_backend_pending_false_without_local_pending_resets_observation(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    coord._battery_backend_not_pending_observed_at = datetime.now(UTC)  # noqa: SLF001
+
+    runtime.sync_backend_battery_profile_pending(False)
+
+    assert coord._battery_backend_profile_update_pending is False  # noqa: SLF001
+    assert coord._battery_backend_not_pending_observed_at is None  # noqa: SLF001
+
+
+def test_backend_pending_false_clears_when_effective_state_matches(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(UTC)  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+
+    runtime.sync_backend_battery_profile_pending(False)
+
+    assert coord.battery_profile_pending is False
+    assert coord._battery_backend_profile_update_pending is None  # noqa: SLF001
+
+
+def test_backend_pending_false_keeps_pending_when_age_unavailable(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_reserve = 100  # noqa: SLF001
+    coord._battery_pending_requested_at = "invalid"  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = datetime.now(UTC)  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: datetime.now(UTC),
+    )
+
+    runtime.sync_backend_battery_profile_pending(False)
+
+    assert coord.battery_profile_pending is True
+    assert coord._battery_backend_profile_update_pending is False  # noqa: SLF001
+    assert coord._battery_backend_not_pending_observed_at is not None  # noqa: SLF001
 
 
 def test_battery_runtime_matching_handles_exact_savings_subtype_branches(

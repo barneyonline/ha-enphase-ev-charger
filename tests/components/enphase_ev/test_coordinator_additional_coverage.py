@@ -187,6 +187,12 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     coord._scheduler_available = True  # noqa: SLF001
     coord._scheduler_last_error = None  # noqa: SLF001
     coord._battery_profile_payload = {"profile": "cost_savings"}  # noqa: SLF001
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    coord._battery_backend_profile_update_pending = False  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = datetime(
+        2025, 1, 3, tzinfo=timezone.utc
+    )  # noqa: SLF001
     coord._evse_site_feature_flags = {"evse_charging_mode": True}  # noqa: SLF001
     coord._evse_feature_flags_by_serial = {  # noqa: SLF001
         SERIAL_ONE: {"max_current_config_support": True}
@@ -251,6 +257,12 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
     }
     assert coord.scheduler_backoff_active() is True
     assert coord.scheduler_diagnostics()["backoff_ends_utc"] == backoff_end.isoformat()
+    metrics = coord.collect_site_metrics()
+    assert metrics["battery_backend_profile_update_pending"] is False
+    assert (
+        metrics["battery_backend_not_pending_observed_at"]
+        == "2025-01-03T00:00:00+00:00"
+    )
     assert coord.battery_diagnostics_payloads()["profile_payload"] == {
         "profile": "cost_savings"
     }
