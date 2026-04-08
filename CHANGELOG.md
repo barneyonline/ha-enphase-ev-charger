@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - Coalesced concurrent stored-credential reauthentication attempts into a single in-flight login and added a cooldown after rejected auth refreshes so one expired or blocked Enlighten session does not fan out into a login storm or hit the account’s active-session cap.
 
 ### 🔧 Improvements
-- None
+- Split the repository Docker workflows into a pinned `ha-dev` contributor container and a separate `ha-runtime` Home Assistant runtime container based on the official image, making local UI verification more reliable.
 
 ### 🔄 Other changes
 - None

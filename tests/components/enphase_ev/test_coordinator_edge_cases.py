@@ -681,7 +681,7 @@ async def test_network_error_dns_issue_reporting(hass, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_attempt_auto_refresh_success(monkeypatch, hass):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import AuthTokens
 
@@ -705,10 +705,10 @@ async def test_attempt_auto_refresh_success(monkeypatch, hass):
     )
 
     monkeypatch.setattr(
-        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
     monkeypatch.setattr(
-        coord_mod, "async_authenticate", AsyncMock(return_value=(new_tokens, {}))
+        arr_mod, "async_authenticate", AsyncMock(return_value=(new_tokens, {}))
     )
 
     result = await coord._attempt_auto_refresh()
@@ -723,7 +723,7 @@ async def test_attempt_auto_refresh_success(monkeypatch, hass):
 
 @pytest.mark.asyncio
 async def test_attempt_auto_refresh_coalesces_concurrent_calls(monkeypatch, hass):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import AuthTokens
 
@@ -750,7 +750,7 @@ async def test_attempt_auto_refresh_coalesces_concurrent_calls(monkeypatch, hass
     )
 
     monkeypatch.setattr(
-        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
 
     async def _authenticate(*_args, **_kwargs):
@@ -760,7 +760,7 @@ async def test_attempt_auto_refresh_coalesces_concurrent_calls(monkeypatch, hass
         await release.wait()
         return new_tokens, {}
 
-    monkeypatch.setattr(coord_mod, "async_authenticate", _authenticate)
+    monkeypatch.setattr(arr_mod, "async_authenticate", _authenticate)
 
     first = asyncio.create_task(coord._attempt_auto_refresh())
     await started.wait()
@@ -782,7 +782,7 @@ async def test_attempt_auto_refresh_coalesces_concurrent_calls(monkeypatch, hass
 async def test_attempt_auto_refresh_invalid_credentials_enter_cooldown(
     monkeypatch, hass
 ):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import EnlightenAuthInvalidCredentials
 
@@ -801,7 +801,7 @@ async def test_attempt_auto_refresh_invalid_credentials_enter_cooldown(
     calls = 0
 
     monkeypatch.setattr(
-        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
 
     async def _authenticate(*_args, **_kwargs):
@@ -809,7 +809,7 @@ async def test_attempt_auto_refresh_invalid_credentials_enter_cooldown(
         calls += 1
         raise EnlightenAuthInvalidCredentials()
 
-    monkeypatch.setattr(coord_mod, "async_authenticate", _authenticate)
+    monkeypatch.setattr(arr_mod, "async_authenticate", _authenticate)
 
     assert await coord._attempt_auto_refresh() is False
     assert await coord._attempt_auto_refresh() is False
@@ -821,7 +821,7 @@ async def test_attempt_auto_refresh_invalid_credentials_enter_cooldown(
 
 @pytest.mark.asyncio
 async def test_attempt_auto_refresh_reuses_recent_success(monkeypatch, hass):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import AuthTokens
 
@@ -847,7 +847,7 @@ async def test_attempt_auto_refresh_reuses_recent_success(monkeypatch, hass):
     )
 
     monkeypatch.setattr(
-        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
 
     async def _authenticate(*_args, **_kwargs):
@@ -855,7 +855,7 @@ async def test_attempt_auto_refresh_reuses_recent_success(monkeypatch, hass):
         calls += 1
         return new_tokens, {}
 
-    monkeypatch.setattr(coord_mod, "async_authenticate", _authenticate)
+    monkeypatch.setattr(arr_mod, "async_authenticate", _authenticate)
 
     assert await coord._attempt_auto_refresh() is True
     assert await coord._attempt_auto_refresh() is True
@@ -879,12 +879,13 @@ async def test_attempt_auto_refresh_rechecks_rejected_cooldown_inside_lock(hass)
     coord._auth_refresh_task = None
 
     rejected_states = iter([False, True])
-    coord._auth_refresh_rejected_active = lambda: next(rejected_states)  # type: ignore[method-assign]
-    coord._auth_refresh_recent_success_active = lambda: False  # type: ignore[method-assign]
-    coord._async_run_auto_refresh = AsyncMock(return_value=True)
+    arr = coord.auth_refresh_runtime
+    arr.auth_refresh_rejected_active = lambda: next(rejected_states)  # type: ignore[method-assign]
+    arr.auth_refresh_recent_success_active = lambda: False  # type: ignore[method-assign]
+    arr.async_run_auto_refresh = AsyncMock(return_value=True)
 
     assert await coord._attempt_auto_refresh() is False
-    coord._async_run_auto_refresh.assert_not_called()
+    arr.async_run_auto_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -900,12 +901,13 @@ async def test_attempt_auto_refresh_rechecks_recent_success_inside_lock(hass):
     coord._auth_refresh_task = None
 
     recent_states = iter([False, True])
-    coord._auth_refresh_recent_success_active = lambda: next(recent_states)  # type: ignore[method-assign]
-    coord._auth_refresh_rejected_active = lambda: False  # type: ignore[method-assign]
-    coord._async_run_auto_refresh = AsyncMock(return_value=True)
+    arr = coord.auth_refresh_runtime
+    arr.auth_refresh_recent_success_active = lambda: next(recent_states)  # type: ignore[method-assign]
+    arr.auth_refresh_rejected_active = lambda: False  # type: ignore[method-assign]
+    arr.async_run_auto_refresh = AsyncMock(return_value=True)
 
     assert await coord._attempt_auto_refresh() is True
-    coord._async_run_auto_refresh.assert_not_called()
+    arr.async_run_auto_refresh.assert_not_called()
 
 
 def test_auth_refresh_rejected_active_clears_expired_window(hass):
@@ -922,7 +924,7 @@ def test_auth_refresh_rejected_active_clears_expired_window(hass):
 
 
 def test_note_auth_refresh_rejected_handles_utcnow_error(monkeypatch, hass):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
@@ -932,7 +934,7 @@ def test_note_auth_refresh_rejected_handles_utcnow_error(monkeypatch, hass):
     coord._auth_refresh_rejected_ends_utc = "sentinel"
 
     monkeypatch.setattr(
-        coord_mod.dt_util,
+        arr_mod.dt_util,
         "utcnow",
         MagicMock(side_effect=RuntimeError("boom")),
     )
@@ -955,7 +957,7 @@ def test_note_auth_refresh_rejected_handles_utcnow_error(monkeypatch, hass):
     ],
 )
 async def test_attempt_auto_refresh_failures(monkeypatch, hass, exc_type):
-    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import (
         AuthTokens,
@@ -977,7 +979,7 @@ async def test_attempt_auto_refresh_failures(monkeypatch, hass, exc_type):
     )
 
     monkeypatch.setattr(
-        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
     )
 
     if exc_type == "invalid":
@@ -990,7 +992,7 @@ async def test_attempt_auto_refresh_failures(monkeypatch, hass, exc_type):
         side_effect = RuntimeError("boom")
 
     monkeypatch.setattr(
-        coord_mod, "async_authenticate", AsyncMock(side_effect=side_effect)
+        arr_mod, "async_authenticate", AsyncMock(side_effect=side_effect)
     )
 
     result = await coord._attempt_auto_refresh()
