@@ -170,6 +170,28 @@ def test_power_native_value_string_false_not_treated_as_charging(coordinator_fac
     assert sensor.extra_state_attributes["actual_charging"] is False
 
 
+def test_power_actual_charging_attribute_prefers_precomputed_flag(coordinator_factory):
+    coord = coordinator_factory(
+        data={
+            RANDOM_SERIAL: {
+                "lifetime_kwh": 10.0,
+                "last_reported_at": 1200,
+                "charging": True,
+                "actual_charging": False,
+            }
+        }
+    )
+    sensor = EnphasePowerSensor(coord, RANDOM_SERIAL)
+    sensor._last_lifetime_kwh = 9.5
+    sensor._last_energy_ts = 900
+    sensor._last_power_w = 123
+
+    assert sensor.native_value == 0
+    attrs = sensor.extra_state_attributes
+    assert attrs["charging"] is False
+    assert attrs["actual_charging"] is False
+
+
 def test_power_native_value_default_window(coordinator_factory):
     coord = coordinator_factory(
         data={
