@@ -319,6 +319,12 @@ class CoordinatorDiagnostics:
             "battery_pending_sub_type": getattr(
                 coord, "_battery_pending_sub_type", None
             ),
+            "battery_backend_profile_update_pending": getattr(
+                coord, "_battery_backend_profile_update_pending", None
+            ),
+            "battery_backend_not_pending_observed_at": _iso(
+                getattr(coord, "_battery_backend_not_pending_observed_at", None)
+            ),
             "battery_pending_requested_at": _iso(
                 getattr(coord, "_battery_pending_requested_at", None)
             ),
