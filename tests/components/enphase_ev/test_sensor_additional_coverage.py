@@ -1411,6 +1411,107 @@ def test_type_inventory_sensor_summary_attributes(coordinator_factory) -> None:
     assert attrs["production_end_date"] == "2026-02-15"
 
 
+def test_type_inventory_sensor_uses_iqevse_fallback_count(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=["EV1"])
+    coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {}  # noqa: SLF001
+    coord.serials = {"EV1"}
+    coord.data = {"EV1": {"sn": "EV1", "name": "Garage EV"}}
+    coord.iter_serials = lambda: ["EV1"]
+
+    entity = EnphaseTypeInventorySensor(coord, "iqevse")
+
+    assert entity.available is True
+    assert entity.native_value == 1
+
+
+def test_type_inventory_sensor_iqevse_fallback_handles_iter_errors(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=["EV1", "EV2"])
+    coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {
+        "iqevse": {"count": "bad", "devices": "bad"}
+    }  # noqa: SLF001
+    coord.serials = {"EV1", "", "EV2"}
+    coord.data = {}
+
+    def _boom():
+        raise RuntimeError("iter failed")
+
+    coord.iter_serials = _boom
+
+    entity = EnphaseTypeInventorySensor(coord, "iqevse")
+
+    assert entity.native_value == 0
+
+
+def test_type_inventory_sensor_iqevse_fallback_uses_serials_without_iterator(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=["EV1", "EV2"])
+    coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {
+        "iqevse": {"count": "bad", "devices": "bad"}
+    }  # noqa: SLF001
+    coord.serials = {"EV1", "", "EV2"}
+    coord.data = {}
+    coord.iter_serials = None
+
+    entity = EnphaseTypeInventorySensor(coord, "iqevse")
+
+    assert entity.native_value == 2
+
+
+def test_type_inventory_sensor_iqevse_fallback_returns_zero_without_serials(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=[])
+    coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {
+        "iqevse": {"count": "bad", "devices": "bad"}
+    }  # noqa: SLF001
+    coord.serials = object()
+    coord.data = {}
+    coord.iter_serials = None
+
+    entity = EnphaseTypeInventorySensor(coord, "iqevse")
+
+    assert entity.native_value == 0
+
+
+def test_type_inventory_sensor_device_info_prefers_provider_and_fallback(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=[])
+    provided = {"identifiers": {(sensor_mod.DOMAIN, "provided")}, "name": "Provided"}
+    coord.inventory_view.type_device_info = lambda _type_key: provided
+
+    entity = EnphaseTypeInventorySensor(coord, "wind_turbine")
+    assert entity.device_info is provided
+
+    coord.inventory_view.type_device_info = lambda _type_key: None
+    fallback = entity.device_info
+    assert fallback["identifiers"] == {
+        (sensor_mod.DOMAIN, f"type:{coord.site_id}:wind_turbine")
+    }
+    assert fallback["manufacturer"] == "Enphase"
+
+
 def test_gateway_diagnostic_sensors_expose_inventory_summary(
     coordinator_factory,
 ) -> None:
@@ -5712,6 +5813,12 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
                 "count": 1,
                 "devices": [{"name": "Battery 1"}],
             },
+            "iqevse": {
+                "type_key": "iqevse",
+                "type_label": "EV Chargers",
+                "count": 1,
+                "devices": [{"name": "Garage Charger"}],
+            },
             "dry_contact": {
                 "type_key": "dry_contact",
                 "type_label": "Dry Contact",
@@ -5735,6 +5842,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
             "envoy",
             "wind_turbine",
             "encharge",
+            "iqevse",
             "dry_contact",
             "microinverter",
             "heatpump",
@@ -5756,6 +5864,7 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     ]
     assert len(type_entities) == 1
     assert not any(ent._type_key == "encharge" for ent in type_entities)  # noqa: SLF001
+    assert not any(ent._type_key == "iqevse" for ent in type_entities)  # noqa: SLF001
     assert not any(
         ent._type_key == "dry_contact" for ent in type_entities
     )  # noqa: SLF001
@@ -5769,6 +5878,48 @@ async def test_async_setup_entry_adds_type_inventory_sensors(
     assert wind.native_value == 2
     assert wind.extra_state_attributes["type_label"] == "Wind Turbine"
     assert wind.device_info["name"] == "Wind Turbine"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_type_inventory_listener_skips_known_non_dry_contact(
+    hass, config_entry, coordinator_factory
+) -> None:
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory(serials=[])
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "wind_turbine": {
+                "type_key": "wind_turbine",
+                "type_label": "Wind Turbine",
+                "count": 1,
+                "devices": [{"name": "Wind 1"}],
+            }
+        },
+        ["wind_turbine"],
+    )
+    callbacks: list[Any] = []
+
+    def _add_listener(callback):
+        callbacks.append(callback)
+        return lambda: None
+
+    coord.async_add_topology_listener = _add_listener  # type: ignore[assignment]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list[Any] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    sync_topology_cb = next(
+        cb for cb in callbacks if cb.__name__ == "_async_sync_topology"
+    )
+    before = len(added)
+    sync_topology_cb()
+    assert len(added) == before
 
 
 @pytest.mark.asyncio

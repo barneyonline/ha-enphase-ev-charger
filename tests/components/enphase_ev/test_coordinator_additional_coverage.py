@@ -22,6 +22,7 @@ import builtins
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from http import HTTPStatus
 
+from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
 from custom_components.enphase_ev import coordinator as coord_mod
 from custom_components.enphase_ev.coordinator import (
     EnphaseCoordinator,
@@ -2417,7 +2418,7 @@ async def test_attempt_auto_refresh_updates_tokens(monkeypatch, coordinator_fact
     coord._stored_password = "pw"
     tokens = coord_mod.AuthTokens("cookie", "sess", "token", 123)
     monkeypatch.setattr(
-        coord_mod, "async_authenticate", AsyncMock(return_value=(tokens, None))
+        arr_mod, "async_authenticate", AsyncMock(return_value=(tokens, None))
     )
     coord.client.update_credentials = MagicMock()
     coord._persist_tokens = MagicMock()
@@ -2425,6 +2426,48 @@ async def test_attempt_auto_refresh_updates_tokens(monkeypatch, coordinator_fact
     assert await coord._attempt_auto_refresh() is True
     coord.client.update_credentials.assert_called_once()
     coord._persist_tokens.assert_called_once_with(tokens)
+
+
+def test_clear_current_power_consumption_delegates(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.current_power_runtime.clear = MagicMock()
+
+    coord._clear_current_power_consumption()  # noqa: SLF001
+
+    coord.current_power_runtime.clear.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_async_run_auto_refresh_delegates(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.auth_refresh_runtime.async_run_auto_refresh = AsyncMock(return_value=True)
+
+    assert await coord._async_run_auto_refresh() is True  # noqa: SLF001
+    coord.auth_refresh_runtime.async_run_auto_refresh.assert_awaited_once_with()
+
+
+def test_auth_refresh_recent_success_active_delegates(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.auth_refresh_runtime.auth_refresh_recent_success_active = MagicMock(
+        return_value=True
+    )
+
+    assert coord._auth_refresh_recent_success_active() is True  # noqa: SLF001
+    coord.auth_refresh_runtime.auth_refresh_recent_success_active.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_clear_auth_refresh_task_delegates(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    task = asyncio.create_task(asyncio.sleep(0))
+    coord.auth_refresh_runtime.clear_auth_refresh_task = MagicMock()
+
+    try:
+        coord._clear_auth_refresh_task(task)  # noqa: SLF001
+    finally:
+        await task
+
+    coord.auth_refresh_runtime.clear_auth_refresh_task.assert_called_once_with(task)
 
 
 @pytest.mark.asyncio

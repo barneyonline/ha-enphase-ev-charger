@@ -31,6 +31,7 @@ from custom_components.enphase_ev import (
     _registry_charger_metadata_signature,
     _registry_metadata_signature,
     _registry_type_metadata_signature,
+    _remove_evse_type_device_and_entities,
     _remove_legacy_inventory_entities,
     _startup_migration_version,
     _sync_charger_devices,
@@ -112,19 +113,7 @@ def test_registry_metadata_signature_skips_dry_contact_and_handles_missing_helpe
     )
 
     type_signature = _registry_type_metadata_signature(coord)
-    assert type_signature == (
-        (
-            "iqevse",
-            (DOMAIN, "type:iqevse"),
-            "Label iqevse",
-            "Name iqevse",
-            None,
-            None,
-            None,
-            None,
-            None,
-        ),
-    )
+    assert type_signature == ()
 
     charger_signature = _registry_charger_metadata_signature(coord)
     assert charger_signature == (
@@ -208,7 +197,7 @@ async def test_async_setup_entry_updates_existing_device(
     site_id = config_entry.data[CONF_SITE_ID]
     device_registry = dr.async_get(hass)
 
-    site_device = device_registry.async_get_or_create(
+    device_registry.async_get_or_create(
         config_entry_id=config_entry.entry_id,
         identifiers={(DOMAIN, f"site:{site_id}")},
         manufacturer="LegacyVendor",
@@ -287,9 +276,8 @@ async def test_async_setup_entry_updates_existing_device(
     ev_type_device = device_registry.async_get_device(
         identifiers={(DOMAIN, f"type:{site_id}:iqevse")}
     )
-    assert ev_type_device is not None
-    assert updated.via_device_id == ev_type_device.id
-    assert updated.via_device_id != site_device.id
+    assert ev_type_device is None
+    assert updated.via_device_id is None
 
 
 @pytest.mark.asyncio
@@ -469,7 +457,7 @@ async def test_async_setup_entry_records_startup_migration_version(
 
     migrate_gateway.assert_called_once()
     migrate_cloud.assert_called_once()
-    assert config_entry.data["startup_migration_version"] == 2
+    assert config_entry.data["startup_migration_version"] == 3
 
 
 @pytest.mark.asyncio
@@ -1588,6 +1576,12 @@ class _FakeDeviceRegistry:
                 existing.via_device_id = parent.id if parent else None
         return existing
 
+    def async_remove_device(self, device_id):
+        for ident, device in list(self._devices.items()):
+            if device.id == device_id:
+                del self._devices[ident]
+                break
+
 
 def test_sync_type_devices_skips_invalid_and_updates_existing(config_entry) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
@@ -1757,7 +1751,6 @@ def test_sync_type_devices_omits_redundant_model_id(config_entry) -> None:
     )
 
     type_devices = _sync_type_devices(config_entry, coord, dev_reg, site_id)
-    assert type_devices["iqevse"].model_id is None
     assert type_devices["encharge"].model_id is None
 
 
@@ -1839,12 +1832,10 @@ def test_sync_type_devices_clears_metadata_when_inventory_view_returns_none(
     assert device.hw_version is None
 
 
-def test_sync_charger_devices_resolves_parent_from_registry_when_missing(
-    config_entry,
-) -> None:
+def test_sync_charger_devices_clears_legacy_type_parent(config_entry) -> None:
     site_id = config_entry.data[CONF_SITE_ID]
     dev_reg = _FakeDeviceRegistry()
-    parent = dev_reg.async_get_or_create(
+    dev_reg.async_get_or_create(
         config_entry_id=config_entry.entry_id,
         identifiers={(DOMAIN, f"type:{site_id}:iqevse")},
         manufacturer="Enphase",
@@ -1870,7 +1861,121 @@ def test_sync_charger_devices_resolves_parent_from_registry_when_missing(
     _sync_charger_devices(config_entry, coord, dev_reg, site_id, type_devices={})
     charger = dev_reg.async_get_device(identifiers={(DOMAIN, RANDOM_SERIAL)})
     assert charger is not None
-    assert charger.via_device_id == parent.id
+    assert charger.via_device_id is None
+
+
+def test_sync_charger_devices_marks_existing_legacy_parent_for_update(
+    config_entry,
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = _FakeDeviceRegistry()
+    dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:iqevse")},
+        manufacturer="Enphase",
+        name="EV Chargers (1)",
+        model="EV Chargers",
+    )
+    dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, RANDOM_SERIAL)},
+        manufacturer="Enphase",
+        name="Garage Charger",
+        via_device=(DOMAIN, f"type:{site_id}:iqevse"),
+    )
+
+    coord = _with_inventory_view(
+        SimpleNamespace(
+            type_identifier=lambda key: (DOMAIN, f"type:{site_id}:{key}"),
+            iter_serials=lambda: [RANDOM_SERIAL],
+            data={RANDOM_SERIAL: {"display_name": "Garage Charger"}},
+        )
+    )
+
+    _sync_charger_devices(config_entry, coord, dev_reg, site_id, type_devices={})
+
+    charger = dev_reg.async_get_device(identifiers={(DOMAIN, RANDOM_SERIAL)})
+    assert charger is not None
+    assert charger.via_device_id is None
+
+
+@pytest.mark.asyncio
+async def test_startup_migration_removes_evse_type_device_and_inventory_entity(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+
+    gateway = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:envoy")},
+        manufacturer="Enphase",
+        name="IQ Gateway",
+        model="IQ Gateway",
+    )
+    evse_type = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"type:{site_id}:iqevse")},
+        manufacturer="Enphase",
+        name="EV Chargers (1)",
+        model="EV Chargers",
+    )
+    charger = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, RANDOM_SERIAL)},
+        manufacturer="Enphase",
+        name="Garage Charger",
+        via_device=(DOMAIN, f"type:{site_id}:iqevse"),
+    )
+    entity = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_{site_id}_type_iqevse_inventory",
+        suggested_object_id=f"site_{site_id}_ev_chargers_inventory",
+        config_entry=config_entry,
+        device_id=evse_type.id,
+    )
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+
+        def startup_migrations_ready(self) -> bool:
+            return True
+
+    runtime_data = EnphaseRuntimeData(
+        coordinator=DummyCoordinator(),
+        firmware_catalog=None,
+        evse_firmware_details=None,
+    )
+    config_entry.runtime_data = runtime_data
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entity_unique_ids",
+        Mock(),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        Mock(),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        Mock(),
+    )
+
+    _complete_startup_migrations_if_ready(
+        hass,
+        config_entry,
+        _with_inventory_view(DummyCoordinator()),
+        dev_reg,
+        site_id,
+    )
+
+    assert dev_reg.async_get(gateway.id) is not None
+    assert dev_reg.async_get(evse_type.id) is None
+    assert ent_reg.async_get(entity.entity_id) is None
+    migrated_charger = dev_reg.async_get(charger.id)
+    assert migrated_charger is not None
 
 
 def test_sync_charger_devices_dedupes_extended_evse_model_display(config_entry) -> None:
@@ -1902,6 +2007,181 @@ def test_sync_charger_devices_dedupes_extended_evse_model_display(config_entry) 
     assert charger is not None
     assert charger.name == "IQ EV Charger (IQ-EVSE-EU-3032)"
     assert charger.model == "IQ EV Charger (IQ-EVSE-EU-3032)"
+
+
+def test_remove_evse_type_device_and_entities_handles_guard_paths(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    module = importlib.import_module("custom_components.enphase_ev")
+
+    original_er = module.er
+    monkeypatch.setattr(module, "er", None)
+    _remove_evse_type_device_and_entities(
+        hass,
+        config_entry,
+        SimpleNamespace(async_get_device=lambda **_kwargs: None),
+        config_entry.data[CONF_SITE_ID],
+    )
+    monkeypatch.setattr(module, "er", original_er)
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    _remove_evse_type_device_and_entities(
+        hass,
+        config_entry,
+        SimpleNamespace(async_get_device=lambda **_kwargs: None),
+        BadStr(),
+    )
+    _remove_evse_type_device_and_entities(
+        hass,
+        config_entry,
+        SimpleNamespace(async_get_device=lambda **_kwargs: None),
+        "   ",
+    )
+    _remove_evse_type_device_and_entities(
+        hass,
+        config_entry,
+        SimpleNamespace(async_get_device=lambda **_kwargs: None),
+        config_entry.data[CONF_SITE_ID],
+    )
+    _remove_evse_type_device_and_entities(
+        hass,
+        config_entry,
+        SimpleNamespace(
+            async_get_device=lambda **_kwargs: SimpleNamespace(id=None),
+        ),
+        config_entry.data[CONF_SITE_ID],
+    )
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    _remove_evse_type_device_and_entities(
+        hass,
+        config_entry,
+        SimpleNamespace(
+            async_get_device=lambda **_kwargs: SimpleNamespace(id="evse-device"),
+        ),
+        config_entry.data[CONF_SITE_ID],
+    )
+
+
+def test_remove_evse_type_device_and_entities_handles_remove_failures(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    owned_no_entity = SimpleNamespace(
+        platform=DOMAIN,
+        config_entry_id=config_entry.entry_id,
+        entity_id=None,
+    )
+    foreign_entity = SimpleNamespace(
+        platform="other_domain",
+        config_entry_id=config_entry.entry_id,
+        entity_id="sensor.foreign",
+    )
+    failing_entity = SimpleNamespace(
+        platform=DOMAIN,
+        config_entry_id=config_entry.entry_id,
+        entity_id="sensor.ev_inventory",
+    )
+
+    ent_reg = SimpleNamespace(
+        async_remove=lambda entity_id: (_ for _ in ()).throw(RuntimeError(entity_id)),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: ent_reg,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_entries_for_device",
+        lambda _reg, _device_id: [owned_no_entity, foreign_entity, failing_entity],
+    )
+
+    dev_reg = SimpleNamespace(
+        async_get_device=lambda **kwargs: (
+            SimpleNamespace(id="evse-device")
+            if next(iter(kwargs["identifiers"])) == (DOMAIN, f"type:{site_id}:iqevse")
+            else None
+        ),
+        async_remove_device=lambda _device_id: (_ for _ in ()).throw(
+            RuntimeError("remove failed")
+        ),
+    )
+
+    _remove_evse_type_device_and_entities(hass, config_entry, dev_reg, site_id)
+
+
+def test_remove_evse_type_device_and_entities_removes_device_when_entries_cleared(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    owned_entity = SimpleNamespace(
+        platform=DOMAIN,
+        config_entry_id=config_entry.entry_id,
+        entity_id="sensor.ev_inventory",
+    )
+    entry_lists = [[owned_entity], []]
+
+    ent_reg = SimpleNamespace(async_remove=lambda _entity_id: None)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: ent_reg,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_entries_for_device",
+        lambda _reg, _device_id: entry_lists.pop(0),
+    )
+    removed_device_ids: list[str] = []
+    dev_reg = SimpleNamespace(
+        async_get_device=lambda **kwargs: (
+            SimpleNamespace(id="evse-device")
+            if next(iter(kwargs["identifiers"])) == (DOMAIN, f"type:{site_id}:iqevse")
+            else None
+        ),
+        async_remove_device=lambda device_id: removed_device_ids.append(device_id),
+    )
+
+    _remove_evse_type_device_and_entities(hass, config_entry, dev_reg, site_id)
+
+    assert removed_device_ids == ["evse-device"]
+
+
+def test_remove_evse_type_device_and_entities_handles_remove_device_failure(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    owned_entity = SimpleNamespace(
+        platform=DOMAIN,
+        config_entry_id=config_entry.entry_id,
+        entity_id="sensor.ev_inventory",
+    )
+    entry_lists = [[owned_entity], []]
+
+    ent_reg = SimpleNamespace(async_remove=lambda _entity_id: None)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get",
+        lambda _hass: ent_reg,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_entries_for_device",
+        lambda _reg, _device_id: entry_lists.pop(0),
+    )
+    dev_reg = SimpleNamespace(
+        async_get_device=lambda **kwargs: (
+            SimpleNamespace(id="evse-device")
+            if next(iter(kwargs["identifiers"])) == (DOMAIN, f"type:{site_id}:iqevse")
+            else None
+        ),
+        async_remove_device=lambda _device_id: (_ for _ in ()).throw(
+            RuntimeError("remove failed")
+        ),
+    )
+
+    _remove_evse_type_device_and_entities(hass, config_entry, dev_reg, site_id)
 
 
 def test_evse_model_helpers_cover_error_and_empty_paths() -> None:
@@ -3315,7 +3595,7 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     assert sync_registry_devices.call_count == 1
     assert migrate.call_count == 1
     assert migrate_cloud.call_count == 1
-    assert config_entry.data["startup_migration_version"] == 2
+    assert config_entry.data["startup_migration_version"] == 3
 
     state_listeners[0]()
     assert sync_registry_devices.call_count == 1

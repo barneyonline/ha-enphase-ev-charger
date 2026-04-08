@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import inspect
-import json
 import logging
 import re
 import time
@@ -20,6 +19,7 @@ from .device_types import (
     type_display_label,
 )
 from .log_redaction import redact_site_id, redact_text
+from .payload_debug import debug_field_keys, debug_render_summary, debug_sorted_keys
 from .parsing_helpers import (
     coerce_optional_bool,
     coerce_optional_text,
@@ -165,35 +165,15 @@ class InventoryRuntime:
 
     @staticmethod
     def _debug_sorted_keys(value: object) -> list[str]:
-        if not isinstance(value, dict):
-            return []
-        keys: set[str] = set()
-        for key in value:
-            try:
-                key_text = str(key).strip()
-            except Exception:  # noqa: BLE001
-                continue
-            if key_text:
-                keys.add(key_text)
-        return sorted(keys)
+        return debug_sorted_keys(value)
 
     @classmethod
     def _debug_field_keys(cls, members: object) -> list[str]:
-        if not isinstance(members, list):
-            return []
-        keys: set[str] = set()
-        for member in members:
-            if not isinstance(member, dict):
-                continue
-            keys.update(cls._debug_sorted_keys(member))
-        return sorted(keys)
+        return debug_field_keys(members)
 
     @staticmethod
     def _debug_render_summary(summary: object) -> str:
-        try:
-            return json.dumps(summary, sort_keys=True, ensure_ascii=True)
-        except Exception:  # noqa: BLE001
-            return str(summary)
+        return debug_render_summary(summary)
 
     def _debug_log_summary_if_changed(
         self, summary_key: str, log_label: str, summary: object

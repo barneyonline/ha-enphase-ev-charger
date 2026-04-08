@@ -79,8 +79,10 @@ _LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
         "cloud_last_error_code",
     ),
 }
-_STARTUP_MIGRATION_VERSION = 2
+_STARTUP_MIGRATION_VERSION = 3
 _STARTUP_MIGRATION_VERSION_KEY = "startup_migration_version"
+
+_TYPE_DEVICE_KEYS_WITH_DIRECT_CHILD_DEVICES: tuple[str, ...] = ("iqevse",)
 
 
 def _clean_optional_text(value: object) -> str | None:
@@ -213,7 +215,10 @@ def _sync_type_devices(
     type_devices_by_identifier: dict[tuple[str, str], object] = {}
     type_keys = list(inventory_view.iter_type_keys())
     for type_key in type_keys:
-        if is_dry_contact_type_key(type_key):
+        normalized = normalize_type_key(type_key)
+        if is_dry_contact_type_key(type_key) or (
+            normalized in _TYPE_DEVICE_KEYS_WITH_DIRECT_CHILD_DEVICES
+        ):
             continue
         ident = inventory_view.type_identifier(type_key)
         if ident is None:
@@ -298,14 +303,6 @@ def _sync_charger_devices(
     type_devices: dict[str, object],
 ) -> None:
     """Create or update charger devices and parent links."""
-    evse_parent_ident = coord.inventory_view.type_identifier("iqevse")
-    evse_parent_id = None
-    evse_parent = type_devices.get("iqevse")
-    if evse_parent is None and evse_parent_ident is not None:
-        evse_parent = dev_reg.async_get_device(identifiers={evse_parent_ident})
-    if evse_parent is not None:
-        evse_parent_id = getattr(evse_parent, "id", None)
-
     iter_serials = getattr(coord, "iter_serials", None)
     serials = list(iter_serials()) if callable(iter_serials) else []
     data_source = coord.data if isinstance(getattr(coord, "data", None), dict) else {}
@@ -320,9 +317,8 @@ def _sync_charger_devices(
             "manufacturer": "Enphase",
             "name": dev_name,
             "serial_number": str(sn),
+            "via_device": None,
         }
-        if evse_parent_ident is not None:
-            kwargs["via_device"] = evse_parent_ident
         model_name_raw = d.get("model_name")
         model_display = _compose_charger_model_display(
             display_name,
@@ -353,18 +349,14 @@ def _sync_charger_devices(
                 changes.append("hw_version")
             if sw and existing.sw_version != str(sw):
                 changes.append("sw_version")
-            if evse_parent_id is not None and existing.via_device_id != evse_parent_id:
+            if existing.via_device_id is not None:
                 changes.append("via_device")
         if changes:
             _LOGGER.debug(
-                (
-                    "Device registry update (%s) for charger serial=%s (site=%s): "
-                    "link_via_ev_type=%s"
-                ),
+                "Device registry update (%s) for charger serial=%s (site=%s)",
                 ",".join(changes),
                 redact_identifier(sn),
                 redact_site_id(site_id),
-                bool(evse_parent_ident is not None),
             )
         dev_reg.async_get_or_create(**kwargs)
 
@@ -382,11 +374,12 @@ def _registry_type_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
     type_keys = list(inventory_view.iter_type_keys())
     signature: list[tuple[object, ...]] = []
     for type_key in type_keys:
-        if is_dry_contact_type_key(type_key):
+        normalized = normalize_type_key(type_key)
+        if is_dry_contact_type_key(type_key) or (
+            normalized in _TYPE_DEVICE_KEYS_WITH_DIRECT_CHILD_DEVICES
+        ):
             continue
-        normalized = (
-            normalize_type_key(type_key) or _clean_optional_text(type_key) or ""
-        )
+        normalized = normalized or _clean_optional_text(type_key) or ""
         ident = inventory_view.type_identifier(type_key)
         signature.append(
             (
@@ -1031,6 +1024,86 @@ def _migrate_legacy_gateway_type_devices(
         )
 
 
+def _remove_evse_type_device_and_entities(
+    hass: HomeAssistant,
+    entry: EnphaseConfigEntry,
+    dev_reg,
+    site_id: object,
+) -> None:
+    if er is None:
+        return
+    try:
+        site_id_text = str(site_id or entry.data.get("site_id", "")).strip()
+    except Exception:  # noqa: BLE001
+        site_id_text = ""
+    if not site_id_text:
+        return
+
+    evse_ident = (DOMAIN, f"type:{site_id_text}:iqevse")
+    evse_device = dev_reg.async_get_device(identifiers={evse_ident})
+    if evse_device is None:
+        return
+    evse_device_id = getattr(evse_device, "id", None)
+    if evse_device_id is None:
+        return
+
+    try:
+        ent_reg = er.async_get(hass)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug(
+            "Skipping EV charger type-device cleanup for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
+        )
+        return
+
+    entry_id = getattr(entry, "entry_id", None)
+    removed_entities = 0
+    for reg_entry in _entries_for_device(ent_reg, evse_device_id):
+        if not _is_owned_entity(reg_entry, entry_id):
+            continue
+        entity_id = getattr(reg_entry, "entity_id", None)
+        if not entity_id:
+            continue
+        try:
+            ent_reg.async_remove(entity_id)
+            removed_entities += 1
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed removing EV charger type entity %s for site %s: %s",
+                entity_id,
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
+            )
+
+    remaining_entries = _entries_for_device(ent_reg, evse_device_id)
+    if remaining_entries:
+        _LOGGER.debug(
+            "Keeping EV charger type device for site %s; %s entities remain",
+            redact_site_id(site_id_text),
+            len(remaining_entries),
+        )
+        return
+
+    remove_device = getattr(dev_reg, "async_remove_device", None)
+    if callable(remove_device):
+        try:
+            remove_device(evse_device_id)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed removing EV charger type device for site %s: %s",
+                redact_site_id(site_id_text),
+                redact_text(err, site_ids=(site_id_text,)),
+            )
+            return
+    if removed_entities:
+        _LOGGER.debug(
+            "Removed %s EV charger type entities and deleted type device for site %s",
+            removed_entities,
+            redact_site_id(site_id_text),
+        )
+
+
 def _complete_startup_migrations_if_ready(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -1050,6 +1123,7 @@ def _complete_startup_migrations_if_ready(
         return
     _migrate_cloud_entity_unique_ids(hass, entry, site_id)
     _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
+    _remove_evse_type_device_and_entities(hass, entry, dev_reg, site_id)
     _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
     runtime_data = getattr(entry, "runtime_data", None)
     if isinstance(runtime_data, EnphaseRuntimeData):
@@ -1103,6 +1177,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     site_id = entry.data.get("site_id")
     dev_reg = dr.async_get(hass)
     _sync_registry_devices(entry, coord, dev_reg, site_id)
+    _remove_evse_type_device_and_entities(hass, entry, dev_reg, site_id)
     _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
     last_registry_signature = _registry_metadata_signature(coord)
 
@@ -1113,6 +1188,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
             current_signature = _registry_metadata_signature(coord)
             if current_signature != last_registry_signature:
                 _sync_registry_devices(entry, coord, dev_reg, site_id)
+                _remove_evse_type_device_and_entities(hass, entry, dev_reg, site_id)
                 last_registry_signature = current_signature
             _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
         except Exception as err:  # noqa: BLE001
