@@ -41,9 +41,15 @@ Include the integration version, Home Assistant version, affected entity IDs, de
    ```bash
    docker compose -f devtools/docker/docker-compose.yml build ha-dev
    ```
-4. **Develop and test** your changes inside that environment.
-5. **Commit with clear messages** and push your branch.
-6. **Open a pull request** using the template. Fill in every section and link any related issues.
+4. **Develop and test** your changes inside `ha-dev`.
+5. **Start `ha-runtime` when you need a real Home Assistant UI for manual verification**:
+   ```bash
+   mkdir -p .ha-config
+   docker compose -f devtools/docker/docker-compose.yml up -d ha-runtime
+   ```
+   This runs the official Home Assistant container, mounts `.ha-config/` to `/config`, and mounts this checkout's `custom_components/enphase_ev` into Home Assistant.
+6. **Commit with clear messages** and push your branch.
+7. **Open a pull request** using the template. Fill in every section and link any related issues.
 
 Use the pinned Docker environment for linting, formatting, coverage, and tests:
 
@@ -77,6 +83,10 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 > hassfest validation runs automatically in CI via [`home-assistant/actions/hassfest`](https://github.com/home-assistant/actions/tree/master/hassfest). If you need to run it locally, clone the Home Assistant Core repository and execute `python -m script.hassfest` from your integration checkout.
 
 > Tip: `pre-commit` still runs inside the Docker environment, so local hook installation is optional rather than required.
+
+> Tip: the `ha-runtime` service is for manual verification only. Keep automated checks on `ha-dev` so test and lint runs stay fast and deterministic.
+
+> Tip: `ha-runtime` inherits the `TZ` environment variable from your shell and defaults to `UTC` when `TZ` is unset.
 
 ## Translations
 

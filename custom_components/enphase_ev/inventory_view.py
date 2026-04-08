@@ -38,6 +38,21 @@ class InventoryView:
     def heatpump_runtime(self):
         return self.coordinator.heatpump_runtime
 
+    def _has_known_chargers(self) -> bool:
+        has_chargers = bool(getattr(self.coordinator, "data", None))
+        if not has_chargers:
+            serials = getattr(self.coordinator, "serials", None)
+            if isinstance(serials, (set, list, tuple)):
+                has_chargers = bool(serials)
+        if not has_chargers:
+            iter_serials = getattr(self.coordinator, "iter_serials", None)
+            if callable(iter_serials):
+                try:
+                    has_chargers = bool(list(iter_serials()))
+                except Exception:
+                    has_chargers = False
+        return has_chargers
+
     def iter_type_keys(self) -> list[str]:
         type_order = getattr(self.coordinator, "_type_device_order", None)
         if isinstance(type_order, list) and type_order:
@@ -51,17 +66,7 @@ class InventoryView:
         inferred: list[str] = []
         if getattr(self.coordinator, "site_id", None):
             inferred.append("envoy")
-        serials = getattr(self.coordinator, "serials", None)
-        iter_serials = getattr(self.coordinator, "iter_serials", None)
-        has_chargers = bool(getattr(self.coordinator, "data", None))
-        if not has_chargers and isinstance(serials, (set, list, tuple)):
-            has_chargers = bool(serials)
-        if not has_chargers and callable(iter_serials):
-            try:
-                has_chargers = bool(list(iter_serials()))
-            except Exception:
-                has_chargers = False
-        if has_chargers:
+        if self._has_known_chargers():
             inferred.append("iqevse")
         if getattr(self.coordinator, "_battery_has_encharge", None) is True:
             inferred.append("encharge")
@@ -104,6 +109,8 @@ class InventoryView:
             return True
         if normalized == "encharge":
             return getattr(self.coordinator, "_battery_has_encharge", None) is True
+        if normalized == "iqevse":
+            return self._has_known_chargers()
         return False
 
     def type_bucket(

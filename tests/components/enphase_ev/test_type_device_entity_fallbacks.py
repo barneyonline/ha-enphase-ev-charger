@@ -204,7 +204,7 @@ def test_system_profile_select_fallback_unavailable_for_read_only_user() -> None
     assert SystemProfileSelect(coord).available is False
 
 
-def test_base_entity_device_info_sets_via_device_from_type_identifier() -> None:
+def test_base_entity_device_info_does_not_set_via_device_for_chargers() -> None:
     class DummyEntity(EnphaseBaseEntity):
         pass
 
@@ -220,7 +220,7 @@ def test_base_entity_device_info_sets_via_device_from_type_identifier() -> None:
     )
     entity = DummyEntity(coord, "SN1")
     info = entity.device_info
-    assert info["via_device"] == ("enphase_ev", "type:site-1:iqevse")
+    assert "via_device" not in info
 
 
 def test_type_device_entities_use_provided_type_device_info() -> None:

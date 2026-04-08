@@ -820,7 +820,7 @@ async def async_setup_entry(
             key
             for key in coord.inventory_view.iter_type_keys()
             if key
-            and key not in {"envoy", "encharge", "microinverter", "heatpump"}
+            and key not in {"envoy", "encharge", "iqevse", "microinverter", "heatpump"}
             and not _is_dry_contact_type_key(key)
             and key not in known_type_keys
         ]
@@ -3036,17 +3036,35 @@ class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
             f"{DOMAIN}_site_{coord.site_id}_type_{self._type_key}_inventory"
         )
 
+    def _fallback_count(self) -> int:
+        if self._type_key != "iqevse":
+            return 0
+        iter_serials = getattr(self._coord, "iter_serials", None)
+        if callable(iter_serials):
+            try:
+                return len([sn for sn in iter_serials() if sn])
+            except Exception:
+                return 0
+        serials = getattr(self._coord, "serials", None)
+        if isinstance(serials, (set, list, tuple)):
+            return len([sn for sn in serials if sn])
+        return 0
+
     @property
     def available(self) -> bool:
-        return bool(super().available and _has_type(self._coord, self._type_key))
+        return bool(
+            super().available
+            and self._coord.inventory_view.has_type_for_entities(self._type_key)
+        )
 
     @property
     def native_value(self):
         bucket = self._coord.inventory_view.type_bucket(self._type_key) or {}
         try:
-            return int(bucket.get("count", 0))
+            count = int(bucket.get("count", 0))
         except Exception:
-            return 0
+            count = 0
+        return count or self._fallback_count()
 
     @property
     def extra_state_attributes(self):

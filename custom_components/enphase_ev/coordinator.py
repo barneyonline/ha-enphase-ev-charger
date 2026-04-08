@@ -27,19 +27,14 @@ from homeassistant.util import dt as dt_util
 
 from .api import (
     AuthTokens,
-    EnlightenAuthInvalidCredentials,
-    EnlightenAuthMFARequired,
-    EnlightenAuthUnavailable,
     EnphaseEVClient,
     InvalidPayloadError,
     OptionalEndpointUnavailable,
     Unauthorized,
-    async_authenticate,
     is_scheduler_unavailable_error,
 )
+from .auth_refresh_runtime import AuthRefreshRuntime
 from .const import (
-    AUTH_REFRESH_REJECTED_COOLDOWN_S,
-    AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S,
     BATTERY_MIN_SOC_FALLBACK,
     CONF_ACCESS_TOKEN,
     CONF_COOKIE,
@@ -74,6 +69,7 @@ from .const import (
 )
 from .battery_runtime import BatteryRuntime
 from .coordinator_diagnostics import CoordinatorDiagnostics
+from .current_power_runtime import CurrentPowerRuntime
 from .discovery_snapshot import DiscoverySnapshotManager
 from .device_types import (
     normalize_type_key,
@@ -81,6 +77,7 @@ from .device_types import (
 )
 from .energy import EnergyManager
 from .evse_timeseries import EVSETimeseriesManager
+from .evse_feature_flags_runtime import EvseFeatureFlagsRuntime
 from .evse_runtime import (
     AMP_RESTART_DELAY_S,
     SUSPENDED_EVSE_STATUS,
@@ -99,6 +96,7 @@ from .log_redaction import (
     redact_text,
     truncate_identifier,
 )
+from . import payload_debug
 from .parsing_helpers import (
     coerce_optional_bool,
     coerce_optional_float,
@@ -150,7 +148,6 @@ from .voltage import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-EVSE_FEATURE_FLAGS_CACHE_TTL = 1800.0
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEMS_DEVICES_STALE_AFTER_S = 90.0
 # HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
@@ -187,6 +184,12 @@ BATTERY_STATUS_SEVERITY = {
 ACTIVE_CONNECTOR_STATUSES = {"CHARGING", "FINISHING", "SUSPENDED"}
 ACTIVE_SUSPENDED_PREFIXES = ("SUSPENDED_EV",)
 _SERVICE_VALIDATION_ERROR_COMPAT = ServiceValidationError
+
+COORDINATOR_RUNTIME_CLASSES: dict[str, type] = {
+    "current_power_runtime": CurrentPowerRuntime,
+    "auth_refresh_runtime": AuthRefreshRuntime,
+    "evse_feature_flags_runtime": EvseFeatureFlagsRuntime,
+}
 
 
 @dataclass(slots=True)
@@ -407,6 +410,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.evse_runtime = EvseRuntime(self)
         self.battery_runtime = BatteryRuntime(self)
         self.heatpump_runtime = HeatpumpRuntime(self)
+        self._ensure_coordinator_runtime("current_power_runtime")
+        self._ensure_coordinator_runtime("auth_refresh_runtime")
+        self._ensure_coordinator_runtime("evse_feature_flags_runtime")
         self.inventory_runtime = InventoryRuntime(self)
         self.discovery_snapshot = DiscoverySnapshotManager(self)
         self.inventory_view = InventoryView(self)
@@ -420,6 +426,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.session_history.set_fetch_override(value)
             return
         super().__setattr__(name, value)
+
+    def _ensure_coordinator_runtime(self, attr_name: str) -> object:
+        """Instantiate and cache a coordinator sub-runtime (single factory for __init__ / __getattr__)."""
+
+        cls = COORDINATOR_RUNTIME_CLASSES[attr_name]
+        existing = self.__dict__.get(attr_name)
+        if existing is None:
+            existing = cls(self)
+            self.__dict__[attr_name] = existing
+        return existing
 
     def __getattr__(self, name: str):
         if name == "energy":
@@ -453,6 +469,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             refresh_runner = RefreshRunner(self)
             self.__dict__["refresh_runner"] = refresh_runner
             return refresh_runner
+        if name in COORDINATOR_RUNTIME_CLASSES:
+            return self._ensure_coordinator_runtime(name)
         raise AttributeError(f"{type(self).__name__} has no attribute {name!r}")
 
     async def _async_setup(self) -> None:
@@ -1253,30 +1271,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _debug_sorted_keys(value: object) -> list[str]:  # pragma: no cover
         """Return sorted string keys from a mapping."""
 
-        if not isinstance(value, dict):
-            return []
-        keys: set[str] = set()
-        for key in value:
-            try:
-                key_text = str(key).strip()
-            except Exception:  # noqa: BLE001
-                continue
-            if key_text:
-                keys.add(key_text)
-        return sorted(keys)
+        return payload_debug.debug_sorted_keys(value)
 
     @classmethod
     def _debug_field_keys(cls, members: object) -> list[str]:  # pragma: no cover
         """Return sorted field keys present across a list of mappings."""
 
-        if not isinstance(members, list):
-            return []
-        keys: set[str] = set()
-        for member in members:
-            if not isinstance(member, dict):
-                continue
-            keys.update(cls._debug_sorted_keys(member))
-        return sorted(keys)
+        return payload_debug.debug_field_keys(members)
 
     @classmethod
     def _debug_payload_shape(
@@ -1284,39 +1285,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ) -> dict[str, object]:  # pragma: no cover
         """Return a payload-shape summary suitable for debug logging."""
 
-        if isinstance(payload, dict):
-            shape: dict[str, object] = {
-                "kind": "dict",
-                "keys": cls._debug_sorted_keys(payload),
-            }
-            for key in ("result", "data", "devices", "items", "members"):
-                nested = payload.get(key)
-                if isinstance(nested, list):
-                    shape[f"{key}_length"] = len(nested)
-                    field_keys = cls._debug_field_keys(nested)
-                    if field_keys:
-                        shape[f"{key}_field_keys"] = field_keys
-                elif isinstance(nested, dict):
-                    shape[f"{key}_keys"] = cls._debug_sorted_keys(nested)
-            return shape
-        if isinstance(payload, list):
-            return {
-                "kind": "list",
-                "length": len(payload),
-                "field_keys": cls._debug_field_keys(payload),
-            }
-        if payload is None:
-            return {"kind": "none"}
-        return {"kind": type(payload).__name__}
+        return payload_debug.debug_payload_shape(payload)
 
     @staticmethod
     def _debug_render_summary(summary: object) -> str:  # pragma: no cover
         """Serialize a debug summary into stable compact JSON."""
 
-        try:
-            return json.dumps(summary, sort_keys=True, ensure_ascii=True)
-        except Exception:  # noqa: BLE001
-            return str(summary)
+        return payload_debug.debug_render_summary(summary)
 
     def _debug_log_summary_if_changed(  # pragma: no cover - debug helper
         self,
@@ -1363,25 +1338,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _debug_evse_feature_flag_summary(self) -> dict[str, object]:  # pragma: no cover
         """Return a sanitized summary of EVSE feature-flag discovery."""
 
-        charger_flag_keys: set[str] = set()
-        for flags in getattr(self, "_evse_feature_flags_by_serial", {}).values():
-            if not isinstance(flags, dict):
-                continue
-            charger_flag_keys.update(self._debug_sorted_keys(flags))
-        payload = getattr(self, "_evse_feature_flags_payload", None)
-        meta = payload.get("meta") if isinstance(payload, dict) else None
-        error = payload.get("error") if isinstance(payload, dict) else None
-        return {
-            "site_flag_keys": sorted(
-                str(key) for key in getattr(self, "_evse_site_feature_flags", {}).keys()
-            ),
-            "charger_count": len(
-                getattr(self, "_evse_feature_flags_by_serial", {}) or {}
-            ),
-            "charger_flag_keys": sorted(charger_flag_keys),
-            "meta_keys": self._debug_sorted_keys(meta),
-            "error_keys": self._debug_sorted_keys(error),
-        }
+        return self.evse_feature_flags_runtime.debug_feature_flag_summary()
 
     def _debug_topology_summary(  # pragma: no cover - compatibility shim
         self, snapshot: CoordinatorTopologySnapshot
@@ -1781,78 +1738,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         await self.heatpump_runtime.async_refresh_heatpump_power(force=force)
 
     def _clear_current_power_consumption(self) -> None:
-        self._current_power_consumption_w = None
-        self._current_power_consumption_sample_utc = None
-        self._current_power_consumption_reported_units = None
-        self._current_power_consumption_reported_precision = None
-        self._current_power_consumption_source = None
+        self.current_power_runtime.clear()
 
     async def _async_refresh_current_power_consumption(
         self,
     ) -> None:  # pragma: no cover
-        fetcher = getattr(self.client, "latest_power", None)
-        if not callable(fetcher):
-            self._clear_current_power_consumption()
-            return
-
-        try:
-            payload = await fetcher()
-        except Exception as err:  # noqa: BLE001
-            self._clear_current_power_consumption()
-            _LOGGER.debug(
-                "Skipping current power consumption refresh for site %s: %s",
-                redact_site_id(self.site_id),
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            return
-
-        if not isinstance(payload, dict):
-            self._clear_current_power_consumption()
-            return
-
-        value = payload.get("value")
-        try:
-            numeric = float(value)
-        except Exception:  # noqa: BLE001
-            self._clear_current_power_consumption()
-            return
-        if numeric != numeric or numeric in (float("inf"), float("-inf")):
-            self._clear_current_power_consumption()
-            return
-
-        sampled_at = None
-        sample_time = payload.get("time")
-        if sample_time is not None:
-            try:
-                sample_seconds = float(sample_time)
-                if sample_seconds > 10**12:
-                    sample_seconds /= 1000.0
-                sampled_at = datetime.fromtimestamp(sample_seconds, tz=_tz.utc)
-            except Exception:  # noqa: BLE001
-                sampled_at = None
-
-        units = payload.get("units")
-        if units is not None:
-            try:
-                units = str(units).strip()
-            except Exception:  # noqa: BLE001
-                units = None
-            if not units:
-                units = None
-
-        precision_raw = payload.get("precision")
-        precision = None
-        if precision_raw is not None:
-            try:
-                precision = int(precision_raw)
-            except Exception:  # noqa: BLE001
-                precision = None
-
-        self._current_power_consumption_w = numeric
-        self._current_power_consumption_sample_utc = sampled_at
-        self._current_power_consumption_reported_units = units
-        self._current_power_consumption_reported_precision = precision
-        self._current_power_consumption_source = "app-api:get_latest_power"
+        await self.current_power_runtime.async_refresh()
 
     def iter_inverter_serials(self) -> list[str]:
         return self.inventory_runtime.iter_inverter_serials()
@@ -3890,117 +3781,37 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return False
 
     async def _attempt_auto_refresh(self) -> bool:
-        """Attempt to refresh authentication using stored credentials."""
-        if not self._email or not self._remember_password or not self._stored_password:
-            return False
+        """Attempt to refresh authentication using stored credentials.
 
-        if self._auth_refresh_recent_success_active():
-            return True
+        Implementation lives on :class:`~custom_components.enphase_ev.auth_refresh_runtime.AuthRefreshRuntime`.
+        """
 
-        if self._auth_refresh_rejected_active():
-            return False
-
-        task = getattr(self, "_auth_refresh_task", None)
-        if task is not None and not task.done():
-            return await asyncio.shield(task)
-
-        async with self._refresh_lock:
-            if self._auth_refresh_rejected_active():
-                return False
-
-            if self._auth_refresh_recent_success_active():
-                return True
-
-            task = getattr(self, "_auth_refresh_task", None)
-            if task is None or task.done():
-                task = asyncio.create_task(self._async_run_auto_refresh())
-                self._auth_refresh_task = task
-                task.add_done_callback(self._clear_auth_refresh_task)
-
-        return await asyncio.shield(task)
+        return await self.auth_refresh_runtime.attempt_auto_refresh()
 
     def _clear_auth_refresh_task(self, task: asyncio.Task[bool]) -> None:
-        """Clear the shared auth-refresh task once it completes."""
+        """Clear the shared auth-refresh task once it completes (delegates to ``AuthRefreshRuntime``)."""
 
-        if getattr(self, "_auth_refresh_task", None) is task:
-            self._auth_refresh_task = None
+        self.auth_refresh_runtime.clear_auth_refresh_task(task)
 
     def _auth_refresh_rejected_active(self) -> bool:
-        """Return True while stored-credential refresh is in cooldown."""
+        """Return True while stored-credential refresh is in cooldown (delegates to ``AuthRefreshRuntime``)."""
 
-        cooldown_until = getattr(self, "_auth_refresh_rejected_until", None)
-        if not isinstance(cooldown_until, (int, float)):
-            return False
-        if time.monotonic() < float(cooldown_until):
-            return True
-        self._auth_refresh_rejected_until = None
-        self._auth_refresh_rejected_ends_utc = None
-        return False
+        return self.auth_refresh_runtime.auth_refresh_rejected_active()
 
     def _note_auth_refresh_rejected(self, message: str) -> None:
-        """Start a cooldown after stored credentials are rejected."""
+        """Start a cooldown after stored credentials are rejected (delegates to ``AuthRefreshRuntime``)."""
 
-        delay = float(AUTH_REFRESH_REJECTED_COOLDOWN_S)
-        self._auth_refresh_last_success_mono = None
-        self._auth_refresh_rejected_until = time.monotonic() + delay
-        try:
-            self._auth_refresh_rejected_ends_utc = dt_util.utcnow() + timedelta(
-                seconds=delay
-            )
-        except Exception:
-            self._auth_refresh_rejected_ends_utc = None
-        _LOGGER.warning(message)
+        self.auth_refresh_runtime.note_auth_refresh_rejected(message)
 
     def _auth_refresh_recent_success_active(self) -> bool:
-        """Return True when a recent successful refresh can satisfy stale 401s."""
+        """Return True when a recent successful refresh can satisfy stale 401s (delegates to ``AuthRefreshRuntime``)."""
 
-        last_success = getattr(self, "_auth_refresh_last_success_mono", None)
-        if not isinstance(last_success, (int, float)):
-            return False
-        return (time.monotonic() - float(last_success)) <= float(
-            AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S
-        )
+        return self.auth_refresh_runtime.auth_refresh_recent_success_active()
 
     async def _async_run_auto_refresh(self) -> bool:
-        """Run one stored-credential refresh attempt for all concurrent waiters."""
+        """Run one stored-credential refresh attempt for all concurrent waiters (delegates to ``AuthRefreshRuntime``)."""
 
-        session = async_get_clientsession(self.hass)
-        try:
-            tokens, _ = await async_authenticate(
-                session, self._email, self._stored_password
-            )
-        except EnlightenAuthInvalidCredentials:
-            self._note_auth_refresh_rejected(
-                "Stored Enlighten credentials were rejected; reauthenticate via the integration options"
-            )
-            return False
-        except EnlightenAuthMFARequired:
-            self._note_auth_refresh_rejected(
-                "Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate"
-            )
-            return False
-        except EnlightenAuthUnavailable:
-            _LOGGER.debug(
-                "Auth service unavailable while refreshing tokens; will retry later"
-            )
-            return False
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "Unexpected error refreshing Enlighten auth: %s",
-                redact_text(err),
-            )
-            return False
-
-        self._auth_refresh_rejected_until = None
-        self._auth_refresh_rejected_ends_utc = None
-        self._auth_refresh_last_success_mono = time.monotonic()
-        self._tokens = tokens
-        self.client.update_credentials(
-            eauth=tokens.access_token,
-            cookie=tokens.cookie,
-        )
-        self._persist_tokens(tokens)
-        return True
+        return await self.auth_refresh_runtime.async_run_auto_refresh()
 
     async def _handle_client_unauthorized(self) -> bool:
         """Handle client Unauthorized responses and retry when possible."""
@@ -5710,105 +5521,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def evse_feature_flag(self, key: str, sn: str | None = None) -> object | None:
         """Return a parsed EVSE feature flag for the site or charger."""
 
-        key_text = str(key).strip()
-        if not key_text:
-            return None
-        if sn:
-            serial_flags = getattr(self, "_evse_feature_flags_by_serial", {}) or {}
-            raw = serial_flags.get(str(sn), {}).get(key_text)
-            if raw is not None:
-                return raw
-        return (getattr(self, "_evse_site_feature_flags", {}) or {}).get(key_text)
+        return self.evse_feature_flags_runtime.feature_flag(key, sn)
 
     def evse_feature_flag_enabled(self, key: str, sn: str | None = None) -> bool | None:
         """Return a feature flag coerced to a tri-state boolean."""
 
-        return self._coerce_optional_bool(self.evse_feature_flag(key, sn))
+        return self.evse_feature_flags_runtime.feature_flag_enabled(key, sn)
 
     @staticmethod
     def _coerce_evse_feature_flags_map(value: object) -> dict[str, object]:
-        if not isinstance(value, dict):
-            return {}
-        out: dict[str, object] = {}
-        for raw_key, raw_value in value.items():
-            try:
-                key = str(raw_key).strip()
-            except Exception:
-                continue
-            if not key:
-                continue
-            out[key] = raw_value
-        return out
+        return EvseFeatureFlagsRuntime.coerce_evse_feature_flags_map(value)
 
     def _parse_evse_feature_flags_payload(self, payload: object) -> None:
         """Cache site and charger feature flags from the EVSE management payload."""
 
-        self._evse_site_feature_flags = {}
-        self._evse_feature_flags_by_serial = {}
-        if not isinstance(payload, dict):
-            return
-        data = payload.get("data")
-        if not isinstance(data, dict):
-            return
-        site_flags: dict[str, object] = {}
-        charger_flags: dict[str, dict[str, object]] = {}
-        for raw_key, raw_value in data.items():
-            try:
-                key = str(raw_key).strip()
-            except Exception:
-                continue
-            if not key:
-                continue
-            if isinstance(raw_value, dict):
-                flags = self._coerce_evse_feature_flags_map(raw_value)
-                if flags:
-                    charger_flags[key] = flags
-                continue
-            site_flags[key] = raw_value
-        self._evse_site_feature_flags = site_flags
-        self._evse_feature_flags_by_serial = charger_flags
+        self.evse_feature_flags_runtime.parse_payload(payload)
 
     async def _async_refresh_evse_feature_flags(self, *, force: bool = False) -> None:
         """Refresh EVSE feature flags used for capability gating."""
 
-        now = time.monotonic()
-        if not force and self._evse_feature_flags_cache_until:
-            if now < self._evse_feature_flags_cache_until:
-                return
-        fetcher = getattr(self.client, "evse_feature_flags", None)
-        if not callable(fetcher):
-            self._evse_feature_flags_payload = None
-            self._evse_site_feature_flags = {}
-            self._evse_feature_flags_by_serial = {}
-            return
-        country = getattr(self, "_battery_country_code", None)
-        try:
-            payload = await fetcher(country=country)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug(
-                "EVSE feature flags fetch failed: %s",
-                redact_text(err, site_ids=(self.site_id,)),
-            )
-            self._evse_feature_flags_cache_until = now + 60.0
-            return
-        if not isinstance(payload, dict):
-            self._evse_feature_flags_payload = None
-            self._evse_site_feature_flags = {}
-            self._evse_feature_flags_by_serial = {}
-            self._evse_feature_flags_cache_until = now + 60.0
-            _LOGGER.debug(
-                "EVSE feature flags payload shape was invalid: %s",
-                self._debug_render_summary(self._debug_payload_shape(payload)),
-            )
-            return
-        self._evse_feature_flags_payload = dict(payload)
-        self._parse_evse_feature_flags_payload(payload)
-        self._evse_feature_flags_cache_until = now + EVSE_FEATURE_FLAGS_CACHE_TTL
-        self._debug_log_summary_if_changed(
-            "evse_feature_flags",
-            "EVSE feature flag summary",
-            self._debug_evse_feature_flag_summary(),
-        )
+        await self.evse_feature_flags_runtime.async_refresh(force=force)
 
     @staticmethod
     def _coerce_optional_bool(value) -> bool | None:

@@ -1411,6 +1411,23 @@ def test_type_inventory_sensor_summary_attributes(coordinator_factory) -> None:
     assert attrs["production_end_date"] == "2026-02-15"
 
 
+def test_type_inventory_sensor_uses_iqevse_fallback_count(coordinator_factory) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseTypeInventorySensor
+
+    coord = coordinator_factory(serials=["EV1"])
+    coord._selected_type_keys = {"iqevse"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._type_device_buckets = {}  # noqa: SLF001
+    coord.serials = {"EV1"}
+    coord.data = {"EV1": {"sn": "EV1", "name": "Garage EV"}}
+    coord.iter_serials = lambda: ["EV1"]
+
+    entity = EnphaseTypeInventorySensor(coord, "iqevse")
+
+    assert entity.available is True
+    assert entity.native_value == 1
+
+
 def test_gateway_diagnostic_sensors_expose_inventory_summary(
     coordinator_factory,
 ) -> None:
