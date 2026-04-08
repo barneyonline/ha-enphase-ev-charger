@@ -2312,7 +2312,9 @@ async def test_inventory_runtime_refresh_inverters_refetches_production_after_tt
 
     await runtime._async_refresh_inverters()  # noqa: SLF001
 
-    production_health = coord._endpoint_family_state("inverter_production")  # noqa: SLF001
+    production_health = coord._endpoint_family_state(
+        "inverter_production"
+    )  # noqa: SLF001
     production_health.next_retry_mono = time.monotonic() - 1
     production_health.next_retry_utc = None
     production_health.cooldown_active = False
@@ -2533,6 +2535,29 @@ def test_inventory_runtime_misc_helper_edges(coordinator_factory) -> None:
     assert (
         runtime._inverter_connectivity_state({"total": 2, "unknown": 2}) == "unknown"
     )  # noqa: SLF001
+
+
+def test_inventory_runtime_helper_timing_diagnostics(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+
+    assert (
+        1.0 <= runtime._seconds_until_next_site_local_day() <= 86_400.0
+    )  # noqa: SLF001
+
+    coord._inverter_production_cache_until = 110.0  # noqa: SLF001
+    coord._inverter_production_cache_key = ("2022-08-10", "2026-02-09")  # noqa: SLF001
+    health = coord._endpoint_family_state("inverter_production")  # noqa: SLF001
+    health.last_success_mono = 70.0
+    monkeypatch.setattr(inventory_runtime_mod.time, "monotonic", lambda: 100.0)
+
+    payload = runtime.inverter_diagnostics_payloads()
+
+    assert payload["production_cache_key"] == ("2022-08-10", "2026-02-09")
+    assert payload["production_cache_remaining_seconds"] == 10.0
+    assert payload["production_cache_age_seconds"] == 30.0
 
 
 def test_inventory_runtime_refresh_cached_topology_handles_snapshot_errors(

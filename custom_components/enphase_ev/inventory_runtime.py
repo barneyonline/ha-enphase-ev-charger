@@ -2776,7 +2776,9 @@ class InventoryRuntime:
         cache_age_s = None
         if isinstance(cache_until, (int, float)):
             cache_remaining_s = max(0.0, float(cache_until) - time.monotonic())
-        production_health = self.coordinator._endpoint_family_state("inverter_production")
+        production_health = self.coordinator._endpoint_family_state(
+            "inverter_production"
+        )
         last_success_mono = getattr(production_health, "last_success_mono", None)
         if isinstance(last_success_mono, (int, float)):
             cache_age_s = max(0.0, time.monotonic() - float(last_success_mono))
