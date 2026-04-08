@@ -1,14 +1,8 @@
 {
   "current_status": "Fully Operational",
-  "generated_at": "2026-04-08T08:41:36.329183Z",
+  "generated_at": "2026-04-08T10:06:55.126177Z",
   "retention_days": 30,
   "samples": [
-    {
-      "checked_at": "2026-03-09T09:38:55.752084Z",
-      "checks_failed": 0,
-      "failed_check_names": [],
-      "status": "Fully Operational"
-    },
     {
       "checked_at": "2026-03-09T10:36:12.234590Z",
       "checks_failed": 0,
@@ -3979,6 +3973,14 @@
         "battery_runtime",
         "microinverters",
         "site_live"
+      ],
+      "status": "Fully Operational"
+    },
+    {
+      "checked_at": "2026-04-08T10:06:55.126177Z",
+      "checks_failed": 1,
+      "failed_check_names": [
+        "battery_config"
       ],
       "status": "Fully Operational"
     }
