@@ -8,6 +8,23 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.7.5 - 2026-04-09
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
 - Added beta selectable cloud support for Enphase AC Battery as a dedicated device type using `BatteryConfig.hasAcb`, including AC Battery discovery, sleep-mode controls, telemetry sensors, refreshed diagnostics, and documented AC Battery cloud endpoints.
 
 ### 🐛 Bug fixes
@@ -23,7 +40,8 @@ All notable changes to this project will be documented in this file.
 - Documented the newly observed mobile/web HAR endpoints in `docs/api/api_spec.md` and clarified in `README.md` that battery schedule start/end values are separate Home Assistant `time` entities.
 
 ### 🔄 Other changes
-- None
+- Removed the redundant EV charger site/type device from the device registry and extracted shared runtime helpers to simplify coordinator internals without changing supported charger functionality.
+- Bumped the integration manifest version to `2.7.5`.
 
 ## v2.7.4 - 2026-04-07
 
