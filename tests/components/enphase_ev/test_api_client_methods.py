@@ -500,6 +500,8 @@ def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
     assert client._battery_config_auth_token() == token  # noqa: SLF001
     assert client._xsrf_token() == "dynamic-token"  # noqa: SLF001
     assert headers["e-auth-token"] == token
+    assert headers["X-CSRF-Token"] == "dynamic-token"
+    assert headers["X-XSRF-Token"] == "dynamic-token"
     assert headers["Cookie"] == "BP-XSRF-Token=dynamic-token"
 
 
@@ -521,6 +523,8 @@ def test_battery_config_headers_preserve_original_eauth_and_replace_stale_xsrf()
 
     assert headers["Authorization"] == f"Bearer {bearer}"
     assert headers["e-auth-token"] == "session-token"
+    assert headers["X-CSRF-Token"] == "fresh-token"
+    assert headers["X-XSRF-Token"] == "fresh-token"
     assert headers["Cookie"] == (
         "session=1; other=1; "
         f"enlighten_manager_token_production={bearer}; BP-XSRF-Token=fresh-token"
@@ -1344,6 +1348,7 @@ async def test_json_logs_batteryconfig_write_failure_details(caplog) -> None:
                     "Authorization": "Bearer secret-auth",
                     "e-auth-token": "secret-eauth",
                     "Username": "123456",
+                    "X-CSRF-Token": "secret-xsrf",
                     "X-XSRF-Token": "secret-xsrf",
                     "Cookie": ("session=1; bp-xsrf-token=secret-xsrf; other=1"),
                 },
@@ -1360,6 +1365,7 @@ async def test_json_logs_batteryconfig_write_failure_details(caplog) -> None:
     assert "'has_authorization': True" in caplog.text
     assert "'has_e_auth_token': True" in caplog.text
     assert "'has_username': True" in caplog.text
+    assert "'has_x_csrf_token': True" in caplog.text
     assert "'has_x_xsrf_token': True" in caplog.text
     assert "'source': 'enho'" in caplog.text
     assert "'userId': '[redacted]'" in caplog.text
@@ -3207,6 +3213,7 @@ async def test_set_battery_settings_payload_and_xsrf() -> None:
     assert args[0] == "PUT"
     assert "batterySettings" in args[1]
     assert kwargs["params"]["userId"] == "88"
+    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf=token"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf=token"
     assert kwargs["json"] == {"veryLowSoc": 15}
 
@@ -3228,6 +3235,7 @@ async def test_set_battery_settings_uses_requested_schedule_type_for_xsrf() -> N
     )
 
     client._acquire_xsrf_token.assert_awaited_once_with("dtg")
+    assert client._json.await_args.kwargs["headers"]["X-CSRF-Token"] == "dtg-token"
     assert client._json.await_args.kwargs["headers"]["X-XSRF-Token"] == "dtg-token"
 
 
@@ -3537,6 +3545,7 @@ async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
         "days": [2, 6],
     }
     assert kwargs["headers"]["Authorization"] == "Bearer EAUTH"
+    assert kwargs["headers"]["X-CSRF-Token"] == "fresh-token"
     assert kwargs["headers"]["X-XSRF-Token"] == "fresh-token"
     assert kwargs["headers"]["Content-Type"] == "application/json"
     assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
@@ -3608,6 +3617,7 @@ async def test_set_battery_profile_payload_variants_and_xsrf() -> None:
     assert args[0] == "PUT"
     assert "api/v1/profile" in args[1]
     assert kwargs["params"]["userId"] == "100"
+    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf-token"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
     assert kwargs["json"] == {
         "profile": "cost_savings",
@@ -3632,6 +3642,7 @@ async def test_cancel_battery_profile_update_uses_empty_body() -> None:
     assert "cancel/profile" in args[1]
     assert kwargs["json"] == {}
     assert kwargs["params"]["userId"] == "44"
+    assert kwargs["headers"]["X-CSRF-Token"] == "t"
     assert kwargs["headers"]["X-XSRF-Token"] == "t"
 
 
@@ -3654,6 +3665,7 @@ async def test_set_storm_guard_passes_payload_and_xsrf() -> None:
         "evseStormEnabled": False,
     }
     assert kwargs["params"]["userId"] == "99"
+    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf-token"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
 
 
