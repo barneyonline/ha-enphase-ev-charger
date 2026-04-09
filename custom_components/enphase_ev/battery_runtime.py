@@ -12,6 +12,7 @@ import aiohttp
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
+from .ac_battery_runtime import AcBatteryRuntime
 from .const import (
     BATTERY_BACKUP_HISTORY_CACHE_TTL,
     BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
@@ -57,6 +58,7 @@ class BatteryRuntime:
 
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
+        self._ac_battery_runtime = AcBatteryRuntime(self)
 
     @property
     def battery_state(self) -> object:
@@ -134,6 +136,37 @@ class BatteryRuntime:
         if callable(func):
             return func(value)
         return None
+
+    def parse_ac_battery_devices_page(self, html_text: object) -> None:
+        self._ac_battery_runtime.parse_ac_battery_devices_page(html_text)
+
+    def parse_ac_battery_show_stat_data(
+        self,
+        serial: str,
+        battery_id: str | None,
+        html_text: object,
+    ) -> dict[str, object]:
+        return self._ac_battery_runtime.parse_ac_battery_show_stat_data(
+            serial, battery_id, html_text
+        )
+
+    def _refresh_ac_battery_summary(self) -> None:
+        self._ac_battery_runtime.refresh_ac_battery_summary()
+
+    async def async_refresh_ac_battery_devices(self, *, force: bool = False) -> None:
+        await self._ac_battery_runtime.async_refresh_ac_battery_devices(force=force)
+
+    async def async_refresh_ac_battery_telemetry(self, *, force: bool = False) -> None:
+        await self._ac_battery_runtime.async_refresh_ac_battery_telemetry(force=force)
+
+    async def async_refresh_ac_battery_events(self, *, force: bool = False) -> None:
+        await self._ac_battery_runtime.async_refresh_ac_battery_events(force=force)
+
+    async def async_set_ac_battery_sleep_mode(self, enabled: bool) -> None:
+        await self._ac_battery_runtime.async_set_ac_battery_sleep_mode(enabled)
+
+    async def async_set_ac_battery_target_soc(self, value: int) -> None:
+        await self._ac_battery_runtime.async_set_ac_battery_target_soc(value)
 
     def _refresh_cached_topology(self) -> None:
         func = getattr(self.coordinator, "_refresh_cached_topology", None)
@@ -1648,6 +1681,7 @@ class BatteryRuntime:
         state._battery_has_encharge = self._coerce_optional_bool(
             data.get("hasEncharge")
         )
+        state._battery_has_acb = self._coerce_optional_bool(data.get("hasAcb"))
         state._battery_has_enpower = self._coerce_optional_bool(data.get("hasEnpower"))
         state._battery_country_code = _as_text(data.get("countryCode"))
         state._battery_region = _as_text(data.get("region"))

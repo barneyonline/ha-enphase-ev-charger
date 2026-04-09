@@ -112,6 +112,12 @@ Example response:
 | Microinverter array layout | `GET` | `/systems/<site_id>/site_array_layout_x` | authenticated Enlighten session cookies | No (documented from web UI) |
 | Microinverter jellyfish bootstrap | `GET` | `/systems/<site_id>/jellyfish_initializer?range=<range>&view=<view>` | authenticated Enlighten session cookies | No (documented from web UI) |
 | Battery status | `GET` | `/pv/settings/<site_id>/battery_status.json` | `e-auth-token` + cookies | Yes |
+| AC Battery devices page | `GET` | `/systems/<site_id>/devices?status=active` | `e-auth-token` + cookies; browser-style HTML headers | No (documented from Enlighten web UI / issue #464) |
+| AC Battery detail page | `GET` | `/systems/<site_id>/ac_batteries/<battery_id>` | `e-auth-token` + cookies; browser-style HTML headers | No (documented from Enlighten web UI / issue #464) |
+| AC Battery telemetry fragment | `GET` | `/systems/<site_id>/ac_batteries/<battery_id>/show_stat_data` | `e-auth-token` + cookies; XHR/browser-style HTML headers | No (documented from Enlighten web UI / issue #464) |
+| AC Battery sleep | `GET` | `/systems/<site_id>/ac_batteries/<battery_id>/sleep?sleep_min_soc=<value>` | `e-auth-token` + cookies; browser-style HTML headers | No (documented from Enlighten web UI / issue #464) |
+| AC Battery wake | `GET` | `/systems/<site_id>/ac_batteries/<battery_id>/wake` | `e-auth-token` + cookies; browser-style HTML headers | No (documented from Enlighten web UI / issue #464) |
+| AC Battery events page | `GET` | `/systems/<site_id>/ac_batteries/<battery_id>/events` | `e-auth-token` + cookies; browser-style HTML headers | No (diagnostics-only; documented from Enlighten web UI / issue #464) |
 | HEMS device inventory | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/hems-devices[?include-retired=true|refreshData=false]` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | No (documented for roadmap) |
 | HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | No (documented from mobile app HAR) |
 | HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | No (documented from mobile app HAR) |
@@ -3880,6 +3886,78 @@ Observed shared requirements:
 - `Username: <user_id>` is sent when the JWT payload exposes a usable user id; it is not guaranteed for every token shape.
 - Browser-style `Origin`/`Referer` set to the battery profile UI host.
 - Write flows acquire a fresh `BP-XSRF-Token` first and then send `X-XSRF-Token`.
+
+### 5.0 AC Battery cloud UI routes
+
+Legacy AC Battery systems expose runtime discovery, telemetry, and sleep-mode control through the Enlighten web UI rather than the JSON BatteryConfig service.
+
+Observed integration rules:
+- `BatteryConfig siteSettings.hasAcb=true` is the canonical capability signal.
+- Runtime enumeration and control state still come from the HTML Devices page because BatteryConfig does not expose per-battery identifiers or current sleep state.
+- These are optional browser-style endpoints and should be handled with tolerant support-state / backoff logic.
+
+#### Devices page
+
+```http
+GET /systems/<site_id>/devices?status=active
+```
+
+Observed usage:
+- Returns the Devices page HTML.
+- AC Battery rows expose serial, part number, phase, state of charge, charge cycles, status text, sleep/wake control state, and links of the form `/systems/<site_id>/ac_batteries/<battery_id>`.
+- The current integration uses this page to enumerate batteries, resolve `battery_id`, read sleep state, and read the currently selected `sleep_min_soc` band.
+
+#### Detail page
+
+```http
+GET /systems/<site_id>/ac_batteries/<battery_id>
+```
+
+Observed usage:
+- Returns the per-battery HTML page.
+- Useful as the referer/anchor page for telemetry and diagnostics.
+
+#### Telemetry fragment
+
+```http
+GET /systems/<site_id>/ac_batteries/<battery_id>/show_stat_data
+```
+
+Observed usage:
+- Returns an HTML fragment, typically fetched with `X-Requested-With: XMLHttpRequest`.
+- Observed fields include instantaneous power, operating mode, state of charge, charge cycles, and the last reported timestamp.
+
+#### Sleep control
+
+```http
+GET /systems/<site_id>/ac_batteries/<battery_id>/sleep?sleep_min_soc=<value>
+```
+
+Observed usage:
+- Requests sleep mode for the target AC Battery.
+- `sleep_min_soc` is the lower bound of the selected target state-of-charge band.
+- Observed accepted values are discrete 5% steps from `0` through `95`.
+- Success is observed as HTTP `302` redirecting back to the Devices page.
+
+#### Wake control
+
+```http
+GET /systems/<site_id>/ac_batteries/<battery_id>/wake
+```
+
+Observed usage:
+- Requests wake mode or cancels a pending sleep transition.
+- Success is observed as HTTP `302` redirecting back to the Devices page.
+
+#### Events page
+
+```http
+GET /systems/<site_id>/ac_batteries/<battery_id>/events
+```
+
+Observed usage:
+- Returns HTML event/history content for the target battery.
+- The current integration only uses this route for diagnostics; it does not expose event/history entities.
 
 ### 5.1 MQTT Signed URL / Authorizer Bootstrap
 ```

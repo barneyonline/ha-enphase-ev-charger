@@ -43,7 +43,8 @@
           "type_iqevse": "Ładowarki",
           "type_microinverter": "Mikrofalowniki",
           "scan_interval": "Interwał skanowania (s)",
-          "type_heatpump": "Pompa ciepła"
+          "type_heatpump": "Pompa ciepła",
+          "type_ac_battery": "Bateria AC"
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Zawiera encje i sterowanie ładowarkami EV.",
           "type_microinverter": "Zawiera czujniki łączności mikroinwerterów, liczby aktywnych i produkcji całkowitej.",
           "scan_interval": "Sekundy między odpytywaniem stanu chmury. Domyślnie 60s.",
-          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła."
+          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła.",
+          "type_ac_battery": "Obejmuje sensory baterii AC i sterowanie trybem uśpienia, gdy są dostępne."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Włącz obsługę harmonogramu",
           "reauth": "Rozpocznij ponowne uwierzytelnienie",
           "forget_password": "Usuń zapisane hasło",
-          "type_heatpump": "Pompa ciepła"
+          "type_heatpump": "Pompa ciepła",
+          "type_ac_battery": "Bateria AC"
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Zarządzaj zarządzaniem harmonogramem Enphase",
           "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
           "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane.",
-          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła."
+          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła.",
+          "type_ac_battery": "Obejmuje sensory baterii AC i sterowanie trybem uśpienia, gdy są dostępne."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Włącz obsługę harmonogramu",
           "reauth": "Rozpocznij ponowne uwierzytelnienie",
           "forget_password": "Usuń zapisane hasło",
-          "type_heatpump": "Pompa ciepła"
+          "type_heatpump": "Pompa ciepła",
+          "type_ac_battery": "Bateria AC"
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Zarządzaj zarządzaniem harmonogramem Enphase",
           "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
           "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane.",
-          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła."
+          "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła.",
+          "type_ac_battery": "Obejmuje sensory baterii AC i sterowanie trybem uśpienia, gdy są dostępne."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Nie sparowano",
           "pairing": "Parowanie"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Ogólny stan baterii AC",
+        "state": {
+          "charging": "Ładowanie",
+          "discharging": "Rozładowywanie",
+          "idle": "Bezczynny",
+          "unknown": "Nieznany"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Moc baterii AC"
+      },
+      "ac_battery_last_reported": {
+        "name": "Ostatni raport baterii AC"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Poziom naładowania baterii AC"
+      },
+      "ac_battery_storage_status": {
+        "name": "Stan {serial}",
+        "state": {
+          "charging": "Ładowanie",
+          "discharging": "Rozładowywanie",
+          "idle": "Bezczynny",
+          "unknown": "Nieznany"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Moc {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Tryb pracy {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Liczba cykli {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Ostatni raport {serial}"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Harmonogram ograniczenia rozładowania baterii"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Tryb uśpienia baterii AC"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Profil systemu"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Docelowy stan naładowania baterii AC"
       }
     },
     "button": {

@@ -43,7 +43,8 @@
           "type_iqevse": "Laturit",
           "type_microinverter": "Mikroinvertterit",
           "scan_interval": "Skannausväli (s)",
-          "type_heatpump": "Lämpöpumppu"
+          "type_heatpump": "Lämpöpumppu",
+          "type_ac_battery": "AC-akku"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Sisältää EV-laturien entiteetit ja ohjaukset.",
           "type_microinverter": "Sisältää mikroinvertterien yhteys-, aktiivinen määrä- ja elinkaarituotannon sensorit.",
           "scan_interval": "Pilvien tilakyselyiden väliset sekunnit. Oletus 60s.",
-          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
+          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
+          "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
           "reauth": "Aloita uudelleentodennus",
           "forget_password": "Unohda tallennettu salasana",
-          "type_heatpump": "Lämpöpumppu"
+          "type_heatpump": "Lämpöpumppu",
+          "type_ac_battery": "AC-akku"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
           "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
-          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
+          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
+          "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Ota ajoitustuki käyttöön",
           "reauth": "Aloita uudelleentodennus",
           "forget_password": "Unohda tallennettu salasana",
-          "type_heatpump": "Lämpöpumppu"
+          "type_heatpump": "Lämpöpumppu",
+          "type_ac_battery": "AC-akku"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Hallitse Enphase-aikataulujen hallintaa",
           "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
-          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit."
+          "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
+          "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Ei paritettu",
           "pairing": "Pariliitos"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "AC-akun kokonaistila",
+        "state": {
+          "charging": "Lataa",
+          "discharging": "Purkaa",
+          "idle": "Joutokäynti",
+          "unknown": "Tuntematon"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC-akun teho"
+      },
+      "ac_battery_last_reported": {
+        "name": "AC-akun viimeisin raportti"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC-akun varaustaso"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} tila",
+        "state": {
+          "charging": "Lataa",
+          "discharging": "Purkaa",
+          "idle": "Joutokäynti",
+          "unknown": "Tuntematon"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} teho"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} toimintatila"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} syklien määrä"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} viimeksi raportoitu"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Akun purkauksen rajoitusaikataulu"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC-akun lepotila"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Järjestelmäprofiili"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "AC-akun tavoitevaraustaso"
       }
     },
     "button": {

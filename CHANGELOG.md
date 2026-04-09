@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added beta selectable cloud support for Enphase AC Battery as a dedicated device type using `BatteryConfig.hasAcb`, including AC Battery discovery, sleep-mode controls, telemetry sensors, refreshed diagnostics, and documented AC Battery cloud endpoints.
 
 ### 🐛 Bug fixes
 - Coalesced concurrent stored-credential reauthentication attempts into a single in-flight login and added a cooldown after rejected auth refreshes so one expired or blocked Enlighten session does not fan out into a login storm or hit the account’s active-session cap.

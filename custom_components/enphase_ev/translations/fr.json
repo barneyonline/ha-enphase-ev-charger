@@ -43,7 +43,8 @@
           "type_iqevse": "Chargeurs",
           "type_microinverter": "Micro-onduleurs",
           "scan_interval": "Intervalle de scrutation (s)",
-          "type_heatpump": "Pompe à chaleur"
+          "type_heatpump": "Pompe à chaleur",
+          "type_ac_battery": "Batterie AC"
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Inclut les entités et commandes des chargeurs EV.",
           "type_microinverter": "Inclut des capteurs de connectivité des micro-onduleurs, de nombre actif et de production à vie.",
           "scan_interval": "Secondes entre les interrogations du cloud. Par défaut 60s.",
-          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
+          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur.",
+          "type_ac_battery": "Inclut les capteurs de batterie AC et les commandes du mode veille lorsqu’ils sont disponibles."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Activer la prise en charge du planificateur",
           "reauth": "Démarrer la réauthentification",
           "forget_password": "Oublier le mot de passe stocké",
-          "type_heatpump": "Pompe à chaleur"
+          "type_heatpump": "Pompe à chaleur",
+          "type_ac_battery": "Batterie AC"
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Gérer la gestion des plannings Enphase",
           "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
           "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
-          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
+          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur.",
+          "type_ac_battery": "Inclut les capteurs de batterie AC et les commandes du mode veille lorsqu’ils sont disponibles."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Activer la prise en charge du planificateur",
           "reauth": "Démarrer la réauthentification",
           "forget_password": "Oublier le mot de passe stocké",
-          "type_heatpump": "Pompe à chaleur"
+          "type_heatpump": "Pompe à chaleur",
+          "type_ac_battery": "Batterie AC"
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Gérer la gestion des plannings Enphase",
           "reauth": "Lancer le processus de connexion pour rafraîchir les identifiants sans supprimer l'intégration.",
           "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
-          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur."
+          "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur.",
+          "type_ac_battery": "Inclut les capteurs de batterie AC et les commandes du mode veille lorsqu’ils sont disponibles."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Non appairé",
           "pairing": "Appairage"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "État global de la batterie AC",
+        "state": {
+          "charging": "En charge",
+          "discharging": "Décharge",
+          "idle": "Inactif",
+          "unknown": "Inconnu"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Puissance de la batterie AC"
+      },
+      "ac_battery_last_reported": {
+        "name": "Dernier relevé de la batterie AC"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Niveau de charge de la batterie AC"
+      },
+      "ac_battery_storage_status": {
+        "name": "État de {serial}",
+        "state": {
+          "charging": "En charge",
+          "discharging": "Décharge",
+          "idle": "Inactif",
+          "unknown": "Inconnu"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Puissance de {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Mode de fonctionnement de {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Nombre de cycles de {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Dernier relevé de {serial}"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Programme de restriction de décharge de la batterie"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Mode veille de la batterie AC"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Profil système"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "État de charge cible de la batterie AC"
       }
     },
     "button": {

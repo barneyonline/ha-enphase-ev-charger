@@ -405,6 +405,7 @@ def test_followup_refresh_stage_binds_zero_arg_calls() -> None:
     ]
     assert [call[0] for call in bound.ordered_calls] == [
         "battery_status_s",
+        "ac_battery_devices_s",
         "devices_inventory_s",
         "hems_devices_s",
     ]
@@ -470,7 +471,7 @@ async def test_coordinator_refresh_plan_runner_executes_each_stage(
     await coord.refresh_runner.async_run_refresh_plan({}, plan=FOLLOWUP_PLAN)
 
     assert seen == [
-        (None, True, 9, 3),
+        (None, True, 9, 4),
     ]
 
 

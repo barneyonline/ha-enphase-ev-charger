@@ -43,7 +43,8 @@
           "type_iqevse": "Lādētāji",
           "type_microinverter": "Mikroinvertori",
           "scan_interval": "Skenēšanas intervāls (s)",
-          "type_heatpump": "Siltumsūknis"
+          "type_heatpump": "Siltumsūknis",
+          "type_ac_battery": "AC baterija"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Ietver EV lādētāju entītijas un vadību.",
           "type_microinverter": "Ietver mikroinvertoru savienojamības, aktīvā skaita un mūža ražošanas sensorus.",
           "scan_interval": "Sekundes starp mākoņa statusa aptaujām. Noklusējums 60s.",
-          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
+          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
+          "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Iespējot plānotāja atbalstu",
           "reauth": "Sākt atkārtotu autentifikāciju",
           "forget_password": "Aizmirst saglabāto paroli",
-          "type_heatpump": "Siltumsūknis"
+          "type_heatpump": "Siltumsūknis",
+          "type_ac_battery": "AC baterija"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Pārvaldīt Enphase grafiku pārvaldību",
           "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
-          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
+          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
+          "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Iespējot plānotāja atbalstu",
           "reauth": "Sākt atkārtotu autentifikāciju",
           "forget_password": "Aizmirst saglabāto paroli",
-          "type_heatpump": "Siltumsūknis"
+          "type_heatpump": "Siltumsūknis",
+          "type_ac_battery": "AC baterija"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Pārvaldīt Enphase grafiku pārvaldību",
           "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
-          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus."
+          "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
+          "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Nesapārots",
           "pairing": "Sapārošana"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "AC baterijas kopējais statuss",
+        "state": {
+          "charging": "Uzlāde",
+          "discharging": "Izlāde",
+          "idle": "Dīkstāve",
+          "unknown": "Nezināms"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC baterijas jauda"
+      },
+      "ac_battery_last_reported": {
+        "name": "Pēdējais AC baterijas ziņojums"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC baterijas uzlādes līmenis"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} statuss",
+        "state": {
+          "charging": "Uzlāde",
+          "discharging": "Izlāde",
+          "idle": "Dīkstāve",
+          "unknown": "Nezināms"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} jauda"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} darbības režīms"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} ciklu skaits"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Pēdējais {serial} ziņojums"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Akumulatora izlādes ierobežošanas grafiks"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC baterijas miega režīms"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Sistēmas profils"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "AC baterijas mērķa uzlādes līmenis"
       }
     },
     "button": {

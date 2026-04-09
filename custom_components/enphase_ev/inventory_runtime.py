@@ -68,6 +68,7 @@ SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
 class CoordinatorTopologySnapshot:
     charger_serials: tuple[str, ...]
     battery_serials: tuple[str, ...]
+    ac_battery_serials: tuple[str, ...]
     inverter_serials: tuple[str, ...]
     active_type_keys: tuple[str, ...]
     gateway_iq_router_keys: tuple[str, ...]
@@ -331,6 +332,7 @@ class InventoryRuntime:
             "inventory_ready": bool(snapshot.inventory_ready),
             "charger_count": len(snapshot.charger_serials),
             "battery_count": len(snapshot.battery_serials),
+            "ac_battery_count": len(snapshot.ac_battery_serials),
             "inverter_count": len(snapshot.inverter_serials),
             "active_type_keys": list(snapshot.active_type_keys),
             "gateway_iq_router_count": len(snapshot.gateway_iq_router_keys),
@@ -454,6 +456,9 @@ class InventoryRuntime:
         return CoordinatorTopologySnapshot(
             charger_serials=tuple(self.iter_serials()),
             battery_serials=tuple(self.iter_battery_serials()),
+            ac_battery_serials=tuple(
+                getattr(self.coordinator, "iter_ac_battery_serials", lambda: [])()
+            ),
             inverter_serials=tuple(self.iter_inverter_serials()),
             active_type_keys=tuple(self.iter_type_keys()),
             gateway_iq_router_keys=router_keys,

@@ -210,6 +210,15 @@ class InvalidPayloadError(aiohttp.ClientError):
         return self.signature.to_dict()
 
 
+@dataclass(slots=True, frozen=True)
+class TextResponse:
+    status: int
+    text: str
+    url: str
+    headers: dict[str, str]
+    location: str | None = None
+
+
 def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
     """Return True when an optional endpoint returned a non-JSON success page."""
 
@@ -1590,6 +1599,39 @@ async def async_fetch_devices_inventory(
     return None
 
 
+async def async_fetch_battery_site_settings(
+    session: aiohttp.ClientSession,
+    site_id: str,
+    tokens: AuthTokens,
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> dict[str, object] | None:
+    """Fetch BatteryConfig site settings for config-flow category selection."""
+
+    if not site_id:
+        return {}
+
+    client = EnphaseEVClient(
+        session,
+        site_id,
+        tokens.access_token,
+        tokens.cookie,
+        timeout=timeout,
+    )
+    try:
+        payload = await client.battery_site_settings()
+    except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+        _LOGGER.debug(
+            "Failed to fetch battery site settings for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
 async def async_fetch_inverters_inventory(
     session: aiohttp.ClientSession,
     site_id: str,
@@ -2022,6 +2064,16 @@ class EnphaseEVClient:
         headers = dict(self._h)
         headers["Accept"] = "application/json, text/javascript, */*; q=0.01"
         headers["Referer"] = self._site_web_referer("layout")
+        return headers
+
+    def _systems_html_headers(self, referer: str | None = None) -> dict[str, str]:
+        """Return browser-style headers for site-scoped HTML /systems routes."""
+
+        headers = dict(self._h)
+        headers["Accept"] = (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        )
+        headers["Referer"] = referer or f"{BASE_URL}/systems/{self._site}/devices"
         return headers
 
     def _systems_json_headers(self) -> dict[str, str]:
@@ -2815,6 +2867,107 @@ class EnphaseEVClient:
                         if mark_payload_success:
                             self._mark_payload_healthy(endpoint or None)
                         return payload
+
+    async def _text_response(
+        self,
+        method: str,
+        url: str,
+        *,
+        expected_statuses: tuple[int, ...] | None = None,
+        mark_payload_success: bool = True,
+        **kwargs,
+    ) -> TextResponse:
+        """Perform an HTTP request returning text plus response metadata."""
+
+        extra_headers = kwargs.pop("headers", None)
+        attempt = 0
+        request_label = _request_label(method, url)
+        endpoint = ""
+        try:
+            endpoint = URL(url).path
+        except Exception:  # noqa: BLE001
+            endpoint = ""
+        while True:
+            base_headers = dict(self._h)
+            if callable(extra_headers):
+                attempt_headers = extra_headers()
+            else:
+                attempt_headers = extra_headers
+            if isinstance(attempt_headers, dict):
+                for header_key, header_value in attempt_headers.items():
+                    if header_value is None:
+                        base_headers.pop(header_key, None)
+                    else:
+                        base_headers[header_key] = header_value
+
+            async with _enlighten_read_request_guard(method, url):
+                async with asyncio.timeout(self._timeout):
+                    async with self._s.request(
+                        method, url, headers=base_headers, **kwargs
+                    ) as r:
+                        if r.status == 401:
+                            self._last_unauthorized_request = request_label
+                            if self._reauth_cb and attempt == 0:
+                                attempt += 1
+                                if await self._reauth_cb():
+                                    continue
+                            raise Unauthorized()
+                        if expected_statuses and r.status in expected_statuses:
+                            text = await r.text()
+                            if mark_payload_success:
+                                self._mark_payload_healthy(endpoint or None)
+                            return TextResponse(
+                                status=int(r.status),
+                                text=text,
+                                url=str(r.url),
+                                headers={str(k): str(v) for k, v in r.headers.items()},
+                                location=r.headers.get("Location"),
+                            )
+                        if r.status >= 400:
+                            try:
+                                body_text = await r.text()
+                            except Exception:  # noqa: BLE001
+                                body_text = ""
+                            message = (body_text or r.reason or "").strip()
+                            if len(message) > 512:
+                                message = f"{message[:512]}…"
+                            raise aiohttp.ClientResponseError(
+                                r.request_info,
+                                r.history,
+                                status=r.status,
+                                message=message or r.reason,
+                                headers=r.headers,
+                            )
+                        text = await r.text()
+                        if mark_payload_success:
+                            self._mark_payload_healthy(endpoint or None)
+                        return TextResponse(
+                            status=int(r.status),
+                            text=text,
+                            url=str(r.url),
+                            headers={str(k): str(v) for k, v in r.headers.items()},
+                            location=r.headers.get("Location"),
+                        )
+
+    async def _text(
+        self,
+        method: str,
+        url: str,
+        *,
+        expected_statuses: tuple[int, ...] | None = None,
+        mark_payload_success: bool = True,
+        **kwargs,
+    ) -> str:
+        """Perform an HTTP request returning text only."""
+
+        response = await self._text_response(
+            method,
+            url,
+            expected_statuses=expected_statuses,
+            mark_payload_success=mark_payload_success,
+            **kwargs,
+        )
+        return response.text
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
@@ -5609,6 +5762,86 @@ class EnphaseEVClient:
         if isinstance(data, dict):
             return data
         return {}
+
+    async def ac_battery_devices_page(self, *, status: str = "active") -> str:
+        """Return the AC Battery devices page HTML for the site."""
+
+        url = str(
+            URL(f"{BASE_URL}/systems/{self._site}/devices").update_query(
+                {"status": status}
+            )
+        )
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status={status}"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def ac_battery_detail_page(self, battery_id: str) -> str:
+        """Return the AC Battery detail page HTML."""
+
+        url = f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}"
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status=active"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def ac_battery_events_page(self, battery_id: str) -> str:
+        """Return the AC Battery events page HTML."""
+
+        url = f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/events"
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def ac_battery_show_stat_data(self, battery_id: str) -> str:
+        """Return the AC Battery telemetry HTML fragment."""
+
+        url = (
+            f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/show_stat_data"
+        )
+        headers = self._layout_headers()
+        headers["Accept"] = "*/*"
+        headers["Referer"] = (
+            f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def set_ac_battery_sleep(
+        self, battery_id: str, sleep_min_soc: int
+    ) -> TextResponse:
+        """Request AC Battery sleep mode using the Enlighten web route."""
+
+        url = str(
+            URL(
+                f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/sleep"
+            ).update_query({"sleep_min_soc": int(sleep_min_soc)})
+        )
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status=active"
+        )
+        return await self._text_response(
+            "GET",
+            url,
+            headers=headers,
+            allow_redirects=False,
+            expected_statuses=(302,),
+        )
+
+    async def set_ac_battery_wake(self, battery_id: str) -> TextResponse:
+        """Request AC Battery wake/cancel using the Enlighten web route."""
+
+        url = f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/wake"
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status=active"
+        )
+        return await self._text_response(
+            "GET",
+            url,
+            headers=headers,
+            allow_redirects=False,
+            expected_statuses=(302,),
+        )
 
     async def dry_contacts_settings(self) -> dict:
         """Return dry-contact settings payload used by site settings views.

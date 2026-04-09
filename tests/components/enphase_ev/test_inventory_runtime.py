@@ -59,6 +59,7 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
         "inventory_ready": False,
         "charger_count": 0,
         "battery_count": 0,
+        "ac_battery_count": 0,
         "inverter_count": 0,
         "active_type_keys": [],
         "gateway_iq_router_count": 0,
@@ -704,6 +705,22 @@ def test_devices_inventory_runtime_parser_shapes_and_buckets(
     )
     assert valid is True
     assert grouped["encharge"]["model_summary"] == "IQ Battery 5P x1"
+
+
+def test_inventory_view_iter_type_keys_infers_ac_battery_when_no_buckets(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.serials = set()
+    coord.data = {}
+    coord.iter_serials = lambda: []
+    coord._type_device_order = None  # noqa: SLF001
+    coord._type_device_buckets = None  # noqa: SLF001
+    coord._selected_type_keys = None  # noqa: SLF001
+    coord._battery_has_encharge = False  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+
+    assert coord.inventory_view.iter_type_keys() == ["envoy", "ac_battery"]
 
 
 def test_devices_inventory_runtime_dry_contact_dedupe_and_helpers(

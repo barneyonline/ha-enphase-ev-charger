@@ -43,7 +43,8 @@
           "type_iqevse": "Laadijad",
           "type_microinverter": "Mikroinverterid",
           "scan_interval": "Skaneerimisintervall (s)",
-          "type_heatpump": "Soojuspump"
+          "type_heatpump": "Soojuspump",
+          "type_ac_battery": "AC-aku"
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Sisaldab EV-laadijate olemid ja juhtnuppe.",
           "type_microinverter": "Sisaldab mikroinverterite ühenduvuse, aktiivse arvu ja eluaegse tootmise andureid.",
           "scan_interval": "Sekundid pilveoleku päringute vahel. Vaikimisi 60s.",
-          "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid."
+          "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid.",
+          "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Luba ajakava tugi",
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool",
-          "type_heatpump": "Soojuspump"
+          "type_heatpump": "Soojuspump",
+          "type_ac_battery": "AC-aku"
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Enphase'i ajakava haldamine",
           "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata.",
-          "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid."
+          "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid.",
+          "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Luba ajakava tugi",
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool",
-          "type_heatpump": "Soojuspump"
+          "type_heatpump": "Soojuspump",
+          "type_ac_battery": "AC-aku"
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Enphase'i ajakava haldamine",
           "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata.",
-          "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid."
+          "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid.",
+          "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Sidumata",
           "pairing": "Sidumine"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "AC-aku üldine olek",
+        "state": {
+          "charging": "Laadimine",
+          "discharging": "Tühjenemine",
+          "idle": "Jõudeolek",
+          "unknown": "Tundmatu"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC-aku võimsus"
+      },
+      "ac_battery_last_reported": {
+        "name": "AC-aku viimane raport"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC-aku laetuse tase"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} olek",
+        "state": {
+          "charging": "Laadimine",
+          "discharging": "Tühjenemine",
+          "idle": "Jõudeolek",
+          "unknown": "Tundmatu"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} võimsus"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} töörežiim"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} tsüklite arv"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} viimane raport"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Aku tühjendamise piirangu ajakava"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC-aku unerežiim"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Süsteemi profiil"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "AC-aku sihtlaetuse tase"
       }
     },
     "button": {

@@ -27,6 +27,7 @@ from custom_components.enphase_ev.api import (
 from custom_components.enphase_ev.config_flow import (
     CONF_OTP,
     CONF_RESEND_CODE,
+    CONF_TYPE_AC_BATTERY,
     CONF_TYPE_ENCHARGE,
     CONF_TYPE_ENVOY,
     CONF_TYPE_HEATPUMP,
@@ -701,7 +702,13 @@ async def test_devices_step_defaults_to_available_type_keys(hass) -> None:
     flow._chargers_loaded = True
     flow._chargers = [("EV1", "Garage"), ("EV2", "Driveway")]
     flow._type_keys_loaded = True
-    flow._available_type_keys = ["envoy", "iqevse", "heatpump", "microinverter"]
+    flow._available_type_keys = [
+        "envoy",
+        "ac_battery",
+        "iqevse",
+        "heatpump",
+        "microinverter",
+    ]
 
     result = await flow.async_step_devices()
 
@@ -736,6 +743,17 @@ async def test_devices_step_defaults_to_available_type_keys(hass) -> None:
         else heatpump_key.default
     )
     assert heatpump_default is True
+    ac_battery_key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_TYPE_AC_BATTERY
+    )
+    ac_battery_default = (
+        ac_battery_key.default()
+        if callable(ac_battery_key.default)
+        else ac_battery_key.default
+    )
+    assert ac_battery_default is True
 
 
 @pytest.mark.asyncio
@@ -1538,6 +1556,33 @@ async def test_ensure_available_type_keys_clears_unknown_when_legacy_fallback_su
     assert flow._available_type_keys == ["microinverter"]
 
 
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_discovers_ac_battery_from_site_settings(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+            AsyncMock(return_value={"data": {"hasAcb": True}}),
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._available_type_keys == ["ac_battery"]
+
+
 def test_legacy_microinverters_available_from_nested_result() -> None:
     assert config_flow._legacy_microinverters_available(
         {
@@ -1621,6 +1666,19 @@ def test_default_selected_type_keys_uses_flow_state(hass) -> None:
     assert flow._default_selected_type_keys(["envoy", "iqevse", "microinverter"]) == [
         "envoy"
     ]
+
+
+def test_battery_site_settings_has_acb_helper_branches() -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert config_flow._battery_site_settings_has_acb(None) is False
+    assert config_flow._battery_site_settings_has_acb({"data": "bad"}) is False
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": True}) is True
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": None}) is False
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": "YES"}) is True
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": BadStr()}) is False
 
 
 def test_default_selected_type_keys_reconfigure_auto_selects_discovered_heatpump(
@@ -1723,6 +1781,22 @@ def test_fallback_type_keys_for_unknown_inventory_adds_iqevse_when_discovered(
         "envoy",
         "encharge",
         "iqevse",
+    ]
+
+
+def test_default_selected_type_keys_and_fallback_include_ac_battery(hass) -> None:
+    flow = _make_flow(hass)
+    assert flow._default_selected_type_keys(["envoy", "ac_battery"]) == [
+        "envoy",
+        "ac_battery",
+    ]
+
+    flow._available_type_keys = ["envoy", "ac_battery"]
+    flow._include_inverters = False
+    assert flow._fallback_type_keys_for_unknown_inventory([]) == [
+        "envoy",
+        "encharge",
+        "ac_battery",
     ]
 
 
@@ -1902,6 +1976,138 @@ def test_options_flow_build_schema_skips_missing_type_mapping(hass) -> None:
         isinstance(key, VolOptional) and key.schema == CONF_TYPE_IQEVSE
         for key in schema_keys
     )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_settings_hides_ac_battery_when_site_not_supported(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+        AsyncMock(return_value={"data": {"hasAcb": False}}),
+    )
+
+    result = await handler.async_step_settings()
+
+    schema_keys = list(result["data_schema"].schema.keys())
+    assert not any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_AC_BATTERY
+        for key in schema_keys
+    )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_settings_shows_ac_battery_when_site_supported(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+        AsyncMock(return_value={"data": {"hasAcb": True}}),
+    )
+
+    result = await handler.async_step_settings()
+
+    schema_keys = list(result["data_schema"].schema.keys())
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_AC_BATTERY
+        for key in schema_keys
+    )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_ac_battery_supported_for_options_short_circuits_when_selected(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "ac_battery"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    assert await handler._ac_battery_supported_for_options() is True
+
+
+@pytest.mark.asyncio
+async def test_options_flow_ac_battery_supported_for_options_requires_tokens_and_site(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "", CONF_SELECTED_TYPE_KEYS: ["envoy"]},
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    assert await handler._ac_battery_supported_for_options() is False
+
+
+@pytest.mark.asyncio
+async def test_options_flow_settings_ignores_unknown_visible_type_keys(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+            CONF_SERIALS: [],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    monkeypatch.setattr(
+        handler,
+        "_settings_type_keys",
+        AsyncMock(return_value=["envoy", "unknown_type"]),
+    )
+
+    result = await handler.async_step_settings({CONF_TYPE_ENVOY: True})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert handler._entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy"]
 
 
 def test_options_flow_default_nominal_voltage_uses_country(hass) -> None:

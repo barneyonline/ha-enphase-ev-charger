@@ -43,7 +43,8 @@
           "type_iqevse": "Ladere",
           "type_microinverter": "Mikroinvertere",
           "scan_interval": "Scan-interval (s)",
-          "type_heatpump": "Varmepumpe"
+          "type_heatpump": "Varmepumpe",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
           "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
           "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s.",
-          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Aktiver Scheduler Support",
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode",
-          "type_heatpump": "Varmepumpe"
+          "type_heatpump": "Varmepumpe",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
-          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Aktiver Scheduler Support",
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode",
-          "type_heatpump": "Varmepumpe"
+          "type_heatpump": "Varmepumpe",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
-          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Ikke parret",
           "pairing": "Parring"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Samlet status for AC-batteri",
+        "state": {
+          "charging": "Oplader",
+          "discharging": "Aflader",
+          "idle": "Inaktiv",
+          "unknown": "Ukendt"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC-batterieffekt"
+      },
+      "ac_battery_last_reported": {
+        "name": "Senest rapporteret fra AC-batteri"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC-batteriets ladeniveau"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} status",
+        "state": {
+          "charging": "Oplader",
+          "discharging": "Aflader",
+          "idle": "Inaktiv",
+          "unknown": "Ukendt"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} effekt"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} driftstilstand"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} antal cyklusser"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} sidst rapporteret"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Tidsplan for begrænset batteriafladning"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC-batteriets dvaletilstand"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Systemprofil"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "AC-batteriets mål for ladeniveau"
       }
     },
     "button": {
