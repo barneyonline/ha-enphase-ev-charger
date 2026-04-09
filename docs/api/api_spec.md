@@ -4382,13 +4382,15 @@ Example response (anonymized):
 
 ```
 PUT /service/batteryConfig/api/v1/batterySettings/<site_id>?userId=<user_id>
-Headers: X-XSRF-Token: <token>
+Headers:
+  X-CSRF-Token: <token>
+  X-XSRF-Token: <token>
 ```
 Updates battery settings. Captured requests used partial payloads to change individual controls.
 
 Implementation auth notes:
 - The current client first acquires a fresh `BP-XSRF-Token` via `/battery/sites/<site_id>/schedules/isValid`.
-- It then sends bearer-preferred BatteryConfig headers, normalized cookies, and `X-XSRF-Token`.
+- It then sends bearer-preferred BatteryConfig headers, normalized cookies, `X-CSRF-Token`, and `X-XSRF-Token`.
 
 Example payloads observed:
 ```json
@@ -4720,6 +4722,7 @@ the Enlighten battery profile UI when the user modifies a CFG schedule.
 - `e-auth-token`: stored access token when present, otherwise bearer token
 - `Username`: Enphase user ID when decodable from JWT
 - normalized BatteryConfig `Cookie` header, optionally including `BP-XSRF-Token`
+- `X-CSRF-Token`: freshly acquired XSRF token echoed in request header
 - `X-XSRF-Token`: freshly acquired XSRF token echoed in request header
 
 Implementation auth notes:
@@ -4971,7 +4974,7 @@ There is no single universal header set; the implementation varies headers by en
 | System dashboard reads | authenticated cookies; may also include bearer auth opportunistically |
 | HEMS | bearer-preferred auth plus cookies/base headers; `username` and `requestId` when available |
 | BatteryConfig reads | bearer-preferred auth, `e-auth-token`, normalized cookies, `Username` when decodable, battery-profile `Origin`/`Referer` |
-| BatteryConfig writes | acquire fresh XSRF via `/battery/sites/<site_id>/schedules/isValid`, then send bearer-preferred BatteryConfig headers plus `X-XSRF-Token` |
+| BatteryConfig writes | acquire fresh XSRF via `/battery/sites/<site_id>/schedules/isValid`, then send bearer-preferred BatteryConfig headers plus `X-CSRF-Token` and `X-XSRF-Token` |
 
 - Base Enlighten reads:
   - `Cookie: <serialized cookie jar>`
