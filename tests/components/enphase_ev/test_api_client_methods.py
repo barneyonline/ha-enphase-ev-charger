@@ -40,6 +40,7 @@ class _FakeResponse:
         self._json_body = json_body
         self._text_body = text_body
         self.request_info = SimpleNamespace(real_url="https://example.test/path")
+        self.url = URL("https://example.test/path")
         self.history: tuple = ()
         self.reason = "reason"
         self.headers: dict[str, str] = {}
@@ -262,6 +263,154 @@ def test_cookie_map_from_header_handles_defensive_branches() -> None:
         "other": "2",
         "blank": "",
     }
+
+
+@pytest.mark.asyncio
+async def test_text_response_returns_redirect_metadata() -> None:
+    response = _FakeResponse(status=302, json_body={}, text_body="")
+    response.headers = {"Location": "/systems/SITE/devices?status=active"}
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    result = await client._text_response(  # noqa: SLF001
+        "GET",
+        "https://example.test/path",
+        expected_statuses=(302,),
+        allow_redirects=False,
+    )
+
+    assert result.status == 302
+    assert result.location == "/systems/SITE/devices?status=active"
+    assert result.url == "https://example.test/path"
+
+
+@pytest.mark.asyncio
+async def test_ac_battery_client_methods_build_expected_requests() -> None:
+    sleep_response = _FakeResponse(status=302, json_body={}, text_body="")
+    sleep_response.headers = {"Location": "/systems/SITE/devices?status=active"}
+    wake_response = _FakeResponse(status=302, json_body={}, text_body="")
+    wake_response.headers = {"Location": "/systems/SITE/devices?status=active"}
+    session = _FakeSession(
+        [
+            _FakeResponse(status=200, json_body={}, text_body="<html>devices</html>"),
+            _FakeResponse(status=200, json_body={}, text_body="<html>detail</html>"),
+            _FakeResponse(status=200, json_body={}, text_body="<html>events</html>"),
+            _FakeResponse(status=200, json_body={}, text_body="<div>telemetry</div>"),
+            sleep_response,
+            wake_response,
+        ]
+    )
+    client = _make_client(session)
+
+    html = await client.ac_battery_devices_page()
+    detail = await client.ac_battery_detail_page("BAT-1")
+    events = await client.ac_battery_events_page("BAT-1")
+    telemetry = await client.ac_battery_show_stat_data("BAT-1")
+    sleep = await client.set_ac_battery_sleep("BAT-1", 25)
+    wake = await client.set_ac_battery_wake("BAT-1")
+
+    assert html == "<html>devices</html>"
+    assert detail == "<html>detail</html>"
+    assert events == "<html>events</html>"
+    assert telemetry == "<div>telemetry</div>"
+    assert sleep.location == "/systems/SITE/devices?status=active"
+    assert wake.location == "/systems/SITE/devices?status=active"
+
+    assert session.calls[0][1].endswith("/systems/SITE/devices?status=active")
+    assert session.calls[1][1].endswith("/systems/SITE/ac_batteries/BAT-1")
+    assert session.calls[2][1].endswith("/systems/SITE/ac_batteries/BAT-1/events")
+    assert session.calls[3][1].endswith(
+        "/systems/SITE/ac_batteries/BAT-1/show_stat_data"
+    )
+    assert "sleep_min_soc=25" in session.calls[4][1]
+    assert session.calls[5][1].endswith("/systems/SITE/ac_batteries/BAT-1/wake")
+
+
+@pytest.mark.asyncio
+async def test_async_fetch_battery_site_settings_defensive_branches(
+    monkeypatch,
+) -> None:
+    assert (
+        await api.async_fetch_battery_site_settings(
+            MagicMock(), "", api.AuthTokens("cookie", "sid", "token", 1)
+        )
+        == {}
+    )
+
+    client = AsyncMock()
+    client.battery_site_settings = AsyncMock(return_value="bad")
+    monkeypatch.setattr(api, "EnphaseEVClient", MagicMock(return_value=client))
+
+    result = await api.async_fetch_battery_site_settings(
+        MagicMock(), "SITE", api.AuthTokens("cookie", "sid", "token", 1)
+    )
+
+    assert result is None
+
+    client.battery_site_settings = AsyncMock(return_value={"data": {"hasAcb": True}})
+    assert await api.async_fetch_battery_site_settings(
+        MagicMock(), "SITE", api.AuthTokens("cookie", "sid", "token", 1)
+    ) == {"data": {"hasAcb": True}}
+
+
+@pytest.mark.asyncio
+async def test_text_response_retries_unauthorized_with_header_callback() -> None:
+    class BadURL:
+        def __str__(self) -> str:
+            return "https://example.test/path"
+
+    first = _FakeResponse(status=401, json_body={}, text_body="")
+    second = _FakeResponse(status=200, json_body={}, text_body="ok")
+    session = _FakeSession([first, second])
+    client = _make_client(session)
+    client._reauth_cb = AsyncMock(return_value=True)  # noqa: SLF001
+
+    result = await client._text_response(  # noqa: SLF001
+        "GET",
+        BadURL(),
+        expected_statuses=(200,),
+        headers=lambda: {"Authorization": None, "X-Test": "1"},
+    )
+
+    assert result.text == "ok"
+    assert session.calls[0][2]["headers"]["X-Test"] == "1"
+    assert "Authorization" not in session.calls[0][2]["headers"]
+    client._reauth_cb.assert_awaited_once()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_text_response_raises_client_error_with_truncated_body() -> None:
+    response = _FakeResponse(status=500, json_body={}, text_body="x" * 600)
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    with pytest.raises(aiohttp.ClientResponseError) as err:
+        await client._text_response("GET", "https://example.test/path")  # noqa: SLF001
+
+    assert err.value.message.endswith("…")
+
+
+@pytest.mark.asyncio
+async def test_text_response_handles_body_read_failure() -> None:
+    response = _FakeResponse(status=500, json_body={}, text_body=RuntimeError("boom"))
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    with pytest.raises(aiohttp.ClientResponseError) as err:
+        await client._text_response("GET", "https://example.test/path")  # noqa: SLF001
+
+    assert err.value.message == "reason"
+
+
+@pytest.mark.asyncio
+async def test_text_response_raises_unauthorized_without_successful_reauth() -> None:
+    response = _FakeResponse(status=401, json_body={}, text_body="")
+    session = _FakeSession([response])
+    client = _make_client(session)
+    client._reauth_cb = AsyncMock(return_value=False)  # noqa: SLF001
+
+    with pytest.raises(api.Unauthorized):
+        await client._text_response("GET", "https://example.test/path")  # noqa: SLF001
 
 
 def test_cookie_names_from_header_returns_sorted_names() -> None:

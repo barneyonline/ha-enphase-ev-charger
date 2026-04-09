@@ -23,6 +23,7 @@ from .api import (
     async_authenticate,
     async_fetch_hems_devices,
     async_fetch_devices_inventory,
+    async_fetch_battery_site_settings,
     async_fetch_inverters_inventory,
     async_fetch_chargers,
     async_resend_login_otp,
@@ -95,6 +96,7 @@ CONF_OTP = "otp"
 CONF_RESEND_CODE = "resend_code"
 CONF_TYPE_ENVOY = "type_envoy"
 CONF_TYPE_ENCHARGE = "type_encharge"
+CONF_TYPE_AC_BATTERY = "type_ac_battery"
 CONF_TYPE_IQEVSE = "type_iqevse"
 CONF_TYPE_HEATPUMP = "type_heatpump"
 CONF_TYPE_MICROINVERTER = "type_microinverter"
@@ -106,10 +108,29 @@ CONF_MIGRATION_DISABLE_ARCHIVED = "disable_archived_envoy_sensors"
 _TYPE_FIELD_BY_KEY: dict[str, str] = {
     "envoy": CONF_TYPE_ENVOY,
     "encharge": CONF_TYPE_ENCHARGE,
+    "ac_battery": CONF_TYPE_AC_BATTERY,
     "iqevse": CONF_TYPE_IQEVSE,
     "heatpump": CONF_TYPE_HEATPUMP,
     "microinverter": CONF_TYPE_MICROINVERTER,
 }
+
+
+def _battery_site_settings_has_acb(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    data = payload.get("data")
+    if isinstance(data, dict):
+        payload = data
+    value = payload.get("hasAcb")
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    try:
+        text = str(value).strip().lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return text in {"1", "true", "yes", "on"}
 
 
 def _site_entry_title(site_id: str) -> str:
@@ -660,6 +681,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         hems_payload = await async_fetch_hems_devices(
             session, self._selected_site_id, self._auth_tokens, refresh_data=False
         )
+        battery_site_settings = await async_fetch_battery_site_settings(
+            session, self._selected_site_id, self._auth_tokens
+        )
         if payload is None:
             self._inventory_unknown = True
             self._available_type_keys = []
@@ -686,6 +710,9 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if _hems_heatpump_available(hems_payload) and "heatpump" in _TYPE_FIELD_BY_KEY:
             if "heatpump" not in self._available_type_keys:
                 self._available_type_keys.append("heatpump")
+        if _battery_site_settings_has_acb(battery_site_settings):
+            if "ac_battery" not in self._available_type_keys:
+                self._available_type_keys.append("ac_battery")
         self._available_type_keys = [
             key
             for key in ONBOARDING_SUPPORTED_TYPE_KEYS
@@ -891,6 +918,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if selected:
             return selected
         fallback = ["envoy", "encharge"]
+        if "ac_battery" in self._available_type_keys:
+            fallback.append("ac_battery")
         if discovered_serials:
             fallback.append("iqevse")
         if self._default_include_inverters():
@@ -1076,11 +1105,53 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         return resolve_nominal_voltage_for_hass(self.hass)
 
-    def _build_settings_schema(self) -> vol.Schema:
+    def _entry_auth_tokens(self) -> AuthTokens | None:
+        site_id = str(self._entry.data.get(CONF_SITE_ID, "") or "").strip()
+        access_token = self._entry.data.get(CONF_EAUTH) or self._entry.data.get(
+            CONF_ACCESS_TOKEN
+        )
+        cookie = self._entry.data.get(CONF_COOKIE)
+        if not site_id or not access_token or not cookie:
+            return None
+        return AuthTokens(
+            cookie=str(cookie),
+            session_id=self._entry.data.get(CONF_SESSION_ID),
+            access_token=access_token,
+            token_expires_at=self._entry.data.get(CONF_TOKEN_EXPIRES_AT),
+        )
+
+    async def _ac_battery_supported_for_options(self) -> bool:
+        selected = set(self._stored_selected_type_keys())
+        if "ac_battery" in selected:
+            return True
+        tokens = self._entry_auth_tokens()
+        site_id = str(self._entry.data.get(CONF_SITE_ID, "") or "").strip()
+        if tokens is None or not site_id:
+            return False
+        payload = await async_fetch_battery_site_settings(
+            async_get_clientsession(self.hass),
+            site_id,
+            tokens,
+        )
+        return _battery_site_settings_has_acb(payload)
+
+    async def _settings_type_keys(self) -> list[str]:
+        visible: list[str] = []
+        ac_battery_supported = await self._ac_battery_supported_for_options()
+        for type_key in ONBOARDING_SUPPORTED_TYPE_KEYS:
+            if type_key == "ac_battery" and not ac_battery_supported:
+                continue
+            if type_key in _TYPE_FIELD_BY_KEY:
+                visible.append(type_key)
+        return visible
+
+    def _build_settings_schema(
+        self, visible_type_keys: list[str] | None = None
+    ) -> vol.Schema:
         default_selected_type_keys = self._default_selected_type_keys()
         nominal_default = self._default_nominal_voltage()
         schema_fields: dict[vol.Marker, object] = {}
-        for type_key in ONBOARDING_SUPPORTED_TYPE_KEYS:
+        for type_key in visible_type_keys or list(ONBOARDING_SUPPORTED_TYPE_KEYS):
             field_key = _TYPE_FIELD_BY_KEY.get(type_key)
             if field_key is None:
                 continue
@@ -1289,14 +1360,15 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        schema = self._build_settings_schema()
+        visible_type_keys = await self._settings_type_keys()
+        schema = self._build_settings_schema(visible_type_keys)
         if user_input is not None:
             option_data = dict(user_input)
             forget_password = bool(option_data.pop("forget_password", False))
             reauth = bool(option_data.pop("reauth", False))
             selected_type_keys: list[str] = []
             default_selected_type_keys = self._default_selected_type_keys()
-            for type_key in ONBOARDING_SUPPORTED_TYPE_KEYS:
+            for type_key in visible_type_keys:
                 field_key = _TYPE_FIELD_BY_KEY.get(type_key)
                 if field_key is None:
                     continue
@@ -1322,7 +1394,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 serials = await self._discover_iqevse_serials()
                 if not serials:
                     error_schema = self.add_suggested_values_to_schema(
-                        self._build_settings_schema(), user_input
+                        self._build_settings_schema(visible_type_keys), user_input
                     )
                     return self.async_show_form(
                         step_id="settings",

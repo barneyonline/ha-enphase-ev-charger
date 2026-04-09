@@ -25,6 +25,8 @@ def test_normalize_type_key_handles_aliases_and_unknown_tokens() -> None:
     assert normalize_type_key("systemcontroller") == "envoy"
     assert normalize_type_key("storage") == "encharge"
     assert normalize_type_key("storages") == "encharge"
+    assert normalize_type_key("AC Battery") == "ac_battery"
+    assert normalize_type_key("acbattery") == "ac_battery"
     assert normalize_type_key("heat-pump") == "heatpump"
     assert normalize_type_key("heat_pump") == "heatpump"
     assert normalize_type_key("Heat Pump") == "heatpump"
@@ -47,6 +49,7 @@ def test_normalize_type_key_handles_bad_string_conversion() -> None:
 
 def test_type_display_label_uses_known_and_title_case_defaults() -> None:
     assert type_display_label("envoy") == "Gateway"
+    assert type_display_label("ac_battery") == "AC Battery"
     assert type_display_label("heatpump") == "Heat Pump"
     assert type_display_label("dry_contact") == "Dry Contacts"
     assert type_display_label("wind_turbine") == "Wind Turbine"
@@ -91,6 +94,7 @@ def test_known_type_order_places_heatpump_after_iqevse() -> None:
 
 def test_onboarding_supported_type_keys_include_heatpump() -> None:
     assert "heatpump" in device_types_mod.ONBOARDING_SUPPORTED_TYPE_KEYS
+    assert "ac_battery" in device_types_mod.ONBOARDING_SUPPORTED_TYPE_KEYS
 
 
 def test_type_identifier_round_trip_parsing() -> None:

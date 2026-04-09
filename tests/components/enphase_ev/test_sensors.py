@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from datetime import time as dt_time
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -928,40 +929,416 @@ def test_battery_last_reported_sensor_states_and_attributes():
     assert attrs["without_last_report_count"] == 1
     assert attrs["latest_reported_device"]["serial_number"] == "BAT-5"
     assert attrs["latest_reported_device"]["status"] == "Normal"
-    assert attrs["latest_reported_utc"] == "2026-02-15T08:31:33+00:00"
 
-    coord.battery_status_payload = {"storages": [{"serial_number": "BAT-1"}]}
-    assert sensor.available is False
-    assert sensor.native_value is None
-    attrs = sensor.extra_state_attributes
+
+def test_ac_battery_storage_sensors_state_and_attributes():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseAcBatteryStorageChargeSensor,
+        EnphaseAcBatteryStorageCycleCountSensor,
+        EnphaseAcBatteryStorageLastReportedSensor,
+        EnphaseAcBatteryStorageOperatingModeSensor,
+        EnphaseAcBatteryStoragePowerSensor,
+        EnphaseAcBatteryStorageStatusSensor,
+    )
+
+    snapshot = {
+        "serial_number": "BAT-AC-1",
+        "battery_id": "67890",
+        "part_number": "ACB-Model",
+        "phase": "Single Phase",
+        "current_charge_pct": 48.4,
+        "status_text": "Warning",
+        "status_normalized": "warning",
+        "sleep_state": "pending",
+        "sleep_control_class": "cancel",
+        "sleep_control_label": "Entering Sleep Mode",
+        "power_w": 260.0,
+        "operating_mode": "Charging",
+        "cycle_count": 123,
+        "last_reported": datetime(2026, 4, 9, 3, 15, tzinfo=timezone.utc),
+    }
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=True,
+        ac_battery_storage=lambda _serial: snapshot,
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda _key: None,
+            has_type_for_entities=lambda _key: True,
+        ),
+    )
+
+    charge = EnphaseAcBatteryStorageChargeSensor(coord, "BAT-AC-1")
+    status = EnphaseAcBatteryStorageStatusSensor(coord, "BAT-AC-1")
+    power = EnphaseAcBatteryStoragePowerSensor(coord, "BAT-AC-1")
+    mode = EnphaseAcBatteryStorageOperatingModeSensor(coord, "BAT-AC-1")
+    cycle = EnphaseAcBatteryStorageCycleCountSensor(coord, "BAT-AC-1")
+    last_reported = EnphaseAcBatteryStorageLastReportedSensor(coord, "BAT-AC-1")
+
+    assert charge.available is True
+    assert charge.name == "BAT-AC-1"
+    assert charge.native_value == 48.4
+    assert charge.extra_state_attributes["battery_id"] == "67890"
+
+    assert status.native_value == "warning"
+    assert status.extra_state_attributes["sleep_state"] == "pending"
+    assert power.native_value == 260.0
+    assert power.extra_state_attributes["operating_mode"] == "Charging"
+    assert mode.native_value == "Charging"
+    assert cycle.native_value == 123
+    assert last_reported.available is True
+    assert last_reported.native_value == datetime(
+        2026, 4, 9, 3, 15, tzinfo=timezone.utc
+    )
+
+
+def test_ac_battery_storage_sensor_edge_branches():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseAcBatteryStorageChargeSensor,
+        EnphaseAcBatteryStorageCycleCountSensor,
+        EnphaseAcBatteryStorageOperatingModeSensor,
+        EnphaseAcBatteryStoragePowerSensor,
+        EnphaseAcBatteryStorageStatusSensor,
+    )
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    snapshot = {
+        "serial_number": BadStr(),
+        "status_normalized": BadStr(),
+        "operating_mode": BadStr(),
+        "power_w": float("inf"),
+        "cycle_count": BadStr(),
+        "current_charge_pct": None,
+    }
+    coord = SimpleNamespace(
+        site_id="site",
+        last_update_success=False,
+        ac_battery_storage=lambda _serial: snapshot,
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda _key: None,
+            has_type_for_entities=lambda _key: False,
+        ),
+    )
+
+    charge = EnphaseAcBatteryStorageChargeSensor(coord, "BAT-AC-1")
+    cycle = EnphaseAcBatteryStorageCycleCountSensor(coord, "BAT-AC-1")
+    status = EnphaseAcBatteryStorageStatusSensor(coord, "BAT-AC-1")
+    power = EnphaseAcBatteryStoragePowerSensor(coord, "BAT-AC-1")
+    mode = EnphaseAcBatteryStorageOperatingModeSensor(coord, "BAT-AC-1")
+
+    assert charge.available is False
+    assert charge.native_value is None
+    assert charge.name == "BAT-AC-1"
+    assert charge._as_int(None) is None  # noqa: SLF001
+    assert charge._as_int(BadStr()) is None  # noqa: SLF001
+    assert power._as_float(BadStr()) is None  # noqa: SLF001
+    assert cycle.native_value is None
+    assert status.native_value is None
+    assert power.native_value is None
+    assert mode.native_value is None
+    snapshot["status_normalized"] = None
+    snapshot["operating_mode"] = None
+    assert status.native_value is None
+    assert mode.native_value is None
+    assert mode.extra_state_attributes == {
+        "status_text": snapshot.get("status_text"),
+        "sleep_state": snapshot.get("sleep_state"),
+    }
+    assert power.device_info["name"] == "AC Battery"
+
+
+def test_ac_battery_site_summary_sensors_state_and_attributes():
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseAcBatteryLastReportedSensor,
+        EnphaseAcBatteryOverallStatusSensor,
+        EnphaseAcBatteryPowerSensor,
+    )
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        last_failure_endpoint=None,
+        payload_failure_kind=None,
+        payload_using_stale=False,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=True,
+        ac_battery_aggregate_status="warning",
+        ac_battery_status_summary={
+            "aggregate_status": "warning",
+            "battery_count": 1,
+            "sleep_state": "pending",
+            "selected_sleep_min_soc": 25,
+            "sleep_state_map": {"BAT-AC-1": "pending"},
+            "sleep_state_raw": {"BAT-AC-1": "cancel"},
+            "worst_status": "warning",
+            "power_w": 260.0,
+            "latest_reported_utc": "2026-04-09T03:15:00+00:00",
+            "power_map_w": {"BAT-AC-1": 260.0},
+        },
+        ac_battery_control_pending=True,
+        ac_battery_selected_sleep_min_soc=25,
+        ac_battery_sleep_state="pending",
+        ac_battery_summary_sample_utc=datetime(2026, 4, 9, 3, 16, tzinfo=timezone.utc),
+        iter_ac_battery_serials=lambda: ["BAT-AC-1"],
+        ac_battery_storage=lambda _serial: {
+            "serial_number": "BAT-AC-1",
+            "status_text": "Warning",
+            "sleep_state": "pending",
+            "last_reported": datetime(2026, 4, 9, 3, 15, tzinfo=timezone.utc),
+        },
+        _ac_battery_last_command={"action": "sleep"},
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda _key: None,
+            has_type_for_entities=lambda _key: True,
+        ),
+    )
+
+    overall = EnphaseAcBatteryOverallStatusSensor(coord)
+    power = EnphaseAcBatteryPowerSensor(coord)
+    last_reported = EnphaseAcBatteryLastReportedSensor(coord)
+
+    assert overall.available is True
+    assert overall.native_value == "warning"
+    assert overall.extra_state_attributes["control_pending"] is True
+    assert power.available is True
+    assert power.native_value == 260.0
+    assert power.extra_state_attributes["sampled_at_utc"] == "2026-04-09T03:16:00+00:00"
+    assert last_reported.available is True
+    assert last_reported.native_value == datetime(
+        2026, 4, 9, 3, 15, tzinfo=timezone.utc
+    )
+    attrs = last_reported.extra_state_attributes
+    assert attrs["latest_reported_utc"] == "2026-04-09T03:15:00+00:00"
     assert attrs["total_batteries"] == 1
-    assert attrs["without_last_report_count"] == 1
 
-    coord.battery_status_payload = {}
-    assert sensor.available is True
-    assert sensor.native_value == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
 
-    coord.iter_battery_serials = lambda: ["BAT-X"]
-    coord.battery_storage = "not-callable"
-    assert sensor.available is False
-    assert sensor.native_value is None
-    attrs = sensor.extra_state_attributes
-    assert attrs["total_batteries"] == 1
-    assert attrs["without_last_report_count"] == 1
+def test_ac_battery_site_summary_sensor_edge_branches():
+    from types import SimpleNamespace
 
-    coord.battery_storage = lambda _serial: "invalid"
-    assert sensor.available is False
-    assert sensor.native_value is None
-    attrs = sensor.extra_state_attributes
-    assert attrs["total_batteries"] == 1
-    assert attrs["without_last_report_count"] == 1
+    from custom_components.enphase_ev.sensor import (
+        EnphaseAcBatteryLastReportedSensor,
+        EnphaseAcBatteryOverallStatusSensor,
+        EnphaseAcBatteryPowerSensor,
+    )
 
-    coord.iter_battery_serials = lambda: []
-    assert sensor.available is False
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
 
-    coord.iter_battery_serials = lambda: ["BAT-Z"]
-    coord.last_update_success = False
-    assert sensor.available is False
+    coord = SimpleNamespace(
+        site_id="site",
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        last_failure_endpoint=None,
+        payload_failure_kind=None,
+        payload_using_stale=False,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=False,
+        ac_battery_aggregate_status=None,
+        ac_battery_status_summary={"power_w": BadStr()},
+        ac_battery_control_pending=False,
+        ac_battery_selected_sleep_min_soc=None,
+        ac_battery_sleep_state=None,
+        ac_battery_summary_sample_utc=None,
+        iter_ac_battery_serials=lambda: [],
+        ac_battery_storage=lambda _serial: None,
+        inventory_view=SimpleNamespace(
+            type_device_info=lambda _key: None,
+            has_type_for_entities=lambda _key: True,
+        ),
+    )
+
+    overall = EnphaseAcBatteryOverallStatusSensor(coord)
+    power = EnphaseAcBatteryPowerSensor(coord)
+    last_reported = EnphaseAcBatteryLastReportedSensor(coord)
+
+    assert overall.available is False
+    assert power.available is False
+    assert power.native_value is None
+    coord.ac_battery_status_summary = {"power_w": None}
+    assert power.native_value is None
+    assert last_reported.available is False
+
+
+def test_battery_last_reported_member_helpers_fallback() -> None:
+    from types import SimpleNamespace
+
+    from custom_components.enphase_ev.sensor import (
+        EnphaseBatteryLastReportedSensor,
+        _battery_last_reported_members,
+    )
+
+    coord = SimpleNamespace(
+        site_id="site",
+        last_success_utc=None,
+        last_failure_utc=None,
+        last_failure_status=None,
+        last_failure_description=None,
+        last_failure_source=None,
+        last_failure_response=None,
+        backoff_ends_utc=None,
+        latency_ms=None,
+        last_update_success=False,
+        battery_status_payload={},
+        iter_battery_serials=lambda: ["BAT-1", "BAT-2"],
+        battery_storage=lambda serial: (
+            None if serial == "BAT-1" else {"serial_number": "BAT-2"}
+        ),
+    )
+
+    assert _battery_last_reported_members(coord) == [
+        {"serial_number": "BAT-1"},
+        {"serial_number": "BAT-2"},
+    ]
+    assert EnphaseBatteryLastReportedSensor(coord).available is False
+    coord.battery_storage = None
+    assert _battery_last_reported_members(coord) == [
+        {"serial_number": "BAT-1"},
+        {"serial_number": "BAT-2"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sensor_platform_adds_and_prunes_ac_battery_entities(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
+    from custom_components.enphase_ev.sensor import (
+        EnphaseAcBatteryLastReportedSensor,
+        EnphaseAcBatteryOverallStatusSensor,
+        EnphaseAcBatteryStorageChargeSensor,
+        async_setup_entry,
+    )
+
+    coord = coordinator_factory(serials=[])
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._ac_battery_data = {  # noqa: SLF001
+        "BAT-AC-1": {
+            "serial_number": "BAT-AC-1",
+            "battery_id": "67890",
+            "status_text": "Warning",
+            "status_normalized": "warning",
+            "current_charge_pct": 48.0,
+            "cycle_count": 123,
+            "power_w": 260.0,
+            "operating_mode": "Charging",
+            "last_reported": datetime(2026, 4, 9, 3, 15, tzinfo=timezone.utc),
+        }
+    }
+    coord._ac_battery_order = ["BAT-AC-1"]  # noqa: SLF001
+    coord._ac_battery_aggregate_status = "warning"  # noqa: SLF001
+    coord._ac_battery_aggregate_status_details = {  # noqa: SLF001
+        "battery_count": 1,
+        "sleep_state_map": {"BAT-AC-1": "pending"},
+        "sleep_state_raw": {"BAT-AC-1": "cancel"},
+        "latest_reported_utc": "2026-04-09T03:15:00+00:00",
+        "power_map_w": {"BAT-AC-1": 260.0},
+    }
+    coord._ac_battery_power_w = 260.0  # noqa: SLF001
+    coord._ac_battery_summary_sample_utc = datetime(  # noqa: SLF001
+        2026, 4, 9, 3, 16, tzinfo=timezone.utc
+    )
+    callbacks: list[object] = []
+    added: list[list[object]] = []
+
+    def capture_listener(callback, *, context=None):
+        callbacks.append(callback)
+        return lambda: None
+
+    def capture_add(entities, update_before_add=False):
+        added.append(list(entities))
+
+    coord.async_add_topology_listener = capture_listener  # type: ignore[attr-defined]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    retired = ent_reg.async_get_or_create(
+        "sensor",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_ac_battery_BAT-OLD_last_reported_at",
+        config_entry=config_entry,
+    )
+    ent_reg.async_get_or_create(
+        "sensor",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_ac_battery_overall_status",
+        config_entry=config_entry,
+    )
+    ent_reg.async_get_or_create(
+        "sensor",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_ac_battery__status",
+        config_entry=config_entry,
+    )
+    ent_reg.async_get_or_create(
+        "sensor",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_ac_battery_BAT-UNKNOWN_suffixless",
+        config_entry=config_entry,
+    )
+    stale = ent_reg.async_get_or_create(
+        "sensor",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_ac_battery_BAT-OLD_status",
+        config_entry=config_entry,
+    )
+    current = ent_reg.async_get_or_create(
+        "sensor",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_ac_battery_BAT-AC-1_charge_level",
+        config_entry=config_entry,
+    )
+    remove_spy = MagicMock(wraps=ent_reg.async_remove)
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
+
+    await async_setup_entry(hass, config_entry, capture_add)
+
+    flat_added = [entity for group in added for entity in group]
+    assert any(
+        isinstance(entity, EnphaseAcBatteryOverallStatusSensor) for entity in flat_added
+    )
+    assert any(
+        isinstance(entity, EnphaseAcBatteryLastReportedSensor) for entity in flat_added
+    )
+    assert any(
+        isinstance(entity, EnphaseAcBatteryStorageChargeSensor) for entity in flat_added
+    )
+    remove_spy.assert_any_call(retired.entity_id)
+    remove_spy.assert_any_call(stale.entity_id)
+
+    ent_reg.async_get_or_create(
+        "sensor",
+        "enphase_ev",
+        f"enphase_ev_site_{coord.site_id}_ac_battery_BAT-AC-1_last_reported",
+        config_entry=config_entry,
+    )
+    coord._ac_battery_data = {}  # noqa: SLF001
+    coord._ac_battery_order = []  # noqa: SLF001
+    callbacks[0]()
+
+    remove_spy.assert_any_call(current.entity_id)
 
 
 def test_battery_overall_sensors_unavailable_paths():

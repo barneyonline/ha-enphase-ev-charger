@@ -43,7 +43,8 @@
           "type_iqevse": "Laders",
           "type_microinverter": "Micro-omvormers",
           "scan_interval": "Scaninterval (s)",
-          "type_heatpump": "Warmtepomp"
+          "type_heatpump": "Warmtepomp",
+          "type_ac_battery": "AC-batterij"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
           "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
           "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
-          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten",
-          "type_heatpump": "Warmtepomp"
+          "type_heatpump": "Warmtepomp",
+          "type_ac_battery": "AC-batterij"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
-          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten",
-          "type_heatpump": "Warmtepomp"
+          "type_heatpump": "Warmtepomp",
+          "type_ac_battery": "AC-batterij"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
-          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Niet gekoppeld",
           "pairing": "Koppelen"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Algemene status van AC-batterij",
+        "state": {
+          "charging": "Opladen",
+          "discharging": "Ontladen",
+          "idle": "Inactief",
+          "unknown": "Onbekend"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Vermogen van AC-batterij"
+      },
+      "ac_battery_last_reported": {
+        "name": "Laatst gerapporteerd door AC-batterij"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Laadniveau van AC-batterij"
+      },
+      "ac_battery_storage_status": {
+        "name": "Status van {serial}",
+        "state": {
+          "charging": "Opladen",
+          "discharging": "Ontladen",
+          "idle": "Inactief",
+          "unknown": "Onbekend"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Vermogen van {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Bedrijfsmodus van {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Cyclusaantal van {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Laatst gerapporteerd door {serial}"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Schema voor beperkte batterijontlading"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Slaapmodus van AC-batterij"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Systeemprofiel"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Doel-laadniveau van AC-batterij"
       }
     },
     "button": {

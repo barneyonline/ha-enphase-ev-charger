@@ -43,7 +43,8 @@
           "type_iqevse": "Laddare",
           "type_microinverter": "Mikroväxelriktare",
           "scan_interval": "Skanningsintervall (s)",
-          "type_heatpump": "Värmepump"
+          "type_heatpump": "Värmepump",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Inkluderar EV-laddarentiteter och styrning.",
           "type_microinverter": "Inkluderar sensorer för mikroväxelriktaranslutning, aktivt antal och livstidsproduktion.",
           "scan_interval": "Sekunder mellan molnstatuspollningar. Standard 60s.",
-          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning."
+          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning.",
+          "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Aktivera Scheduler Support",
           "reauth": "Starta omautentisering",
           "forget_password": "Glöm lagrat lösenord",
-          "type_heatpump": "Värmepump"
+          "type_heatpump": "Värmepump",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Hantera Enphase schemahantering",
           "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
-          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning."
+          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning.",
+          "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Aktivera Scheduler Support",
           "reauth": "Starta omautentisering",
           "forget_password": "Glöm lagrat lösenord",
-          "type_heatpump": "Värmepump"
+          "type_heatpump": "Värmepump",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Hantera Enphase schemahantering",
           "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
-          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning."
+          "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning.",
+          "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Inte parkopplad",
           "pairing": "Parkoppling"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Övergripande status för AC-batteri",
+        "state": {
+          "charging": "Laddar",
+          "discharging": "Urladdar",
+          "idle": "Inaktiv",
+          "unknown": "Okänd"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Effekt för AC-batteri"
+      },
+      "ac_battery_last_reported": {
+        "name": "Senast rapporterat från AC-batteri"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Laddningsnivå för AC-batteri"
+      },
+      "ac_battery_storage_status": {
+        "name": "Status för {serial}",
+        "state": {
+          "charging": "Laddar",
+          "discharging": "Urladdar",
+          "idle": "Inaktiv",
+          "unknown": "Okänd"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Effekt för {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Driftläge för {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Antal cykler för {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Senast rapporterat för {serial}"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Schema för begränsning av batteriurladdning"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Viloläge för AC-batteri"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Systemprofil"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Mål för laddningsnivå för AC-batteri"
       }
     },
     "button": {

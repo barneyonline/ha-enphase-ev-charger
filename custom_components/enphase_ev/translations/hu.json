@@ -43,7 +43,8 @@
           "type_iqevse": "Töltők",
           "type_microinverter": "Mikroinverterek",
           "scan_interval": "Lekérdezési intervallum (s)",
-          "type_heatpump": "Hőszivattyú"
+          "type_heatpump": "Hőszivattyú",
+          "type_ac_battery": "AC akkumulátor"
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Tartalmazza az EV töltők entitásait és vezérléseit.",
           "type_microinverter": "Tartalmazza a mikroinverter-kapcsolati, aktív darabszám és élettartam-termelési érzékelőket.",
           "scan_interval": "Másodpercek a cloud állapotlekérdezések között. Alapértelmezett 60s.",
-          "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza."
+          "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza.",
+          "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Ütemező támogatás engedélyezése",
           "reauth": "Újrahitelesítés indítása",
           "forget_password": "Mentett jelszó elfelejtése",
-          "type_heatpump": "Hőszivattyú"
+          "type_heatpump": "Hőszivattyú",
+          "type_ac_battery": "AC akkumulátor"
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Az Enphase ütemezésének kezelése",
           "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve.",
-          "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza."
+          "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza.",
+          "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Ütemező támogatás engedélyezése",
           "reauth": "Újrahitelesítés indítása",
           "forget_password": "Mentett jelszó elfelejtése",
-          "type_heatpump": "Hőszivattyú"
+          "type_heatpump": "Hőszivattyú",
+          "type_ac_battery": "AC akkumulátor"
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Az Enphase ütemezésének kezelése",
           "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve.",
-          "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza."
+          "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza.",
+          "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Nincs párosítva",
           "pairing": "Párosítás"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "AC akkumulátor összesített állapota",
+        "state": {
+          "charging": "Töltés",
+          "discharging": "Kisütés",
+          "idle": "Tétlen",
+          "unknown": "Ismeretlen"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC akkumulátor teljesítménye"
+      },
+      "ac_battery_last_reported": {
+        "name": "AC akkumulátor utolsó jelentése"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC akkumulátor töltöttségi szintje"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} állapota",
+        "state": {
+          "charging": "Töltés",
+          "discharging": "Kisütés",
+          "idle": "Tétlen",
+          "unknown": "Ismeretlen"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} teljesítménye"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} működési módja"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} ciklusszáma"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} utolsó jelentése"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Akkumulátorkisütés-korlátozási ütemezés"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC akkumulátor alvó módja"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Rendszerprofil"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "AC akkumulátor cél töltöttségi szintje"
       }
     },
     "button": {
