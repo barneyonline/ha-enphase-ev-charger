@@ -17,7 +17,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .api import AuthSettingsUnavailable
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
-from .entity import EnphaseBaseEntity
+from .entity import EnphaseBaseEntity, battery_schedule_extra_state_attributes
 from .entity_cleanup import prune_managed_entities
 from .evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from .log_redaction import redact_identifier, redact_text
@@ -86,11 +86,13 @@ def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | 
 
 def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
     confirmed = getattr(coord, "battery_write_access_confirmed", None)
-    if confirmed is not None:
-        return bool(confirmed)
     owner = getattr(coord, "battery_user_is_owner", None)
     installer = getattr(coord, "battery_user_is_installer", None)
-    return owner is True or installer is True
+    if owner is True or installer is True:
+        return True
+    if confirmed is not None:
+        return bool(confirmed)
+    return False
 
 
 def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
@@ -179,37 +181,69 @@ async def async_setup_entry(
         site_entities: list[SwitchEntity] = []
         retain_site_entity_keys = _retained_site_switch_keys(coord)
         if (
-            "storm_guard" not in site_entity_keys
+            "storm_guard" in retain_site_entity_keys
+            and "storm_guard" not in site_entity_keys
             and _site_has_battery(coord)
             and _type_available(coord, "envoy")
-            and _battery_write_access_confirmed(coord)
-            and _storm_guard_visible(coord)
         ):
             site_entities.append(StormGuardSwitch(coord))
             site_entity_keys.add("storm_guard")
-        if (
-            _site_has_battery(coord)
-            and _type_available(coord, "encharge")
-            and _battery_write_access_confirmed(coord)
-        ):
-            if "savings_use_battery_after_peak" not in site_entity_keys:
+        if _site_has_battery(coord) and _type_available(coord, "encharge"):
+            if (
+                "savings_use_battery_after_peak" in retain_site_entity_keys
+                and "savings_use_battery_after_peak" not in site_entity_keys
+            ):
                 site_entities.append(SavingsUseBatteryAfterPeakSwitch(coord))
                 site_entity_keys.add("savings_use_battery_after_peak")
-            if "charge_from_grid" not in site_entity_keys:
+            if (
+                "charge_from_grid" in retain_site_entity_keys
+                and "charge_from_grid" not in site_entity_keys
+            ):
                 site_entities.append(ChargeFromGridSwitch(coord))
                 site_entity_keys.add("charge_from_grid")
-            if "charge_from_grid_schedule" not in site_entity_keys:
+            if (
+                "charge_from_grid_schedule" in retain_site_entity_keys
+                and "charge_from_grid_schedule" not in site_entity_keys
+            ):
                 site_entities.append(ChargeFromGridScheduleSwitch(coord))
                 site_entity_keys.add("charge_from_grid_schedule")
-            if "discharge_to_grid_schedule" not in site_entity_keys:
+            if (
+                "discharge_to_grid_schedule" in retain_site_entity_keys
+                and "discharge_to_grid_schedule" not in site_entity_keys
+            ):
                 site_entities.append(DischargeToGridScheduleSwitch(coord))
                 site_entity_keys.add("discharge_to_grid_schedule")
-            if "restrict_battery_discharge_schedule" not in site_entity_keys:
+            if (
+                "restrict_battery_discharge_schedule" in retain_site_entity_keys
+                and "restrict_battery_discharge_schedule" not in site_entity_keys
+            ):
                 site_entities.append(RestrictBatteryDischargeScheduleSwitch(coord))
                 site_entity_keys.add("restrict_battery_discharge_schedule")
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
-        site_entity_keys.intersection_update(retain_site_entity_keys)
+        if not _site_has_battery(coord):
+            site_entity_keys.difference_update(
+                {
+                    "storm_guard",
+                    "savings_use_battery_after_peak",
+                    "charge_from_grid",
+                    "charge_from_grid_schedule",
+                    "discharge_to_grid_schedule",
+                    "restrict_battery_discharge_schedule",
+                }
+            )
+        elif not _type_available(coord, "encharge"):
+            site_entity_keys.difference_update(
+                {
+                    "savings_use_battery_after_peak",
+                    "charge_from_grid",
+                    "charge_from_grid_schedule",
+                    "discharge_to_grid_schedule",
+                    "restrict_battery_discharge_schedule",
+                }
+            )
+        if not _type_available(coord, "envoy"):
+            site_entity_keys.discard("storm_guard")
         if not inventory_ready:
             return
         prune_managed_entities(
@@ -217,8 +251,7 @@ async def async_setup_entry(
             entry.entry_id,
             domain="switch",
             active_unique_ids={
-                f"{DOMAIN}_site_{coord.site_id}_{key}"
-                for key in retain_site_entity_keys
+                f"{DOMAIN}_site_{coord.site_id}_{key}" for key in site_entity_keys
             },
             is_managed=lambda unique_id: unique_id
             in {
@@ -484,6 +517,18 @@ class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
     def is_on(self) -> bool:
         return bool(self._coord.battery_charge_from_grid_enabled)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return battery_schedule_extra_state_attributes(
+            self._coord,
+            start_time=self._coord.battery_charge_from_grid_start_time,
+            end_time=self._coord.battery_charge_from_grid_end_time,
+            schedule_status=self._coord.battery_cfg_schedule_status,
+            schedule_pending=self._coord.battery_cfg_schedule_pending,
+            schedule_enabled=self._coord.battery_charge_from_grid_schedule_enabled,
+            schedule_limit=self._coord.battery_cfg_schedule_limit,
+        )
+
     async def async_turn_on(self, **kwargs) -> None:
         await self._coord.async_set_charge_from_grid(True)
 
@@ -529,6 +574,18 @@ class ChargeFromGridScheduleSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
         return bool(self._coord.battery_charge_from_grid_schedule_enabled)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return battery_schedule_extra_state_attributes(
+            self._coord,
+            start_time=self._coord.battery_charge_from_grid_start_time,
+            end_time=self._coord.battery_charge_from_grid_end_time,
+            schedule_status=self._coord.battery_cfg_schedule_status,
+            schedule_pending=self._coord.battery_cfg_schedule_pending,
+            schedule_enabled=self._coord.battery_charge_from_grid_schedule_enabled,
+            schedule_limit=self._coord.battery_cfg_schedule_limit,
+        )
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._coord.async_set_charge_from_grid_schedule_enabled(True)
@@ -586,6 +643,15 @@ class _BaseBatteryScheduleSwitch(CoordinatorEntity, SwitchEntity):
     def is_on(self) -> bool:
         return bool(getattr(self._coord, self._enabled_attr, None))
 
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {}
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return battery_schedule_extra_state_attributes(
+            self._coord, **self._extra_schedule_state_attributes()
+        )
+
     async def async_turn_on(self, **kwargs) -> None:
         await getattr(self._coord, self._setter_name)(True)
 
@@ -616,6 +682,16 @@ class DischargeToGridScheduleSwitch(_BaseBatteryScheduleSwitch):
             suggested_object_id="discharge_to_grid_schedule",
         )
 
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_discharge_to_grid_start_time,
+            "end_time": self._coord.battery_discharge_to_grid_end_time,
+            "schedule_status": self._coord.battery_dtg_schedule_status,
+            "schedule_pending": self._coord.battery_dtg_schedule_pending,
+            "schedule_enabled": self._coord.battery_discharge_to_grid_schedule_enabled,
+            "schedule_limit": self._coord.battery_dtg_schedule_limit,
+        }
+
 
 class RestrictBatteryDischargeScheduleSwitch(_BaseBatteryScheduleSwitch):
     _attr_translation_key = "restrict_battery_discharge_schedule"
@@ -629,6 +705,16 @@ class RestrictBatteryDischargeScheduleSwitch(_BaseBatteryScheduleSwitch):
             setter_name="async_set_restrict_battery_discharge_schedule_enabled",
             suggested_object_id="restrict_battery_discharge_schedule",
         )
+
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_restrict_battery_discharge_start_time,
+            "end_time": self._coord.battery_restrict_battery_discharge_end_time,
+            "schedule_status": self._coord.battery_rbd_schedule_status,
+            "schedule_pending": self._coord.battery_rbd_schedule_pending,
+            "schedule_enabled": self._coord.battery_restrict_battery_discharge_schedule_enabled,
+            "schedule_limit": self._coord.battery_rbd_schedule_limit,
+        }
 
 
 class ChargingSwitch(EnphaseBaseEntity, RestoreEntity, SwitchEntity):

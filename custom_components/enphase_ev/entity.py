@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import time as dt_time
 from typing import Any
 
 from homeassistant.core import callback
@@ -56,6 +57,37 @@ def evse_amp_control_applicable(coord: EnphaseCoordinator, serial: str) -> bool:
         "GREEN_CHARGING",
         "SMART_CHARGING",
     }
+
+
+def battery_schedule_extra_state_attributes(
+    coord: object,
+    *,
+    start_time: dt_time | None = None,
+    end_time: dt_time | None = None,
+    schedule_status: str | None = None,
+    schedule_pending: bool | None = None,
+    schedule_enabled: bool | None = None,
+    schedule_limit: int | None = None,
+) -> dict[str, object]:
+    """Return shared battery schedule attributes for UI-facing entities."""
+
+    attrs: dict[str, object] = {
+        "write_pending": bool(getattr(coord, "battery_settings_write_pending", False)),
+        "write_age_seconds": getattr(coord, "battery_settings_write_age_seconds", None),
+    }
+    if start_time is not None:
+        attrs["start_time"] = start_time.isoformat(timespec="minutes")
+    if end_time is not None:
+        attrs["end_time"] = end_time.isoformat(timespec="minutes")
+    if schedule_status is not None:
+        attrs["schedule_status"] = schedule_status
+    if schedule_pending is not None:
+        attrs["schedule_pending"] = schedule_pending
+    if schedule_enabled is not None:
+        attrs["schedule_enabled"] = schedule_enabled
+    if schedule_limit is not None:
+        attrs["schedule_limit"] = schedule_limit
+    return attrs
 
 
 class EnphaseBaseEntity(CoordinatorEntity[EnphaseCoordinator]):
