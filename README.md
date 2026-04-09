@@ -147,3 +147,10 @@ Notes:
 ## Documentation
 
 Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-energy/wiki), including [Envoy History Migration](https://github.com/barneyonline/ha-enphase-energy/wiki/Envoy-History-Migration) for preserving Energy dashboard history when migrating from Enphase Envoy.
+
+## Battery Scheduling Notes
+
+- Battery schedule toggles and limits are exposed as `switch` and `number` entities.
+- Battery schedule start and end values are exposed as separate `time` entities.
+- In Home Assistant, those `time` entities may need to be added to dashboards manually if you want the schedule window visible on a card.
+- Related battery schedule entities also expose the current schedule window and write-pending status as state attributes to make delayed Enphase cloud updates easier to diagnose.

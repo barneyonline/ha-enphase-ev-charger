@@ -29,6 +29,18 @@ def test_evse_resolved_charge_mode_handles_data_access_failure() -> None:
     assert evse_resolved_charge_mode(_BoomCoord(), RANDOM_SERIAL) is None
 
 
+def test_number_battery_write_access_confirmed_falls_back_to_false() -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=None,
+        battery_user_is_installer=None,
+    )
+
+    assert number_mod._battery_write_access_confirmed(coord) is False
+
+
 def test_cfg_schedule_edit_available_uses_schedule_id_and_public_times() -> None:
     from custom_components.enphase_ev import number as number_mod
 
@@ -169,6 +181,17 @@ def test_number_helper_fallbacks_and_retained_site_unique_ids() -> None:
     }
 
     coord.battery_write_access_confirmed = False
+    assert number_mod._battery_write_access_confirmed(coord) is True
+    assert number_mod._retained_site_number_unique_ids(coord) == {
+        "enphase_ev_site_site_battery_reserve",
+        "enphase_ev_site_site_battery_shutdown_level",
+        "enphase_ev_site_site_battery_cfg_schedule_limit",
+        "enphase_ev_site_site_battery_dtg_schedule_limit",
+        "enphase_ev_site_site_battery_rbd_schedule_limit",
+    }
+
+    coord.battery_user_is_owner = False
+    coord.battery_user_is_installer = False
     assert number_mod._battery_write_access_confirmed(coord) is False
     assert number_mod._retained_site_number_unique_ids(coord) == set()
 
@@ -808,6 +831,29 @@ def test_battery_cfg_schedule_limit_number_bounds_and_availability(
     assert number.native_min_value == 12.0
 
 
+def test_battery_cfg_schedule_limit_number_extra_state_attributes(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+
+    attrs = BatteryCfgScheduleLimitNumber(coord).extra_state_attributes
+
+    assert attrs["start_time"] == "02:00"
+    assert attrs["end_time"] == "05:00"
+    assert attrs["schedule_status"] == "pending"
+    assert attrs["schedule_pending"] is True
+    assert attrs["schedule_enabled"] is True
+
+
 @pytest.mark.asyncio
 async def test_battery_cfg_schedule_limit_number_sets_value(hass, config_entry) -> None:
     coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
@@ -1015,6 +1061,27 @@ async def test_base_battery_schedule_limit_number_fallbacks(hass, config_entry) 
     assert number.available is False
 
 
+def test_base_battery_schedule_limit_number_extra_state_attributes_empty(
+    hass, config_entry
+) -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord.async_custom_schedule_setter = AsyncMock()
+
+    number = number_mod._BaseBatteryScheduleLimitNumber(
+        coord,
+        unique_suffix="custom_limit",
+        limit_attr="custom_schedule_limit",
+        availability_check=lambda _: True,
+        setter_name="async_custom_schedule_setter",
+    )
+
+    assert number._extra_schedule_state_attributes() == {}  # noqa: SLF001
+    assert "schedule_status" not in number.extra_state_attributes
+
+
 @pytest.mark.asyncio
 async def test_async_setup_entry_number_prune_active_ids_include_charger_numbers(
     hass, config_entry, monkeypatch
@@ -1062,6 +1129,66 @@ def test_dtg_schedule_limit_number_bounds_and_availability(hass, config_entry) -
 
     assert number.available is True
     assert number.native_value == 25
+
+
+def test_dtg_schedule_limit_number_extra_state_attributes(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord._battery_dtg_schedule_limit = 75  # noqa: SLF001
+    coord._battery_dtg_schedule_enabled = True  # noqa: SLF001
+    coord._battery_dtg_schedule_status = "pending"  # noqa: SLF001
+
+    attrs = BatteryDischargeToGridScheduleLimitNumber(coord).extra_state_attributes
+
+    assert attrs["start_time"] == "18:00"
+    assert attrs["end_time"] == "23:00"
+    assert attrs["schedule_status"] == "pending"
+    assert attrs["schedule_pending"] is True
+    assert attrs["schedule_enabled"] is True
+
+
+def test_rbd_schedule_limit_number_extra_state_attributes(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    coord._battery_rbd_schedule_limit = 100  # noqa: SLF001
+    coord._battery_rbd_schedule_enabled = False  # noqa: SLF001
+    coord._battery_rbd_schedule_status = "active"  # noqa: SLF001
+
+    attrs = BatteryRestrictBatteryDischargeScheduleLimitNumber(
+        coord
+    ).extra_state_attributes
+
+    assert attrs["start_time"] == "01:00"
+    assert attrs["end_time"] == "16:00"
+    assert attrs["schedule_status"] == "active"
+    assert attrs["schedule_pending"] is False
+    assert attrs["schedule_enabled"] is False
 
 
 def test_dtg_schedule_limit_number_available_from_control_window_without_schedule_id(

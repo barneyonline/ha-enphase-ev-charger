@@ -84,10 +84,16 @@ Example response:
 | EV daily timeseries | `GET` | `/service/timeseries/evse/timeseries/daily_energy?site_id=<site_id>&source=evse&requestId=<uuid>&start_date=<YYYY-MM-DD>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
 | EV lifetime timeseries | `GET` | `/service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>[&username=<user_id>]` | bearer token + session headers | No (documented from runtime traces) |
 | Site inventory | `GET` | `/app-api/<site_id>/devices.json` | `e-auth-token` + cookies | Yes |
+| Site bootstrap payload | `GET` | `/app-api/<site_id>/data.json?app=<id>&device_status=non_retired&is_mobile=<id>` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
+| Site currency conversion settings | `GET` | `/app-api/<site_id>/get_currency_conversion.json` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
+| Requested battery usage hint | `GET` | `/app-api/<site_id>/get_requested_battery_usage` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
+| Site performance widget flags | `GET` | `/app-api/<site_id>/performance_widgets` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
+| PowerMatch UI flags | `GET` | `/app-api/<site_id>/powermatch_details` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
 | Site today snapshot | `GET` | `/pv/systems/<site_id>/today` | authenticated Enlighten session cookies | Yes |
+| Legacy site tariff flags | `GET` | `/app-api/<site_id>/tariff.json?country=<country>` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
 | Site tariff configuration | `GET` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies + optional `Authorization: Bearer <token>` (current implementation adds bearer when available) | No (documented from web UI) |
 | System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | dashboard-read headers: authenticated cookies, optional bearer, XSRF when present | No (documented from web UI) |
@@ -127,6 +133,7 @@ Example response:
 | BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | bearer preferred + `e-auth-token` + normalized cookies + `X-XSRF-Token`; `Username` when available | No (documented from web UI) |
 | BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | bearer preferred + `e-auth-token` + normalized cookies + `X-XSRF-Token`; `Username` when available | No |
 | BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | documented write pattern only: if implemented, use BatteryConfig write headers with fresh XSRF + bearer-preferred auth | No (not currently implemented) |
+| PES in-app banner/status | `GET` | `/service/pes_management/systems/<site_id>/inapp?type=<type>` | authenticated session cookies | No (documented from mobile/web HAR) |
 | Login | `POST` | `/login/login.json` | credentials; session/XSRF cookies are established by the response rather than pre-required | Yes |
 
 ---
@@ -1276,6 +1283,138 @@ Notes:
 - The payload is nested under `latest_power`; treat a missing or non-numeric `value` as no sample rather than coercing to `0`.
 - Observed timestamps are epoch seconds rather than milliseconds.
 - The observed capture returned `value=-30`, confirming the field can go negative. Preserve negative samples rather than clamping to `0`; they likely represent net import or reverse power flow.
+
+### 2.9.3.a Site Bootstrap Payload
+```
+GET /app-api/<site_id>/data.json?app=1&device_status=non_retired&is_mobile=0
+```
+Returns the site bootstrap payload used by the mobile/web app shell. It includes site paths, locale/timezone, and sanitized user/owner metadata.
+
+Example response excerpt (anonymized):
+```json
+{
+  "app": {
+    "selector": "app",
+    "userId": 4,
+    "user": {
+      "id": 4,
+      "first_name": "<redacted>",
+      "last_name": "<redacted>",
+      "email": "<redacted>",
+      "phone": "<redacted>",
+      "isHost": false,
+      "country": "PT",
+      "isInstaller": false,
+      "hasConsumptionDataAccess": true,
+      "isAdmin": false
+    },
+    "owner": {
+      "id": 4,
+      "first_name": "<redacted>",
+      "last_name": "<redacted>"
+    },
+    "ownerOrHostMaskedEmail": "m**************<redacted>",
+    "timezone": "Europe/Lisbon",
+    "locale": "en",
+    "weatherDisabled": false,
+    "tariff": null,
+    "basePath": "/pv/systems/<site_id>",
+    "systemPath": "/pv/systems/<site_id>",
+    "showNewView": true,
+    "update_pending": false
+  }
+}
+```
+
+Observed notes:
+- Query parameters observed in the HAR were `app=1`, `device_status=non_retired`, and `is_mobile=0`.
+- Real captures contain personal data, support URLs, authenticity tokens, and signed links; those must be redacted before sharing.
+- This appears to be an app bootstrap/config payload rather than a stable telemetry endpoint.
+
+### 2.9.3.b Site Currency Conversion Settings
+```
+GET /app-api/<site_id>/get_currency_conversion.json
+```
+Returns currency-conversion display settings for the site dashboard.
+
+Example response:
+```json
+{
+  "site_id": 5,
+  "currency_conversion": {
+    "show_currency_conversion": true,
+    "value_per_kwh": "0.25",
+    "currency_unit": "EUR",
+    "currency_symbol": "€"
+  }
+}
+```
+
+Observed notes:
+- `value_per_kwh` was observed as a string rather than a numeric JSON value.
+- `currency_symbol` is display-oriented text and should not be interpreted as a normalized ISO code.
+
+### 2.9.3.c Requested Battery Usage Hint
+```
+GET /app-api/<site_id>/get_requested_battery_usage
+```
+Returns a battery-usage hint consumed by the site UI.
+
+Example response:
+```json
+{
+  "requestedBatteryUsage": null
+}
+```
+
+Observed notes:
+- The only observed value so far is `null`.
+- Semantics remain unclear; preserve future non-null values verbatim until more captures exist.
+
+### 2.9.3.d Site Performance Widget Flags
+```
+GET /app-api/<site_id>/performance_widgets
+```
+Returns booleans controlling which site-performance widgets the UI should render.
+
+Example response:
+```json
+{
+  "show_energy_performance": true,
+  "show_environmental_impact": true,
+  "show_consumption_offset": true,
+  "show_currency_conversion": true,
+  "site_id": 5
+}
+```
+
+### 2.9.3.e PowerMatch UI Flags
+```
+GET /app-api/<site_id>/powermatch_details
+```
+Returns lightweight PowerMatch visibility/state flags.
+
+Example response:
+```json
+{
+  "enabled": true,
+  "show": true
+}
+```
+
+Observed notes:
+- The HAR does not establish backend semantics for `enabled` versus `show`; document them as UI flags only until more evidence exists.
+
+### 2.9.3.f Legacy Site Tariff Flags
+```
+GET /app-api/<site_id>/tariff.json?country=<country>
+```
+Returns tariff-related site configuration for the legacy app path.
+
+Observed notes:
+- The HAR observed `country=us`.
+- The response body was not captured, so only the endpoint shape and query parameter are documented here.
+- This appears to be separate from the newer tariff microservice endpoint documented in `2.9.8.a`.
 
 ### 2.9.4 System Dashboard Summary Flags
 ```
@@ -3388,6 +3527,72 @@ Integration relevance:
 - No charger telemetry, per-site configuration, or account-specific state was present in the captured payload.
 - The document appears useful as a reference for feature-gating and catalog discovery, but not for live EV charger control/state.
 - Because the payload is shared/global and not site-scoped, any future use in the integration should treat it as cacheable static metadata.
+
+### 2.22.1 App Shell and Feature-Gating Endpoints
+These endpoints were observed alongside normal mobile/web site loads. They help explain app-shell behavior and feature gates, but they are not currently used by the integration.
+
+#### Customer support metadata
+```
+GET /app-api/customer_support.json
+```
+
+#### Homeowner notices
+```
+GET /app-api/homeowner_notices.json
+```
+
+#### Net promoter score prompt state
+```
+GET /app-api/nps.json
+```
+
+#### Release notes feed
+```
+GET /app-api/release_notes.json
+```
+
+#### Feature-level applicability
+```
+POST /decision_rule/feature_level_applicability.json
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+```
+
+Observed request body fields:
+- `decision_reason=A_B testing`
+- `input[email]=<redacted>`
+- `input[app_version]=3.4.0`
+- `input[site_id]=<site_id>`
+
+Observed response notes:
+- The response contains a large `output` object of feature flags keyed by internal identifiers.
+- Observed non-sensitive examples included `ENLM_UI_V2=true`, `power_interval_change=true`, and `ITK_Allow_Entrez_Support=true`.
+- Real captures include personal data and site identifiers in both request and response context; redact those fields before sharing.
+
+#### PES in-app status/banner endpoint
+```
+GET /service/pes_management/systems/<site_id>/inapp?type=RMA
+```
+
+Observed behavior:
+- The HAR captured `404 Not Found` with plain-text body `Site with PES count not found with given id <site_id>`.
+- The `type` query parameter was observed as `RMA`.
+
+#### Health check
+```
+GET /healthcheck
+```
+
+Example response:
+```json
+{
+  "OPS_TICKET": "NA",
+  "DEPLOY_TIME": "2026-04-07 08:55:55 UTC",
+  "SHA": "N/A",
+  "VERSION": "26.3.2",
+  "STATUS": "UP",
+  "ENVIRONMENT": "production"
+}
+```
 
 ---
 

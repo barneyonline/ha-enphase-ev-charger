@@ -15,9 +15,12 @@ All notable changes to this project will be documented in this file.
 - Stabilized derived EV charger power around suspend and resume transitions by treating `SUSPENDED_EV` as non-charging for power purposes and reseeding the lifetime baseline when charging starts again, preventing stale non-zero readings after pauses and inflated first values after a resume.
 - Fixed stuck `System Profile Status` updates by only clearing local battery-profile pending state after Enphase reports the change is no longer pending and the request has either settled locally or exceeded a post-write grace window.
 - Refreshed microinverter lifetime energy sensors on the normal inverter polling cadence instead of holding the production totals until the next site-local day, while keeping the last known totals available during inverter production endpoint cooldowns and failures.
+- Relaxed charge-from-grid schedule time visibility so supported battery sites can surface schedule window entities from the existing battery-settings window even before Enphase reports a dedicated CFG schedule ID.
 
 ### 🔧 Improvements
 - Split the repository Docker workflows into a pinned `ha-dev` contributor container and a separate `ha-runtime` Home Assistant runtime container based on the official image, making local UI verification more reliable.
+- Exposed battery schedule window and write-pending attributes on the related battery schedule switches, limits, and time entities to make delayed Enphase cloud updates easier to understand.
+- Documented the newly observed mobile/web HAR endpoints in `docs/api/api_spec.md` and clarified in `README.md` that battery schedule start/end values are separate Home Assistant `time` entities.
 
 ### 🔄 Other changes
 - None
