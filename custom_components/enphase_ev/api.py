@@ -2250,6 +2250,7 @@ class EnphaseEVClient:
         if include_xsrf:
             xsrf = self._xsrf_token()
             if xsrf:
+                headers["X-CSRF-Token"] = xsrf
                 headers["X-XSRF-Token"] = xsrf
         return headers
 
@@ -2805,6 +2806,7 @@ class EnphaseEVClient:
                                     in base_headers,
                                     "has_e_auth_token": "e-auth-token" in base_headers,
                                     "has_username": "Username" in base_headers,
+                                    "has_x_csrf_token": "X-CSRF-Token" in base_headers,
                                     "has_x_xsrf_token": "X-XSRF-Token" in base_headers,
                                 }
                                 _LOGGER.debug(
