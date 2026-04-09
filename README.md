@@ -17,7 +17,12 @@
 
 [![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.svg)](https://github.com/barneyonline/ha-enphase-energy/wiki/Service-Status-History)
 
-Cloud-based Home Assistant integration for Enphase Energy systems using the same Enlighten endpoints as the Enphase mobile app.
+Cloud-based Home Assistant integration for Enphase Energy systems.
+
+> [!IMPORTANT]
+> This is an unofficial community project. It is not affiliated with, endorsed by, or supported by Enphase Energy.
+>
+> The integration relies on undocumented Enphase APIs. Those APIs may change or stop working without notice, which can break features until the integration is updated.
 
 ## Supported device categories
 
