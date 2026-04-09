@@ -18,6 +18,10 @@ _TYPE_ALIAS_TOKEN_MAP: dict[str, str] = {
     "storages": "encharge",
     "battery": "encharge",
     "batteries": "encharge",
+    "acbattery": "ac_battery",
+    "acbatteries": "ac_battery",
+    "ac_battery": "ac_battery",
+    "ac_batteries": "ac_battery",
     "enpower": "envoy",
     "systemcontroller": "envoy",
     "systemcontrollers": "envoy",
@@ -47,6 +51,7 @@ _TYPE_ALIAS_TOKEN_MAP: dict[str, str] = {
 KNOWN_TYPE_LABELS: dict[str, str] = {
     "envoy": "Gateway",
     "encharge": "Battery",
+    "ac_battery": "AC Battery",
     "enpower": "System Controller",
     "iqevse": "EV Chargers",
     "heatpump": "Heat Pump",
@@ -58,6 +63,7 @@ KNOWN_TYPE_LABELS: dict[str, str] = {
 KNOWN_TYPE_ORDER: tuple[str, ...] = (
     "envoy",
     "encharge",
+    "ac_battery",
     "enpower",
     "iqevse",
     "heatpump",
@@ -68,6 +74,7 @@ KNOWN_TYPE_ORDER: tuple[str, ...] = (
 ONBOARDING_SUPPORTED_TYPE_KEYS: tuple[str, ...] = (
     "envoy",
     "encharge",
+    "ac_battery",
     "iqevse",
     "heatpump",
     "microinverter",

@@ -43,7 +43,8 @@
           "type_iqevse": "Cargadores",
           "type_microinverter": "Microinversores",
           "scan_interval": "Intervalo de sondeo (s)",
-          "type_heatpump": "Bomba de calor"
+          "type_heatpump": "Bomba de calor",
+          "type_ac_battery": "Batería CA"
         },
         "data_description": {
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Incluye entidades y controles de cargadores EV.",
           "type_microinverter": "Incluye sensores de conectividad de microinversores, recuento de activos y producción acumulada.",
           "scan_interval": "Segundos entre consultas al estado en la nube. Predeterminado 60 s.",
-          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor."
+          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor.",
+          "type_ac_battery": "Incluye sensores de batería CA y controles del modo de reposo cuando están disponibles."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Habilitar la compatibilidad con el programador",
           "reauth": "Iniciar reautenticación",
           "forget_password": "Olvidar contraseña almacenada",
-          "type_heatpump": "Bomba de calor"
+          "type_heatpump": "Bomba de calor",
+          "type_ac_battery": "Batería CA"
         },
         "data_description": {
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Gestionar la gestión de horarios de Enphase",
           "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
           "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática.",
-          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor."
+          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor.",
+          "type_ac_battery": "Incluye sensores de batería CA y controles del modo de reposo cuando están disponibles."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Habilitar la compatibilidad con el programador",
           "reauth": "Iniciar reautenticación",
           "forget_password": "Olvidar contraseña almacenada",
-          "type_heatpump": "Bomba de calor"
+          "type_heatpump": "Bomba de calor",
+          "type_ac_battery": "Batería CA"
         },
         "data_description": {
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Gestionar la gestión de horarios de Enphase",
           "reauth": "Inicia el flujo de inicio de sesión para actualizar credenciales sin eliminar la integración.",
           "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática.",
-          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor."
+          "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor.",
+          "type_ac_battery": "Incluye sensores de batería CA y controles del modo de reposo cuando están disponibles."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Sin emparejar",
           "pairing": "Emparejamiento"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Estado general de la batería CA",
+        "state": {
+          "charging": "Cargando",
+          "discharging": "Descargando",
+          "idle": "Inactivo",
+          "unknown": "Desconocido"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Potencia de la batería CA"
+      },
+      "ac_battery_last_reported": {
+        "name": "Último informe de la batería CA"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Nivel de carga de la batería CA"
+      },
+      "ac_battery_storage_status": {
+        "name": "Estado de {serial}",
+        "state": {
+          "charging": "Cargando",
+          "discharging": "Descargando",
+          "idle": "Inactivo",
+          "unknown": "Desconocido"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Potencia de {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Modo de funcionamiento de {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Recuento de ciclos de {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Último informe de {serial}"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Horario de restricción de descarga de la batería"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Modo de reposo de la batería CA"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Perfil del sistema"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Estado de carga objetivo de la batería CA"
       }
     },
     "button": {

@@ -43,7 +43,8 @@
           "type_iqevse": "Ladegeräte",
           "type_microinverter": "Mikrowechselrichter",
           "scan_interval": "Abfrageintervall (s)",
-          "type_heatpump": "Wärmepumpe"
+          "type_heatpump": "Wärmepumpe",
+          "type_ac_battery": "AC-Batterie"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
           "type_microinverter": "Enthält Sensoren für Mikrowechselrichter-Konnektivität, aktive Anzahl und Lebenszeit-Erzeugung.",
           "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
-          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen",
-          "type_heatpump": "Wärmepumpe"
+          "type_heatpump": "Wärmepumpe",
+          "type_ac_battery": "AC-Batterie"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
-          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen",
-          "type_heatpump": "Wärmepumpe"
+          "type_heatpump": "Wärmepumpe",
+          "type_ac_battery": "AC-Batterie"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
-          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
         }
       },
       "migrate_envoy_source": {
@@ -1177,6 +1183,45 @@
           "unpaired": "Nicht gekoppelt",
           "pairing": "Wird gekoppelt"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Gesamtstatus der AC-Batterie",
+        "state": {
+          "charging": "Laden",
+          "discharging": "Entladen",
+          "idle": "Leerlauf",
+          "unknown": "Unbekannt"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Leistung der AC-Batterie"
+      },
+      "ac_battery_last_reported": {
+        "name": "Zuletzt gemeldet von AC-Batterie"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Ladezustand der AC-Batterie"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} Status",
+        "state": {
+          "charging": "Laden",
+          "discharging": "Entladen",
+          "idle": "Leerlauf",
+          "unknown": "Unbekannt"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} Leistung"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} Betriebsmodus"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} Ladezyklen"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} zuletzt gemeldet"
       }
     },
     "number": {
@@ -1274,6 +1319,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Zeitplan für eingeschränkte Batterieentladung"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Schlafmodus der AC-Batterie"
       }
     },
     "select": {
@@ -1282,6 +1330,9 @@
       },
       "system_profile": {
         "name": "Systemprofil"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Ziel-Ladezustand der AC-Batterie"
       }
     },
     "button": {
