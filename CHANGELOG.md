@@ -40,6 +40,7 @@ All notable changes to this project will be documented in this file.
 - Documented the newly observed mobile/web HAR endpoints in `docs/api/api_spec.md` and clarified in `README.md` that battery schedule start/end values are separate Home Assistant `time` entities.
 
 ### 🔄 Other changes
+- Removed the redundant EV charger site/type device from the device registry and extracted shared runtime helpers to simplify coordinator internals without changing supported charger functionality.
 - Bumped the integration manifest version to `2.7.5`.
 
 ## v2.7.4 - 2026-04-07
