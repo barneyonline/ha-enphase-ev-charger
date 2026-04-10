@@ -1684,8 +1684,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return total if found else None
 
     def _build_heatpump_daily_consumption_snapshot(
-        self, split_payload: object, site_today_payload: object
+        self, split_payload: object, site_today_payload: object | None = None
     ) -> dict[str, object] | None:
+        if site_today_payload is None:
+            return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(
+                split_payload
+            )
         return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(
             split_payload,
             site_today_payload,

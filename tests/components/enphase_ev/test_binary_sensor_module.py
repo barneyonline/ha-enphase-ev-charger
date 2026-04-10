@@ -917,9 +917,9 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
                 "devices": [{"device_type": "HEAT_PUMP", "name": "Heat Pump"}],
             }
         },
-        ["heatpump"],
-    )
-    assert sensor.available is False
+            ["heatpump"],
+        )
+    assert sensor.available is True
 
 
 def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(
