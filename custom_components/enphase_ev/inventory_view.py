@@ -109,6 +109,16 @@ class InventoryView:
             return True
         if self.has_type(normalized):
             return True
+        if normalized == "heatpump":
+            runtime = getattr(self.coordinator, "heatpump_runtime", None)
+            if bool(getattr(self.coordinator, "_heatpump_known_present", False)):
+                return True
+            helper = getattr(runtime, "heatpump_entities_established", None)
+            if callable(helper):
+                try:
+                    return bool(helper())
+                except Exception:  # noqa: BLE001
+                    return False
         if normalized == "encharge":
             return getattr(self.coordinator, "_battery_has_encharge", None) is True
         if normalized == "ac_battery":

@@ -1684,9 +1684,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return total if found else None
 
     def _build_heatpump_daily_consumption_snapshot(
-        self, payload: object
+        self, split_payload: object, site_today_payload: object | None = None
     ) -> dict[str, object] | None:
-        return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(payload)
+        if site_today_payload is None:
+            return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(
+                split_payload
+            )
+        return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(
+            split_payload,
+            site_today_payload,
+        )
 
     def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
         return self.heatpump_runtime._heatpump_power_candidate_device_uids()
@@ -5289,6 +5296,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def heatpump_daily_consumption_last_success_utc(self) -> datetime | None:
         return self.heatpump_runtime.heatpump_daily_consumption_last_success_utc
+
+    @property
+    def heatpump_daily_split_last_error(self) -> str | None:
+        return self.heatpump_runtime.heatpump_daily_split_last_error
+
+    @property
+    def heatpump_daily_split_using_stale(self) -> bool:
+        return self.heatpump_runtime.heatpump_daily_split_using_stale
+
+    @property
+    def heatpump_daily_split_last_success_utc(self) -> datetime | None:
+        return self.heatpump_runtime.heatpump_daily_split_last_success_utc
 
     @property
     def heatpump_power_w(self) -> float | None:
