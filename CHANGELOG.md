@@ -19,6 +19,25 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.7.6 - 2026-04-10
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed heat-pump daily energy semantics by sourcing the primary `heat_pump_daily_energy` sensor from `/pv/systems/<site>/today`, preserving HEMS split daily values independently for diagnostics, and keeping heat-pump entities available through short-lived inventory/runtime UID churn and stale-data windows.
+- Added the `X-CSRF-Token` header alongside the existing XSRF token handling for BatteryConfig write requests so battery profile, settings, storm-guard, and schedule updates continue working when Enphase requires both CSRF header variants.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Clarified the README affiliation and API disclaimer to better distinguish the project from Enphase's official materials and support channels.
+- Bumped the integration manifest version to `2.7.6`.
+
 ## v2.7.5 - 2026-04-09
 
 ### 🚧 Breaking changes
