@@ -4965,6 +4965,30 @@ class EnphaseEVClient:
             families[family_key] = entries
         return normalized
 
+    @classmethod
+    def _normalize_pv_system_today_payload(cls, payload: object) -> dict | None:
+        """Normalize site-today payloads used by heat-pump daily totals."""
+
+        if not isinstance(payload, dict):
+            return None
+        stats = payload.get("stats")
+        normalized_stats: list[dict[str, object]] = []
+        if isinstance(stats, list):
+            for item in stats:
+                if not isinstance(item, dict):
+                    continue
+                normalized_stat = dict(item)
+                for key in ("heatpump", "heat_pump", "heat-pump"):
+                    value = item.get(key)
+                    if value is None:
+                        continue
+                    normalized_stat["heatpump"] = value
+                    break
+                normalized_stats.append(normalized_stat)
+        normalized = dict(payload)
+        normalized["stats"] = normalized_stats
+        return normalized
+
     async def hems_heatpump_state(
         self, device_uid: str, *, timezone: str | None = None
     ) -> dict | None:
@@ -5061,6 +5085,38 @@ class EnphaseEVClient:
                 return None
             raise
         return self._normalize_hems_energy_consumption_payload(data)
+
+    async def pv_system_today(self) -> dict | None:
+        """Return the site today payload when available."""
+
+        url = f"{BASE_URL}/pv/systems/{self._site}/today"
+        try:
+            data = await self._json("GET", url, headers=self._today_json_headers)
+        except Unauthorized:
+            _LOGGER.debug(
+                "PV site today endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "PV site today endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "PV site today endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_pv_system_today_payload(data)
 
     @classmethod
     def _normalize_hems_power_timeseries_payload(cls, payload: object) -> dict | None:

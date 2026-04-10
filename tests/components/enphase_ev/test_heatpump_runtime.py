@@ -27,6 +27,17 @@ from custom_components.enphase_ev.parsing_helpers import (
 )
 
 
+def _site_today_payload(
+    total_wh: float, *, timestamp: str | None = None
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "stats": [{"heatpump": [total_wh]}],
+    }
+    if timestamp is not None:
+        payload["timestamp"] = timestamp
+    return payload
+
+
 @pytest.mark.asyncio
 async def test_heatpump_runtime_preflight_without_refresh_kw(
     coordinator_factory,
@@ -224,6 +235,9 @@ async def test_heatpump_runtime_power_logs_fetch_plan_and_selection_summary(
             },
         }
     )
+    coord.client.pv_system_today = AsyncMock(
+        return_value=_site_today_payload(275.0, timestamp="2026-03-20T08:00:00Z")
+    )
     coord.client.hems_heatpump_state = AsyncMock(
         return_value={"device_uid": primary_uid, "heatpump_status": "RUNNING"}
     )
@@ -286,7 +300,7 @@ async def test_heatpump_runtime_power_logs_when_no_candidate_payload_is_usable(
     assert power_snapshot["attempts"] == [
         {
             "source": "hems_energy_consumption",
-            "error": "No usable HEMS daily-consumption payload",
+            "error": "No usable HEMS daily split payload",
         }
     ]
 
@@ -440,7 +454,8 @@ async def test_heatpump_runtime_public_api_access(coordinator_factory) -> None:
         ("2026-03-27", "UTC"),
     )
     assert runtime._build_heatpump_daily_consumption_snapshot(
-        {"data": {}}
+        {"data": {}},
+        _site_today_payload(123.0),
     ) == {  # noqa: SLF001
         "daily_energy_wh": 123.0
     }
@@ -509,7 +524,8 @@ async def test_heatpump_runtime_public_api_access(coordinator_factory) -> None:
     runtime._heatpump_runtime_device_uid.assert_called_once_with()
     runtime._heatpump_daily_window.assert_called_once_with()
     runtime._build_heatpump_daily_consumption_snapshot.assert_called_once_with(
-        {"data": {}}
+        {"data": {}},
+        _site_today_payload(123.0),
     )
     runtime._heatpump_power_candidate_device_uids.assert_called_once_with()
     runtime._heatpump_member_for_uid.assert_called_once_with("HP-1")
@@ -968,7 +984,7 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
     coord.client.hems_energy_consumption = AsyncMock(return_value=None)
     await runtime.async_refresh_heatpump_power(force=True)
     assert coord.heatpump_power_w is None
-    assert coord.heatpump_power_last_error == "No usable HEMS daily-consumption payload"
+    assert coord.heatpump_power_last_error == "No usable HEMS daily split payload"
 
     coord.client.hems_energy_consumption = AsyncMock(
         return_value={
@@ -1194,8 +1210,13 @@ async def test_refresh_heatpump_power_tracks_latest_valid_sample(
     await coord.heatpump_runtime._async_refresh_heatpump_power(
         force=True
     )  # noqa: SLF001
-    assert coord.heatpump_power_w is None
-    assert coord.heatpump_power_source is None
+    assert coord.heatpump_power_w == pytest.approx(500.5)
+    assert coord.heatpump_power_source == "hems_energy_consumption:HP-1"
+    assert coord.heatpump_power_using_stale is True
+    assert (
+        coord.heatpump_power_last_error
+        == "Heat pump type temporarily missing from inventory"
+    )
 
 
 @pytest.mark.asyncio
@@ -1387,8 +1408,19 @@ async def test_daily_consumption_preserves_stale_snapshot_on_unusable_payload(
         ["heatpump"],
     )
     coord._heatpump_daily_consumption = {
-        "device_uid": "HP-1",
+        "device_uid": None,
         "daily_energy_wh": 55.0,
+        "split_device_uid": "HP-1",
+        "split_device_name": "Heat Pump",
+        "split_daily_energy_wh": 55.0,
+        "daily_grid_wh": 50.0,
+        "daily_solar_wh": 5.0,
+        "daily_battery_wh": 0.0,
+        "details": [55.0],
+        "source": "site_today_heatpump",
+        "split_source": "hems_energy_consumption:HP-1",
+        "day_key": "2026-04-05",
+        "timezone": "UTC",
     }  # noqa: SLF001
     coord._heatpump_daily_consumption_last_success_mono = (
         time.monotonic() - 5
@@ -1396,21 +1428,32 @@ async def test_daily_consumption_preserves_stale_snapshot_on_unusable_payload(
     coord._heatpump_daily_consumption_last_success_utc = datetime(  # noqa: SLF001
         2026, 4, 5, 0, 0, tzinfo=timezone.utc
     )
+    coord._heatpump_daily_split_last_success_mono = time.monotonic() - 5  # noqa: SLF001
+    coord._heatpump_daily_split_last_success_utc = datetime(  # noqa: SLF001
+        2026, 4, 5, 0, 0, tzinfo=timezone.utc
+    )
     coord.client.hems_energy_consumption = AsyncMock(return_value=None)
+    coord.client.pv_system_today = AsyncMock(return_value=_site_today_payload(77.0))
 
     await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
         force=True
     )  # noqa: SLF001
 
-    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(55.0)
-    assert (
-        coord.heatpump_daily_consumption_last_error
-        == "No usable HEMS daily-consumption payload"
+    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(77.0)
+    assert coord.heatpump_daily_consumption["split_daily_energy_wh"] == pytest.approx(
+        55.0
     )
-    assert coord.heatpump_runtime.heatpump_daily_consumption_using_stale is True
+    assert coord.heatpump_daily_consumption_last_error is None
+    assert coord.heatpump_runtime.heatpump_daily_consumption_using_stale is False
+    assert coord.heatpump_runtime.heatpump_daily_split_using_stale is True
+    assert (
+        coord.heatpump_runtime.heatpump_daily_split_last_error
+        == "No usable HEMS daily split payload"
+    )
     diag = coord.heatpump_runtime.heatpump_runtime_diagnostics()
-    assert diag["daily_consumption_using_stale"] is True
-    assert diag["daily_consumption_last_success_utc"] == "2026-04-05T00:00:00+00:00"
+    assert diag["daily_consumption_using_stale"] is False
+    assert diag["daily_split_using_stale"] is True
+    assert diag["daily_split_last_success_utc"] == "2026-04-05T00:00:00+00:00"
 
 
 @pytest.mark.asyncio
@@ -1569,7 +1612,10 @@ async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
         force=True
     )  # noqa: SLF001
     assert coord.heatpump_runtime_state == {}
-    assert coord.heatpump_runtime_state_last_error is None
+    assert (
+        coord.heatpump_runtime_state_last_error
+        == "HEMS runtime endpoint unavailable for this site"
+    )
 
     coord.client._hems_site_supported = None  # noqa: SLF001
     coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
@@ -1656,22 +1702,34 @@ async def test_refresh_heatpump_daily_consumption_tracks_site_day(
             },
         }
     )
+    coord.client.pv_system_today = AsyncMock(
+        return_value=_site_today_payload(275.0, timestamp="2026-03-20T08:00:00Z")
+    )
 
     await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(  # noqa: SLF001
         force=True
     )
 
     coord.client.hems_energy_consumption.assert_awaited_once()
+    coord.client.pv_system_today.assert_awaited_once()
     kwargs = coord.client.hems_energy_consumption.await_args.kwargs
     assert kwargs["timezone"] == "Europe/Berlin"
     assert kwargs["step"] == "P1D"
     assert kwargs["start_at"] == "2026-03-19T23:00:00.000Z"
     assert kwargs["end_at"] == "2026-03-20T22:59:59.999Z"
-    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(230.0)
+    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(275.0)
+    assert coord.heatpump_daily_consumption["split_daily_energy_wh"] == pytest.approx(
+        230.0
+    )
     assert coord.heatpump_daily_consumption["daily_grid_wh"] == pytest.approx(200.0)
-    assert coord.heatpump_daily_consumption["source"] == "hems_energy_consumption:HP-1"
-    assert coord.heatpump_daily_consumption["sampled_at_utc"].startswith(
-        "2026-03-20T07:53:00.739143"
+    assert coord.heatpump_daily_consumption["source"] == "site_today_heatpump"
+    assert (
+        coord.heatpump_daily_consumption["split_source"]
+        == "hems_energy_consumption:HP-1"
+    )
+    assert (
+        coord.heatpump_daily_consumption["sampled_at_utc"]
+        == "2026-03-20T08:00:00+00:00"
     )
 
 
@@ -1718,20 +1776,22 @@ def test_heatpump_daily_helper_and_property_edge_cases(
         3.5
     )  # noqa: SLF001
 
-    assert (
-        coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(["bad"])
-        is None
-    )  # noqa: SLF001
-    assert (
-        coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot({"data": []})
-        is None
-    )  # noqa: SLF001
-    assert (
-        coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
-            {"data": {"heat-pump": []}}
-        )
-        is None
+    snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        ["bad"], _site_today_payload(10.0)
     )
+    assert snapshot["daily_energy_wh"] == pytest.approx(10.0)
+    assert snapshot["split_source"] is None
+    snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {"data": []}, _site_today_payload(10.0)
+    )
+    assert snapshot["daily_energy_wh"] == pytest.approx(10.0)
+    assert snapshot["split_source"] is None
+    snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {"data": {"heat-pump": []}},
+        _site_today_payload(10.0),
+    )
+    assert snapshot["daily_energy_wh"] == pytest.approx(10.0)
+    assert snapshot["split_source"] is None
 
     coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
@@ -1763,9 +1823,11 @@ def test_heatpump_daily_helper_and_property_edge_cases(
                     },
                 ]
             }
-        }
+        },
+        _site_today_payload(10.0),
     )
-    assert snapshot is None
+    assert snapshot["daily_energy_wh"] == pytest.approx(10.0)
+    assert snapshot["split_source"] is None
 
     coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
@@ -1795,23 +1857,30 @@ def test_heatpump_daily_helper_and_property_edge_cases(
                     }
                 ]
             }
-        }
+        },
+        _site_today_payload(10.0),
     )
     assert snapshot == {
-        "device_uid": "HP-2",
-        "device_name": "Backup",
+        "device_uid": None,
+        "device_name": None,
+        "split_device_uid": "HP-2",
+        "split_device_name": "Backup",
         "member_name": None,
         "member_device_type": "ENERGY_METER",
         "pairing_status": None,
         "device_state": None,
-        "daily_energy_wh": pytest.approx(4.0),
+        "daily_energy_wh": pytest.approx(10.0),
+        "split_daily_energy_wh": pytest.approx(4.0),
         "daily_solar_wh": pytest.approx(1.0),
         "daily_battery_wh": pytest.approx(2.0),
         "daily_grid_wh": pytest.approx(3.0),
         "details": [4.0, "bad", None],
-        "source": "hems_energy_consumption:HP-2",
+        "source": "site_today_heatpump",
+        "split_source": "hems_energy_consumption:HP-2",
         "endpoint_type": None,
         "endpoint_timestamp": None,
+        "split_endpoint_type": None,
+        "split_endpoint_timestamp": None,
         "sampled_at_utc": None,
     }
     snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
@@ -1832,31 +1901,38 @@ def test_heatpump_daily_helper_and_property_edge_cases(
                     }
                 ]
             }
-        }
+        },
+        _site_today_payload(0.0),
     )
     assert snapshot == {
-        "device_uid": "HP-2",
-        "device_name": "Backup",
+        "device_uid": None,
+        "device_name": None,
+        "split_device_uid": "HP-2",
+        "split_device_name": "Backup",
         "member_name": None,
         "member_device_type": "ENERGY_METER",
         "pairing_status": None,
         "device_state": None,
         "daily_energy_wh": pytest.approx(0.0),
+        "split_daily_energy_wh": pytest.approx(0.0),
         "daily_solar_wh": pytest.approx(0.0),
         "daily_battery_wh": pytest.approx(0.0),
         "daily_grid_wh": pytest.approx(0.0),
         "details": [],
-        "source": "hems_energy_consumption:HP-2",
+        "source": "site_today_heatpump",
+        "split_source": "hems_energy_consumption:HP-2",
         "endpoint_type": None,
         "endpoint_timestamp": None,
+        "split_endpoint_type": None,
+        "split_endpoint_timestamp": None,
         "sampled_at_utc": None,
     }
-    assert (
-        coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
-            {"data": {"heat-pump": [{"device_uid": "HP-1", "consumption": ["bad"]}]}}
-        )
-        is None
+    snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {"data": {"heat-pump": [{"device_uid": "HP-1", "consumption": ["bad"]}]}},
+        _site_today_payload(10.0),
     )
+    assert snapshot["daily_energy_wh"] == pytest.approx(10.0)
+    assert snapshot["split_source"] is None
 
 
 def test_heatpump_event_summary_classifies_known_event_keys(
@@ -1891,12 +1967,12 @@ def test_heatpump_event_summary_classifies_known_event_keys(
         "known_event_counts": {},
         "unknown_event_keys": [],
     }
-    assert (
-        coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
-            {"data": {"heat-pump": ["skip-me"]}}
-        )
-        is None
+    snapshot = coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {"data": {"heat-pump": ["skip-me"]}},
+        _site_today_payload(10.0),
     )
+    assert snapshot["daily_energy_wh"] == pytest.approx(10.0)
+    assert snapshot["split_source"] is None
 
     class BadString:
         def __str__(self) -> str:
@@ -1968,7 +2044,8 @@ async def test_refresh_heatpump_daily_consumption_covers_cache_and_error_paths(
     await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
         force=True
     )  # noqa: SLF001
-    assert coord.heatpump_daily_consumption == {}
+    assert coord.heatpump_daily_consumption["source"] == "site_today_heatpump"
+    assert coord.heatpump_daily_consumption_last_error is None
 
 
 def test_heatpump_runtime_inventory_merge_and_helper_paths(
@@ -2294,24 +2371,34 @@ async def test_heatpump_runtime_power_and_diagnostics_paths(
         ["heatpump"],
     )
     coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.pv_system_today = AsyncMock(return_value=_site_today_payload(88.0))
     coord.client.hems_energy_consumption = None
     await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
         force=True
     )  # noqa: SLF001
+    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(88.0)
+    assert coord.heatpump_daily_consumption["split_source"] is None
+    assert coord.heatpump_daily_consumption_last_error is None
+    assert coord.heatpump_runtime.heatpump_daily_split_last_error == (
+        "HEMS daily split endpoint unavailable"
+    )
 
     coord.client.hems_energy_consumption = AsyncMock(side_effect=RuntimeError("boom"))
     await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
         force=True
     )  # noqa: SLF001
-    assert coord.heatpump_daily_consumption_last_error == "boom"
-    assert coord._heatpump_daily_consumption_backoff_until is not None  # noqa: SLF001
+    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(88.0)
+    assert coord.heatpump_daily_consumption_last_error is None
+    assert coord.heatpump_runtime.heatpump_daily_split_last_error == "boom"
+    assert coord._heatpump_daily_consumption_backoff_until is None  # noqa: SLF001
 
     coord._heatpump_daily_consumption_backoff_until = None  # noqa: SLF001
     coord.client.hems_energy_consumption = AsyncMock(return_value=None)
     await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
         force=True
     )  # noqa: SLF001
-    assert coord.heatpump_daily_consumption == {}
+    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(88.0)
+    assert coord.heatpump_daily_consumption["split_source"] is None
 
 
 @pytest.mark.asyncio
@@ -2386,7 +2473,8 @@ async def test_heatpump_runtime_helper_branches_and_resets(coordinator_factory) 
     )  # noqa: SLF001
     await runtime._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
     assert coord.heatpump_runtime_state == {}
-    assert coord.heatpump_runtime_state_last_success_utc is None
+    assert coord.heatpump_runtime_state_using_stale is False
+    assert coord.heatpump_runtime_state_last_success_utc is not None
 
     coord._heatpump_daily_consumption = {"daily_energy_wh": 12.0}  # noqa: SLF001
     coord._heatpump_daily_consumption_last_success_mono = 1.0  # noqa: SLF001
@@ -2395,7 +2483,8 @@ async def test_heatpump_runtime_helper_branches_and_resets(coordinator_factory) 
     )  # noqa: SLF001
     await runtime._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
     assert coord.heatpump_daily_consumption == {}
-    assert coord.heatpump_daily_consumption_last_success_utc is None
+    assert coord.heatpump_daily_consumption_using_stale is False
+    assert coord.heatpump_daily_consumption_last_success_utc is not None
 
 
 def test_heatpump_runtime_misc_helper_guards_and_properties(
@@ -2524,11 +2613,14 @@ async def test_heatpump_runtime_remaining_coverage_branches(
             "data": {"heat-pump": [{"device_uid": "HP-1", "consumption": []}]},
         }
     )
+    coord.client.pv_system_today = AsyncMock(return_value=_site_today_payload(91.0))
     await runtime._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
-    assert coord.heatpump_daily_consumption == {}
+    assert coord.heatpump_daily_consumption["daily_energy_wh"] == pytest.approx(91.0)
+    assert coord.heatpump_daily_consumption["split_source"] is None
+    assert coord.heatpump_daily_consumption_last_error is None
     assert (
-        coord.heatpump_daily_consumption_last_error
-        == "No usable HEMS daily-consumption payload"
+        coord.heatpump_runtime.heatpump_daily_split_last_error
+        == "No usable HEMS daily split payload"
     )
 
     monkeypatch.setattr(

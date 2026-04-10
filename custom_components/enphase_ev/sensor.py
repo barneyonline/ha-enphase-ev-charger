@@ -739,6 +739,7 @@ async def async_setup_entry(
                     if inventory_ready
                     else (
                         heatpump_type_present
+                        or bool(getattr(coord, "_heatpump_known_present", False))
                         or _site_energy_channel_present(flow_key, "heatpump")
                     )
                 )
@@ -822,7 +823,9 @@ async def async_setup_entry(
                 "heat_pump_sg_ready_gateway",
                 EnphaseHeatPumpSgReadyGatewaySensor(coord),
             )
-        elif inventory_ready:
+        elif inventory_ready and not bool(
+            getattr(coord, "_heatpump_known_present", False)
+        ):
             for entity_key in heatpump_site_entity_keys:
                 _async_remove_site_sensor_entity(entity_key)
         if _grid_control_site_applicable(coord) and (
@@ -4794,15 +4797,20 @@ def _heatpump_daily_common_attrs(
         "sampled_at_utc": snapshot.get("sampled_at_utc"),
         "device_uid": snapshot.get("device_uid"),
         "device_name": snapshot.get("device_name"),
+        "split_device_uid": snapshot.get("split_device_uid"),
+        "split_device_name": snapshot.get("split_device_name"),
         "member_name": snapshot.get("member_name"),
         "member_device_type": snapshot.get("member_device_type"),
         "pairing_status": snapshot.get("pairing_status"),
         "device_state": snapshot.get("device_state"),
         "daily_endpoint_type": snapshot.get("endpoint_type"),
         "daily_endpoint_timestamp": snapshot.get("endpoint_timestamp"),
+        "split_endpoint_type": snapshot.get("split_endpoint_type"),
+        "split_endpoint_timestamp": snapshot.get("split_endpoint_timestamp"),
         "day_key": snapshot.get("day_key"),
         "timezone": snapshot.get("timezone"),
         "source": snapshot.get("source"),
+        "split_source": snapshot.get("split_source"),
         "using_stale": bool(
             getattr(coord, "heatpump_daily_consumption_using_stale", False)
         ),
@@ -7924,12 +7932,33 @@ class _EnphaseHeatPumpDailyEnergySensor(_SiteBaseEntity):
     def extra_state_attributes(self):
         snapshot = self._snapshot()
         attrs = _heatpump_daily_common_attrs(self._coord, snapshot)
+        if self._daily_key == "daily_energy_wh":
+            attrs["source"] = snapshot.get("source")
+            attrs["device_uid"] = snapshot.get("device_uid")
+            attrs["device_name"] = snapshot.get("device_name")
+        else:
+            attrs["source"] = snapshot.get("split_source") or snapshot.get("source")
+            attrs["device_uid"] = snapshot.get("split_device_uid")
+            attrs["device_name"] = snapshot.get("split_device_name")
+            attrs["using_stale"] = bool(
+                getattr(self._coord, "heatpump_daily_split_using_stale", False)
+            )
+            attrs["last_success_utc"] = (
+                self._coord.heatpump_daily_split_last_success_utc.isoformat()
+                if getattr(self._coord, "heatpump_daily_split_last_success_utc", None)
+                is not None
+                else None
+            )
+            attrs["last_error"] = getattr(
+                self._coord, "heatpump_daily_split_last_error", None
+            )
         attrs["details"] = (
             list(snapshot.get("details"))
             if isinstance(snapshot.get("details"), list)
             else []
         )
         attrs["daily_energy_wh"] = snapshot.get("daily_energy_wh")
+        attrs["split_daily_energy_wh"] = snapshot.get("split_daily_energy_wh")
         attrs["daily_grid_wh"] = snapshot.get("daily_grid_wh")
         attrs["daily_solar_wh"] = snapshot.get("daily_solar_wh")
         attrs["daily_battery_wh"] = snapshot.get("daily_battery_wh")
