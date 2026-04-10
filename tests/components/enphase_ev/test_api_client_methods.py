@@ -4697,6 +4697,64 @@ async def test_hems_energy_consumption_optional_and_reraise_variants() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pv_system_today_normalization_and_headers() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "stats": [
+                {
+                    "heat_pump": [
+                        {"grid": "100.0", "solar": 20},
+                        {"battery": 5.5},
+                    ]
+                }
+            ],
+            "timestamp": "2026-03-20T08:00:00Z",
+        }
+    )
+
+    payload = await client.pv_system_today()
+
+    assert payload == {
+        "stats": [
+            {
+                "heat_pump": [
+                    {"grid": "100.0", "solar": 20},
+                    {"battery": 5.5},
+                ],
+                "heatpump": [
+                    {"grid": "100.0", "solar": 20},
+                    {"battery": 5.5},
+                ],
+            }
+        ],
+        "timestamp": "2026-03-20T08:00:00Z",
+    }
+    args, kwargs = client._json.await_args
+    assert args == ("GET", "https://enlighten.enphaseenergy.com/pv/systems/SITE/today")
+    headers = kwargs["headers"]()
+    assert headers["Accept"] == "application/json, text/javascript, */*; q=0.01"
+    assert "/web/SITE/today/graph/hours" in headers["Referer"]
+
+
+@pytest.mark.asyncio
+async def test_pv_system_today_optional_failures_return_none() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=_make_optional_payload_error("/pv/systems/SITE/today")
+    )
+    assert await client.pv_system_today() is None
+
+    client = _make_client()
+    client._json = AsyncMock(side_effect=api.Unauthorized())
+    assert await client.pv_system_today() is None
+
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(404))
+    assert await client.pv_system_today() is None
+
+
+@pytest.mark.asyncio
 async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
     client = _make_client()
     cookie_token = _make_token({"user_id": "user-123"})

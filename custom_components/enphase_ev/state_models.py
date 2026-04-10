@@ -210,6 +210,7 @@ class HeatpumpState:
     _heatpump_runtime_state_last_success_mono: float | None = None
     _heatpump_runtime_state_last_success_utc: datetime | None = None
     _heatpump_runtime_state_using_stale: bool = False
+    _heatpump_known_present: bool = False
     _heatpump_daily_consumption: dict[str, object] | None = None
     _heatpump_daily_consumption_cache_until: float | None = None
     _heatpump_daily_consumption_backoff_until: float | None = None
@@ -218,6 +219,10 @@ class HeatpumpState:
     _heatpump_daily_consumption_last_success_mono: float | None = None
     _heatpump_daily_consumption_last_success_utc: datetime | None = None
     _heatpump_daily_consumption_using_stale: bool = False
+    _heatpump_daily_split_last_error: str | None = None
+    _heatpump_daily_split_last_success_mono: float | None = None
+    _heatpump_daily_split_last_success_utc: datetime | None = None
+    _heatpump_daily_split_using_stale: bool = False
     _current_power_consumption_w: float | None = None
     _current_power_consumption_sample_utc: datetime | None = None
     _current_power_consumption_reported_units: str | None = None
