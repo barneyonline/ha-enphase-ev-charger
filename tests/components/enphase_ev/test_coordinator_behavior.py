@@ -1813,7 +1813,7 @@ async def test_handle_client_unauthorized_refresh(monkeypatch, hass):
     assert result is True
     assert coord._unauth_errors == 0
     assert coord._last_error == "unauthorized"
-    assert deleted == ["reauth_required"]
+    assert deleted == ["reauth_required", "auth_blocked"]
     assert created == []
 
 
@@ -1861,6 +1861,39 @@ async def test_handle_client_unauthorized_failure(monkeypatch, hass):
     metrics = payload["data"]["site_metrics"]
     assert metrics["site_name"] == "Garage Site"
     assert metrics["last_error"] == "unauthorized"
+
+
+@pytest.mark.asyncio
+async def test_handle_client_unauthorized_reports_auth_block_when_active(
+    monkeypatch, hass
+):
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
+
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._attempt_auto_refresh = AsyncMock(return_value=False)
+    coord._auth_block_active = MagicMock(return_value=True)  # type: ignore[method-assign]  # noqa: SLF001
+    coord._blocked_auth_failure_message = MagicMock(return_value="blocked")  # type: ignore[method-assign]  # noqa: SLF001
+
+    created: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(
+        diag_mod.ir,
+        "async_create_issue",
+        lambda hass_, domain, issue_id, **kwargs: created.append((issue_id, kwargs)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        diag_mod.ir,
+        "async_delete_issue",
+        lambda *args, **kwargs: None,
+        raising=False,
+    )
+
+    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+        await coord._handle_client_unauthorized()
+
+    assert [issue_id for issue_id, _payload in created] == ["auth_blocked"]
 
 
 @pytest.mark.asyncio
@@ -4607,7 +4640,11 @@ async def test_timeout_backoff_issue_recovery(hass, monkeypatch):
     assert coord._last_error is None
     assert delete_calls
     assert delete_calls[-1][1] == ISSUE_NETWORK_UNREACHABLE
-    assert len(delete_calls) == 2
+    assert [issue_id for _, issue_id in delete_calls] == [
+        "reauth_required",
+        "auth_blocked",
+        ISSUE_NETWORK_UNREACHABLE,
+    ]
     assert coord._backoff_until is None
 
 

@@ -13,6 +13,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev.const import (
+    CONF_AUTH_BLOCK_REASON,
+    CONF_AUTH_BLOCKED_UNTIL,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_SCAN_INTERVAL,
@@ -205,6 +207,8 @@ def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     coord.latency_ms = 120
     coord.last_success_utc = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
     coord.last_failure_utc = datetime(2025, 1, 1, 11, 0, tzinfo=timezone.utc)
+    coord._auth_blocked_until_utc = datetime(2025, 1, 1, 13, 0, tzinfo=timezone.utc)
+    coord._auth_block_reason = "login_wall_after_refresh_reject"
 
     class BadIso:
         def isoformat(self):
@@ -218,6 +222,9 @@ def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     metrics = coord.collect_site_metrics()
 
     assert metrics["site_id"] == "SITE"
+    assert metrics["auth_blocked_active"] is False
+    assert metrics["auth_blocked_until"] is None
+    assert metrics["auth_block_reason"] is None
     assert metrics["site_name"] == "Garage"
     assert metrics["backoff_active"] is False
     assert metrics["backoff_ends_utc"] == "bad-date"
@@ -275,6 +282,104 @@ def test_collect_site_metrics_reports_battery_entity_availability_flags(
     assert metrics["charge_from_grid_schedule_switch_available"] is True
     assert metrics["discharge_to_grid_schedule_switch_available"] is True
     assert metrics["restrict_battery_discharge_schedule_switch_available"] is True
+
+
+def test_auth_block_datetime_helpers_cover_fallback_branches(monkeypatch):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    naive = datetime(2025, 1, 1, 12, 0)
+    assert EnphaseCoordinator._coerce_utc_datetime(naive) == naive.replace(
+        tzinfo=timezone.utc
+    )
+
+    aware = datetime(2025, 1, 1, 12, 0, tzinfo=timezone(timedelta(hours=11)))
+    assert EnphaseCoordinator._coerce_utc_datetime(aware) == aware.astimezone(
+        timezone.utc
+    )
+
+    class _BadValue:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert EnphaseCoordinator._coerce_utc_datetime(_BadValue()) is None
+    assert EnphaseCoordinator._coerce_utc_datetime("  ") is None
+
+    monkeypatch.setattr(
+        coord_mod.dt_util,
+        "parse_datetime",
+        lambda _value: datetime(2025, 1, 2, 3, 4, 5),
+    )
+    assert EnphaseCoordinator._coerce_utc_datetime("2025-01-02T03:04:05") == datetime(
+        2025, 1, 2, 3, 4, 5, tzinfo=timezone.utc
+    )
+
+    monkeypatch.setattr(coord_mod.dt_util, "parse_datetime", lambda _value: None)
+    assert EnphaseCoordinator._coerce_utc_datetime("not-a-date") is None
+
+    assert EnphaseCoordinator._format_auth_blocked_until("not-a-datetime") is None
+
+    class _IsoFallbackDateTime(datetime):
+        def astimezone(self, tz=None):
+            raise ValueError("bad-astimezone")
+
+        def isoformat(self, sep="T", timespec="auto"):
+            return "2025-01-03T00:00:00+00:00"
+
+    assert (
+        EnphaseCoordinator._format_auth_blocked_until(
+            _IsoFallbackDateTime(2025, 1, 3, 0, 0, tzinfo=timezone.utc)
+        )
+        == "2025-01-03T00:00:00+00:00"
+    )
+
+    class _StrFallbackDateTime(datetime):
+        def astimezone(self, tz=None):
+            raise ValueError("bad-astimezone")
+
+        def isoformat(self, sep="T", timespec="auto"):
+            raise ValueError("bad-isoformat")
+
+        def __str__(self) -> str:
+            return "bad-date"
+
+    assert (
+        EnphaseCoordinator._format_auth_blocked_until(
+            _StrFallbackDateTime(2025, 1, 4, 0, 0, tzinfo=timezone.utc)
+        )
+        == "bad-date"
+    )
+
+
+def test_persist_auth_block_state_removes_cleared_fields(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(
+        hass,
+        data_override={
+            CONF_AUTH_BLOCKED_UNTIL: "2025-01-01T12:00:00+00:00",
+            CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
+        },
+    )
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._auth_blocked_until_utc = None
+    coord._auth_block_reason = None
+
+    captured: list[dict] = []
+
+    def _update_entry(entry_obj, data=None, **kwargs):
+        assert entry_obj is entry
+        captured.append(dict(data))
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", _update_entry)
+
+    coord._persist_auth_block_state()
+
+    assert captured
+    assert CONF_AUTH_BLOCKED_UNTIL not in captured[-1]
+    assert CONF_AUTH_BLOCK_REASON not in captured[-1]
 
 
 def test_collect_site_metrics_matches_battery_energy_power_sensor_parse_rules(
@@ -1017,6 +1122,183 @@ async def test_attempt_auto_refresh_requires_credentials(hass):
 
 
 @pytest.mark.asyncio
+async def test_attempt_auto_refresh_skips_when_auth_block_active(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    assert await coord._attempt_auto_refresh() is False
+
+
+@pytest.mark.asyncio
+async def test_activate_auth_block_from_login_wall_persists_state(monkeypatch, hass):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+
+    entry = _make_entry(hass)
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+    coord._auth_refresh_rejected_until = time.monotonic() + 60
+    coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
+        seconds=60
+    )
+    coord._auth_blocked_until_utc = None
+    coord._auth_block_reason = None
+    coord._last_error = None
+
+    captured: list[dict] = []
+
+    def _update_entry(entry_obj, data=None, **kwargs):
+        assert entry_obj is entry
+        captured.append(dict(data))
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", _update_entry)
+
+    err = EnphaseLoginWallUnauthorized(
+        endpoint="/service/test",
+        request_label="GET /service/test",
+        status=200,
+        content_type="application/json; charset=utf-8",
+        body_preview_redacted="<!DOCTYPE html>",
+    )
+
+    assert coord._activate_auth_block_from_login_wall(err) is True
+    assert coord._auth_block_reason == "login_wall_after_refresh_reject"
+    assert coord._auth_blocked_until_utc is not None
+    assert captured
+    assert captured[-1][CONF_AUTH_BLOCK_REASON] == "login_wall_after_refresh_reject"
+    assert CONF_AUTH_BLOCKED_UNTIL in captured[-1]
+
+
+@pytest.mark.asyncio
+async def test_activate_auth_block_from_login_wall_requires_refresh_rejection(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_rejected_until = None
+
+    err = EnphaseLoginWallUnauthorized(
+        endpoint="/service/test",
+        request_label="GET /service/test",
+        status=200,
+        content_type="text/html; charset=utf-8",
+        body_preview_redacted="<!DOCTYPE html>",
+    )
+
+    assert coord._activate_auth_block_from_login_wall(err) is False
+
+
+@pytest.mark.asyncio
+async def test_activate_auth_block_from_login_wall_reuses_existing_block(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_rejected_until = time.monotonic() + 60
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+    coord._auth_block_reason = "login_wall_after_refresh_reject"
+    coord.diagnostics = SimpleNamespace(create_auth_block_issue=MagicMock())
+    coord.auth_refresh_runtime = SimpleNamespace(
+        note_login_wall_block=MagicMock(),
+        auth_refresh_rejected_active=MagicMock(return_value=True),
+    )
+
+    err = EnphaseLoginWallUnauthorized(
+        endpoint="/service/test",
+        request_label="GET /service/test",
+        status=200,
+        content_type="text/html; charset=utf-8",
+        body_preview_redacted="<!DOCTYPE html>",
+    )
+
+    assert coord._activate_auth_block_from_login_wall(err) is True
+    coord.diagnostics.create_auth_block_issue.assert_called_once()
+    coord.auth_refresh_runtime.note_login_wall_block.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_fails_fast_while_auth_blocked(monkeypatch, hass):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+
+    entry = _make_entry(hass)
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+    coord.client.status = AsyncMock()
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+    coord._auth_block_reason = "login_wall_after_refresh_reject"
+
+    with pytest.raises(ConfigEntryAuthFailed, match="temporarily blocked"):
+        await coord._async_update_data()
+
+    coord.client.status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_login_wall_during_refresh_cooldown_blocks(
+    monkeypatch, hass
+):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+
+    entry = _make_entry(hass)
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+    coord._auth_refresh_rejected_until = time.monotonic() + 60
+    coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
+        seconds=60
+    )
+    coord.client.status = AsyncMock(
+        side_effect=EnphaseLoginWallUnauthorized(
+            endpoint="/service/test",
+            request_label="GET /service/test",
+            status=200,
+            content_type="text/html; charset=utf-8",
+            body_preview_redacted="<!DOCTYPE html>",
+        )
+    )
+
+    with pytest.raises(ConfigEntryAuthFailed, match="temporarily blocked"):
+        await coord._async_update_data()
+
+    assert coord._auth_block_reason == "login_wall_after_refresh_reject"
+    assert coord._auth_blocked_until_utc is not None
+
+
+@pytest.mark.asyncio
 async def test_handle_client_unauthorized_refreshes_tokens(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
@@ -1104,6 +1386,15 @@ async def test_handle_client_unauthorized_creates_issue_after_failures(
     assert created and created[0][0][2] == "reauth_required"
 
 
+def test_blocked_auth_failure_message_handles_missing_timestamp():
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord._auth_blocked_until_utc = None
+
+    assert coord._blocked_auth_failure_message().endswith("retry later.")
+
+
 def test_persist_tokens_updates_entry(hass, monkeypatch):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import AuthTokens
@@ -1112,6 +1403,8 @@ def test_persist_tokens_updates_entry(hass, monkeypatch):
     coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.config_entry = entry
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+    coord._auth_block_reason = "login_wall_after_refresh_reject"
 
     captured: list[tuple] = []
 
@@ -1133,6 +1426,8 @@ def test_persist_tokens_updates_entry(hass, monkeypatch):
     assert updated_entry is entry
     assert payload[CONF_COOKIE] == "cookie"
     assert payload[CONF_EAUTH] == "token"
+    assert CONF_AUTH_BLOCKED_UNTIL not in payload
+    assert CONF_AUTH_BLOCK_REASON not in payload
     assert payload[CONF_SESSION_ID] == "sess"
 
 

@@ -31,6 +31,8 @@ from .api import (
 )
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_AUTH_BLOCK_REASON,
+    CONF_AUTH_BLOCKED_UNTIL,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
@@ -581,6 +583,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data[CONF_PASSWORD] = self._password
         else:
             data.pop(CONF_PASSWORD, None)
+        data.pop(CONF_AUTH_BLOCKED_UNTIL, None)
+        data.pop(CONF_AUTH_BLOCK_REASON, None)
 
         await self.async_set_unique_id(self._selected_site_id)
 
@@ -633,6 +637,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     merged.pop(key, None)
                 else:
                     merged[key] = value
+            merged.pop(CONF_AUTH_BLOCKED_UNTIL, None)
+            merged.pop(CONF_AUTH_BLOCK_REASON, None)
             if not self._remember_password:
                 merged.pop(CONF_PASSWORD, None)
                 return self.async_update_reload_and_abort(

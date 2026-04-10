@@ -123,6 +123,9 @@ class RefreshHealthState:
     _auth_refresh_rejected_until: float | None = None
     _auth_refresh_rejected_ends_utc: datetime | None = None
     _auth_refresh_last_success_mono: float | None = None
+    _auth_blocked_until_utc: datetime | None = None
+    _auth_block_reason: str | None = None
+    _auth_block_issue_reported: bool = False
     _session_history_issue_reported: bool = False
     _site_energy_issue_reported: bool = False
     _payload_health: dict[str, dict[str, object]] = field(default_factory=dict)

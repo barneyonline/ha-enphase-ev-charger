@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy trenger reautentisering",
       "description": "Anlegg {site_id} krever oppdaterte økt-headere. Vennligst reautentiser."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy er ratebegrenset",
       "description": "Sky-API-et returnerte rate limiting. Oppdatering vil midlertidig gå saktere."

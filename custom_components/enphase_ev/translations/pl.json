@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy wymaga ponownego uwierzytelnienia",
       "description": "Lokalizacja {site_id} wymaga zaktualizowanych nagłówków sesji. Uwierzytelnij ponownie."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy ma ograniczenie zapytań",
       "description": "API chmury zwróciło ograniczenie zapytań. Odpytywanie tymczasowo zwolni."

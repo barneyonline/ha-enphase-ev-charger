@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy nécessite une réauthentification",
       "description": "Le site {site_id} nécessite des en-têtes de session mis à jour. Veuillez vous réauthentifier."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy est limité en débit",
       "description": "L'API cloud a retourné une limitation de débit. La scrutation ralentira temporairement."

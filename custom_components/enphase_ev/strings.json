@@ -1419,6 +1419,10 @@
       "title": "Enphase Energy needs reauthentication",
       "description": "Site {site_id} requires updated session headers. Please reauthenticate."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy is rate limited",
       "description": "The cloud API returned rate limiting. Polling will slow temporarily."

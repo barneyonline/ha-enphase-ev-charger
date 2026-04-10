@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Detect Enphase browser login-wall HTML responses on JSON/text API endpoints, surface a dedicated temporary-auth-block repair issue, and persist a 24-hour auth cooldown after a rejected stored-credential refresh so blocked sessions fail fast instead of repeatedly hammering the cloud API.
 
 ### 🔧 Improvements
 - None

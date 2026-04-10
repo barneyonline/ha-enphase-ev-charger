@@ -26,6 +26,7 @@ from .api import (
     async_authenticate,
 )
 from .const import (
+    AUTH_BLOCKED_COOLDOWN_S,
     AUTH_REFRESH_REJECTED_COOLDOWN_S,
     AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S,
 )
@@ -52,6 +53,9 @@ class AuthRefreshRuntime:
             or not coord._remember_password
             or not coord._stored_password
         ):
+            return False
+
+        if coord._auth_block_active():
             return False
 
         if self.auth_refresh_recent_success_active():
@@ -125,6 +129,15 @@ class AuthRefreshRuntime:
             AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S
         )
 
+    def note_login_wall_block(self, *, reason: str) -> None:
+        """Persist a long auth block after Enphase starts serving the login wall."""
+
+        coord = self.coordinator
+        coord._note_auth_blocked(
+            blocked_until=dt_util.utcnow() + timedelta(seconds=AUTH_BLOCKED_COOLDOWN_S),
+            reason=reason,
+        )
+
     async def async_run_auto_refresh(self) -> bool:
         """Run one stored-credential refresh attempt for all concurrent waiters."""
 
@@ -159,6 +172,7 @@ class AuthRefreshRuntime:
         coord._auth_refresh_rejected_until = None
         coord._auth_refresh_rejected_ends_utc = None
         coord._auth_refresh_last_success_mono = time.monotonic()
+        coord._clear_auth_block(persist=False)
         coord._tokens = tokens
         coord.client.update_credentials(
             eauth=tokens.access_token,
