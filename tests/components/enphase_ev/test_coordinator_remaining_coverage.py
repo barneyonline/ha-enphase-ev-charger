@@ -317,6 +317,9 @@ async def test_coordinator_runtime_delegate_helpers_cover_direct_runtime_calls(
     ) == {  # noqa: SLF001
         "daily_energy_wh": 123.0
     }
+    assert coord._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+        {"a": 1}, {"stats": [{"heatpump": [1.0]}]}
+    ) == {"daily_energy_wh": 123.0}
     assert coord._heatpump_power_candidate_device_uids() == [  # noqa: SLF001
         "HP-PRIMARY",
         None,
@@ -338,6 +341,16 @@ async def test_coordinator_runtime_delegate_helpers_cover_direct_runtime_calls(
     assert (
         coord._heatpump_power_candidate_is_recommended("HP-PRIMARY") is True
     )  # noqa: SLF001
+    coord._heatpump_daily_split_last_error = "split-error"  # noqa: SLF001
+    coord._heatpump_daily_split_using_stale = True  # noqa: SLF001
+    coord._heatpump_daily_split_last_success_utc = datetime(  # noqa: SLF001
+        2026, 1, 1, tzinfo=timezone.utc
+    )
+    assert coord.heatpump_daily_split_last_error == "split-error"
+    assert coord.heatpump_daily_split_using_stale is True
+    assert coord.heatpump_daily_split_last_success_utc == datetime(
+        2026, 1, 1, tzinfo=timezone.utc
+    )
 
     coord.heatpump_runtime.async_refresh_hems_support_preflight.assert_awaited_once_with(
         force=True

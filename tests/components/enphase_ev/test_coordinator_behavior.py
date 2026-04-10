@@ -2704,8 +2704,11 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     coord._inverter_data = {"INV-1": {"name": "Inverter 1"}}  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_has_enpower = False  # noqa: SLF001
+    coord._heatpump_known_present = True  # noqa: SLF001
+    coord._type_device_buckets["heatpump"] = {"count": 0, "devices": []}  # noqa: SLF001
 
     snapshot = coord.discovery_snapshot.capture()
+    assert snapshot["heatpump_known_present"] is True
     assert snapshot["site_energy_channels"] == ["heat_pump"]
     assert snapshot["gateway_iq_energy_router_records"] == [
         {"device-uid": "REST-1", "device-type": "IQ_ENERGY_ROUTER"}
@@ -2773,6 +2776,7 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
             },
             "battery_has_encharge": "enabled",
             "battery_has_enpower": "disabled",
+            "heatpump_known_present": "enabled",
             "site_energy_channels": ["", "heat_pump"],
             "gateway_iq_energy_router_records": [{"device-uid": "REST-1"}, "bad"],
         }
@@ -2789,6 +2793,7 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     assert coord._restored_gateway_iq_energy_router_records == [  # noqa: SLF001
         {"device-uid": "REST-1"}
     ]
+    assert coord._heatpump_known_present is True  # noqa: SLF001
 
     coord = _make_coordinator(hass, monkeypatch)
     coord._devices_inventory_ready = True  # noqa: SLF001
