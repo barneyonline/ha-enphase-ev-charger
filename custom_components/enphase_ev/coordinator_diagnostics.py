@@ -17,6 +17,7 @@ from .const import (
     ISSUE_RATE_LIMITED,
     ISSUE_REAUTH_REQUIRED,
     ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+    ISSUE_AUTH_BLOCKED,
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
@@ -255,6 +256,9 @@ class CoordinatorDiagnostics:
             "type_device_counts": type_counts,
             "payload_health": self.payload_health_diagnostics(),
             "endpoint_family_health": self.endpoint_family_health_diagnostics(),
+            "auth_blocked_active": coord._auth_block_active(),
+            "auth_blocked_until": _iso(getattr(coord, "_auth_blocked_until_utc", None)),
+            "auth_block_reason": getattr(coord, "_auth_block_reason", None),
             "inverters_enabled": bool(getattr(coord, "include_inverters", True)),
             "inverters_count": len(getattr(coord, "_inverter_data", {}) or {}),
             "inverters_summary_counts": dict(
@@ -826,6 +830,9 @@ class CoordinatorDiagnostics:
         status = metrics.get("last_failure_status")
         if status is not None:
             placeholders["last_status"] = str(status)
+        blocked_until = metrics.get("auth_blocked_until")
+        if blocked_until:
+            placeholders["blocked_until"] = str(blocked_until)
         return placeholders
 
     def issue_context(self) -> tuple[dict[str, object], dict[str, str]]:
@@ -1096,11 +1103,34 @@ class CoordinatorDiagnostics:
 
     def clear_reauth_issue(self) -> None:
         self._delete_issue(ISSUE_REAUTH_REQUIRED)
+        self._delete_issue(ISSUE_AUTH_BLOCKED)
+        self.coordinator._auth_block_issue_reported = False
 
     def create_reauth_issue(self) -> None:
+        self.clear_auth_block_issue()
         self._create_site_metrics_issue(
             ISSUE_REAUTH_REQUIRED,
             severity=ir.IssueSeverity.ERROR,
+        )
+
+    def clear_auth_block_issue(self) -> None:
+        self._clear_reported_issue("_auth_block_issue_reported", ISSUE_AUTH_BLOCKED)
+
+    def create_auth_block_issue(self) -> None:
+        coord = self.coordinator
+        placeholders: dict[str, str] = {}
+        blocked_until = coord._format_auth_blocked_until(
+            getattr(coord, "_auth_blocked_until_utc", None)
+        )
+        if blocked_until:
+            placeholders["blocked_until"] = blocked_until
+        self._delete_issue(ISSUE_REAUTH_REQUIRED)
+        coord._auth_block_issue_reported = False
+        self._report_flagged_issue(
+            "_auth_block_issue_reported",
+            ISSUE_AUTH_BLOCKED,
+            severity=ir.IssueSeverity.ERROR,
+            placeholders=placeholders,
         )
 
     def clear_network_issue(self) -> None:

@@ -27,6 +27,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import (
     AuthTokens,
+    EnphaseLoginWallUnauthorized,
     EnphaseEVClient,
     InvalidPayloadError,
     OptionalEndpointUnavailable,
@@ -35,8 +36,11 @@ from .api import (
 )
 from .auth_refresh_runtime import AuthRefreshRuntime
 from .const import (
+    AUTH_BLOCKED_COOLDOWN_S,
     BATTERY_MIN_SOC_FALLBACK,
     CONF_ACCESS_TOKEN,
+    CONF_AUTH_BLOCK_REASON,
+    CONF_AUTH_BLOCKED_UNTIL,
     CONF_COOKIE,
     DEFAULT_CHARGE_LEVEL_SETTING,
     DEFAULT_NOMINAL_VOLTAGE,
@@ -289,6 +293,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             session_id=config.get(CONF_SESSION_ID),
             access_token=access_token,
             token_expires_at=config.get(CONF_TOKEN_EXPIRES_AT),
+        )
+        self._auth_blocked_until_utc = self._coerce_utc_datetime(
+            config.get(CONF_AUTH_BLOCKED_UNTIL)
+        )
+        raw_auth_block_reason = config.get(CONF_AUTH_BLOCK_REASON)
+        self._auth_block_reason = (
+            str(raw_auth_block_reason).strip() if raw_auth_block_reason else None
         )
         timeout = (
             int(config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT))
@@ -2211,6 +2222,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self._backoff_until and time.monotonic() < self._backoff_until:
             raise UpdateFailed("In backoff due to rate limiting or server errors")
 
+        if self._auth_block_active():
+            self._last_error = "auth_blocked"
+            self.last_failure_utc = dt_util.utcnow()
+            self.last_failure_status = None
+            self.last_failure_description = self._blocked_auth_failure_message()
+            self.last_failure_response = self.last_failure_description
+            self.last_failure_source = "auth"
+            self.last_failure_endpoint = None
+            self._network_errors = 0
+            self._http_errors = 0
+            self._payload_errors = 0
+            self.diagnostics.create_auth_block_issue()
+            raise ConfigEntryAuthFailed(self.last_failure_description)
+
         try:
             status_start = time.monotonic()
             data = await self.client.status()
@@ -2230,6 +2255,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except ConfigEntryAuthFailed:
             raise
         except Unauthorized as err:
+            if self._activate_auth_block_from_login_wall(err):
+                raise ConfigEntryAuthFailed(
+                    self._blocked_auth_failure_message()
+                ) from err
             raise ConfigEntryAuthFailed from err
         except OptionalEndpointUnavailable as err:
             reason = (str(err) or "EVSE status endpoint unavailable").strip()
@@ -3861,6 +3890,135 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         return True
         return False
 
+    @staticmethod
+    def _coerce_utc_datetime(value: object) -> datetime | None:
+        """Return a timezone-aware UTC datetime when the value is parseable."""
+
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=_tz.utc)
+            return value.astimezone(_tz.utc)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not text:
+            return None
+        parsed = dt_util.parse_datetime(text)
+        if parsed is None:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=_tz.utc)
+        return parsed.astimezone(_tz.utc)
+
+    @staticmethod
+    def _format_auth_blocked_until(value: datetime | None) -> str | None:
+        """Return a compact UTC timestamp for repair-issue placeholders."""
+
+        if not isinstance(value, datetime):
+            return None
+        try:
+            return value.astimezone(_tz.utc).strftime("%Y-%m-%d %H:%M UTC")
+        except Exception:  # noqa: BLE001
+            try:
+                return value.isoformat()
+            except Exception:
+                return str(value)
+
+    def _persist_auth_block_state(self) -> None:
+        """Persist the long Enphase auth block metadata on the config entry."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return
+        merged = dict(config_entry.data)
+        if self._auth_blocked_until_utc is None:
+            merged.pop(CONF_AUTH_BLOCKED_UNTIL, None)
+        else:
+            merged[CONF_AUTH_BLOCKED_UNTIL] = self._auth_blocked_until_utc.isoformat()
+        if self._auth_block_reason:
+            merged[CONF_AUTH_BLOCK_REASON] = self._auth_block_reason
+        else:
+            merged.pop(CONF_AUTH_BLOCK_REASON, None)
+        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+
+    def _clear_auth_block(self, *, persist: bool = True) -> None:
+        """Clear the Enphase auth-block state and its repair issue."""
+
+        had_state = bool(
+            getattr(self, "_auth_blocked_until_utc", None)
+            or getattr(self, "_auth_block_reason", None)
+        )
+        self._auth_blocked_until_utc = None
+        self._auth_block_reason = None
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.clear_auth_block_issue()
+        if persist and had_state:
+            self._persist_auth_block_state()
+
+    def _auth_block_active(self) -> bool:
+        """Return True while Enphase appears to be blocking API authentication."""
+
+        blocked_until = getattr(self, "_auth_blocked_until_utc", None)
+        if not isinstance(blocked_until, datetime):
+            return False
+        if blocked_until > dt_util.utcnow():
+            return True
+        self._clear_auth_block()
+        return False
+
+    def _note_auth_blocked(
+        self,
+        *,
+        blocked_until: datetime,
+        reason: str,
+    ) -> None:
+        """Persist a long auth block after Enphase serves the browser login wall."""
+
+        self._auth_blocked_until_utc = blocked_until.astimezone(_tz.utc)
+        self._auth_block_reason = str(reason).strip() or None
+        self._last_error = "auth_blocked"
+        self._persist_auth_block_state()
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.create_auth_block_issue()
+
+    def _activate_auth_block_from_login_wall(self, err: Unauthorized) -> bool:
+        """Persist a long auth block when a login wall follows a rejected refresh."""
+
+        if not isinstance(err, EnphaseLoginWallUnauthorized):
+            return False
+        if not self._auth_refresh_rejected_active():
+            return False
+        if self._auth_block_active():
+            diagnostics = getattr(self, "diagnostics", None)
+            if diagnostics is not None:
+                diagnostics.create_auth_block_issue()
+            return True
+        self.auth_refresh_runtime.note_login_wall_block(
+            reason="login_wall_after_refresh_reject"
+        )
+        _LOGGER.warning(
+            "Enphase login wall detected for site %s while auth refresh cooldown was active; blocking automatic retries for %s seconds",
+            redact_site_id(self.site_id),
+            int(AUTH_BLOCKED_COOLDOWN_S),
+        )
+        return True
+
+    def _blocked_auth_failure_message(self) -> str:
+        """Return the user-facing auth-block failure message."""
+
+        blocked_until = self._format_auth_blocked_until(self._auth_blocked_until_utc)
+        if blocked_until:
+            return (
+                "Enphase authentication is temporarily blocked; wait until "
+                f"{blocked_until} before retrying."
+            )
+        return "Enphase authentication is temporarily blocked; retry later."
+
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials.
 
@@ -3903,6 +4061,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._unauth_errors = 0
             self.diagnostics.clear_reauth_issue()
             return True
+
+        if self._auth_block_active():
+            self.diagnostics.create_auth_block_issue()
+            raise ConfigEntryAuthFailed(self._blocked_auth_failure_message())
 
         if self._unauth_errors >= 2:
             self.diagnostics.create_reauth_issue()
@@ -3968,12 +4130,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             CONF_ACCESS_TOKEN: tokens.access_token,
             CONF_SESSION_ID: tokens.session_id,
             CONF_TOKEN_EXPIRES_AT: tokens.token_expires_at,
+            CONF_AUTH_BLOCKED_UNTIL: None,
+            CONF_AUTH_BLOCK_REASON: None,
         }
         for key, value in updates.items():
             if value is None:
                 merged.pop(key, None)
             else:
                 merged[key] = value
+        self._auth_blocked_until_utc = None
+        self._auth_block_reason = None
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.clear_auth_block_issue()
         self.hass.config_entries.async_update_entry(self.config_entry, data=merged)
 
     def kick_fast(self, seconds: int = 60) -> None:

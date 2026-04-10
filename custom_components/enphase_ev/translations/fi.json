@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy tarvitsee uudelleentodennuksen",
       "description": "Sivusto {site_id} vaatii päivitetyt istunnon otsikot. Ole hyvä ja todenna uudelleen."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy:n nopeus on rajoitettu",
       "description": "Pilvisovellusliittymä palautti nopeusrajoituksen. Äänestys hidastuu väliaikaisesti."

@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy nepieciešama atkārtota autentifikācija",
       "description": "Vietnei {site_id} nepieciešamas atjauninātas sesijas galvenes. Lūdzu, autentificējieties atkārtoti."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy ir ierobežots",
       "description": "Mākoņa API atgrieza ātruma ierobežojumu. Aptauja uz laiku palēnināsies."

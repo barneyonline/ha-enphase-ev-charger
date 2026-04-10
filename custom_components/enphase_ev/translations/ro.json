@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy necesită reautentificare",
       "description": "Locația {site_id} necesită antete de sesiune actualizate. Vă rugăm să vă reautentificați."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy are limitare de rată",
       "description": "API-ul cloud a returnat limitare de rată. Interogarea va încetini temporar."
