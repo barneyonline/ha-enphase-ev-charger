@@ -1986,6 +1986,112 @@ def test_heatpump_event_summary_classifies_known_event_keys(
     assert coord.heatpump_daily_consumption_last_error is None
 
 
+def test_heatpump_runtime_additional_helper_edge_cases(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    assert runtime.heatpump_entities_established() is False
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    assert runtime.heatpump_entities_established() is True
+    coord.inventory_runtime._set_type_device_buckets({}, [])
+
+    coord._heatpump_daily_consumption = {"daily_energy_wh": 12.0}  # noqa: SLF001
+    coord._heatpump_daily_consumption_last_success_mono = (
+        time.monotonic()
+    )  # noqa: SLF001
+    assert (
+        runtime._heatpump_mark_daily_consumption_stale(  # noqa: SLF001
+            now=time.monotonic(),
+            error="stale",
+        )
+        is True
+    )
+
+    assert (
+        runtime._heatpump_daily_split_available({"daily_grid_wh": 0.0})  # noqa: SLF001
+        is True
+    )
+    target = {"split_source": "keep"}
+    assert (
+        runtime._heatpump_copy_daily_split_fields(
+            target, {"details": []}
+        )  # noqa: SLF001
+        is False
+    )
+    assert target["split_source"] is None
+    assert target["details"] == []
+
+    assert (
+        runtime._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
+            {"data": {"heat-pump": []}},
+            {"stats": []},
+        )
+        is None
+    )
+
+    assert runtime._site_today_heatpump_numeric_total(
+        {"a": {"b": 2}}
+    ) == pytest.approx(  # noqa: SLF001
+        2.0
+    )
+    assert (
+        runtime._site_today_heatpump_numeric_total({"a": "bad"}) is None
+    )  # noqa: SLF001
+    assert runtime._site_today_heatpump_numeric_total(
+        [1, {"a": 2}]
+    ) == pytest.approx(  # noqa: SLF001
+        3.0
+    )
+    assert (
+        runtime._site_today_heatpump_numeric_total([None, "bad"]) is None
+    )  # noqa: SLF001
+    assert runtime._site_today_heatpump_numeric_total("bad") is None  # noqa: SLF001
+    assert (
+        runtime._site_today_heatpump_numeric_total(float("inf")) is None
+    )  # noqa: SLF001
+    assert runtime._site_today_heatpump_total_wh(None) is None  # noqa: SLF001
+    assert runtime._site_today_heatpump_total_wh({"stats": []}) is None  # noqa: SLF001
+    assert (
+        runtime._site_today_heatpump_total_wh({"stats": ["bad"]}) is None
+    )  # noqa: SLF001
+    assert (
+        runtime._site_today_heatpump_total_wh({"stats": [{"other": 1}]}) is None
+    )  # noqa: SLF001
+
+    assert (
+        runtime._heatpump_power_summary_from_daily_snapshot(None) is None
+    )  # noqa: SLF001
+    assert (
+        runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+            {"daily_energy_wh": 10.0}
+        )
+        is None
+    )
+
+    assert runtime.heatpump_daily_split_last_error is None
+
+    class BadString:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    coord._heatpump_daily_consumption_last_error = "   "  # noqa: SLF001
+    assert coord.heatpump_daily_consumption_last_error is None
+    coord._heatpump_daily_split_last_error = BadString()  # noqa: SLF001
+    assert coord.heatpump_runtime.heatpump_daily_split_last_error is None
+
+
 @pytest.mark.asyncio
 async def test_refresh_heatpump_daily_consumption_covers_cache_and_error_paths(
     coordinator_factory, monkeypatch
@@ -2046,6 +2152,38 @@ async def test_refresh_heatpump_daily_consumption_covers_cache_and_error_paths(
     )  # noqa: SLF001
     assert coord.heatpump_daily_consumption["source"] == "site_today_heatpump"
     assert coord.heatpump_daily_consumption_last_error is None
+
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.pv_system_today = None  # type: ignore[assignment]
+    await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
+        force=True
+    )  # noqa: SLF001
+
+    coord.client.pv_system_today = AsyncMock(side_effect=RuntimeError("site boom"))
+    await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
+        force=True
+    )  # noqa: SLF001
+    assert coord.heatpump_daily_consumption_last_error == "site boom"
+    assert coord._heatpump_daily_consumption_backoff_until is not None  # noqa: SLF001
+
+    coord._heatpump_daily_consumption_backoff_until = None  # noqa: SLF001
+    coord.client.pv_system_today = AsyncMock(return_value="bad")
+    await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
+        force=True
+    )  # noqa: SLF001
+    assert (
+        coord.heatpump_daily_consumption_last_error
+        == "No usable site today heat-pump payload"
+    )
+
+    coord.client.pv_system_today = AsyncMock(return_value={"stats": []})
+    await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(
+        force=True
+    )  # noqa: SLF001
+    assert (
+        coord.heatpump_daily_consumption_last_error
+        == "No usable site today heat-pump payload"
+    )
 
 
 def test_heatpump_runtime_inventory_merge_and_helper_paths(

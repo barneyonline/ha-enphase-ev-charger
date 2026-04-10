@@ -2359,6 +2359,32 @@ def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
     monkeypatch.setattr(meter_sensor, "_snapshot", lambda: {"member_count": 0})
     assert meter_sensor.available is False
 
+    monkeypatch.setattr(
+        coord.inventory_view,
+        "has_type_for_entities",
+        lambda _type_key: False,
+    )
+    assert meter_sensor.available is False
+    monkeypatch.setattr(
+        coord.inventory_view,
+        "has_type_for_entities",
+        lambda _type_key: True,
+    )
+
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 0,
+                "devices": [],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    assert meter_sensor.available is False
+
     coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
         {
             "heatpump": {
