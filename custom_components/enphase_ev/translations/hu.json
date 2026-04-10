@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy újrahitelesítést igényel",
       "description": "A(z) {site_id} helyszín frissített munkamenet-fejléceket igényel. Kérjük, hitelesítsen újra."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy korlátozott",
       "description": "A cloud API rate limitinget adott vissza. A lekérdezés ideiglenesen lassul."

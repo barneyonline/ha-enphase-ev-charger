@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy vyžaduje reautentizaci",
       "description": "Lokalita {site_id} vyžaduje aktualizované hlavičky relace. Proveďte reautentizaci."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy je omezeno limitem",
       "description": "Cloud API vrátilo omezení rychlosti. Dotazování se dočasně zpomalí."

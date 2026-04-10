@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy vereist herauthenticatie",
       "description": "Site {site_id} vereist bijgewerkte sessieheaders. Authenticeer opnieuw."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy is beperkt door rate limiting",
       "description": "De cloud-API gaf rate limiting terug. Polling zal tijdelijk vertragen."

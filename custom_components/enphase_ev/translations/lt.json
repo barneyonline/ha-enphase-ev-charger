@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy reikia perautentifikavimo",
       "description": "Vietai {site_id} reikia atnaujintų sesijos antraščių. Prašome perautentifikuoti."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy ribojamas",
       "description": "Debesies API grąžino greičio ribojimą. Apklausa laikinai sulėtės."

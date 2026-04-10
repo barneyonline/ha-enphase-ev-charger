@@ -265,6 +265,17 @@ def test_cookie_map_from_header_handles_defensive_branches() -> None:
     }
 
 
+def test_is_enphase_login_wall_handles_unprintable_payload() -> None:
+    class _BadPayload:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert (
+        api._is_enphase_login_wall(endpoint="/service/test", payload=_BadPayload())
+        is False
+    )
+
+
 @pytest.mark.asyncio
 async def test_text_response_returns_redirect_metadata() -> None:
     response = _FakeResponse(status=302, json_body={}, text_body="")
@@ -282,6 +293,29 @@ async def test_text_response_returns_redirect_metadata() -> None:
     assert result.status == 302
     assert result.location == "/systems/SITE/devices?status=active"
     assert result.url == "https://example.test/path"
+
+
+@pytest.mark.asyncio
+async def test_devices_tree_login_wall_raises_unauthorized() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=200,
+                json_body=ValueError("invalid-json"),
+                text_body=(
+                    '<!DOCTYPE html><html lang="en"><head>'
+                    '<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=IE8">'
+                    "<script>window.OptanonWrapper = function () {};</script>"
+                    "</head></html>"
+                ),
+            )
+        ]
+    )
+    session._responses[0].headers["Content-Type"] = "application/json; charset=utf-8"
+    client = _make_client(session)
+
+    with pytest.raises(api.EnphaseLoginWallUnauthorized):
+        await client.devices_tree()
 
 
 @pytest.mark.asyncio
@@ -379,6 +413,33 @@ async def test_text_response_retries_unauthorized_with_header_callback() -> None
 
 
 @pytest.mark.asyncio
+async def test_text_response_expected_status_login_wall_raises_unauthorized() -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body={},
+        text_body=(
+            '<!DOCTYPE html><html lang="en"><head>'
+            '<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=IE8">'
+            '<script>var otLang = "en"; window.OptanonWrapper = function () {};</script>'
+            "</head></html>"
+        ),
+    )
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    with pytest.raises(api.EnphaseLoginWallUnauthorized) as exc_info:
+        await client._text_response(  # noqa: SLF001
+            "GET",
+            "https://example.test/service/test",
+            expected_statuses=(200,),
+        )
+
+    assert exc_info.value.endpoint == "/service/test"
+    assert client.last_unauthorized_request == "GET /service/test"
+
+
+@pytest.mark.asyncio
 async def test_text_response_raises_client_error_with_truncated_body() -> None:
     response = _FakeResponse(status=500, json_body={}, text_body="x" * 600)
     session = _FakeSession([response])
@@ -411,6 +472,31 @@ async def test_text_response_raises_unauthorized_without_successful_reauth() -> 
 
     with pytest.raises(api.Unauthorized):
         await client._text_response("GET", "https://example.test/path")  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_text_response_success_login_wall_raises_unauthorized() -> None:
+    response = _FakeResponse(
+        status=200,
+        json_body={},
+        text_body=(
+            '<!DOCTYPE html><html lang="en"><head>'
+            '<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=IE8">'
+            "<script>window.OptanonWrapper = function () {};</script>"
+            "</head></html>"
+        ),
+    )
+    response.headers["Content-Type"] = "text/html; charset=utf-8"
+    session = _FakeSession([response])
+    client = _make_client(session)
+
+    with pytest.raises(api.EnphaseLoginWallUnauthorized) as exc_info:
+        await client._text_response(  # noqa: SLF001
+            "GET", "https://example.test/service/test"
+        )
+
+    assert exc_info.value.endpoint == "/service/test"
+    assert client.last_unauthorized_request == "GET /service/test"
 
 
 def test_cookie_names_from_header_returns_sorted_names() -> None:
@@ -1078,6 +1164,76 @@ async def test_json_raises_unauthorized() -> None:
     client = api.EnphaseEVClient(session, "SITE", None, None)
     with pytest.raises(api.Unauthorized):
         await client._json("GET", "https://example.test")
+
+
+@pytest.mark.asyncio
+async def test_json_login_wall_raises_login_wall_unauthorized() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=200,
+                json_body=ValueError("invalid-json"),
+                text_body=(
+                    '<!DOCTYPE html><html lang="en"><head>'
+                    '<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=IE8">'
+                    '<script>var otLang = "en"; window.OptanonWrapper = function () {};</script>'
+                    "</head></html>"
+                ),
+            )
+        ]
+    )
+    session._responses[0].headers["Content-Type"] = "application/json; charset=utf-8"
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    with pytest.raises(api.EnphaseLoginWallUnauthorized) as exc_info:
+        await client._json("GET", "https://example.test/service/test")
+
+    assert exc_info.value.endpoint == "/service/test"
+    assert client.last_unauthorized_request == "GET /service/test"
+
+
+@pytest.mark.asyncio
+async def test_evse_feature_flags_login_wall_raises_unauthorized() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=200,
+                json_body=ValueError("invalid-json"),
+                text_body=(
+                    '<!DOCTYPE html><html lang="en"><head>'
+                    '<meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=IE8">'
+                    "<script>window.OptanonWrapper = function () {};</script>"
+                    "</head></html>"
+                ),
+            )
+        ]
+    )
+    session._responses[0].headers["Content-Type"] = "application/json; charset=utf-8"
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    with pytest.raises(api.EnphaseLoginWallUnauthorized):
+        await client.evse_feature_flags()
+
+
+@pytest.mark.asyncio
+async def test_optional_heat_pump_events_login_wall_soft_fails() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                status=200,
+                json_body=ValueError("invalid-json"),
+                text_body=(
+                    "<!DOCTYPE html><html><head>"
+                    "<script>window.OptanonWrapper = function () {};</script>"
+                    "</head></html>"
+                ),
+            )
+        ]
+    )
+    session._responses[0].headers["Content-Type"] = "application/json; charset=utf-8"
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    assert await client.heat_pump_events_json("device-1") is None
 
 
 @pytest.mark.asyncio

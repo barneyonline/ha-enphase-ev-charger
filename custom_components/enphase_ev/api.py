@@ -49,6 +49,37 @@ class Unauthorized(Exception):
     pass
 
 
+class EnphaseLoginWallUnauthorized(Unauthorized):
+    """Raised when Enlighten serves the browser login wall to API requests."""
+
+    def __init__(
+        self,
+        *,
+        endpoint: str | None,
+        request_label: str,
+        status: int | None = None,
+        content_type: str | None = None,
+        body_preview_redacted: str | None = None,
+    ) -> None:
+        self.endpoint = endpoint
+        self.request_label = request_label
+        self.status = status
+        self.content_type = content_type
+        self.body_preview_redacted = body_preview_redacted
+        detail_parts: list[str] = []
+        if endpoint:
+            detail_parts.append(f"endpoint={endpoint}")
+        if status is not None:
+            detail_parts.append(f"status={status}")
+        if content_type:
+            detail_parts.append(f"content_type={content_type}")
+        detail = ", ".join(detail_parts)
+        message = "Enphase login wall returned HTML for API request"
+        if detail:
+            message = f"{message} ({detail})"
+        super().__init__(message)
+
+
 class EnlightenAuthError(Exception):
     """Base exception for Enlighten authentication failures."""
 
@@ -252,6 +283,34 @@ def _truncate_preview(text: str, *, max_length: int = 256) -> str:
     if len(compact) > max_length:
         return f"{compact[:max_length]}..."
     return compact
+
+
+def _is_enphase_login_wall(
+    *,
+    endpoint: str | None,
+    payload: object,
+) -> bool:
+    """Return True when a JSON API request received the Enlighten browser login wall."""
+
+    endpoint_text = str(endpoint or "").strip()
+    if not endpoint_text.startswith(("/service/", "/app-api/", "/systems/", "/pv/")):
+        return False
+    try:
+        body = str(payload or "")
+    except Exception:  # noqa: BLE001
+        return False
+    preview = body.lower()
+    if "<!doctype html" not in preview and "<html" not in preview:
+        return False
+    markers = (
+        "window.optanonwrapper",
+        "var otlang",
+        "x-ua-compatible",
+        "enphaseenergy.com",
+        "/login/login",
+        "one trust",
+    )
+    return any(marker in preview for marker in markers)
 
 
 def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
@@ -1964,6 +2023,26 @@ class EnphaseEVClient:
             self._log_invalid_payload(err)
         return err
 
+    def _login_wall_unauthorized(
+        self,
+        *,
+        endpoint: str | None,
+        request_label: str,
+        status: int | None,
+        content_type: str | None,
+        payload: object,
+    ) -> EnphaseLoginWallUnauthorized:
+        """Build a structured unauthorized error for Enlighten login-wall responses."""
+
+        _, _, body_preview = _payload_preview_and_hash(payload, site_ids=(self._site,))
+        return EnphaseLoginWallUnauthorized(
+            endpoint=endpoint,
+            request_label=request_label,
+            status=status,
+            content_type=content_type,
+            body_preview_redacted=body_preview,
+        )
+
     def _history_bearer(self) -> str | None:
         """Return the preferred bearer token for session history calls."""
 
@@ -2118,6 +2197,8 @@ class EnphaseEVClient:
     def _system_dashboard_is_optional_error(err: Exception) -> bool:
         """Return True when a dashboard route should fall back or soft-fail."""
 
+        if isinstance(err, EnphaseLoginWallUnauthorized):
+            return False
         if isinstance(err, Unauthorized):
             return True
         if isinstance(err, InvalidPayloadError):
@@ -2852,6 +2933,18 @@ class EnphaseEVClient:
                                 body_text = (
                                     f"<unavailable:{text_err.__class__.__name__}>"
                                 )
+                            if _is_enphase_login_wall(
+                                endpoint=endpoint or None,
+                                payload=body_text,
+                            ):
+                                self._last_unauthorized_request = request_label
+                                raise self._login_wall_unauthorized(
+                                    endpoint=endpoint or None,
+                                    request_label=request_label,
+                                    status=status or None,
+                                    content_type=content_type or None,
+                                    payload=body_text,
+                                ) from err
                             failure_kind = (
                                 "content_type"
                                 if isinstance(err, aiohttp.ContentTypeError)
@@ -2916,6 +3009,17 @@ class EnphaseEVClient:
                             raise Unauthorized()
                         if expected_statuses and r.status in expected_statuses:
                             text = await r.text()
+                            if _is_enphase_login_wall(
+                                endpoint=endpoint or None, payload=text
+                            ):
+                                self._last_unauthorized_request = request_label
+                                raise self._login_wall_unauthorized(
+                                    endpoint=endpoint or None,
+                                    request_label=request_label,
+                                    status=int(r.status),
+                                    content_type=r.headers.get("Content-Type"),
+                                    payload=text,
+                                )
                             if mark_payload_success:
                                 self._mark_payload_healthy(endpoint or None)
                             return TextResponse(
@@ -2941,6 +3045,17 @@ class EnphaseEVClient:
                                 headers=r.headers,
                             )
                         text = await r.text()
+                        if _is_enphase_login_wall(
+                            endpoint=endpoint or None, payload=text
+                        ):
+                            self._last_unauthorized_request = request_label
+                            raise self._login_wall_unauthorized(
+                                endpoint=endpoint or None,
+                                request_label=request_label,
+                                status=int(r.status),
+                                content_type=r.headers.get("Content-Type"),
+                                payload=text,
+                            )
                         if mark_payload_success:
                             self._mark_payload_healthy(endpoint or None)
                         return TextResponse(
@@ -5581,6 +5696,8 @@ class EnphaseEVClient:
         )
         try:
             data = await self._json("GET", url, headers=self._today_headers())
+        except EnphaseLoginWallUnauthorized:
+            raise
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE feature flags endpoint unavailable for site %s (unauthorized)",

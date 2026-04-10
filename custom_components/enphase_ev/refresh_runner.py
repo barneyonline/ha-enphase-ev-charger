@@ -8,8 +8,10 @@ from datetime import datetime
 from datetime import timezone as _tz
 from typing import TYPE_CHECKING, Callable
 
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
+from .api import EnphaseLoginWallUnauthorized
 from .const import DOMAIN, DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING
 from .log_redaction import redact_site_id, redact_text
 from .refresh_plan import RefreshPlan, bind_refresh_plan, warmup_plan
@@ -38,6 +40,14 @@ class RefreshRunner:
             if inspect.isawaitable(result):
                 await result
         except asyncio.CancelledError:
+            raise
+        except EnphaseLoginWallUnauthorized as err:
+            if self._coordinator._activate_auth_block_from_login_wall(err):
+                raise ConfigEntryAuthFailed(
+                    self._coordinator._blocked_auth_failure_message()
+                ) from err
+            raise ConfigEntryAuthFailed from err
+        except ConfigEntryAuthFailed:
             raise
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(

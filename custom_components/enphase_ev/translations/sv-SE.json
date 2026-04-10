@@ -1411,6 +1411,10 @@
       "title": "Enphase Energy behöver omautentisering",
       "description": "Plats {site_id} kräver uppdaterade sessionshuvuden. Vänligen omautentisera."
     },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+    },
     "rate_limited": {
       "title": "Enphase Energy är hastighetsbegränsad",
       "description": "Moln-API:et returnerade rate limiting. Pollningen kommer tillfälligt att sakta ner."
