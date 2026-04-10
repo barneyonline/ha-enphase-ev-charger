@@ -2604,8 +2604,11 @@ async def test_heatpump_runtime_helper_branches_and_resets(coordinator_factory) 
 
     runtime._type_device_buckets = {}  # noqa: SLF001
     runtime._type_device_order = []  # noqa: SLF001
+    now = time.monotonic()
     coord._heatpump_runtime_state = {"heatpump_status": "RUNNING"}  # noqa: SLF001
-    coord._heatpump_runtime_state_last_success_mono = 1.0  # noqa: SLF001
+    coord._heatpump_runtime_state_last_success_mono = (  # noqa: SLF001
+        now - heatpump_runtime_mod.HEATPUMP_RUNTIME_STATE_STALE_AFTER_S - 1.0
+    )
     coord._heatpump_runtime_state_last_success_utc = datetime.now(
         timezone.utc
     )  # noqa: SLF001
@@ -2615,7 +2618,9 @@ async def test_heatpump_runtime_helper_branches_and_resets(coordinator_factory) 
     assert coord.heatpump_runtime_state_last_success_utc is not None
 
     coord._heatpump_daily_consumption = {"daily_energy_wh": 12.0}  # noqa: SLF001
-    coord._heatpump_daily_consumption_last_success_mono = 1.0  # noqa: SLF001
+    coord._heatpump_daily_consumption_last_success_mono = (  # noqa: SLF001
+        now - heatpump_runtime_mod.HEATPUMP_DAILY_CONSUMPTION_STALE_AFTER_S - 1.0
+    )
     coord._heatpump_daily_consumption_last_success_utc = datetime.now(
         timezone.utc
     )  # noqa: SLF001
