@@ -193,6 +193,16 @@ class DiscoverySnapshotManager:
             "battery_has_enpower": getattr(
                 self.coordinator, "_battery_has_enpower", None
             ),
+            "heatpump_known_present": bool(
+                getattr(self.coordinator, "_heatpump_known_present", False)
+                or (
+                    isinstance(
+                        getattr(self.coordinator, "_type_device_buckets", None), dict
+                    )
+                    and "heatpump"
+                    in getattr(self.coordinator, "_type_device_buckets", {})
+                )
+            ),
             "site_energy_channels": sorted(site_energy_channels),
             "gateway_iq_energy_router_records": _snapshot_compatible_value(
                 router_records
@@ -282,6 +292,9 @@ class DiscoverySnapshotManager:
         has_enpower = _snapshot_bool(snapshot.get("battery_has_enpower"))
         if has_enpower is not None:
             self.coordinator._battery_has_enpower = has_enpower
+        heatpump_known_present = _snapshot_bool(snapshot.get("heatpump_known_present"))
+        if heatpump_known_present is not None:
+            self.coordinator._heatpump_known_present = heatpump_known_present
 
         restored_channels = snapshot.get("site_energy_channels")
         if isinstance(restored_channels, list):

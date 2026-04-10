@@ -483,9 +483,12 @@ class DummyCoordinator(SimpleNamespace):
         )
         self._heatpump_runtime_state_last_error = None
         self._heatpump_daily_consumption = {
-            "device_uid": "HP-1",
+            "device_uid": None,
+            "split_device_uid": "HP-1",
             "daily_energy_wh": 230.0,
-            "source": "hems_energy_consumption:HP-1",
+            "split_daily_energy_wh": 230.0,
+            "source": "site_today_heatpump",
+            "split_source": "hems_energy_consumption:HP-1",
         }
         self._heatpump_daily_consumption_using_stale = False
         self._heatpump_daily_consumption_last_success_utc = datetime(

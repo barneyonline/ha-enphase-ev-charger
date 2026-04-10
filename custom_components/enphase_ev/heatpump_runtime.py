@@ -78,6 +78,20 @@ class HeatpumpRuntime:
         except Exception:
             return False
 
+    def _heatpump_mark_known_present(self) -> None:
+        self._heatpump_known_present = True
+
+    def heatpump_entities_established(self) -> bool:
+        if self.has_type("heatpump"):
+            return True
+        if bool(getattr(self, "_heatpump_known_present", False)):
+            return True
+        if isinstance(getattr(self, "_heatpump_runtime_state", None), dict):
+            return True
+        if isinstance(getattr(self, "_heatpump_daily_consumption", None), dict):
+            return True
+        return self._heatpump_power_w is not None
+
     def _type_bucket_members(self, type_key: object) -> list[dict[str, object]]:
         normalized = normalize_type_key(type_key)
         if not normalized:
@@ -171,6 +185,21 @@ class HeatpumpRuntime:
         self._heatpump_daily_consumption = None
         self._heatpump_daily_consumption_using_stale = False
         self._heatpump_daily_consumption_last_error = error
+        return False
+
+    def _heatpump_mark_daily_split_stale(self, *, now: float, error: str) -> bool:
+        if self._heatpump_daily_split_available(
+            getattr(self, "_heatpump_daily_consumption", None)
+        ) and self._heatpump_snapshot_is_fresh(
+            self._heatpump_daily_split_last_success_mono,
+            HEATPUMP_DAILY_CONSUMPTION_STALE_AFTER_S,
+            now,
+        ):
+            self._heatpump_daily_split_using_stale = True
+            self._heatpump_daily_split_last_error = error
+            return True
+        self._heatpump_daily_split_using_stale = False
+        self._heatpump_daily_split_last_error = error
         return False
 
     def _heatpump_mark_power_stale(
@@ -287,6 +316,10 @@ class HeatpumpRuntime:
             self._heatpump_daily_consumption_backoff_until = None
             self._heatpump_daily_consumption_last_error = None
             self._heatpump_daily_consumption_cache_key = None
+            self._heatpump_daily_split_last_error = None
+            self._heatpump_daily_split_last_success_mono = None
+            self._heatpump_daily_split_last_success_utc = None
+            self._heatpump_daily_split_using_stale = False
             self._heatpump_power_snapshot = None
             return
 
@@ -425,7 +458,11 @@ class HeatpumpRuntime:
                 continue
             uid = type_member_text(member, "device_uid")
             if uid:
+                self._heatpump_mark_known_present()
                 return uid
+        snapshot = getattr(self, "_heatpump_runtime_state", None)
+        if isinstance(snapshot, dict):
+            return coerce_optional_text(snapshot.get("device_uid"))
         return None
 
     def _heatpump_runtime_member(self) -> dict[str, object] | None:
@@ -444,6 +481,16 @@ class HeatpumpRuntime:
     ) -> None:
         now = time.monotonic()
         if not self.has_type("heatpump"):
+            if self.heatpump_entities_established():
+                self._heatpump_mark_runtime_state_stale(
+                    now=now,
+                    error="Heat pump type temporarily missing from inventory",
+                )
+                self._heatpump_runtime_state_cache_until = (
+                    now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
+                )
+                self._heatpump_runtime_state_backoff_until = None
+                return
             self._heatpump_runtime_state = None
             self._heatpump_runtime_state_cache_until = None
             self._heatpump_runtime_state_backoff_until = None
@@ -467,24 +514,26 @@ class HeatpumpRuntime:
 
         await self._async_refresh_hems_support_preflight(force=force)
         if getattr(self.client, "hems_site_supported", None) is False:
-            self._heatpump_runtime_state = None
+            self._heatpump_mark_runtime_state_stale(
+                now=now,
+                error="HEMS runtime endpoint unavailable for this site",
+            )
             self._heatpump_runtime_state_cache_until = (
                 now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
             )
             self._heatpump_runtime_state_backoff_until = None
-            self._heatpump_runtime_state_last_error = None
-            self._heatpump_runtime_state_using_stale = False
             return
 
         device_uid = self._heatpump_runtime_device_uid()
         if not device_uid:
-            self._heatpump_runtime_state = None
+            self._heatpump_mark_runtime_state_stale(
+                now=now,
+                error="Heat pump runtime device UID temporarily unavailable",
+            )
             self._heatpump_runtime_state_cache_until = (
                 now + HEATPUMP_RUNTIME_STATE_CACHE_TTL
             )
             self._heatpump_runtime_state_backoff_until = None
-            self._heatpump_runtime_state_last_error = None
-            self._heatpump_runtime_state_using_stale = False
             return
 
         fetcher = getattr(self.client, "hems_heatpump_state", None)
@@ -525,6 +574,7 @@ class HeatpumpRuntime:
             snapshot.setdefault("device_state", heatpump_device_state(member))
         snapshot["source"] = f"hems_heatpump_state:{device_uid}"
         self._heatpump_runtime_state = snapshot
+        self._heatpump_mark_known_present()
         self._heatpump_runtime_state_last_error = None
         self._heatpump_runtime_state_using_stale = False
         self._heatpump_runtime_state_last_success_mono = now
@@ -635,78 +685,234 @@ class HeatpumpRuntime:
 
         return selected, member, first_bucket
 
-    def _build_heatpump_daily_consumption_snapshot(
-        self, payload: object
-    ) -> dict[str, object] | None:
-        selection = self._select_heatpump_energy_consumption_entry(payload)
-        if selection is None:
-            return None
-        selected, member, first_bucket = selection
-
-        daily_solar_wh = coerce_optional_float(first_bucket.get("solar"))
-        daily_battery_wh = coerce_optional_float(first_bucket.get("battery"))
-        daily_grid_wh = coerce_optional_float(first_bucket.get("grid"))
-        daily_energy_wh = self._sum_optional_values(first_bucket.get("details"))
-        if daily_energy_wh is None and all(
-            value is not None
-            for value in (daily_solar_wh, daily_battery_wh, daily_grid_wh)
+    @staticmethod
+    def _heatpump_daily_split_available(snapshot: object) -> bool:
+        if not isinstance(snapshot, dict):
+            return False
+        if snapshot.get("split_source") is not None:
+            return True
+        for key in (
+            "split_device_uid",
+            "split_device_name",
+            "split_daily_energy_wh",
+            "daily_solar_wh",
+            "daily_battery_wh",
+            "daily_grid_wh",
+            "split_endpoint_type",
+            "split_endpoint_timestamp",
         ):
-            daily_energy_wh = daily_solar_wh + daily_battery_wh + daily_grid_wh
+            if snapshot.get(key) is not None:
+                return True
+        details = snapshot.get("details")
+        return isinstance(details, list) and bool(details)
 
-        return {
-            "device_uid": selected.get("device_uid"),
-            "device_name": selected.get("device_name"),
-            "member_name": (
-                type_member_text(member, "name") if isinstance(member, dict) else None
-            ),
-            "member_device_type": (
-                heatpump_member_device_type(member)
-                if isinstance(member, dict)
+    @classmethod
+    def _heatpump_clear_daily_split_fields(cls, snapshot: dict[str, object]) -> None:
+        snapshot["split_device_uid"] = None
+        snapshot["split_device_name"] = None
+        snapshot["split_daily_energy_wh"] = None
+        snapshot["daily_solar_wh"] = None
+        snapshot["daily_battery_wh"] = None
+        snapshot["daily_grid_wh"] = None
+        snapshot["details"] = []
+        snapshot["split_source"] = None
+        snapshot["split_endpoint_type"] = None
+        snapshot["split_endpoint_timestamp"] = None
+
+    @classmethod
+    def _heatpump_copy_daily_split_fields(
+        cls, target: dict[str, object], source: object
+    ) -> bool:
+        if not cls._heatpump_daily_split_available(source):
+            cls._heatpump_clear_daily_split_fields(target)
+            return False
+        assert isinstance(source, dict)
+        for key in (
+            "split_device_uid",
+            "split_device_name",
+            "split_daily_energy_wh",
+            "daily_solar_wh",
+            "daily_battery_wh",
+            "daily_grid_wh",
+            "split_source",
+            "split_endpoint_type",
+            "split_endpoint_timestamp",
+        ):
+            target[key] = source.get(key)
+        target["details"] = (
+            list(source.get("details"))
+            if isinstance(source.get("details"), list)
+            else []
+        )
+        return True
+
+    def _build_heatpump_daily_consumption_snapshot(
+        self,
+        split_payload: object,
+        site_today_payload: object,
+    ) -> dict[str, object] | None:
+        site_today_total_wh = self._site_today_heatpump_total_wh(site_today_payload)
+        if site_today_total_wh is None:
+            return None
+        site_today_timestamp = (
+            site_today_payload.get("timestamp")
+            if isinstance(site_today_payload, dict)
+            else None
+        )
+        snapshot: dict[str, object] = {
+            "device_uid": None,
+            "device_name": None,
+            "split_device_uid": None,
+            "split_device_name": None,
+            "member_name": None,
+            "member_device_type": None,
+            "pairing_status": None,
+            "device_state": None,
+            "daily_energy_wh": site_today_total_wh,
+            "split_daily_energy_wh": None,
+            "daily_solar_wh": None,
+            "daily_battery_wh": None,
+            "daily_grid_wh": None,
+            "details": [],
+            "source": "site_today_heatpump",
+            "split_source": None,
+            "endpoint_type": (
+                site_today_payload.get("type")
+                if isinstance(site_today_payload, dict)
                 else None
             ),
-            "pairing_status": (
-                heatpump_pairing_status(member) if isinstance(member, dict) else None
-            ),
-            "device_state": (
-                heatpump_device_state(member) if isinstance(member, dict) else None
-            ),
-            "daily_energy_wh": daily_energy_wh,
-            "daily_solar_wh": daily_solar_wh,
-            "daily_battery_wh": daily_battery_wh,
-            "daily_grid_wh": daily_grid_wh,
-            "details": (
-                list(first_bucket.get("details"))
-                if isinstance(first_bucket.get("details"), list)
-                else []
-            ),
-            "source": (
-                f"hems_energy_consumption:{selected.get('device_uid')}"
-                if selected.get("device_uid")
-                else "hems_energy_consumption"
-            ),
-            "endpoint_type": (
-                payload.get("endpoint_type")
-                if payload.get("endpoint_type") is not None
-                else payload.get("type")
-            ),
-            "endpoint_timestamp": (
-                payload.get("endpoint_timestamp")
-                if payload.get("endpoint_timestamp") is not None
-                else payload.get("timestamp")
-            ),
+            "endpoint_timestamp": site_today_timestamp,
+            "split_endpoint_type": None,
+            "split_endpoint_timestamp": None,
             "sampled_at_utc": (
                 parsed.isoformat()
-                if (
-                    parsed := parse_inverter_last_report(
-                        payload.get("endpoint_timestamp")
-                        if payload.get("endpoint_timestamp") is not None
-                        else payload.get("timestamp")
-                    )
-                )
+                if (parsed := parse_inverter_last_report(site_today_timestamp))
                 is not None
                 else None
             ),
         }
+        selection = self._select_heatpump_energy_consumption_entry(split_payload)
+        if selection is None:
+            return snapshot
+
+        selected, member, first_bucket = selection
+        daily_solar_wh = coerce_optional_float(first_bucket.get("solar"))
+        daily_battery_wh = coerce_optional_float(first_bucket.get("battery"))
+        daily_grid_wh = coerce_optional_float(first_bucket.get("grid"))
+        split_daily_energy_wh = self._sum_optional_values(first_bucket.get("details"))
+        if split_daily_energy_wh is None and all(
+            value is not None
+            for value in (daily_solar_wh, daily_battery_wh, daily_grid_wh)
+        ):
+            split_daily_energy_wh = daily_solar_wh + daily_battery_wh + daily_grid_wh
+
+        snapshot.update(
+            {
+                "split_device_uid": selected.get("device_uid"),
+                "split_device_name": selected.get("device_name"),
+                "member_name": (
+                    type_member_text(member, "name")
+                    if isinstance(member, dict)
+                    else None
+                ),
+                "member_device_type": (
+                    heatpump_member_device_type(member)
+                    if isinstance(member, dict)
+                    else None
+                ),
+                "pairing_status": (
+                    heatpump_pairing_status(member)
+                    if isinstance(member, dict)
+                    else None
+                ),
+                "device_state": (
+                    heatpump_device_state(member) if isinstance(member, dict) else None
+                ),
+                "split_daily_energy_wh": split_daily_energy_wh,
+                "daily_solar_wh": daily_solar_wh,
+                "daily_battery_wh": daily_battery_wh,
+                "daily_grid_wh": daily_grid_wh,
+                "details": (
+                    list(first_bucket.get("details"))
+                    if isinstance(first_bucket.get("details"), list)
+                    else []
+                ),
+                "split_source": (
+                    f"hems_energy_consumption:{selected.get('device_uid')}"
+                    if selected.get("device_uid")
+                    else "hems_energy_consumption"
+                ),
+                "split_endpoint_type": (
+                    split_payload.get("endpoint_type")
+                    if isinstance(split_payload, dict)
+                    and split_payload.get("endpoint_type") is not None
+                    else (
+                        split_payload.get("type")
+                        if isinstance(split_payload, dict)
+                        else None
+                    )
+                ),
+                "split_endpoint_timestamp": (
+                    split_payload.get("endpoint_timestamp")
+                    if isinstance(split_payload, dict)
+                    and split_payload.get("endpoint_timestamp") is not None
+                    else (
+                        split_payload.get("timestamp")
+                        if isinstance(split_payload, dict)
+                        else None
+                    )
+                ),
+            }
+        )
+        return snapshot
+
+    @classmethod
+    def _site_today_heatpump_numeric_total(cls, value: object) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            total = 0.0
+            found = False
+            for nested in value.values():
+                nested_total = cls._site_today_heatpump_numeric_total(nested)
+                if nested_total is None:
+                    continue
+                total += nested_total
+                found = True
+            return total if found else None
+        if isinstance(value, list):
+            total = 0.0
+            found = False
+            for nested in value:
+                nested_total = cls._site_today_heatpump_numeric_total(nested)
+                if nested_total is None:
+                    continue
+                total += nested_total
+                found = True
+            return total if found else None
+        try:
+            numeric = float(value)
+        except Exception:
+            return None
+        if numeric != numeric or numeric in (float("inf"), float("-inf")):
+            return None
+        return numeric
+
+    @classmethod
+    def _site_today_heatpump_total_wh(cls, payload: object) -> float | None:
+        if not isinstance(payload, dict):
+            return None
+        stats = payload.get("stats")
+        if not isinstance(stats, list) or not stats:
+            return None
+        first_stat = next((item for item in stats if isinstance(item, dict)), None)
+        if not isinstance(first_stat, dict):
+            return None
+        for key in ("heatpump", "heat_pump", "heat-pump"):
+            total = cls._site_today_heatpump_numeric_total(first_stat.get(key))
+            if total is not None:
+                return total
+        return None
 
     @staticmethod
     def _heatpump_runtime_mode(snapshot: object) -> str | None:
@@ -725,9 +931,11 @@ class HeatpumpRuntime:
     ) -> dict[str, object] | None:
         if not isinstance(snapshot, dict):
             return None
+        if not self._heatpump_daily_split_available(snapshot):
+            return None
         details = snapshot.get("details")
         detail_value = self._first_optional_numeric_value(details)
-        device_uid = coerce_optional_text(snapshot.get("device_uid"))
+        device_uid = coerce_optional_text(snapshot.get("split_device_uid"))
         runtime_mode = self._heatpump_runtime_mode(runtime_snapshot)
         is_running = runtime_mode == "RUNNING"
         is_idle = runtime_mode in {"IDLE", "OFF", "STOPPED", "STANDBY"}
@@ -773,14 +981,15 @@ class HeatpumpRuntime:
                 round(accepted_value, 3) if accepted_value is not None else None
             ),
             "daily_energy_wh": snapshot.get("daily_energy_wh"),
+            "split_daily_energy_wh": snapshot.get("split_daily_energy_wh"),
             "daily_solar_wh": snapshot.get("daily_solar_wh"),
             "daily_battery_wh": snapshot.get("daily_battery_wh"),
             "daily_grid_wh": snapshot.get("daily_grid_wh"),
             "runtime_mode": runtime_mode,
             "validation": validation,
             "rejected": rejected,
-            "endpoint_timestamp": snapshot.get("endpoint_timestamp"),
-            "endpoint_type": snapshot.get("endpoint_type"),
+            "endpoint_timestamp": snapshot.get("split_endpoint_timestamp"),
+            "endpoint_type": snapshot.get("split_endpoint_type"),
             "source": (
                 f"hems_energy_consumption:{self._debug_truncate_identifier(device_uid)}"
                 if device_uid
@@ -794,6 +1003,20 @@ class HeatpumpRuntime:
     ) -> None:
         now = time.monotonic()
         if not self.has_type("heatpump"):
+            if self.heatpump_entities_established():
+                self._heatpump_mark_daily_consumption_stale(
+                    now=now,
+                    error="Heat pump type temporarily missing from inventory",
+                )
+                self._heatpump_mark_daily_split_stale(
+                    now=now,
+                    error="Heat pump type temporarily missing from inventory",
+                )
+                self._heatpump_daily_consumption_cache_until = (
+                    now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
+                )
+                self._heatpump_daily_consumption_backoff_until = None
+                return
             self._heatpump_daily_consumption = None
             self._heatpump_daily_consumption_cache_until = None
             self._heatpump_daily_consumption_backoff_until = None
@@ -802,6 +1025,10 @@ class HeatpumpRuntime:
             self._heatpump_daily_consumption_last_success_mono = None
             self._heatpump_daily_consumption_last_success_utc = None
             self._heatpump_daily_consumption_using_stale = False
+            self._heatpump_daily_split_last_error = None
+            self._heatpump_daily_split_last_success_mono = None
+            self._heatpump_daily_split_last_success_utc = None
+            self._heatpump_daily_split_using_stale = False
             return
 
         window = self._heatpump_daily_window()
@@ -823,29 +1050,15 @@ class HeatpumpRuntime:
         ):
             return
 
-        await self._async_refresh_hems_support_preflight(force=force)
-        if getattr(self.client, "hems_site_supported", None) is False:
-            self._heatpump_daily_consumption = None
-            self._heatpump_daily_consumption_cache_until = (
-                now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
-            )
-            self._heatpump_daily_consumption_backoff_until = None
-            self._heatpump_daily_consumption_last_error = None
-            self._heatpump_daily_consumption_cache_key = marker
-            self._heatpump_daily_consumption_using_stale = False
+        split_fetcher = getattr(self.client, "hems_energy_consumption", None)
+        site_today_fetcher = getattr(self.client, "pv_system_today", None)
+        if not callable(site_today_fetcher):
             return
 
-        fetcher = getattr(self.client, "hems_energy_consumption", None)
-        if not callable(fetcher):
-            return
-
+        split_payload: object = None
+        split_error: str | None = None
         try:
-            payload = await fetcher(
-                start_at=start_at,
-                end_at=end_at,
-                timezone=tz_name,
-                step="P1D",
-            )
+            site_today_payload = await site_today_fetcher()
         except Exception as err:  # noqa: BLE001
             error = (
                 redact_text(
@@ -865,28 +1078,79 @@ class HeatpumpRuntime:
             self._heatpump_daily_consumption_cache_key = marker
             return
 
+        if callable(split_fetcher):
+            try:
+                split_payload = await split_fetcher(
+                    start_at=start_at,
+                    end_at=end_at,
+                    timezone=tz_name,
+                    step="P1D",
+                )
+            except Exception as err:  # noqa: BLE001
+                split_error = (
+                    redact_text(
+                        err,
+                        site_ids=(self.site_id,),
+                        identifiers=self._heatpump_power_redaction_identifiers(
+                            self._heatpump_runtime_device_uid()
+                        ),
+                    )
+                    or err.__class__.__name__
+                )
+        else:
+            split_error = "HEMS daily split endpoint unavailable"
+
         self._heatpump_daily_consumption_cache_until = (
             now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
         )
         self._heatpump_daily_consumption_backoff_until = None
         self._heatpump_daily_consumption_cache_key = marker
-        if not isinstance(payload, dict):
+        if not isinstance(site_today_payload, dict):
             self._heatpump_mark_daily_consumption_stale(
                 now=now,
-                error="No usable HEMS daily-consumption payload",
+                error="No usable site today heat-pump payload",
             )
             return
 
-        snapshot = self._build_heatpump_daily_consumption_snapshot(payload)
+        snapshot = self._build_heatpump_daily_consumption_snapshot(
+            split_payload,
+            site_today_payload,
+        )
         if snapshot is None:
             self._heatpump_mark_daily_consumption_stale(
                 now=now,
-                error="No usable HEMS daily-consumption payload",
+                error="No usable site today heat-pump payload",
             )
             return
+        if split_error is None and not self._heatpump_daily_split_available(snapshot):
+            split_error = "No usable HEMS daily split payload"
+        if split_error is None:
+            self._heatpump_daily_split_last_error = None
+            self._heatpump_daily_split_using_stale = False
+            self._heatpump_daily_split_last_success_mono = now
+            self._heatpump_daily_split_last_success_utc = dt_util.utcnow()
+        else:
+            previous_snapshot = getattr(self, "_heatpump_daily_consumption", None)
+            same_day = bool(
+                isinstance(previous_snapshot, dict)
+                and previous_snapshot.get("day_key") == marker[0]
+                and previous_snapshot.get("timezone") == marker[1]
+            )
+            used_stale_split = same_day and self._heatpump_mark_daily_split_stale(
+                now=now,
+                error=split_error,
+            )
+            if used_stale_split:
+                self._heatpump_copy_daily_split_fields(snapshot, previous_snapshot)
+            else:
+                self._heatpump_clear_daily_split_fields(snapshot)
+                if not same_day:
+                    self._heatpump_daily_split_using_stale = False
+                    self._heatpump_daily_split_last_error = split_error
         snapshot["day_key"] = marker[0]
         snapshot["timezone"] = marker[1]
         self._heatpump_daily_consumption = snapshot
+        self._heatpump_mark_known_present()
         self._heatpump_daily_consumption_last_error = None
         self._heatpump_daily_consumption_using_stale = False
         self._heatpump_daily_consumption_last_success_mono = now
@@ -1340,6 +1604,16 @@ class HeatpumpRuntime:
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         now = time.monotonic()
         if not self.has_type("heatpump"):
+            if self.heatpump_entities_established():
+                self._heatpump_mark_power_stale(
+                    now=now,
+                    error="Heat pump type temporarily missing from inventory",
+                )
+                self._heatpump_power_cache_until = (
+                    now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
+                )
+                self._heatpump_power_backoff_until = None
+                return
             self._heatpump_power_w = None
             self._heatpump_power_sample_utc = None
             self._heatpump_power_start_utc = None
@@ -1363,24 +1637,29 @@ class HeatpumpRuntime:
 
         await self._async_refresh_hems_support_preflight(force=force)
         if getattr(self.client, "hems_site_supported", None) is False:
-            self._heatpump_power_w = None
-            self._heatpump_power_sample_utc = None
-            self._heatpump_power_start_utc = None
-            self._heatpump_power_device_uid = None
-            self._heatpump_power_source = None
+            error = "HEMS power endpoint unavailable for this site"
+            self._heatpump_mark_power_stale(
+                now=now,
+                error=error,
+            )
             self._heatpump_power_snapshot = {
                 "site_date": self._site_local_current_date(),
                 "force": force,
                 "outcome": "unsupported_site",
-                "using_stale": False,
-                "last_success_utc": None,
+                "using_stale": bool(
+                    getattr(self, "_heatpump_power_using_stale", False)
+                ),
+                "last_success_utc": (
+                    self._heatpump_power_last_success_utc.isoformat()
+                    if isinstance(self._heatpump_power_last_success_utc, datetime)
+                    else None
+                ),
+                "last_error": error,
             }
             self._heatpump_power_cache_until = (
                 now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
             )
             self._heatpump_power_backoff_until = None
-            self._heatpump_power_last_error = None
-            self._heatpump_power_using_stale = False
             self._heatpump_power_selection_marker = None
             return
 
@@ -1463,7 +1742,7 @@ class HeatpumpRuntime:
             return
 
         daily_last_error = coerce_optional_text(
-            getattr(self, "_heatpump_daily_consumption_last_error", None)
+            getattr(self, "_heatpump_daily_split_last_error", None)
         )
         power_summary = self._heatpump_power_summary_from_daily_snapshot(
             getattr(self, "_heatpump_daily_consumption", None),
@@ -1529,12 +1808,12 @@ class HeatpumpRuntime:
 
         snapshot = getattr(self, "_heatpump_daily_consumption", None)
         device_uid = (
-            coerce_optional_text(snapshot.get("device_uid"))
+            coerce_optional_text(snapshot.get("split_device_uid"))
             if isinstance(snapshot, dict)
             else None
         )
         endpoint_timestamp = (
-            parse_inverter_last_report(snapshot.get("endpoint_timestamp"))
+            parse_inverter_last_report(snapshot.get("split_endpoint_timestamp"))
             if isinstance(snapshot, dict)
             else None
         )
@@ -1543,8 +1822,8 @@ class HeatpumpRuntime:
         self._heatpump_power_start_utc = None
         self._heatpump_power_device_uid = device_uid
         self._heatpump_power_source = (
-            str(snapshot.get("source")).strip()
-            if isinstance(snapshot, dict) and snapshot.get("source") is not None
+            str(snapshot.get("split_source")).strip()
+            if isinstance(snapshot, dict) and snapshot.get("split_source") is not None
             else "hems_energy_consumption"
         )
         self._heatpump_power_cache_until = getattr(
@@ -1553,14 +1832,15 @@ class HeatpumpRuntime:
         self._heatpump_power_backoff_until = None
         self._heatpump_power_last_error = daily_last_error
         self._heatpump_power_using_stale = bool(
-            getattr(self, "_heatpump_daily_consumption_using_stale", False)
+            getattr(self, "_heatpump_daily_split_using_stale", False)
         )
         self._heatpump_power_last_success_mono = getattr(
-            self, "_heatpump_daily_consumption_last_success_mono", now
+            self, "_heatpump_daily_split_last_success_mono", now
         )
         self._heatpump_power_last_success_utc = getattr(
-            self, "_heatpump_daily_consumption_last_success_utc", dt_util.utcnow()
+            self, "_heatpump_daily_split_last_success_utc", dt_util.utcnow()
         )
+        self._heatpump_mark_known_present()
         self._heatpump_power_selection_marker = marker if device_uid else None
         power_snapshot["selected_payload"] = dict(power_summary)
         power_snapshot["selected_source"] = (
@@ -1656,6 +1936,9 @@ class HeatpumpRuntime:
             "runtime_state_last_error": getattr(
                 self, "_heatpump_runtime_state_last_error", None
             ),
+            "heatpump_known_present": bool(
+                getattr(self, "_heatpump_known_present", False)
+            ),
             "daily_consumption": self._copy_diagnostics_value(
                 getattr(self, "_heatpump_daily_consumption", None)
             ),
@@ -1674,6 +1957,22 @@ class HeatpumpRuntime:
             ),
             "daily_consumption_last_error": getattr(
                 self, "_heatpump_daily_consumption_last_error", None
+            ),
+            "daily_split_using_stale": bool(
+                getattr(self, "_heatpump_daily_split_using_stale", False)
+            ),
+            "daily_split_last_success_utc": (
+                getattr(
+                    self, "_heatpump_daily_split_last_success_utc", None
+                ).isoformat()
+                if isinstance(
+                    getattr(self, "_heatpump_daily_split_last_success_utc", None),
+                    datetime,
+                )
+                else None
+            ),
+            "daily_split_last_error": getattr(
+                self, "_heatpump_daily_split_last_error", None
             ),
             "show_livestream_payload": self._copy_diagnostics_value(
                 getattr(self, "_show_livestream_payload", None)
@@ -1750,6 +2049,26 @@ class HeatpumpRuntime:
     @property
     def heatpump_daily_consumption_last_success_utc(self) -> datetime | None:
         value = getattr(self, "_heatpump_daily_consumption_last_success_utc", None)
+        return value if isinstance(value, datetime) else None
+
+    @property
+    def heatpump_daily_split_last_error(self) -> str | None:
+        value = getattr(self, "_heatpump_daily_split_last_error", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:
+            return None
+        return text or None
+
+    @property
+    def heatpump_daily_split_using_stale(self) -> bool:
+        return bool(getattr(self, "_heatpump_daily_split_using_stale", False))
+
+    @property
+    def heatpump_daily_split_last_success_utc(self) -> datetime | None:
+        value = getattr(self, "_heatpump_daily_split_last_success_utc", None)
         return value if isinstance(value, datetime) else None
 
     @property
