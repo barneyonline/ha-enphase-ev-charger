@@ -2273,6 +2273,31 @@ async def test_dtg_schedule_enabled_uses_in_place_put(
 
 
 @pytest.mark.asyncio
+async def test_dtg_schedule_enabled_true_uses_richer_battery_settings_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+
+    await coord.async_set_discharge_to_grid_schedule_enabled(True)
+
+    coord.client.update_battery_schedule.assert_not_awaited()
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": True,
+                "scheduleSupported": True,
+                "startTime": 1080,
+                "endTime": 1380,
+            }
+        },
+        schedule_type="dtg",
+    )
+    assert coord._battery_dtg_schedule_enabled is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_dtg_schedule_time_update_omits_enabled_flag(
     coordinator_factory,
 ) -> None:
