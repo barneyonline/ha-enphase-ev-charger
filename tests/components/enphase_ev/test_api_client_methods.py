@@ -4753,6 +4753,49 @@ async def test_pv_system_today_optional_failures_return_none() -> None:
     client._json = AsyncMock(side_effect=_make_cre(404))
     assert await client.pv_system_today() is None
 
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(403))
+    assert await client.pv_system_today() is None
+
+
+def test_normalize_pv_system_today_payload_edge_cases() -> None:
+    assert api.EnphaseEVClient._normalize_pv_system_today_payload(None) is None
+    assert api.EnphaseEVClient._normalize_pv_system_today_payload(
+        {
+            "stats": [
+                "skip-me",
+                {"other": 1},
+                {"heat-pump": [1, 2, 3]},
+            ]
+        }
+    ) == {
+        "stats": [
+            {"other": 1},
+            {"heat-pump": [1, 2, 3], "heatpump": [1, 2, 3]},
+        ]
+    }
+
+
+@pytest.mark.asyncio
+async def test_pv_system_today_reraises_non_optional_failures() -> None:
+    client = _make_client()
+    invalid_json = api.InvalidPayloadError(
+        "Invalid JSON response",
+        status=200,
+        content_type="application/json",
+        endpoint="/pv/systems/SITE/today",
+    )
+    client._json = AsyncMock(side_effect=invalid_json)
+
+    with pytest.raises(api.InvalidPayloadError):
+        await client.pv_system_today()
+
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(500))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.pv_system_today()
+
 
 @pytest.mark.asyncio
 async def test_hems_devices_uses_dedicated_endpoint_and_headers() -> None:
