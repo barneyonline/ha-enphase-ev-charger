@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Confirmer la migration de l’historique Envoy",
-        "description": "Les entités source sélectionnées seront renommées avec des identifiants d’entité hérités archivés.\n\nLes entités Enphase Energy seront ensuite renommées avec les identifiants d’entité source d’origine.\n\nSi une association est incorrecte, annulez maintenant. Restaurer depuis une sauvegarde est la solution de retour arrière la plus sûre.\n\n{mapping_preview}",
+        "description": "Les entités source sélectionnées seront renommées avec des identifiants d’entité hérités archivés.\n\nLes entités Enphase Energy seront ensuite renommées avec les identifiants d’entité source d’origine.\n\nSi une association est incorrecte, annulez maintenant. Restaurer depuis une sauvegarde est la solution de retour arrière la plus sûre.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Je comprends que les identifiants d’entité source sélectionnés seront réattribués",
           "disable_archived_envoy_sensors": "Désactiver les capteurs source archivés après la migration"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Sélectionnez au moins un capteur d’énergie compatible à migrer.",
       "migration_duplicate_selection": "La même entité source ne peut pas être utilisée plus d’une fois.",
       "envoy_entry_loaded": "L’intégration Envoy n’a pas pu être temporairement déchargée pour la migration.",
-      "incompatible_energy_total": "Les entités sélectionnées ne sont pas des totaux d’énergie compatibles.",
-      "new_value_lower": "La nouvelle valeur du capteur est inférieure à la valeur Envoy existante."
+      "incompatible_energy_total": "Les entités sélectionnées ne sont pas des totaux d’énergie compatibles."
     },
     "abort": {
       "migration_no_envoy_sources": "Aucun capteur d’énergie Enphase Envoy n’est disponible pour la migration.",

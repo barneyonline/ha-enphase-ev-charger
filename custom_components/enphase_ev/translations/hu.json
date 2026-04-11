@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Envoy előzmény-migráció megerősítése",
-        "description": "A kiválasztott forrásentitások archivált örökölt entitásazonosítókra lesznek átnevezve.\n\nEzután az Enphase Energy entitások az eredeti forrásentitás-azonosítókra lesznek átnevezve.\n\nHa bármelyik párosítás hibás, most szakítsa meg. A biztonsági mentésből való visszaállítás a legbiztonságosabb visszaállítási mód.\n\n{mapping_preview}",
+        "description": "A kiválasztott forrásentitások archivált örökölt entitásazonosítókra lesznek átnevezve.\n\nEzután az Enphase Energy entitások az eredeti forrásentitás-azonosítókra lesznek átnevezve.\n\nHa bármelyik párosítás hibás, most szakítsa meg. A biztonsági mentésből való visszaállítás a legbiztonságosabb visszaállítási mód.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Megértettem, hogy a kiválasztott forrásentitás-azonosítók újra lesznek rendelve",
           "disable_archived_envoy_sensors": "Az archivált forrásérzékelők letiltása a migráció után"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Válasszon ki legalább egy kompatibilis energiaérzékelőt a migrációhoz.",
       "migration_duplicate_selection": "Ugyanaz a forrásentitás nem használható fel többször.",
       "envoy_entry_loaded": "Az Envoy integrációt nem sikerült ideiglenesen leállítani a migrációhoz.",
-      "incompatible_energy_total": "A kiválasztott entitások nem kompatibilis halmozott energiaösszegek.",
-      "new_value_lower": "Az új érzékelőérték alacsonyabb, mint a meglévő Envoy érték."
+      "incompatible_energy_total": "A kiválasztott entitások nem kompatibilis halmozott energiaösszegek."
     },
     "abort": {
       "migration_no_envoy_sources": "Nincsenek elérhető Enphase Envoy energiaérzékelők a migrációhoz.",
