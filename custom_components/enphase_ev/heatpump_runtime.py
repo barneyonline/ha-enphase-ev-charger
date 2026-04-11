@@ -48,6 +48,8 @@ if TYPE_CHECKING:  # pragma: no cover
 _LOGGER = logging.getLogger(__name__)
 
 _HEATPUMP_IDLE_POWER_MAX_W = 20.0
+_HEATPUMP_POWER_DEFAULT_WINDOW_S = 300.0
+_HEATPUMP_POWER_MIN_DELTA_WH = 0.5
 
 
 class HeatpumpRuntime:
@@ -933,26 +935,98 @@ class HeatpumpRuntime:
             return None
         if not self._heatpump_daily_split_available(snapshot):
             return None
-        details = snapshot.get("details")
-        detail_value = self._first_optional_numeric_value(details)
         device_uid = coerce_optional_text(snapshot.get("split_device_uid"))
+        day_key = coerce_optional_text(snapshot.get("day_key"))
         runtime_mode = self._heatpump_runtime_mode(runtime_snapshot)
-        is_running = runtime_mode == "RUNNING"
         is_idle = runtime_mode in {"IDLE", "OFF", "STOPPED", "STANDBY"}
-        accepted_value = detail_value
-        validation = "accepted"
+        current_energy_wh = coerce_optional_float(snapshot.get("split_daily_energy_wh"))
+        current_sample_utc = parse_inverter_last_report(
+            snapshot.get("split_endpoint_timestamp")
+        )
+        previous_snapshot = getattr(self, "_heatpump_daily_consumption_previous", None)
+        previous_energy_wh = (
+            coerce_optional_float(previous_snapshot.get("split_daily_energy_wh"))
+            if isinstance(previous_snapshot, dict)
+            else None
+        )
+        previous_device_uid = (
+            coerce_optional_text(previous_snapshot.get("split_device_uid"))
+            if isinstance(previous_snapshot, dict)
+            else None
+        )
+        previous_day_key = (
+            coerce_optional_text(previous_snapshot.get("day_key"))
+            if isinstance(previous_snapshot, dict)
+            else None
+        )
+        previous_sample_utc = (
+            parse_inverter_last_report(
+                previous_snapshot.get("split_endpoint_timestamp")
+            )
+            if isinstance(previous_snapshot, dict)
+            else None
+        )
+        accepted_value = None
         rejected = False
+        validation = "accepted_delta"
+        window_s = None
+        series_start_utc = None
 
-        if detail_value is None or detail_value <= 0:
-            if is_running:
-                rejected = True
-                validation = "rejected_running_zero_or_missing"
-            else:
+        if current_energy_wh is None or current_sample_utc is None:
+            if is_idle:
                 accepted_value = 0.0
-                validation = "accepted_zero"
-        elif is_idle and detail_value > _HEATPUMP_IDLE_POWER_MAX_W:
-            accepted_value = 0.0
-            validation = "coerced_idle_high_to_zero"
+                validation = "accepted_idle_without_delta"
+            else:
+                rejected = True
+                validation = "rejected_missing_energy_baseline"
+        elif (
+            previous_energy_wh is None
+            or previous_sample_utc is None
+            or previous_day_key != day_key
+            or previous_device_uid != device_uid
+        ):
+            if is_idle:
+                accepted_value = 0.0
+                validation = "accepted_idle_seeded"
+            else:
+                rejected = True
+                validation = "seeded_waiting_for_delta"
+        else:
+            window_s = (current_sample_utc - previous_sample_utc).total_seconds()
+            series_start_utc = previous_sample_utc
+            if window_s <= 0:
+                if is_idle:
+                    accepted_value = 0.0
+                    validation = "accepted_idle_repeated_sample"
+                else:
+                    rejected = True
+                    validation = "repeated_sample"
+            else:
+                delta_wh = current_energy_wh - previous_energy_wh
+                if delta_wh < 0:
+                    if is_idle:
+                        accepted_value = 0.0
+                        validation = "accepted_idle_reset"
+                    else:
+                        rejected = True
+                        validation = "rejected_energy_reset"
+                elif delta_wh <= _HEATPUMP_POWER_MIN_DELTA_WH:
+                    accepted_value = 0.0
+                    validation = (
+                        "accepted_idle_zero" if is_idle else "accepted_zero_delta"
+                    )
+                else:
+                    effective_window_s = (
+                        window_s if window_s > 0 else _HEATPUMP_POWER_DEFAULT_WINDOW_S
+                    )
+                    candidate_value = (delta_wh * 3600.0) / effective_window_s
+                    if is_idle and candidate_value > _HEATPUMP_IDLE_POWER_MAX_W:
+                        accepted_value = 0.0
+                        validation = "coerced_idle_high_to_zero"
+                    else:
+                        accepted_value = candidate_value
+                        if is_idle:
+                            validation = "accepted_idle_delta"
 
         summary: dict[str, object] = {
             "requested_device_ref": (
@@ -973,13 +1047,17 @@ class HeatpumpRuntime:
                 else None
             ),
             "recommended": self._heatpump_power_candidate_is_recommended(device_uid),
-            "detail_count": len(details) if isinstance(details, list) else 0,
+            "detail_count": 1 if current_energy_wh is not None else 0,
             "reported_detail_value": (
-                round(detail_value, 3) if detail_value is not None else None
+                round(current_energy_wh, 3) if current_energy_wh is not None else None
             ),
             "accepted_value_w": (
                 round(accepted_value, 3) if accepted_value is not None else None
             ),
+            "previous_detail_value": (
+                round(previous_energy_wh, 3) if previous_energy_wh is not None else None
+            ),
+            "window_seconds": round(window_s, 3) if window_s is not None else None,
             "daily_energy_wh": snapshot.get("daily_energy_wh"),
             "split_daily_energy_wh": snapshot.get("split_daily_energy_wh"),
             "daily_solar_wh": snapshot.get("daily_solar_wh"),
@@ -988,12 +1066,15 @@ class HeatpumpRuntime:
             "runtime_mode": runtime_mode,
             "validation": validation,
             "rejected": rejected,
+            "series_start_utc": (
+                series_start_utc.isoformat() if series_start_utc is not None else None
+            ),
             "endpoint_timestamp": snapshot.get("split_endpoint_timestamp"),
             "endpoint_type": snapshot.get("split_endpoint_type"),
             "source": (
-                f"hems_energy_consumption:{self._debug_truncate_identifier(device_uid)}"
+                f"hems_energy_consumption_delta:{self._debug_truncate_identifier(device_uid)}"
                 if device_uid
-                else "hems_energy_consumption"
+                else "hems_energy_consumption_delta"
             ),
         }
         return summary
@@ -1112,6 +1193,7 @@ class HeatpumpRuntime:
             )
             return
 
+        previous_snapshot = getattr(self, "_heatpump_daily_consumption", None)
         snapshot = self._build_heatpump_daily_consumption_snapshot(
             split_payload,
             site_today_payload,
@@ -1149,6 +1231,9 @@ class HeatpumpRuntime:
                     self._heatpump_daily_split_last_error = split_error
         snapshot["day_key"] = marker[0]
         snapshot["timezone"] = marker[1]
+        self._heatpump_daily_consumption_previous = (
+            dict(previous_snapshot) if isinstance(previous_snapshot, dict) else None
+        )
         self._heatpump_daily_consumption = snapshot
         self._heatpump_mark_known_present()
         self._heatpump_daily_consumption_last_error = None
@@ -1785,7 +1870,9 @@ class HeatpumpRuntime:
             return
 
         if bool(power_summary.get("rejected")):
-            error = str(power_summary.get("validation") or "rejected_bad_power_value")
+            error = daily_last_error or str(
+                power_summary.get("validation") or "rejected_bad_power_value"
+            )
             power_snapshot["last_error"] = error
             power_snapshot["outcome"] = "rejected_value"
             self._heatpump_mark_power_stale(
@@ -1819,12 +1906,14 @@ class HeatpumpRuntime:
         )
         self._heatpump_power_w = float(power_summary.get("accepted_value_w") or 0.0)
         self._heatpump_power_sample_utc = endpoint_timestamp
-        self._heatpump_power_start_utc = None
+        self._heatpump_power_start_utc = parse_inverter_last_report(
+            power_summary.get("series_start_utc")
+        )
         self._heatpump_power_device_uid = device_uid
         self._heatpump_power_source = (
-            str(snapshot.get("split_source")).strip()
-            if isinstance(snapshot, dict) and snapshot.get("split_source") is not None
-            else "hems_energy_consumption"
+            f"hems_energy_consumption_delta:{device_uid}"
+            if device_uid
+            else "hems_energy_consumption_delta"
         )
         self._heatpump_power_cache_until = getattr(
             self, "_heatpump_daily_consumption_cache_until", None
@@ -1844,9 +1933,9 @@ class HeatpumpRuntime:
         self._heatpump_power_selection_marker = marker if device_uid else None
         power_snapshot["selected_payload"] = dict(power_summary)
         power_snapshot["selected_source"] = (
-            f"hems_energy_consumption:{self._debug_truncate_identifier(device_uid)}"
+            f"hems_energy_consumption_delta:{self._debug_truncate_identifier(device_uid)}"
             if device_uid
-            else "hems_energy_consumption"
+            else "hems_energy_consumption_delta"
         )
         power_snapshot["selected_sample_at_utc"] = (
             endpoint_timestamp.isoformat() if endpoint_timestamp is not None else None
