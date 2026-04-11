@@ -2291,7 +2291,10 @@ class EnphaseEVClient:
         return "unknown"
 
     def _battery_config_header_debug_flags(
-        self, headers: dict[str, str]
+        self,
+        headers: dict[str, str],
+        *,
+        auth_source_override: str | None = None,
     ) -> dict[str, object]:
         """Return safe debug flags describing BatteryConfig auth-header shape."""
 
@@ -2305,7 +2308,9 @@ class EnphaseEVClient:
         elif eauth:
             auth_mode = "eauth_only"
 
-        auth_source = self._battery_config_auth_source_label(bearer or eauth)
+        auth_source = auth_source_override or self._battery_config_auth_source_label(
+            bearer or eauth
+        )
         if auth_mode == "dual_mismatch":
             auth_source = "mixed"
 
@@ -2318,6 +2323,23 @@ class EnphaseEVClient:
             "auth_mode": auth_mode,
             "auth_source": auth_source,
         }
+
+    @staticmethod
+    def _merge_request_headers(
+        base_headers: dict[str, str],
+        extra_headers: dict[str, str | None] | None,
+    ) -> dict[str, str]:
+        """Merge request headers, treating ``None`` values as explicit removals."""
+
+        merged = dict(base_headers)
+        if not isinstance(extra_headers, dict):
+            return merged
+        for header_key, header_value in extra_headers.items():
+            if header_value is None:
+                merged.pop(header_key, None)
+            else:
+                merged[header_key] = header_value
+        return merged
 
     def _battery_config_auth_context(self) -> tuple[str | None, str | None]:
         """Return preferred BatteryConfig auth token and resolved user id.
@@ -2383,19 +2405,19 @@ class EnphaseEVClient:
         include_xsrf: bool = False,
         auth_style: str = "default",
         token_override: str | None = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, str | None]:
         """Return headers for BatteryConfig read/write calls."""
 
-        headers = dict(self._h)
+        headers: dict[str, str | None] = dict(self._h)
         if auth_style == "external_compatible":
             token = token_override or self._battery_config_single_auth_token()
             user_id = self._battery_config_user_id_for_token(token)
-            headers.pop("Authorization", None)
-            headers.pop("X-CSRF-Token", None)
+            headers["Authorization"] = None
+            headers["X-CSRF-Token"] = None
             if token:
                 headers["e-auth-token"] = token
             else:
-                headers.pop("e-auth-token", None)
+                headers["e-auth-token"] = None
         else:
             token, user_id = self._battery_config_auth_context()
             if token:
@@ -2420,7 +2442,7 @@ class EnphaseEVClient:
                 if auth_style != "external_compatible":
                     headers["X-CSRF-Token"] = xsrf
                 else:
-                    headers.pop("X-CSRF-Token", None)
+                    headers["X-CSRF-Token"] = None
         return headers
 
     def _battery_schedule_validation_payload(
@@ -2608,6 +2630,11 @@ class EnphaseEVClient:
                     or retry_headers.get("e-auth-token")
                     or _authorization_bearer_token(retry_headers)
                 )
+                retry_auth_source = (
+                    "legacy_jwt_token"
+                    if legacy_token
+                    else self._battery_config_auth_source_label(retry_token)
+                )
                 retry_params = self._battery_config_retry_params(
                     url,
                     params,
@@ -2615,17 +2642,20 @@ class EnphaseEVClient:
                 )
                 if retry_headers == headers and retry_params == params:
                     raise
+                merged_retry_headers = self._merge_request_headers(
+                    self._h, retry_headers
+                )
+                retry_header_flags = self._battery_config_header_debug_flags(
+                    merged_retry_headers,
+                    auth_source_override=retry_auth_source,
+                )
                 _LOGGER.debug(
                     "Retrying BatteryConfig write for %s with external-compatible auth shape "
                     "(auth_source=%s, has_authorization=%s, has_x_csrf_token=%s, params_changed=%s)",
                     _request_label(method, url),
-                    (
-                        "legacy_jwt_token"
-                        if legacy_token
-                        else self._battery_config_auth_source_label(retry_token)
-                    ),
-                    "Authorization" in retry_headers,
-                    "X-CSRF-Token" in retry_headers,
+                    retry_header_flags["auth_source"],
+                    retry_header_flags["has_authorization"],
+                    retry_header_flags["has_x_csrf_token"],
                     retry_params != params,
                 )
                 return await self._json(
@@ -2634,6 +2664,7 @@ class EnphaseEVClient:
                     json=json_body,
                     headers=retry_headers,
                     params=retry_params,
+                    debug_auth_source=retry_auth_source,
                 )
         finally:
             self._bp_xsrf_token = None
@@ -3023,6 +3054,7 @@ class EnphaseEVClient:
         auth-sensitive headers after a successful reauthentication callback.
         """
         extra_headers = kwargs.pop("headers", None)
+        debug_auth_source = kwargs.pop("debug_auth_source", None)
         attempt = 0
         request_label = _request_label(method, url)
         endpoint = ""
@@ -3037,11 +3069,9 @@ class EnphaseEVClient:
             else:
                 attempt_headers = extra_headers
             if isinstance(attempt_headers, dict):
-                for header_key, header_value in attempt_headers.items():
-                    if header_value is None:
-                        base_headers.pop(header_key, None)
-                    else:
-                        base_headers[header_key] = header_value
+                base_headers = self._merge_request_headers(
+                    base_headers, attempt_headers
+                )
 
             async with _enlighten_read_request_guard(method, url):
                 async with asyncio.timeout(self._timeout):
@@ -3136,7 +3166,8 @@ class EnphaseEVClient:
                                         )
                                     }
                                 header_flags = self._battery_config_header_debug_flags(
-                                    base_headers
+                                    base_headers,
+                                    auth_source_override=debug_auth_source,
                                 )
                                 _LOGGER.debug(
                                     "%s failed for %s: status=%s params=%s payload=%s "
