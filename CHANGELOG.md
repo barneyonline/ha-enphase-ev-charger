@@ -11,17 +11,15 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Detect Enphase browser login-wall HTML responses on JSON/text API endpoints, surface a dedicated temporary-auth-block repair issue, and persist a 24-hour auth cooldown after a rejected stored-credential refresh so blocked sessions fail fast instead of repeatedly hammering the cloud API.
-- Improved BatteryConfig write compatibility for stubborn `403 Forbidden` sites by making schedule validation send `forceScheduleOpted` only for CFG, retrying rejected battery writes once with an external-client-style auth shape, and enriching DTG enable toggles to match the broader payload observed in a working third-party client.
-- Fixed heat-pump power reporting for issue `#443` by deriving the `heat_pump_power` sensor from the change in cumulative HEMS heat-pump energy over the reported sample window instead of exposing the cumulative energy bucket itself as watts.
+- None
 
 ### 🔧 Improvements
-- Expanded `docs/api/api_spec.md` with the additional BatteryConfig observations from a working third-party integration so the repository now records the alternate JWT bootstrap, user/site discovery, CFG disclaimer, and DTG toggle request shapes relevant to issue `#460`.
+- None
 
 ### 🔄 Other changes
 - None
 
-## v2.7.6 - 2026-04-10
+## v2.7.8 - 2026-04-12
 
 ### 🚧 Breaking changes
 - None
@@ -30,15 +28,15 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Fixed heat-pump daily energy semantics by sourcing the primary `heat_pump_daily_energy` sensor from `/pv/systems/<site>/today`, preserving HEMS split daily values independently for diagnostics, and keeping heat-pump entities available through short-lived inventory/runtime UID churn and stale-data windows.
-- Added the `X-CSRF-Token` header alongside the existing XSRF token handling for BatteryConfig write requests so battery profile, settings, storm-guard, and schedule updates continue working when Enphase requires both CSRF header variants.
+- Relaxed Envoy history migration validation so lower Enphase Energy totals now raise a detailed confirmation warning instead of blocking the flow, while preserving blocking checks for incompatible totals and unload failures.
+- Fixed the external-compatible BatteryConfig retry path so suppressed `Authorization` and `X-CSRF-Token` headers are actually removed from the merged retry request for issue `#460`.
+- Fixed heat-pump power reporting for issue `#443` by deriving the `heat_pump_power` sensor from the change in cumulative HEMS heat-pump energy over the reported sample window instead of exposing the cumulative energy bucket itself as watts.
 
 ### 🔧 Improvements
 - None
 
 ### 🔄 Other changes
-- Clarified the README affiliation and API disclaimer to better distinguish the project from Enphase's official materials and support channels.
-- Bumped the integration manifest version to `2.7.6`.
+- Bumped the integration manifest version to `2.7.8`.
 
 ## v2.7.7 - 2026-04-11
 
