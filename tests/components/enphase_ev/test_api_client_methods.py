@@ -738,10 +738,10 @@ def test_battery_config_headers_external_compatible_omit_authorization_and_x_csr
         token_override="legacy-token",
     )
 
-    assert "Authorization" not in headers
+    assert headers["Authorization"] is None
     assert headers["e-auth-token"] == "legacy-token"
     assert headers["X-XSRF-Token"] == "raw-token"
-    assert "X-CSRF-Token" not in headers
+    assert headers["X-CSRF-Token"] is None
 
 
 def test_battery_config_headers_external_compatible_drop_stale_eauth_when_missing() -> (
@@ -756,7 +756,9 @@ def test_battery_config_headers_external_compatible_drop_stale_eauth_when_missin
         auth_style="external_compatible"
     )
 
-    assert "e-auth-token" not in headers
+    assert headers["Authorization"] is None
+    assert headers["e-auth-token"] is None
+    assert headers["X-CSRF-Token"] is None
 
 
 def test_battery_config_headers_drop_cookie_when_none_available() -> None:
@@ -804,6 +806,20 @@ def test_battery_config_retry_params_cover_profile_and_battery_settings() -> Non
         {"userId": "1", "source": "enho"},
         retry_token=token,
     ) == {"userId": "99"}
+
+
+def test_merge_request_headers_returns_base_for_non_dict_overrides() -> None:
+    client = _make_client()
+
+    assert client._merge_request_headers(
+        {"Accept": "application/json"}, None
+    ) == {  # noqa: SLF001
+        "Accept": "application/json"
+    }
+    assert client._merge_request_headers(  # noqa: SLF001
+        {"Accept": "application/json"},
+        "invalid",
+    ) == {"Accept": "application/json"}
 
 
 def test_system_dashboard_query_type_helper_branches() -> None:
@@ -3568,39 +3584,66 @@ async def test_set_battery_settings_retries_with_external_compatible_auth_shape(
 ) -> None:
     bearer = _make_token({"user_id": "88"})
     legacy = _make_token({"user_id": "99"})
-    client = _make_client()
+    validate = _FakeResponse(status=200, json_body={"isValid": True})
+    validate.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=cfg-token; Path=/; Secure")]
+    )
+    initial_write = _FakeResponse(
+        status=403,
+        json_body={},
+        text_body='{"timestamp":"2026-04-11T06:15:59.504+00:00","status":403}',
+    )
+    legacy_jwt = _FakeResponse(status=200, json_body={"token": legacy})
+    retry_write = _FakeResponse(
+        status=403,
+        json_body={},
+        text_body='{"timestamp":"2026-04-11T06:16:00.098+00:00","status":403}',
+    )
+    session = _FakeSession([validate, initial_write, legacy_jwt, retry_write])
+    client = _make_client(session)
     client.update_credentials(
-        eauth="access-token",
-        cookie=f"session=1; enlighten_manager_token_production={bearer}",
-    )
-
-    async def _acquire(schedule_type: str = "cfg") -> str:
-        client._bp_xsrf_token = f"{schedule_type}-token"  # noqa: SLF001
-        return client._bp_xsrf_token  # noqa: SLF001
-
-    client._acquire_xsrf_token = AsyncMock(side_effect=_acquire)  # noqa: SLF001
-    client._fetch_legacy_battery_config_jwt = AsyncMock(  # noqa: SLF001
-        return_value=legacy
-    )
-    client._json = AsyncMock(
-        side_effect=[_make_cre(403, "Forbidden"), {"message": "success"}]
+        eauth=bearer,
+        cookie=(
+            "session=1; XSRF-TOKEN=base-xsrf; "
+            f"enlighten_manager_token_production={bearer}"
+        ),
     )
 
     with caplog.at_level(logging.DEBUG):
-        out = await client.set_battery_settings({"veryLowSoc": 15})
+        with pytest.raises(aiohttp.ClientResponseError) as err:
+            await client.set_battery_settings({"veryLowSoc": 15})
 
-    assert out == {"message": "success"}
-    first_call, second_call = client._json.await_args_list
-    assert first_call.kwargs["headers"]["Authorization"] == f"Bearer {bearer}"
-    assert first_call.kwargs["headers"]["e-auth-token"] == "access-token"
-    assert first_call.kwargs["headers"]["X-CSRF-Token"] == "cfg-token"
-    assert "Authorization" not in second_call.kwargs["headers"]
-    assert second_call.kwargs["headers"]["e-auth-token"] == legacy
-    assert second_call.kwargs["headers"]["Username"] == "99"
-    assert second_call.kwargs["headers"]["X-XSRF-Token"] == "cfg-token"
-    assert "X-CSRF-Token" not in second_call.kwargs["headers"]
-    assert second_call.kwargs["params"]["userId"] == "99"
+    assert err.value.status == 403
+    assert len(session.calls) == 4
+    assert session.calls[0][0] == "POST"
+    assert session.calls[1][0] == "PUT"
+    assert session.calls[2][0] == "GET"
+    assert session.calls[3][0] == "PUT"
+
+    first_headers = session.calls[1][2]["headers"]
+    retry_headers = session.calls[3][2]["headers"]
+    assert first_headers["Authorization"] == f"Bearer {bearer}"
+    assert first_headers["e-auth-token"] == bearer
+    assert first_headers["X-CSRF-Token"] == "cfg-token"
+    assert first_headers["X-XSRF-Token"] == "cfg-token"
+
+    assert "Authorization" not in retry_headers
+    assert retry_headers["e-auth-token"] == legacy
+    assert retry_headers["Username"] == "99"
+    assert retry_headers["X-XSRF-Token"] == "cfg-token"
+    assert "X-CSRF-Token" not in retry_headers
+    assert retry_headers["Cookie"].endswith("BP-XSRF-Token=cfg-token")
+
+    assert session.calls[3][2]["params"]["userId"] == "99"
+    assert session.calls[3][2]["params"]["source"] == "enho"
     assert "Retrying BatteryConfig write for PUT" in caplog.text
+    assert "auth_source=legacy_jwt_token" in caplog.text
+    assert "has_authorization=False" in caplog.text
+    assert "has_x_csrf_token=False" in caplog.text
+    assert "'auth_source': 'legacy_jwt_token'" in caplog.text
+    assert "'has_x_csrf_token': False" in caplog.text
+    assert caplog.text.count("'Authorization': '[redacted]'") == 1
+    assert caplog.text.count("'X-CSRF-Token': '[redacted]'") == 1
     assert client._bp_xsrf_token is None  # noqa: SLF001
 
 
