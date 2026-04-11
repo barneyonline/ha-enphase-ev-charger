@@ -318,7 +318,8 @@ async def test_coordinator_runtime_delegate_helpers_cover_direct_runtime_calls(
         "daily_energy_wh": 123.0
     }
     assert coord._build_heatpump_daily_consumption_snapshot(  # noqa: SLF001
-        {"a": 1}, {"stats": [{"heatpump": [1.0]}]}
+        {"a": 1},
+        {"stats": [{"heatpump": [123.0]}]},
     ) == {"daily_energy_wh": 123.0}
     assert coord._heatpump_power_candidate_device_uids() == [  # noqa: SLF001
         "HP-PRIMARY",
