@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug fixes
 - Detect Enphase browser login-wall HTML responses on JSON/text API endpoints, surface a dedicated temporary-auth-block repair issue, and persist a 24-hour auth cooldown after a rejected stored-credential refresh so blocked sessions fail fast instead of repeatedly hammering the cloud API.
 - Improved BatteryConfig write compatibility for stubborn `403 Forbidden` sites by making schedule validation send `forceScheduleOpted` only for CFG, retrying rejected battery writes once with an external-client-style auth shape, and enriching DTG enable toggles to match the broader payload observed in a working third-party client.
+- Fixed heat-pump power reporting for issue `#443` by deriving the `heat_pump_power` sensor from the change in cumulative HEMS heat-pump energy over the reported sample window instead of exposing the cumulative energy bucket itself as watts.
 
 ### 🔧 Improvements
 - Expanded `docs/api/api_spec.md` with the additional BatteryConfig observations from a working third-party integration so the repository now records the alternate JWT bootstrap, user/site discovery, CFG disclaimer, and DTG toggle request shapes relevant to issue `#460`.
