@@ -79,6 +79,7 @@ from .envoy_history import (
     format_completed_preview,
     format_mapping_preview,
     format_selection_preview,
+    format_warning_preview,
     migration_flow_fields,
     selection_uses_source,
     selected_mappings,
@@ -1670,5 +1671,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         self._load_migration_targets(),
                     )
                 ),
+                "warning_preview": format_warning_preview(validation.warnings),
             },
         )

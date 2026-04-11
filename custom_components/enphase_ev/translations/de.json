@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Envoy-Verlaufsmigration bestätigen",
-        "description": "Die ausgewählten Quell-Entitäten werden in archivierte Legacy-Entitäts-IDs umbenannt.\n\nDie Enphase-Energy-Entitäten werden anschließend auf die ursprünglichen Quell-Entitäts-IDs umbenannt.\n\nWenn eine Zuordnung falsch ist, brechen Sie jetzt ab. Das Wiederherstellen aus einem Backup ist der sicherste Rollback-Weg.\n\n{mapping_preview}",
+        "description": "Die ausgewählten Quell-Entitäten werden in archivierte Legacy-Entitäts-IDs umbenannt.\n\nDie Enphase-Energy-Entitäten werden anschließend auf die ursprünglichen Quell-Entitäts-IDs umbenannt.\n\nWenn eine Zuordnung falsch ist, brechen Sie jetzt ab. Das Wiederherstellen aus einem Backup ist der sicherste Rollback-Weg.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Ich verstehe, dass die ausgewählten Quell-Entitäts-IDs neu zugewiesen werden",
           "disable_archived_envoy_sensors": "Archivierte Quell-Sensoren nach der Migration deaktivieren"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Wählen Sie mindestens einen kompatiblen Energiesensor zur Migration aus.",
       "migration_duplicate_selection": "Dieselbe Quell-Entität kann nicht mehr als einmal verwendet werden.",
       "envoy_entry_loaded": "Die Envoy-Integration konnte für die Migration nicht vorübergehend entladen werden.",
-      "incompatible_energy_total": "Die ausgewählten Entitäten sind keine kompatiblen kumulativen Energiewerte.",
-      "new_value_lower": "Der neue Sensorwert ist niedriger als der bestehende Envoy-Wert."
+      "incompatible_energy_total": "Die ausgewählten Entitäten sind keine kompatiblen kumulativen Energiewerte."
     },
     "abort": {
       "migration_no_envoy_sources": "Es sind keine Enphase-Envoy-Energiesensoren für die Migration verfügbar.",

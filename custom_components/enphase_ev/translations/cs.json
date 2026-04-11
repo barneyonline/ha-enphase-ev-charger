@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Potvrďte migraci historie Envoy",
-        "description": "Vybrané zdrojové entity budou přejmenovány na archivovaná starší ID entit.\n\nEntity Enphase Energy budou poté přejmenovány na původní ID zdrojových entit.\n\nPokud je některé mapování chybné, nyní to zrušte. Obnovení ze zálohy je nejbezpečnější způsob návratu.\n\n{mapping_preview}",
+        "description": "Vybrané zdrojové entity budou přejmenovány na archivovaná starší ID entit.\n\nEntity Enphase Energy budou poté přejmenovány na původní ID zdrojových entit.\n\nPokud je některé mapování chybné, nyní to zrušte. Obnovení ze zálohy je nejbezpečnější způsob návratu.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Rozumím, že vybraná ID zdrojových entit budou znovu přiřazena",
           "disable_archived_envoy_sensors": "Po migraci zakázat archivované zdrojové senzory"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Vyberte alespoň jeden kompatibilní energetický senzor k migraci.",
       "migration_duplicate_selection": "Stejnou zdrojovou entitu nelze použít více než jednou.",
       "envoy_entry_loaded": "Integraci Envoy se nepodařilo pro migraci dočasně odpojit.",
-      "incompatible_energy_total": "Vybrané entity nejsou kompatibilní kumulativní energetické hodnoty.",
-      "new_value_lower": "Nová hodnota senzoru je nižší než stávající hodnota Envoy."
+      "incompatible_energy_total": "Vybrané entity nejsou kompatibilní kumulativní energetické hodnoty."
     },
     "abort": {
       "migration_no_envoy_sources": "Nejsou k dispozici žádné energetické senzory Enphase Envoy pro migraci.",

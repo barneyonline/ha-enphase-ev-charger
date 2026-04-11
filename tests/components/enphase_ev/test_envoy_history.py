@@ -15,6 +15,7 @@ from custom_components.enphase_ev.envoy_history import (
     EnvoyHistoryMapping,
     EnvoyHistorySource,
     EnvoyHistoryTarget,
+    EnvoyHistoryWarning,
     _archive_entity_id,
     _candidate_from_registry_entry,
     _friendly_title_from_name,
@@ -33,6 +34,7 @@ from custom_components.enphase_ev.envoy_history import (
     format_completed_preview,
     format_mapping_preview,
     format_selection_preview,
+    format_warning_preview,
     migration_target_unique_id,
     selected_mappings,
     selection_candidates,
@@ -725,6 +727,34 @@ def test_suggest_mappings_skips_low_confidence_candidates() -> None:
     assert suggest_mappings(source, targets) == {}
 
 
+def test_suggest_mappings_allows_candidates_when_target_total_is_lower() -> None:
+    source = EnvoyHistorySource(
+        entry_id="envoy-entry",
+        title="Envoy",
+        candidates=[
+            EnvoyHistoryCandidate(
+                entity_id="sensor.envoy_lifetime_production",
+                config_entry_id="envoy-entry",
+                title="Production",
+                current_value_kwh=10.0,
+            )
+        ],
+    )
+    targets = {
+        "solar_production": EnvoyHistoryTarget(
+            flow_key="solar_production",
+            label="Solar",
+            unique_id="uid-prod",
+            entity_id="sensor.site_solar_production",
+            current_value_kwh=9.5,
+        )
+    }
+
+    assert suggest_mappings(source, targets) == {
+        "solar_production": "sensor.envoy_lifetime_production"
+    }
+
+
 def test_score_candidate_hits_additional_flow_branches() -> None:
     assert (
         _score_candidate(
@@ -1013,7 +1043,7 @@ def test_validate_selected_mappings_requires_unloaded_envoy(hass, monkeypatch) -
     assert result.error == "envoy_entry_loaded"
 
 
-def test_validate_selected_mappings_rejects_lower_target_value(
+def test_validate_selected_mappings_warns_for_lower_target_value(
     hass, monkeypatch
 ) -> None:
     entry = MockConfigEntry(
@@ -1070,7 +1100,29 @@ def test_validate_selected_mappings_rejects_lower_target_value(
         require_source_unloaded=False,
     )
 
-    assert result.error == "new_value_lower"
+    assert result.error is None
+    assert result.mappings == [
+        EnvoyHistoryMapping(
+            flow_key="solar_production",
+            label="Solar",
+            old_entity_id=old_entity_id,
+            archived_entity_id="sensor.envoy_lifetime_production_envoy_legacy",
+            old_value_kwh=4.0,
+            new_entity_id=new_entity_id,
+            new_value_kwh=3.0,
+            target_unique_id=migration_target_unique_id("1", "solar_production"),
+        )
+    ]
+    assert result.warnings == [
+        EnvoyHistoryWarning(
+            flow_key="solar_production",
+            label="Solar",
+            old_entity_id=old_entity_id,
+            old_value_kwh=4.0,
+            new_entity_id=new_entity_id,
+            new_value_kwh=3.0,
+        )
+    ]
 
 
 def test_validate_selected_mappings_succeeds(hass, monkeypatch) -> None:
@@ -1143,6 +1195,31 @@ def test_validate_selected_mappings_succeeds(hass, monkeypatch) -> None:
             target_unique_id=migration_target_unique_id("1", "solar_production"),
         )
     ]
+    assert result.warnings == []
+
+
+def test_format_warning_preview_lists_lower_value_mappings() -> None:
+    assert format_warning_preview(
+        [
+            EnvoyHistoryWarning(
+                flow_key="solar_production",
+                label="Site Solar Production",
+                old_entity_id="sensor.envoy_lifetime_production",
+                old_value_kwh=5.0,
+                new_entity_id="sensor.site_solar_production",
+                new_value_kwh=4.0,
+            )
+        ]
+    ) == (
+        "\n\nWarning: selected Enphase Energy totals are currently lower than the "
+        "existing source totals. Migration can still continue.\n"
+        "- `Site Solar Production`: Enphase Energy `sensor.site_solar_production` "
+        "= 4.00 kWh; existing `sensor.envoy_lifetime_production` = 5.00 kWh"
+    )
+
+
+def test_format_warning_preview_returns_empty_without_warnings() -> None:
+    assert format_warning_preview([]) == ""
 
 
 def test_validate_selected_mappings_allows_external_compatible_sensor(

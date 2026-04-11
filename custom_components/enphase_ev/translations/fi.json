@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Vahvista Envoy-historian siirto",
-        "description": "Valitut lähde-entiteetit nimetään uudelleen arkistoiduiksi vanhoiksi entiteettitunnuksiksi.\n\nEnphase Energy -entiteetit nimetään sen jälkeen alkuperäisiksi lähde-entiteettien tunnuksiksi.\n\nJos jokin yhdistys on väärä, peruuta nyt. Varmuuskopiosta palauttaminen on turvallisin tapa peruuttaa muutos.\n\n{mapping_preview}",
+        "description": "Valitut lähde-entiteetit nimetään uudelleen arkistoiduiksi vanhoiksi entiteettitunnuksiksi.\n\nEnphase Energy -entiteetit nimetään sen jälkeen alkuperäisiksi lähde-entiteettien tunnuksiksi.\n\nJos jokin yhdistys on väärä, peruuta nyt. Varmuuskopiosta palauttaminen on turvallisin tapa peruuttaa muutos.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Ymmärrän, että valitut lähde-entiteettien tunnukset määritetään uudelleen",
           "disable_archived_envoy_sensors": "Poista arkistoidut lähdetunnistimet käytöstä siirron jälkeen"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Valitse vähintään yksi yhteensopiva energiatunnistin siirrettäväksi.",
       "migration_duplicate_selection": "Samaa lähde-entiteettiä ei voi käyttää useammin kuin kerran.",
       "envoy_entry_loaded": "Envoy-integraatiota ei voitu poistaa tilapäisesti käytöstä siirtoa varten.",
-      "incompatible_energy_total": "Valitut entiteetit eivät ole yhteensopivia kumulatiivisia energiasummia.",
-      "new_value_lower": "Uuden anturin arvo on pienempi kuin nykyinen Envoyn arvo."
+      "incompatible_energy_total": "Valitut entiteetit eivät ole yhteensopivia kumulatiivisia energiasummia."
     },
     "abort": {
       "migration_no_envoy_sources": "Yhtään Enphase Envoy -energia-anturia ei ole saatavilla siirtoon.",

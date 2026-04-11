@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Migratie van Envoy-geschiedenis bevestigen",
-        "description": "De geselecteerde bron-entiteiten worden hernoemd naar gearchiveerde oude entiteits-ID's.\n\nDe Enphase Energy-entiteiten worden daarna hernoemd naar de oorspronkelijke bron-entiteits-ID's.\n\nAls een koppeling onjuist is, annuleer dan nu. Herstellen vanaf een back-up is de veiligste manier om terug te draaien.\n\n{mapping_preview}",
+        "description": "De geselecteerde bron-entiteiten worden hernoemd naar gearchiveerde oude entiteits-ID's.\n\nDe Enphase Energy-entiteiten worden daarna hernoemd naar de oorspronkelijke bron-entiteits-ID's.\n\nAls een koppeling onjuist is, annuleer dan nu. Herstellen vanaf een back-up is de veiligste manier om terug te draaien.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Ik begrijp dat de geselecteerde bron-entiteits-ID's opnieuw worden toegewezen",
           "disable_archived_envoy_sensors": "Gearchiveerde bronsensoren uitschakelen na de migratie"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Selecteer ten minste één compatibele energiesensor om te migreren.",
       "migration_duplicate_selection": "Dezelfde bron-entiteit kan niet meer dan één keer worden gebruikt.",
       "envoy_entry_loaded": "De Envoy-integratie kon niet tijdelijk worden ontladen voor de migratie.",
-      "incompatible_energy_total": "De geselecteerde entiteiten zijn geen compatibele cumulatieve energietotalen.",
-      "new_value_lower": "De nieuwe sensorwaarde is lager dan de bestaande Envoy-waarde."
+      "incompatible_energy_total": "De geselecteerde entiteiten zijn geen compatibele cumulatieve energietotalen."
     },
     "abort": {
       "migration_no_envoy_sources": "Er zijn geen Enphase Envoy-energiesensoren beschikbaar om te migreren.",
