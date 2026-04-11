@@ -3317,7 +3317,12 @@ class BatteryRuntime:
             schedule_id is not None or not enabled
         ):
             control_key = f"{normalized_schedule_type}Control"
-            payload = {control_key: {"enabled": bool(enabled)}}
+            control_payload: dict[str, object] = {"enabled": bool(enabled)}
+            if normalized_schedule_type == "dtg" and enabled:
+                control_payload["scheduleSupported"] = True
+                control_payload["startTime"] = current_start
+                control_payload["endTime"] = current_end
+            payload = {control_key: control_payload}
             async with state._battery_settings_write_lock:
                 state._battery_settings_last_write_mono = time.monotonic()
                 try:

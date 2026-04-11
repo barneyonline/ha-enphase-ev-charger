@@ -16,6 +16,7 @@ _This reference consolidates observed Enlighten mobile/web APIs across EV chargi
 - **Evidence labels used below:**
   - `Implementation:` describes behavior verified in the current integration code.
   - `Observed:` describes behavior seen in browser/mobile captures.
+  - `External client source:` describes behavior inferred from another public custom integration source; useful for comparison, but weaker than a first-party browser/mobile capture.
   - `Inference:` describes reasoned interpretation that is plausible but not yet directly confirmed.
 
 ---
@@ -73,7 +74,7 @@ Example response:
 | --- | --- | --- | --- | --- |
 | Site discovery | `GET` | `/app-api/search_sites.json` | authenticated session cookies; implementation also sends `X-CSRF-Token` and, when available, `Authorization: Bearer <token>` + `e-auth-token: <token>` | Yes |
 | Entrez token bootstrap | `POST` | `https://entrez.enphaseenergy.com/tokens` | authenticated session cookies + JSON body `{session_id,email}` | Yes |
-| JWT token bootstrap (legacy / documented capture) | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No |
+| JWT token bootstrap (legacy / documented capture) | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No (current integration); Yes in external client source |
 | JWT token fallback (legacy / documented capture) | `GET` | `/service/auth_ms_enho/api/v1/session/token` | session cookies + `_enlighten_4_session` echoed as `e-auth-token` | No |
 | Mobile/web shared constants | `GET` | `https://enlighten-mobile-38d22.firebaseio.com/enho_constants.json` | none observed | No (documented from web UI) |
 | EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
@@ -3887,6 +3888,19 @@ Observed shared requirements:
 - Browser-style `Origin`/`Referer` set to the battery profile UI host.
 - Write flows acquire a fresh `BP-XSRF-Token` first and then send `X-XSRF-Token`.
 
+External client source:
+- A working third-party custom integration uses a leaner BatteryConfig auth model:
+  - login via `GET /login` + `POST /login/login`
+  - JWT bootstrap via `GET /app-api/jwt_token.json`
+  - user/site discovery via `GET /app-api/<site_id>/data.json?app=1&device_status=non_retired&is_mobile=0`
+  - BatteryConfig requests authenticated with that JWT in `e-auth-token`, plus `username`, cookies, and `X-XSRF-Token`
+  - no explicit `Authorization` header documented
+  - no explicit `X-CSRF-Token` header documented
+- This is important for issue `#460`: users report that the third-party client can successfully change BatteryConfig settings on sites where the current integration still receives `403 Forbidden`.
+
+Inference:
+- The current implementation can send different token values in `Authorization` and `e-auth-token` (`Authorization` may come from the manager JWT cookie while `e-auth-token` comes from the Entrez access token). The external client source does not do this, so header/token divergence is now a plausible remaining compatibility variable.
+
 ### 5.0 AC Battery cloud UI routes
 
 Legacy AC Battery systems expose runtime discovery, telemetry, and sleep-mode control through the Enlighten web UI rather than the JSON BatteryConfig service.
@@ -4210,6 +4224,7 @@ Updates the system profile and reserve percentage. Observed profile keys include
 Implementation auth notes:
 - The current client first acquires a fresh `BP-XSRF-Token` by POSTing to `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid`.
 - It then sends the write with bearer-preferred BatteryConfig headers plus `X-XSRF-Token`.
+- The current implementation also appends `source=enho` to profile writes, even though the first-party write capture documented for this spec only confirmed `userId=<user_id>`.
 
 Example payloads observed:
 ```json
@@ -4431,7 +4446,8 @@ Notes:
 - Observed `chargeFromGrid` values so far: `true`, `false`.
 - The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local). Observed values so far: `chargeFromGridScheduleEnabled=true`, `chargeBeginTime=120`, `chargeEndTime=300`.
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
-- Captured writes used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
+- First-party browser captures documented for this repository used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
+- External client source uses a current UTC timestamp string for `acceptedItcDisclaimer` when enabling CFG. The current integration follows this timestamp-style payload today.
 - `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`. Observed values so far: `veryLowSoc=5` and `15`, `veryLowSocMin=5` and `10`, `veryLowSocMax=25`.
 - `dtgControl`, `cfgControl`, and `rbdControl` are per-feature UI capability blocks. In the homeowner capture they each exposed `show`, `enabled`, `locked`, and schedule-support fields even though the corresponding toggles were off. Observed booleans so far: `show=true`, `showDaySchedule=true`, `enabled=false`, `locked=false`, `scheduleSupported=true`, plus `cfgControl.forceScheduleSupported=true` and `cfgControl.forceScheduleOpted=true`.
 - Later captures showed `dtgControl.enabled=true` and `rbdControl.enabled=true` while `dtgControl.forceScheduleSupported` / `rbdControl.forceScheduleSupported` remained absent or `null`; schedule-family toggles should not assume CFG-style `forceScheduleSupported` metadata is present for DTG/RBD.
@@ -4446,6 +4462,10 @@ Notes:
   - `{"dtgControl":{"enabled":false}}`
   - `{"rbdControl":{"enabled":true}}`
   - `{"rbdControl":{"enabled":false}}`
+- External client source sends a richer DTG enable payload:
+  - `{"dtgControl":{"enabled":true,"scheduleSupported":true,"startTime":<minutes>,"endTime":<minutes>}}`
+  - `startTime` / `endTime` are minute-of-day integers derived from the current DTG control window
+- This is another concrete comparison point for issue `#460`: the current integration only sends the minimal `enabled` toggle for DTG/RBD BatterySettings writes.
 
 ### 5.6 Storm Guard Alert Status, Opt-Out, and Toggle
 ```
@@ -4701,6 +4721,8 @@ Observed behavior:
 - `forceScheduleOpted: true` was only observed for CFG validation; DTG/RBD validation calls omitted that field.
 - In the current client, this validation route also serves as the XSRF bootstrap mechanism for later BatteryConfig writes.
 - Unlike later writes, the validation request is sent without `X-XSRF-Token`; the token is learned from the response `Set-Cookie` / cookie jar update.
+- External client source matches the CFG-only `forceScheduleOpted` rule: it documents `forceScheduleOpted` only for CFG validation and omits it for DTG validation.
+- Compatibility note: the current integration should not treat `forceScheduleOpted` as a universal BatteryConfig validation field.
 
 ### 5.10 Update Battery Schedule (In-Place PUT)
 ```
