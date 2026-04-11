@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Apstiprināt Envoy vēstures migrāciju",
-        "description": "Atlasītās avota entītijas tiks pārdēvētas par arhivētiem mantotajiem entītiju ID.\n\nPēc tam Enphase Energy entītijas tiks pārdēvētas uz sākotnējiem avota entītiju ID.\n\nJa kāda sasaiste ir nepareiza, atceliet tagad. Atjaunošana no dublējuma ir drošākais atgriešanās veids.\n\n{mapping_preview}",
+        "description": "Atlasītās avota entītijas tiks pārdēvētas par arhivētiem mantotajiem entītiju ID.\n\nPēc tam Enphase Energy entītijas tiks pārdēvētas uz sākotnējiem avota entītiju ID.\n\nJa kāda sasaiste ir nepareiza, atceliet tagad. Atjaunošana no dublējuma ir drošākais atgriešanās veids.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Es saprotu, ka atlasītie avota entītiju ID tiks pārdalīti",
           "disable_archived_envoy_sensors": "Atspējot arhivētos avota sensorus pēc migrācijas"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Atlasiet vismaz vienu saderīgu enerģijas sensoru migrācijai.",
       "migration_duplicate_selection": "Vienu un to pašu avota entītiju nevar izmantot vairāk nekā vienu reizi.",
       "envoy_entry_loaded": "Envoy integrāciju migrācijai nevarēja īslaicīgi izlādēt.",
-      "incompatible_energy_total": "Atlasītās entītijas nav saderīgi kumulatīvie enerģijas kopsummu sensori.",
-      "new_value_lower": "Jaunā sensora vērtība ir zemāka par esošo Envoy vērtību."
+      "incompatible_energy_total": "Atlasītās entītijas nav saderīgi kumulatīvie enerģijas kopsummu sensori."
     },
     "abort": {
       "migration_no_envoy_sources": "Migrācijai nav pieejami Enphase Envoy enerģijas sensori.",

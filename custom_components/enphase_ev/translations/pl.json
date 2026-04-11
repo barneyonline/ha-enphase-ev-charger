@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Potwierdź migrację historii Envoy",
-        "description": "Wybrane encje źródłowe zostaną przemianowane na zarchiwizowane starsze identyfikatory encji.\n\nNastępnie encje Enphase Energy zostaną przemianowane na oryginalne identyfikatory encji źródłowych.\n\nJeśli którekolwiek mapowanie jest błędne, anuluj teraz. Przywrócenie z kopii zapasowej to najbezpieczniejszy sposób wycofania zmian.\n\n{mapping_preview}",
+        "description": "Wybrane encje źródłowe zostaną przemianowane na zarchiwizowane starsze identyfikatory encji.\n\nNastępnie encje Enphase Energy zostaną przemianowane na oryginalne identyfikatory encji źródłowych.\n\nJeśli którekolwiek mapowanie jest błędne, anuluj teraz. Przywrócenie z kopii zapasowej to najbezpieczniejszy sposób wycofania zmian.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Rozumiem, że wybrane identyfikatory encji źródłowych zostaną ponownie przypisane",
           "disable_archived_envoy_sensors": "Wyłącz zarchiwizowane czujniki źródłowe po migracji"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Wybierz co najmniej jeden zgodny czujnik energii do migracji.",
       "migration_duplicate_selection": "Ta sama encja źródłowa nie może zostać użyta więcej niż raz.",
       "envoy_entry_loaded": "Integracji Envoy nie udało się tymczasowo wyładować na potrzeby migracji.",
-      "incompatible_energy_total": "Wybrane encje nie są zgodnymi skumulowanymi sumami energii.",
-      "new_value_lower": "Nowa wartość sensora jest niższa niż istniejąca wartość Envoy."
+      "incompatible_energy_total": "Wybrane encje nie są zgodnymi skumulowanymi sumami energii."
     },
     "abort": {
       "migration_no_envoy_sources": "Brak dostępnych sensorów energii Enphase Envoy do migracji.",

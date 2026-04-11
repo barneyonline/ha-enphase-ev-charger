@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Confirmați migrarea istoricului Envoy",
-        "description": "Entitățile sursă selectate vor fi redenumite în ID-uri de entitate vechi arhivate.\n\nEntitățile Enphase Energy vor fi apoi redenumite în ID-urile originale ale entităților sursă.\n\nDacă vreo mapare este greșită, anulați acum. Restaurarea dintr-un backup este cea mai sigură metodă de revenire.\n\n{mapping_preview}",
+        "description": "Entitățile sursă selectate vor fi redenumite în ID-uri de entitate vechi arhivate.\n\nEntitățile Enphase Energy vor fi apoi redenumite în ID-urile originale ale entităților sursă.\n\nDacă vreo mapare este greșită, anulați acum. Restaurarea dintr-un backup este cea mai sigură metodă de revenire.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Înțeleg că ID-urile entităților sursă selectate vor fi realocate",
           "disable_archived_envoy_sensors": "Dezactivează senzorii sursă arhivați după migrare"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Selectați cel puțin un senzor de energie compatibil pentru migrare.",
       "migration_duplicate_selection": "Aceeași entitate sursă nu poate fi folosită de mai multe ori.",
       "envoy_entry_loaded": "Integrarea Envoy nu a putut fi descărcată temporar pentru migrare.",
-      "incompatible_energy_total": "Entitățile selectate nu sunt totaluri cumulative de energie compatibile.",
-      "new_value_lower": "Noua valoare a senzorului este mai mică decât valoarea existentă Envoy."
+      "incompatible_energy_total": "Entitățile selectate nu sunt totaluri cumulative de energie compatibile."
     },
     "abort": {
       "migration_no_envoy_sources": "Nu există senzori de energie Enphase Envoy disponibili pentru migrare.",

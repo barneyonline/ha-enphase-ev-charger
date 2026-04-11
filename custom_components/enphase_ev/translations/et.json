@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Kinnita Envoy ajaloo migratsioon",
-        "description": "Valitud lähteolemid nimetatakse ümber arhiveeritud pärand-olemi ID-deks.\n\nSeejärel nimetatakse Enphase Energy olemid ümber algseteks lähteolemi ID-deks.\n\nKui mõni vastendus on vale, katkesta nüüd. Varukoopiast taastamine on kõige turvalisem tagasipööramise viis.\n\n{mapping_preview}",
+        "description": "Valitud lähteolemid nimetatakse ümber arhiveeritud pärand-olemi ID-deks.\n\nSeejärel nimetatakse Enphase Energy olemid ümber algseteks lähteolemi ID-deks.\n\nKui mõni vastendus on vale, katkesta nüüd. Varukoopiast taastamine on kõige turvalisem tagasipööramise viis.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Mõistan, et valitud lähteolemite ID-d määratakse ümber",
           "disable_archived_envoy_sensors": "Keela arhiveeritud lähteandurid pärast migratsiooni"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Vali migreerimiseks vähemalt üks ühilduv energiaandur.",
       "migration_duplicate_selection": "Sama lähteolemit ei saa kasutada rohkem kui üks kord.",
       "envoy_entry_loaded": "Envoy integratsiooni ei saanud migreerimiseks ajutiselt maha laadida.",
-      "incompatible_energy_total": "Valitud üksused ei ole ühilduvad kumulatiivsed energiasummad.",
-      "new_value_lower": "Uue anduri väärtus on madalam kui olemasolev Envoy väärtus."
+      "incompatible_energy_total": "Valitud üksused ei ole ühilduvad kumulatiivsed energiasummad."
     },
     "abort": {
       "migration_no_envoy_sources": "Ühtegi Enphase Envoy energiaandurit pole migratsiooniks saadaval.",

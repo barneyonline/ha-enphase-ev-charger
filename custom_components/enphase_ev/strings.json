@@ -243,7 +243,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Confirm Envoy History Migration",
-        "description": "The selected source entities will be renamed to archived legacy entity IDs.\n\nThe Enphase Energy entities will then be renamed to the original source entity IDs.\n\nIf any mapping is wrong, cancel now. Restoring from backup is the safest rollback.\n\n{mapping_preview}",
+        "description": "The selected source entities will be renamed to archived legacy entity IDs.\n\nThe Enphase Energy entities will then be renamed to the original source entity IDs.\n\nIf any mapping is wrong, cancel now. Restoring from backup is the safest rollback.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "I understand the selected source entity IDs will be reassigned",
           "disable_archived_envoy_sensors": "Disable archived source sensors after migration"
@@ -257,8 +257,7 @@
       "migration_no_selection": "Select at least one compatible energy sensor to migrate.",
       "migration_duplicate_selection": "The same source entity cannot be used more than once.",
       "envoy_entry_loaded": "Envoy integration could not be temporarily unloaded for migration.",
-      "incompatible_energy_total": "Selected entities are not compatible energy totals.",
-      "new_value_lower": "New sensor value is lower than the existing Envoy value."
+      "incompatible_energy_total": "Selected entities are not compatible energy totals."
     },
     "abort": {
       "migration_no_envoy_sources": "No Enphase Envoy energy sensors are available to migrate.",

@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Confirmar migração do histórico do Envoy",
-        "description": "As entidades de origem selecionadas serão renomeadas para IDs de entidade legados arquivados.\n\nAs entidades do Enphase Energy serão então renomeadas para os IDs originais das entidades de origem.\n\nSe algum mapeamento estiver errado, cancele agora. Restaurar a partir de um backup é a forma mais segura de reverter.\n\n{mapping_preview}",
+        "description": "As entidades de origem selecionadas serão renomeadas para IDs de entidade legados arquivados.\n\nAs entidades do Enphase Energy serão então renomeadas para os IDs originais das entidades de origem.\n\nSe algum mapeamento estiver errado, cancele agora. Restaurar a partir de um backup é a forma mais segura de reverter.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Entendo que os IDs das entidades de origem selecionadas serão reatribuídos",
           "disable_archived_envoy_sensors": "Desativar sensores de origem arquivados após a migração"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Selecione pelo menos um sensor de energia compatível para migrar.",
       "migration_duplicate_selection": "A mesma entidade de origem não pode ser usada mais de uma vez.",
       "envoy_entry_loaded": "A integração Envoy não pôde ser descarregada temporariamente para a migração.",
-      "incompatible_energy_total": "As entidades selecionadas não são totais de energia compatíveis.",
-      "new_value_lower": "O novo valor do sensor é menor que o valor existente do Envoy."
+      "incompatible_energy_total": "As entidades selecionadas não são totais de energia compatíveis."
     },
     "abort": {
       "migration_no_envoy_sources": "Nenhum sensor de energia do Enphase Envoy está disponível para migração.",

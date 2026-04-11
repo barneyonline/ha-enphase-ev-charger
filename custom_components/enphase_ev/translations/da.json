@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Bekræft migrering af Envoy-historik",
-        "description": "De valgte kildeentiteter omdøbes til arkiverede ældre entitets-id'er.\n\nEnphase Energy-entiteterne omdøbes derefter til de oprindelige kildeentitets-id'er.\n\nHvis en tilknytning er forkert, så annuller nu. Gendannelse fra backup er den sikreste tilbageførsel.\n\n{mapping_preview}",
+        "description": "De valgte kildeentiteter omdøbes til arkiverede ældre entitets-id'er.\n\nEnphase Energy-entiteterne omdøbes derefter til de oprindelige kildeentitets-id'er.\n\nHvis en tilknytning er forkert, så annuller nu. Gendannelse fra backup er den sikreste tilbageførsel.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Jeg forstår, at de valgte kildeentitets-id'er bliver omfordelt",
           "disable_archived_envoy_sensors": "Deaktiver arkiverede kildesensorer efter migreringen"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Vælg mindst én kompatibel energisensor, der skal migreres.",
       "migration_duplicate_selection": "Den samme kildeentitet kan ikke bruges mere end én gang.",
       "envoy_entry_loaded": "Envoy-integrationen kunne ikke midlertidigt afindlæses til migreringen.",
-      "incompatible_energy_total": "De valgte entiteter er ikke kompatible kumulative energitotaler.",
-      "new_value_lower": "Den nye sensorværdi er lavere end den eksisterende Envoy-værdi."
+      "incompatible_energy_total": "De valgte entiteter er ikke kompatible kumulative energitotaler."
     },
     "abort": {
       "migration_no_envoy_sources": "Ingen Enphase Envoy-energisensorer er tilgængelige til migrering.",

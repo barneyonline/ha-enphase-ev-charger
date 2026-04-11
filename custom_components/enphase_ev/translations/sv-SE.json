@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Bekräfta migrering av Envoy-historik",
-        "description": "De valda källentiteterna kommer att byta namn till arkiverade äldre entitets-ID:n.\n\nEnphase Energy-entiteterna kommer sedan att byta namn till de ursprungliga källentitets-ID:na.\n\nOm någon mappning är fel, avbryt nu. Återställning från säkerhetskopia är det säkraste sättet att återgå.\n\n{mapping_preview}",
+        "description": "De valda källentiteterna kommer att byta namn till arkiverade äldre entitets-ID:n.\n\nEnphase Energy-entiteterna kommer sedan att byta namn till de ursprungliga källentitets-ID:na.\n\nOm någon mappning är fel, avbryt nu. Återställning från säkerhetskopia är det säkraste sättet att återgå.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Jag förstår att de valda källentitets-ID:na kommer att tilldelas om",
           "disable_archived_envoy_sensors": "Inaktivera arkiverade källsensorer efter migreringen"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Välj minst en kompatibel energisensor att migrera.",
       "migration_duplicate_selection": "Samma källentitet kan inte användas mer än en gång.",
       "envoy_entry_loaded": "Envoy-integrationen kunde inte avlastas tillfälligt för migreringen.",
-      "incompatible_energy_total": "De valda entiteterna är inte kompatibla kumulativa energitotaler.",
-      "new_value_lower": "Det nya sensorvärdet är lägre än det befintliga Envoy-värdet."
+      "incompatible_energy_total": "De valda entiteterna är inte kompatibla kumulativa energitotaler."
     },
     "abort": {
       "migration_no_envoy_sources": "Inga Enphase Envoy-energisensorer är tillgängliga för migrering.",

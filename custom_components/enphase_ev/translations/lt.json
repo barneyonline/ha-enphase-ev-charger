@@ -235,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Patvirtinti Envoy istorijos migraciją",
-        "description": "Pasirinkti šaltinio objektai bus pervadinti į archyvuotus senus objektų identifikatorius.\n\nTuomet Enphase Energy objektai bus pervadinti į pradinius šaltinio objektų identifikatorius.\n\nJei kuris nors susiejimas neteisingas, atšaukite dabar. Atkūrimas iš atsarginės kopijos yra saugiausias būdas grįžti atgal.\n\n{mapping_preview}",
+        "description": "Pasirinkti šaltinio objektai bus pervadinti į archyvuotus senus objektų identifikatorius.\n\nTuomet Enphase Energy objektai bus pervadinti į pradinius šaltinio objektų identifikatorius.\n\nJei kuris nors susiejimas neteisingas, atšaukite dabar. Atkūrimas iš atsarginės kopijos yra saugiausias būdas grįžti atgal.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Suprantu, kad pasirinkti šaltinio objektų identifikatoriai bus priskirti iš naujo",
           "disable_archived_envoy_sensors": "Išjungti archyvuotus šaltinio jutiklius po migracijos"
@@ -249,8 +249,7 @@
       "migration_no_selection": "Pasirinkite bent vieną suderinamą energijos jutiklį migracijai.",
       "migration_duplicate_selection": "Tas pats šaltinio objektas negali būti naudojamas daugiau nei vieną kartą.",
       "envoy_entry_loaded": "Envoy integracijos nepavyko laikinai iškrauti migracijai.",
-      "incompatible_energy_total": "Pasirinkti objektai nėra suderinami kaupiamosios energijos kiekiai.",
-      "new_value_lower": "Nauja jutiklio reikšmė yra mažesnė už esamą Envoy reikšmę."
+      "incompatible_energy_total": "Pasirinkti objektai nėra suderinami kaupiamosios energijos kiekiai."
     },
     "abort": {
       "migration_no_envoy_sources": "Nėra Enphase Envoy energijos jutiklių, kuriuos būtų galima migruoti.",

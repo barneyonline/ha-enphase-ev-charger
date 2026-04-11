@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import re
 from typing import Any
 
@@ -86,9 +86,20 @@ class EnvoyHistoryMapping:
 
 
 @dataclass(slots=True)
+class EnvoyHistoryWarning:
+    flow_key: str
+    label: str
+    old_entity_id: str
+    old_value_kwh: float
+    new_entity_id: str
+    new_value_kwh: float
+
+
+@dataclass(slots=True)
 class EnvoyHistoryValidation:
     error: str | None
     mappings: list[EnvoyHistoryMapping]
+    warnings: list[EnvoyHistoryWarning] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -624,6 +635,7 @@ def validate_selected_mappings(
 
     ent_reg = er.async_get(hass)
     mappings: list[EnvoyHistoryMapping] = []
+    warnings: list[EnvoyHistoryWarning] = []
     reserved_entity_ids = {
         getattr(reg_entry, "entity_id", "")
         for reg_entry in getattr(ent_reg, "entities", {}).values()
@@ -660,26 +672,34 @@ def validate_selected_mappings(
             new_value_kwh = _state_value_kwh(new_state)
         if new_value_kwh is None:
             return EnvoyHistoryValidation("incompatible_energy_total", [])
-        if new_value_kwh + LOW_VALUE_TOLERANCE_KWH < candidate.current_value_kwh:
-            return EnvoyHistoryValidation("new_value_lower", [])
         archived_entity_id = _archive_entity_id(
             old_entity_id,
             reserved_entity_ids,
             getattr(reg_entry, "platform", None),
         )
-        mappings.append(
-            EnvoyHistoryMapping(
-                flow_key=flow_key,
-                label=target.label,
-                old_entity_id=old_entity_id,
-                archived_entity_id=archived_entity_id,
-                old_value_kwh=candidate.current_value_kwh,
-                new_entity_id=new_entity_id,
-                new_value_kwh=new_value_kwh,
-                target_unique_id=target.unique_id,
-            )
+        mapping = EnvoyHistoryMapping(
+            flow_key=flow_key,
+            label=target.label,
+            old_entity_id=old_entity_id,
+            archived_entity_id=archived_entity_id,
+            old_value_kwh=candidate.current_value_kwh,
+            new_entity_id=new_entity_id,
+            new_value_kwh=new_value_kwh,
+            target_unique_id=target.unique_id,
         )
-    return EnvoyHistoryValidation(None, mappings)
+        if new_value_kwh + LOW_VALUE_TOLERANCE_KWH < candidate.current_value_kwh:
+            warnings.append(
+                EnvoyHistoryWarning(
+                    flow_key=flow_key,
+                    label=target.label,
+                    old_entity_id=old_entity_id,
+                    old_value_kwh=candidate.current_value_kwh,
+                    new_entity_id=new_entity_id,
+                    new_value_kwh=new_value_kwh,
+                )
+            )
+        mappings.append(mapping)
+    return EnvoyHistoryValidation(None, mappings, warnings)
 
 
 def execute_takeover(
@@ -748,6 +768,24 @@ def format_completed_preview(mappings: list[EnvoyHistoryMapping]) -> str:
     if not mappings:
         return "No mappings were completed."
     return format_mapping_preview(mappings)
+
+
+def format_warning_preview(warnings: list[EnvoyHistoryWarning]) -> str:
+    if not warnings:
+        return ""
+    lines = [
+        "",
+        "",
+        "Warning: selected Enphase Energy totals are currently lower than the "
+        "existing source totals. Migration can still continue.",
+    ]
+    for warning in warnings:
+        lines.append(
+            f"- `{warning.label}`: Enphase Energy `{warning.new_entity_id}` = "
+            f"{warning.new_value_kwh:.2f} kWh; existing `{warning.old_entity_id}` = "
+            f"{warning.old_value_kwh:.2f} kWh"
+        )
+    return "\n".join(lines)
 
 
 def format_selection_preview(
