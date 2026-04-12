@@ -368,6 +368,11 @@ class BatteryState:
     _battery_settings_write_lock: Any = None
     _battery_settings_last_write_mono: float | None = None
     _battery_settings_cache_until: float | None = None
+    _battery_cfg_pending_charge_from_grid: bool | None = None
+    _battery_cfg_pending_schedule_enabled: bool | None = None
+    _battery_cfg_pending_begin_time: int | None = None
+    _battery_cfg_pending_end_time: int | None = None
+    _battery_cfg_pending_expires_mono: float | None = None
     _battery_grid_mode: str | None = None
     _battery_hide_charge_from_grid: bool | None = None
     _battery_envoy_supports_vls: bool | None = None
