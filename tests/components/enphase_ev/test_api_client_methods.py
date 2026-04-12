@@ -738,10 +738,14 @@ def test_battery_config_headers_external_compatible_omit_authorization_and_x_csr
         token_override="legacy-token",
     )
 
+    assert headers["Accept"] is None
     assert headers["Authorization"] is None
     assert headers["e-auth-token"] == "legacy-token"
+    assert headers["User-Agent"] is None
+    assert headers["X-Requested-With"] is None
     assert headers["X-XSRF-Token"] == "raw-token"
     assert headers["X-CSRF-Token"] is None
+    assert headers["Cookie"] == "BP-XSRF-Token=raw-token"
 
 
 def test_battery_config_headers_external_compatible_drop_stale_eauth_when_missing() -> (
@@ -756,9 +760,25 @@ def test_battery_config_headers_external_compatible_drop_stale_eauth_when_missin
         auth_style="external_compatible"
     )
 
+    assert headers["Accept"] is None
     assert headers["Authorization"] is None
     assert headers["e-auth-token"] is None
+    assert headers["User-Agent"] is None
+    assert headers["X-Requested-With"] is None
     assert headers["X-CSRF-Token"] is None
+
+
+def test_battery_config_cookie_external_compatible_requires_xsrf() -> None:
+    client = _make_client()
+    client.update_credentials(cookie="session=1; other=2")
+
+    assert (
+        client._battery_config_cookie(  # noqa: SLF001
+            include_xsrf=True,
+            auth_style="external_compatible",
+        )
+        is None
+    )
 
 
 def test_battery_config_headers_drop_cookie_when_none_available() -> None:
