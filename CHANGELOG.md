@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.7.10 - 2026-04-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Restored the standard Enlighten browser-style `Accept`, `User-Agent`, and `X-Requested-With` headers on the external-compatible BatteryConfig retry path for issue `#460` so the fallback write flow no longer trips Enphase `406 Not Acceptable` checks while still suppressing the rejected auth headers.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.10`.
+
 ## v2.7.9 - 2026-04-12
 
 ### 🚧 Breaking changes

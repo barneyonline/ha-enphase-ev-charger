@@ -2421,11 +2421,8 @@ class EnphaseEVClient:
         if auth_style == "external_compatible":
             token = token_override or self._battery_config_single_auth_token()
             user_id = self._battery_config_user_id_for_token(token)
-            headers["Accept"] = None
             headers["Authorization"] = None
-            headers["User-Agent"] = None
             headers["X-CSRF-Token"] = None
-            headers["X-Requested-With"] = None
             if token:
                 headers["e-auth-token"] = token
             else:
@@ -2680,7 +2677,6 @@ class EnphaseEVClient:
                     headers=retry_headers,
                     params=retry_params,
                     debug_auth_source=retry_auth_source,
-                    skip_auto_headers={"Accept", "User-Agent"},
                 )
         finally:
             self._bp_xsrf_token = None
