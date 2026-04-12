@@ -738,11 +738,11 @@ def test_battery_config_headers_external_compatible_omit_authorization_and_x_csr
         token_override="legacy-token",
     )
 
-    assert headers["Accept"] is None
+    assert headers["Accept"] == "application/json, text/plain, */*"
     assert headers["Authorization"] is None
     assert headers["e-auth-token"] == "legacy-token"
-    assert headers["User-Agent"] is None
-    assert headers["X-Requested-With"] is None
+    assert headers["User-Agent"] == api._ENLIGHTEN_BROWSER_USER_AGENT
+    assert headers["X-Requested-With"] == "XMLHttpRequest"
     assert headers["X-XSRF-Token"] == "raw-token"
     assert headers["X-CSRF-Token"] is None
     assert headers["Cookie"] == "BP-XSRF-Token=raw-token"
@@ -760,11 +760,11 @@ def test_battery_config_headers_external_compatible_drop_stale_eauth_when_missin
         auth_style="external_compatible"
     )
 
-    assert headers["Accept"] is None
+    assert headers["Accept"] == "application/json, text/plain, */*"
     assert headers["Authorization"] is None
     assert headers["e-auth-token"] is None
-    assert headers["User-Agent"] is None
-    assert headers["X-Requested-With"] is None
+    assert headers["User-Agent"] == api._ENLIGHTEN_BROWSER_USER_AGENT
+    assert headers["X-Requested-With"] == "XMLHttpRequest"
     assert headers["X-CSRF-Token"] is None
 
 
@@ -3648,14 +3648,18 @@ async def test_set_battery_settings_retries_with_external_compatible_auth_shape(
     assert first_headers["X-XSRF-Token"] == "cfg-token"
 
     assert "Authorization" not in retry_headers
+    assert retry_headers["Accept"] == "application/json, text/plain, */*"
     assert retry_headers["e-auth-token"] == legacy
+    assert retry_headers["User-Agent"] == api._ENLIGHTEN_BROWSER_USER_AGENT
     assert retry_headers["Username"] == "99"
+    assert retry_headers["X-Requested-With"] == "XMLHttpRequest"
     assert retry_headers["X-XSRF-Token"] == "cfg-token"
     assert "X-CSRF-Token" not in retry_headers
     assert retry_headers["Cookie"].endswith("BP-XSRF-Token=cfg-token")
 
     assert session.calls[3][2]["params"]["userId"] == "99"
     assert session.calls[3][2]["params"]["source"] == "enho"
+    assert "skip_auto_headers" not in session.calls[3][2]
     assert "Retrying BatteryConfig write for PUT" in caplog.text
     assert "auth_source=legacy_jwt_token" in caplog.text
     assert "has_authorization=False" in caplog.text
