@@ -31,7 +31,7 @@ jobs:
       - name: Determine issue form
         if: github.event_name == 'issues'
         id: form
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const title = context.payload.issue.title ?? "";
