@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.7.9 - 2026-04-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Trimmed the external-compatible BatteryConfig retry headers for issue `#460` so the fallback write path now omits extra browser defaults like `Accept`, `User-Agent`, and `X-Requested-With` while keeping the XSRF-only cookie retry path intact.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.9`.
+
 ## v2.7.8 - 2026-04-12
 
 ### 🚧 Breaking changes

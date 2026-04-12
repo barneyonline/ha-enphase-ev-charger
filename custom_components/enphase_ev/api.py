@@ -2372,7 +2372,12 @@ class EnphaseEVClient:
         token, _user_id = self._battery_config_auth_context()
         return token
 
-    def _battery_config_cookie(self, *, include_xsrf: bool = False) -> str | None:
+    def _battery_config_cookie(
+        self,
+        *,
+        include_xsrf: bool = False,
+        auth_style: str = "default",
+    ) -> str | None:
         """Return a normalized BatteryConfig cookie header value.
 
         BatteryConfig write endpoints reject stale duplicate ``BP-XSRF-Token``
@@ -2393,6 +2398,10 @@ class EnphaseEVClient:
         ]
         if include_xsrf:
             xsrf = self._xsrf_token()
+            if auth_style == "external_compatible":
+                if not xsrf:
+                    return None
+                return f"BP-XSRF-Token={xsrf}"
             if xsrf:
                 parts.append(f"BP-XSRF-Token={xsrf}")
         if not parts:
@@ -2412,8 +2421,11 @@ class EnphaseEVClient:
         if auth_style == "external_compatible":
             token = token_override or self._battery_config_single_auth_token()
             user_id = self._battery_config_user_id_for_token(token)
+            headers["Accept"] = None
             headers["Authorization"] = None
+            headers["User-Agent"] = None
             headers["X-CSRF-Token"] = None
+            headers["X-Requested-With"] = None
             if token:
                 headers["e-auth-token"] = token
             else:
@@ -2430,7 +2442,10 @@ class EnphaseEVClient:
             headers["Username"] = user_id
         headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
         headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
-        cookie = self._battery_config_cookie(include_xsrf=include_xsrf)
+        cookie = self._battery_config_cookie(
+            include_xsrf=include_xsrf,
+            auth_style=auth_style,
+        )
         if cookie:
             headers["Cookie"] = cookie
         else:
@@ -2665,6 +2680,7 @@ class EnphaseEVClient:
                     headers=retry_headers,
                     params=retry_params,
                     debug_auth_source=retry_auth_source,
+                    skip_auto_headers={"Accept", "User-Agent"},
                 )
         finally:
             self._bp_xsrf_token = None
