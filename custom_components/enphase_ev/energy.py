@@ -25,6 +25,7 @@ SITE_ENERGY_DEFAULT_INTERVAL_MIN = 5.0
 SITE_ENERGY_FAILURE_BACKOFF_S = 15 * 60
 HEMS_LIFETIME_FAILURE_BACKOFF_S = 60 * 60
 DEVICE_LIFETIME_CHANNELS: tuple[str, ...] = ("evse", "heatpump", "water_heater")
+HEMS_DEVICE_CHANNELS_META_KEY = "_hems_device_channels"
 
 
 @dataclass(slots=True)
@@ -466,6 +467,16 @@ class EnergyManager:
         flows: dict[str, SiteEnergyFlow] = {}
         interval_hours, interval_minutes = self._site_energy_interval_hours(payload)
         source_unit = "Wh"
+        hems_device_channels_raw = payload.get(HEMS_DEVICE_CHANNELS_META_KEY)
+        hems_device_channels = (
+            {
+                str(channel).strip()
+                for channel in hems_device_channels_raw
+                if str(channel).strip()
+            }
+            if isinstance(hems_device_channels_raw, (set, tuple, list))
+            else set()
+        )
 
         def _store(
             flow: str,
@@ -529,13 +540,25 @@ class EnergyManager:
         evse_total, evse_count = self._sum_energy_buckets(
             payload.get("evse"), interval_hours
         )
-        _store("evse_charging", evse_total, ["evse"], evse_count)
+        _store(
+            "evse_charging",
+            evse_total,
+            ["evse"],
+            evse_count,
+            allow_zero="evse" in hems_device_channels,
+        )
 
         # Heat pump lifetime consumption.
         heat_pump_total, heat_pump_count = self._sum_energy_buckets(
             payload.get("heatpump"), interval_hours
         )
-        _store("heat_pump", heat_pump_total, ["heatpump"], heat_pump_count)
+        _store(
+            "heat_pump",
+            heat_pump_total,
+            ["heatpump"],
+            heat_pump_count,
+            allow_zero="heatpump" in hems_device_channels,
+        )
 
         # Water heater lifetime consumption.
         water_heater_total, water_heater_count = self._sum_energy_buckets(
@@ -546,6 +569,7 @@ class EnergyManager:
             water_heater_total,
             ["water_heater"],
             water_heater_count,
+            allow_zero="water_heater" in hems_device_channels,
         )
 
         # Grid import (total site import).
@@ -666,6 +690,18 @@ class EnergyManager:
                     discharge_count,
                 )
 
+        raw_bucket_lengths = {
+            key: len(value) for key, value in payload.items() if isinstance(value, list)
+        }
+        bucket_lengths = dict(raw_bucket_lengths)
+        for channel in DEVICE_LIFETIME_CHANNELS:
+            if self._device_lifetime_channel_has_positive(payload, channel):
+                continue
+            if channel in hems_device_channels:
+                continue
+            if channel in bucket_lengths:
+                bucket_lengths[channel] = 0
+
         meta = {
             "start_date": start_date,
             "last_report_date": last_report_date,
@@ -673,11 +709,8 @@ class EnergyManager:
                 bool(update_pending) if update_pending is not None else None
             ),
             "interval_minutes": interval_minutes,
-            "bucket_lengths": {
-                key: len(value)
-                for key, value in payload.items()
-                if isinstance(value, list)
-            },
+            "bucket_lengths": bucket_lengths,
+            "raw_bucket_lengths": raw_bucket_lengths,
         }
         return flows, meta
 
@@ -694,6 +727,34 @@ class EnergyManager:
                 return False
         return True
 
+    def _device_lifetime_channel_missing(
+        self, payload: dict[str, object], channel: str
+    ) -> bool:
+        """Treat zero-only device arrays as missing so HEMS can fill them."""
+
+        values = payload.get(channel)
+        if not isinstance(values, list) or len(values) == 0:
+            return True
+        for value in values:
+            numeric = self._coerce_energy_value(value)
+            if numeric is not None and numeric > 0:
+                return False
+        return True
+
+    def _device_lifetime_channel_has_positive(
+        self, payload: dict[str, object], channel: str
+    ) -> bool:
+        """Return True when a device channel contains a positive numeric sample."""
+
+        values = payload.get(channel)
+        if not isinstance(values, list) or len(values) == 0:
+            return False
+        for value in values:
+            numeric = self._coerce_energy_value(value)
+            if numeric is not None and numeric > 0:
+                return True
+        return False
+
     def _merge_device_lifetime_channels(
         self,
         primary: dict[str, object],
@@ -702,8 +763,18 @@ class EnergyManager:
         """Merge device lifetime channels from fallback when primary is missing."""
 
         merged = dict(primary)
+        hems_device_channels_raw = merged.get(HEMS_DEVICE_CHANNELS_META_KEY)
+        hems_device_channels = (
+            {
+                str(channel).strip()
+                for channel in hems_device_channels_raw
+                if str(channel).strip()
+            }
+            if isinstance(hems_device_channels_raw, (set, tuple, list))
+            else set()
+        )
         for channel in DEVICE_LIFETIME_CHANNELS:
-            if not self._lifetime_channel_missing(merged, channel):
+            if not self._device_lifetime_channel_missing(merged, channel):
                 continue
             fallback_values = fallback.get(channel)
             if (
@@ -712,6 +783,7 @@ class EnergyManager:
                 and not self._lifetime_channel_missing(fallback, channel)
             ):
                 merged[channel] = list(fallback_values)
+                hems_device_channels.add(channel)
 
         for metadata_key in (
             "start_date",
@@ -725,6 +797,8 @@ class EnergyManager:
                 and fallback.get(metadata_key) is not None
             ):
                 merged[metadata_key] = fallback.get(metadata_key)
+        if hems_device_channels:
+            merged[HEMS_DEVICE_CHANNELS_META_KEY] = hems_device_channels
         return merged
 
     def _hems_lifetime_backoff_active(self) -> bool:
@@ -790,7 +864,7 @@ class EnergyManager:
             missing_channels = [
                 channel
                 for channel in DEVICE_LIFETIME_CHANNELS
-                if self._lifetime_channel_missing(payload, channel)
+                if self._device_lifetime_channel_missing(payload, channel)
             ]
             if missing_channels:
                 hems_fetcher = getattr(client, "hems_consumption_lifetime", None)
