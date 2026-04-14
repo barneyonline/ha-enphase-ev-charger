@@ -1,6 +1,6 @@
 {
-  "current_status": "Down",
-  "generated_at": "2026-04-14T09:01:13.842947Z",
+  "current_status": "Fully Operational",
+  "generated_at": "2026-04-14T10:44:55.135368Z",
   "incidents": [
     {
       "active": false,
@@ -82,7 +82,7 @@
       "status": "Degraded"
     },
     {
-      "active": true,
+      "active": false,
       "duration_minutes": 0,
       "ended_at": null,
       "failed_checks": [
