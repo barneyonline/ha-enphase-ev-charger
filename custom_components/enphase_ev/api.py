@@ -2317,6 +2317,7 @@ class EnphaseEVClient:
         return {
             "has_authorization": "Authorization" in headers,
             "has_e_auth_token": "e-auth-token" in headers,
+            "has_requestid": "requestid" in headers,
             "has_username": "Username" in headers,
             "has_x_csrf_token": "X-CSRF-Token" in headers,
             "has_x_xsrf_token": "X-XSRF-Token" in headers,
@@ -2366,95 +2367,40 @@ class EnphaseEVClient:
                 return token, user_id
         return fallback_token, None
 
-    def _battery_config_auth_token(self) -> str | None:
-        """Return bearer token to use for BatteryConfig requests."""
-
-        token, _user_id = self._battery_config_auth_context()
-        return token
-
-    def _battery_config_cookie(
-        self,
-        *,
-        include_xsrf: bool = False,
-        auth_style: str = "default",
-    ) -> str | None:
-        """Return a normalized BatteryConfig cookie header value.
-
-        BatteryConfig write endpoints reject stale duplicate ``BP-XSRF-Token``
-        cookies, so always strip any existing token from the base cookie string
-        before optionally appending the current one.
-        """
-
-        try:
-            cookie_str = str(self._cookie) if self._cookie else ""
-        except Exception:  # noqa: BLE001 - defensive parsing
-            cookie_str = ""
-
-        parts = [
-            part.strip()
-            for part in cookie_str.split(";")
-            if part.strip()
-            and part.strip().partition("=")[0].strip().lower() not in _XSRF_COOKIE_NAMES
-        ]
-        if include_xsrf:
-            xsrf = self._xsrf_token()
-            if auth_style == "external_compatible":
-                if not xsrf:
-                    return None
-                return f"BP-XSRF-Token={xsrf}"
-            if xsrf:
-                parts.append(f"BP-XSRF-Token={xsrf}")
-        if not parts:
-            return None
-        return "; ".join(parts)
-
     def _battery_config_headers(
         self,
         *,
         include_xsrf: bool = False,
-        auth_style: str = "default",
-        token_override: str | None = None,
+        include_eauth: bool = True,
+        include_requestid: bool = True,
     ) -> dict[str, str | None]:
         """Return headers for BatteryConfig read/write calls."""
 
-        headers: dict[str, str | None] = dict(self._h)
-        if auth_style == "external_compatible":
-            token = token_override or self._battery_config_single_auth_token()
-            user_id = self._battery_config_user_id_for_token(token)
-            headers["Authorization"] = None
-            headers["X-CSRF-Token"] = None
-            if token:
-                headers["e-auth-token"] = token
-            else:
-                headers["e-auth-token"] = None
-        else:
-            token, user_id = self._battery_config_auth_context()
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-            if self._eauth:
-                headers["e-auth-token"] = self._eauth
-            elif token:
-                headers["e-auth-token"] = token
+        headers: dict[str, str | None] = {
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/145.0.0.0 Safari/537.36"
+            ),
+            "Authorization": None,
+            "X-Requested-With": None,
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": str(uuid.uuid4()) if include_requestid else None,
+        }
+        token, user_id = self._battery_config_auth_context()
+        if include_eauth and token:
+            headers["e-auth-token"] = token
         if user_id:
             headers["Username"] = user_id
-        headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
-        headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
-        cookie = self._battery_config_cookie(
-            include_xsrf=include_xsrf,
-            auth_style=auth_style,
-        )
-        if cookie:
-            headers["Cookie"] = cookie
-        else:
-            headers.pop("Cookie", None)
         if include_xsrf:
             xsrf = self._xsrf_token()
             if xsrf:
                 headers["X-XSRF-Token"] = xsrf
-                if auth_style != "external_compatible":
-                    headers["X-CSRF-Token"] = xsrf
-                else:
-                    headers["X-CSRF-Token"] = None
         return headers
 
     def _battery_schedule_validation_payload(
@@ -2471,7 +2417,7 @@ class EnphaseEVClient:
     def _battery_config_params(
         self,
         *,
-        include_source: bool = False,
+        include_source: bool | str = False,
         locale: str | None = None,
     ) -> dict[str, str]:
         """Return query parameters for BatteryConfig calls."""
@@ -2481,7 +2427,9 @@ class EnphaseEVClient:
         if user_id:
             params["userId"] = user_id
         if include_source:
-            params["source"] = "enho"
+            params["source"] = (
+                str(include_source) if isinstance(include_source, str) else "enho"
+            )
         if locale:
             params["locale"] = locale
         return params
@@ -2515,92 +2463,6 @@ class EnphaseEVClient:
                 return token
         return None
 
-    async def _fetch_legacy_battery_config_jwt(self) -> str | None:
-        """Fetch the legacy cookie-backed JWT used by some BatteryConfig clients."""
-
-        url = f"{BASE_URL}/app-api/jwt_token.json"
-        headers = {
-            "Accept": "application/json, text/plain, */*",
-            "Referer": f"{BASE_URL}/",
-            "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
-        }
-        if self._cookie:
-            headers["Cookie"] = self._cookie
-
-        try:
-            _seed_cookie_jar(self._s, _cookie_map_from_header(self._cookie))
-            async with asyncio.timeout(self._timeout):
-                async with self._s.request("GET", url, headers=headers) as r:
-                    if r.status >= 400:
-                        message = (await r.text()).strip()
-                        _LOGGER.debug(
-                            "Legacy BatteryConfig JWT bootstrap failed (%s): %s",
-                            r.status,
-                            redact_text(
-                                message or r.reason,
-                                site_ids=(self._site,),
-                                max_length=256,
-                            ),
-                        )
-                        return None
-                    try:
-                        payload = await r.json()
-                    except Exception as err:  # noqa: BLE001
-                        _LOGGER.debug(
-                            "Legacy BatteryConfig JWT bootstrap returned invalid JSON: %s",
-                            redact_text(err, site_ids=(self._site,), max_length=256),
-                        )
-                        return None
-        except aiohttp.ClientError as err:
-            _LOGGER.debug(
-                "Legacy BatteryConfig JWT bootstrap client error: %s",
-                redact_text(err, site_ids=(self._site,), max_length=256),
-            )
-            return None
-        except TimeoutError as err:
-            _LOGGER.debug(
-                "Legacy BatteryConfig JWT bootstrap timed out: %s",
-                redact_text(err, site_ids=(self._site,), max_length=256),
-            )
-            return None
-
-        if not isinstance(payload, dict):
-            return None
-        token = payload.get("token") or payload.get("auth_token")
-        if not token:
-            return None
-        return str(token)
-
-    def _battery_config_retry_params(
-        self,
-        url: str,
-        params: dict[str, str] | None,
-        *,
-        retry_token: str | None = None,
-    ) -> dict[str, str] | None:
-        """Return adjusted params for an external-compatible BatteryConfig retry."""
-
-        if not isinstance(params, dict):
-            return params
-        try:
-            path = URL(url).path
-        except Exception:  # noqa: BLE001
-            path = str(url)
-        if "/service/batteryConfig/api/v1/batterySettings/" in path:
-            retry_params = dict(params)
-            retry_user_id = self._battery_config_user_id_for_token(retry_token)
-            if retry_user_id:
-                retry_params["userId"] = retry_user_id
-            return retry_params
-        retry_params = dict(params)
-        retry_user_id = self._battery_config_user_id_for_token(retry_token)
-        if retry_user_id:
-            retry_params["userId"] = retry_user_id
-        if "source" not in params:
-            return retry_params
-        retry_params.pop("source", None)
-        return retry_params
-
     async def _battery_config_write_request(
         self,
         method: str,
@@ -2610,78 +2472,69 @@ class EnphaseEVClient:
         params: dict[str, str] | None = None,
         schedule_type: str = "cfg",
     ) -> dict:
-        """Issue a BatteryConfig write with one external-compatible retry on 403."""
+        """Issue a BatteryConfig write with a narrow first-party fallback."""
 
         await self._acquire_xsrf_token(schedule_type)
 
         try:
-            headers = self._battery_config_headers(include_xsrf=True)
+            primary_headers = self._battery_config_headers(include_xsrf=True)
             if json_body is not None:
-                headers.setdefault("Content-Type", "application/json")
+                primary_headers.setdefault("Content-Type", "application/json")
             try:
                 return await self._json(
                     method,
                     url,
                     json=json_body,
-                    headers=headers,
+                    headers=primary_headers,
                     params=params,
                 )
             except aiohttp.ClientResponseError as err:
                 if err.status != 403:
                     raise
-                legacy_token = await self._fetch_legacy_battery_config_jwt()
-                retry_headers = self._battery_config_headers(
+                await self._acquire_xsrf_token(
+                    schedule_type,
+                    include_eauth=False,
+                    include_requestid=False,
+                )
+                fallback_headers = self._battery_config_headers(
                     include_xsrf=True,
-                    auth_style="external_compatible",
-                    token_override=legacy_token,
+                    include_eauth=False,
+                    include_requestid=False,
                 )
                 if json_body is not None:
-                    retry_headers.setdefault("Content-Type", "application/json")
-                retry_token = (
-                    legacy_token
-                    or retry_headers.get("e-auth-token")
-                    or _authorization_bearer_token(retry_headers)
+                    fallback_headers.setdefault("Content-Type", "application/json")
+                fallback_preview = self._merge_request_headers(
+                    self._h, fallback_headers
                 )
-                retry_auth_source = (
-                    "legacy_jwt_token"
-                    if legacy_token
-                    else self._battery_config_auth_source_label(retry_token)
-                )
-                retry_params = self._battery_config_retry_params(
-                    url,
-                    params,
-                    retry_token=retry_token,
-                )
-                if retry_headers == headers and retry_params == params:
-                    raise
-                merged_retry_headers = self._merge_request_headers(
-                    self._h, retry_headers
-                )
-                retry_header_flags = self._battery_config_header_debug_flags(
-                    merged_retry_headers,
-                    auth_source_override=retry_auth_source,
+                fallback_flags = self._battery_config_header_debug_flags(
+                    fallback_preview,
+                    auth_source_override="official_web_lean",
                 )
                 _LOGGER.debug(
-                    "Retrying BatteryConfig write for %s with external-compatible auth shape "
-                    "(auth_source=%s, has_authorization=%s, has_x_csrf_token=%s, params_changed=%s)",
+                    "Retrying BatteryConfig write for %s with lean official-web headers "
+                    "(has_e_auth_token=%s, has_requestid=%s)",
                     _request_label(method, url),
-                    retry_header_flags["auth_source"],
-                    retry_header_flags["has_authorization"],
-                    retry_header_flags["has_x_csrf_token"],
-                    retry_params != params,
+                    fallback_flags["has_e_auth_token"],
+                    "requestid" in fallback_preview,
                 )
                 return await self._json(
                     method,
                     url,
                     json=json_body,
-                    headers=retry_headers,
-                    params=retry_params,
-                    debug_auth_source=retry_auth_source,
+                    headers=fallback_headers,
+                    params=params,
+                    debug_auth_source="official_web_lean",
                 )
         finally:
             self._bp_xsrf_token = None
 
-    async def _acquire_xsrf_token(self, schedule_type: str = "cfg") -> str | None:
+    async def _acquire_xsrf_token(
+        self,
+        schedule_type: str = "cfg",
+        *,
+        include_eauth: bool = True,
+        include_requestid: bool = True,
+    ) -> str | None:
         """Acquire a BP-XSRF-Token by POSTing to the schedules isValid endpoint.
 
         The Enphase BatteryConfig API requires an XSRF token for write operations.
@@ -2693,22 +2546,13 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
             f"{self._site}/schedules/isValid"
         )
-        token, user_id = self._battery_config_auth_context()
-        headers = {
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Origin": "https://battery-profile-ui.enphaseenergy.com",
-            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
-        }
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-        if self._eauth:
-            headers["e-auth-token"] = self._eauth
-        if user_id:
-            headers["Username"] = user_id
-        cookie = self._battery_config_cookie()
-        if cookie:
-            headers["Cookie"] = cookie
+        headers = self._battery_config_headers(
+            include_xsrf=True,
+            include_eauth=include_eauth,
+            include_requestid=include_requestid,
+        )
+        headers["Content-Type"] = "application/json"
+        request_headers = self._merge_request_headers({}, headers)
         payload = self._battery_schedule_validation_payload(schedule_type)
 
         try:
@@ -2723,9 +2567,19 @@ class EnphaseEVClient:
 
             async with asyncio.timeout(self._timeout):
                 async with self._s.request(
-                    "POST", url, json=payload, headers=headers
+                    "POST", url, json=payload, headers=request_headers
                 ) as r:
-                    for value in r.headers.getall("Set-Cookie", []):
+                    header_values: list[str] = []
+                    getall = getattr(r.headers, "getall", None)
+                    if callable(getall):
+                        header_values = list(getall("Set-Cookie", []))
+                    else:
+                        header_value = getattr(
+                            r.headers, "get", lambda *_a, **_k: None
+                        )("Set-Cookie")
+                        if isinstance(header_value, str) and header_value:
+                            header_values = [header_value]
+                    for value in header_values:
                         match = re.search(
                             r"(?i)(?:^|;\s*)(?:bp-)?xsrf-token=([^;]+)", value
                         )
@@ -4007,7 +3861,7 @@ class EnphaseEVClient:
         """Return BatteryConfig battery details for charge-grid and shutdown controls."""
 
         url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
-        params = self._battery_config_params(include_source=True)
+        params = self._battery_config_params(include_source="enlm")
         headers = self._battery_config_headers()
         return await self._json("GET", url, headers=headers, params=params)
 
