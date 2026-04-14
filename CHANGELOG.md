@@ -11,6 +11,25 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.7.11 - 2026-04-14
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Decoupled the charge-from-grid main toggle from schedule state so supported battery sites can update CFG enablement even when Enphase has not exposed a dedicated schedule payload yet.
+- Aligned BatteryConfig request handling and related API documentation with the current first-party Enphase web variants for issue `#460`, reducing drift from the browser client shape used by battery settings flows.
 - Relaxed EV charger manual and scheduled start strictness for issue `#544` so `start_charging` still prefers amp-bearing payloads but now falls back to no-level variants when older IQ 40 backends reject `chargingLevel` as invalid.
 - Fixed HEMS device lifetime sensors so zero-only primary EVSE, Heat Pump, and Water Heater placeholder buckets still trigger the dedicated HEMS fallback when needed, while zero-valued results copied from that fallback now report `0.0 kWh` instead of `Unavailable`.
 
@@ -18,7 +37,8 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔄 Other changes
-- None
+- Bumped GitHub Actions dependencies by updating `actions/github-script` from v8 to v9 and `softprops/action-gh-release` from v2 to v3.
+- Bumped the integration manifest version to `2.7.11`.
 
 ## v2.7.10 - 2026-04-12
 
