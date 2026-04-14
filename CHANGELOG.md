@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Relaxed EV charger manual and scheduled start strictness for issue `#544` so `start_charging` still prefers amp-bearing payloads but now falls back to no-level variants when older IQ 40 backends reject `chargingLevel` as invalid.
 
 ### 🔧 Improvements
 - None

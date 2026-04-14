@@ -1974,7 +1974,41 @@ async def test_async_start_charging_manual_mode_sends_requested_amps(hass, monke
     await coord.async_start_charging(RANDOM_SERIAL)
 
     coord.client.start_charging.assert_awaited_once_with(
-        RANDOM_SERIAL, 26, 1, include_level=True, strict_preference=True
+        RANDOM_SERIAL, 26, 1, include_level=True, strict_preference=False
+    )
+    coord.client.set_charge_mode.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_start_charging_manual_mode_explicit_request_stays_strict(
+    hass, monkeypatch
+):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {
+        RANDOM_SERIAL: {
+            "plugged": True,
+            "charging_level": 26,
+            "charge_mode_pref": "MANUAL_CHARGING",
+        }
+    }
+    coord.last_set_amps = {}
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value=None),
+        set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
+    )
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_start_charging(RANDOM_SERIAL, requested_amps=24)
+
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 24, 1, include_level=True, strict_preference=True
     )
     coord.client.set_charge_mode.assert_not_awaited()
 
@@ -2005,7 +2039,7 @@ async def test_async_start_and_stop_preserve_scheduled_mode(hass, monkeypatch):
 
     await coord.async_start_charging(RANDOM_SERIAL)
     coord.client.start_charging.assert_awaited_once_with(
-        RANDOM_SERIAL, 18, 1, include_level=True, strict_preference=True
+        RANDOM_SERIAL, 18, 1, include_level=True, strict_preference=False
     )
     coord.client.set_charge_mode.assert_awaited_once_with(
         RANDOM_SERIAL, "SCHEDULED_CHARGING"
@@ -2013,6 +2047,42 @@ async def test_async_start_and_stop_preserve_scheduled_mode(hass, monkeypatch):
 
     coord.client.set_charge_mode.reset_mock()
     await coord.async_stop_charging(RANDOM_SERIAL)
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "SCHEDULED_CHARGING"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_start_charging_scheduled_mode_explicit_request_stays_strict(
+    hass, monkeypatch
+):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {
+        RANDOM_SERIAL: {
+            "plugged": True,
+            "charging_level": 18,
+            "charge_mode_pref": "SCHEDULED_CHARGING",
+        }
+    }
+    coord.last_set_amps = {}
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value={"status": "ok"}),
+        set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
+    )
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_start_charging(RANDOM_SERIAL, requested_amps=24)
+
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 24, 1, include_level=True, strict_preference=True
+    )
     coord.client.set_charge_mode.assert_awaited_once_with(
         RANDOM_SERIAL, "SCHEDULED_CHARGING"
     )
