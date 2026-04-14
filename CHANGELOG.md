@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed HEMS device lifetime sensors so zero-only primary EVSE, Heat Pump, and Water Heater placeholder buckets still trigger the dedicated HEMS fallback when needed, while zero-valued results copied from that fallback now report `0.0 kWh` instead of `Unavailable`.
 
 ### 🔧 Improvements
 - None
