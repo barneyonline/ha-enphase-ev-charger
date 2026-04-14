@@ -1065,6 +1065,75 @@ class BatteryRuntime:
             end = 300
         return begin, end
 
+    def clear_cfg_settings_pending(self) -> None:
+        state = self.battery_state
+        state._battery_cfg_pending_charge_from_grid = None
+        state._battery_cfg_pending_schedule_enabled = None
+        state._battery_cfg_pending_begin_time = None
+        state._battery_cfg_pending_end_time = None
+        state._battery_cfg_pending_expires_mono = None
+
+    def set_cfg_settings_pending_from_payload(self, payload: dict[str, object]) -> None:
+        if not isinstance(payload, dict):
+            return
+        state = self.battery_state
+        pending = False
+        if "chargeFromGrid" in payload:
+            state._battery_cfg_pending_charge_from_grid = self._coerce_optional_bool(
+                payload.get("chargeFromGrid")
+            )
+            pending = True
+        if "chargeFromGridScheduleEnabled" in payload:
+            state._battery_cfg_pending_schedule_enabled = self._coerce_optional_bool(
+                payload.get("chargeFromGridScheduleEnabled")
+            )
+            pending = True
+        if "chargeBeginTime" in payload:
+            state._battery_cfg_pending_begin_time = self._normalize_minutes_of_day(
+                payload.get("chargeBeginTime")
+            )
+            pending = True
+        if "chargeEndTime" in payload:
+            state._battery_cfg_pending_end_time = self._normalize_minutes_of_day(
+                payload.get("chargeEndTime")
+            )
+            pending = True
+        if pending:
+            state._battery_cfg_pending_expires_mono = (
+                time.monotonic() + FAST_TOGGLE_POLL_HOLD_S
+            )
+        else:
+            self.clear_cfg_settings_pending()
+
+    def sync_cfg_settings_pending(self) -> None:
+        state = self.battery_state
+        expires_at = getattr(state, "_battery_cfg_pending_expires_mono", None)
+        if expires_at is None:
+            return
+        if time.monotonic() >= float(expires_at):
+            self.clear_cfg_settings_pending()
+            return
+
+        pending_pairs = (
+            ("_battery_cfg_pending_charge_from_grid", "_battery_charge_from_grid"),
+            (
+                "_battery_cfg_pending_schedule_enabled",
+                "_battery_charge_from_grid_schedule_enabled",
+            ),
+            ("_battery_cfg_pending_begin_time", "_battery_charge_begin_time"),
+            ("_battery_cfg_pending_end_time", "_battery_charge_end_time"),
+        )
+        all_match = True
+        for pending_attr, state_attr in pending_pairs:
+            pending_value = getattr(state, pending_attr, None)
+            if pending_value is None:
+                continue
+            if getattr(state, state_attr, None) != pending_value:
+                setattr(state, state_attr, pending_value)
+                all_match = False
+        if all_match:
+            self.clear_cfg_settings_pending()
+
     @staticmethod
     def _battery_schedule_label(schedule_type: str) -> str:
         labels = {
@@ -1302,6 +1371,7 @@ class BatteryRuntime:
             clear_missing_schedule_times=False,
             clear_missing_reserve_bounds=False,
         )
+        self.set_cfg_settings_pending_from_payload(payload)
         state._battery_settings_cache_until = None
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()
@@ -2515,6 +2585,7 @@ class BatteryRuntime:
             payload,
             clear_missing_schedule_times=True,
         )
+        self.sync_cfg_settings_pending()
         state._battery_settings_cache_until = now + BATTERY_SETTINGS_CACHE_TTL
         coord._note_endpoint_family_success(family)
 
@@ -2974,15 +3045,10 @@ class BatteryRuntime:
         )
         if not coord.charge_from_grid_control_available:
             raise ServiceValidationError("Charge from grid setting is unavailable.")
-        payload: dict[str, object] = {"chargeFromGrid": bool(enabled)}
-        if enabled:
-            start, end = self.current_charge_from_grid_schedule_window()
-            payload["acceptedItcDisclaimer"] = self.battery_itc_disclaimer_value()
-            payload["chargeBeginTime"] = start
-            payload["chargeEndTime"] = end
-            payload["chargeFromGridScheduleEnabled"] = bool(
-                getattr(coord, "_battery_charge_from_grid_schedule_enabled", None)
-            )
+        payload: dict[str, object] = {
+            "chargeFromGrid": bool(enabled),
+            "acceptedItcDisclaimer": self.battery_itc_disclaimer_value(),
+        }
         await self.async_apply_battery_settings(payload)
 
     async def async_set_charge_from_grid_schedule_enabled(self, enabled: bool) -> None:
