@@ -3106,7 +3106,6 @@ async def test_start_charging_includes_fallback_variants(monkeypatch) -> None:
     assert client._start_variant_idx == 0
 
 
-@pytest.mark.asyncio
 async def test_start_charging_excludes_level_variants_when_requested(
     monkeypatch,
 ) -> None:

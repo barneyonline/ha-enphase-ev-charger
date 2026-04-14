@@ -1589,12 +1589,13 @@ async def test_async_auto_resume_respects_preferences(coordinator_factory, monke
     )
     coord._charge_mode_start_preferences = MagicMock(return_value=prefs)
     coord._ensure_charge_mode = AsyncMock()
+    coord.async_request_refresh = AsyncMock()
     coord.data = {sn: {"plugged": True}}
 
     await coord._async_auto_resume(sn, {"plugged": True})
 
     coord.client.start_charging.assert_awaited_once_with(
-        sn, 24, include_level=True, strict_preference=True
+        sn, 24, 1, include_level=True, strict_preference=True
     )
     coord._ensure_charge_mode.assert_awaited_once_with(sn, "SCHEDULED_CHARGING")
 
@@ -2323,7 +2324,7 @@ def test_charge_mode_preference_helpers(coordinator_factory):
     coord.data[sn]["charge_mode_pref"] = "MANUAL_CHARGING"
     prefs = coord._charge_mode_start_preferences(sn)
     assert prefs.include_level is True
-    assert prefs.strict is True
+    assert prefs.strict is False
     assert prefs.enforce_mode is None
 
     coord.data[sn]["charge_mode_pref"] = "SCHEDULED_CHARGING"
