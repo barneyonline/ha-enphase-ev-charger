@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Relaxed EV charger manual and scheduled start strictness for issue `#544` so `start_charging` still prefers amp-bearing payloads but now falls back to no-level variants when older IQ 40 backends reject `chargingLevel` as invalid.
+- Fixed HEMS device lifetime sensors so zero-only primary EVSE, Heat Pump, and Water Heater placeholder buckets still trigger the dedicated HEMS fallback when needed, while zero-valued results copied from that fallback now report `0.0 kWh` instead of `Unavailable`.
 
 ### 🔧 Improvements
 - None
