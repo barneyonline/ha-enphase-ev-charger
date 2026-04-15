@@ -67,7 +67,6 @@ def _retain_battery_schedule_refresh_button(coord: EnphaseCoordinator) -> bool:
     return (
         _site_has_battery(coord)
         and _type_available(coord, "encharge")
-        and getattr(coord, "battery_write_access_confirmed", False)
         and callable(getattr(client, "battery_schedules", None))
     )
 
@@ -381,6 +380,7 @@ class BatteryScheduleSaveButton(_BatteryScheduleButton):
             super().available
             and self._editor is not None
             and _retain_battery_schedule_editor_buttons(self._coord)
+            and bool(getattr(self._coord, "battery_write_access_confirmed", False))
             and (
                 self._editor.is_creating
                 or self._editor.edit.selected_schedule_id is not None
@@ -430,6 +430,7 @@ class BatteryScheduleDeleteButton(_BatteryScheduleButton):
         return super().available and bool(
             self._editor
             and _retain_battery_schedule_editor_buttons(self._coord)
+            and bool(getattr(self._coord, "battery_write_access_confirmed", False))
             and not self._editor.is_creating
             and self._editor.edit.selected_schedule_id
         )

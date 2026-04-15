@@ -170,7 +170,6 @@ def _retained_site_time_unique_ids(
     if (
         battery_scheduler_enabled(entry)
         and callable(getattr(client, "battery_schedules", None))
-        and getattr(coord, "battery_write_access_confirmed", False)
         and all(
             callable(getattr(client, method, None))
             for method in (

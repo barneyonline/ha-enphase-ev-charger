@@ -105,7 +105,9 @@ def _retained_site_number_unique_ids(
 ) -> set[str]:
     unique_ids: set[str] = set()
     client = getattr(coord, "client", None)
-    if _type_available(coord, "encharge") and _battery_write_access_confirmed(coord):
+    if not _type_available(coord, "encharge"):
+        return unique_ids
+    if _battery_write_access_confirmed(coord):
         if getattr(coord, "battery_reserve_editable", False):
             unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_reserve")
         if getattr(coord, "battery_shutdown_level_available", False):
@@ -116,14 +118,14 @@ def _retained_site_number_unique_ids(
             unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit")
         if _rbd_schedule_edit_available(coord):
             unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit")
-        if (
-            battery_scheduler_enabled(entry)
-            and callable(getattr(client, "battery_schedules", None))
-            and callable(getattr(client, "create_battery_schedule", None))
-            and callable(getattr(client, "update_battery_schedule", None))
-            and callable(getattr(client, "delete_battery_schedule", None))
-        ):
-            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit")
+    if (
+        battery_scheduler_enabled(entry)
+        and callable(getattr(client, "battery_schedules", None))
+        and callable(getattr(client, "create_battery_schedule", None))
+        and callable(getattr(client, "update_battery_schedule", None))
+        and callable(getattr(client, "delete_battery_schedule", None))
+    ):
+        unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit")
     return unique_ids
 
 
@@ -160,26 +162,30 @@ async def async_setup_entry(
         if (
             not site_entities_added
             and _site_has_battery(coord)
-            and _battery_write_access_confirmed(coord)
             and _type_available(coord, "encharge")
         ):
-            site_entities: list[NumberEntity] = [
-                BatteryReserveNumber(coord),
-                BatteryShutdownLevelNumber(coord),
-                BatteryCfgScheduleLimitNumber(coord),
-                BatteryDischargeToGridScheduleLimitNumber(coord),
-                BatteryRestrictBatteryDischargeScheduleLimitNumber(coord),
-            ]
+            site_entities: list[NumberEntity] = []
+            if _battery_write_access_confirmed(coord):
+                site_entities.extend(
+                    [
+                        BatteryReserveNumber(coord),
+                        BatteryShutdownLevelNumber(coord),
+                        BatteryCfgScheduleLimitNumber(coord),
+                        BatteryDischargeToGridScheduleLimitNumber(coord),
+                        BatteryRestrictBatteryDischargeScheduleLimitNumber(coord),
+                    ]
+                )
             if (
                 f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
                 in retained_site_number_unique_ids
             ):
                 site_entities.append(BatteryScheduleEditLimitNumber(coord, entry))
-            async_add_entities(
-                site_entities,
-                update_before_add=False,
-            )
-            site_entities_added = True
+            if site_entities:
+                async_add_entities(
+                    site_entities,
+                    update_before_add=False,
+                )
+                site_entities_added = True
         serials = [sn for sn in current_serials if sn not in known_serials]
         if not serials:
             entities: list[NumberEntity] = []
