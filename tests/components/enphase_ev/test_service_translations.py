@@ -243,7 +243,6 @@ def test_battery_schedule_editor_strings_exist_for_english_locales() -> None:
         "entity.time.battery_schedule_edit_start_time.name",
         "entity.time.battery_schedule_edit_end_time.name",
         "entity.switch.battery_schedule_edit_mon.name",
-        "entity.sensor.battery_schedule_summary.name",
         "entity.sensor.battery_cfg_schedules.name",
         "entity.sensor.battery_dtg_schedules.name",
         "entity.sensor.battery_rbd_schedules.name",

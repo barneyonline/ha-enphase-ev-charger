@@ -147,7 +147,6 @@ def _retained_site_switch_keys(
         battery_scheduler_enabled(entry)
         and _site_has_battery(coord)
         and _type_available(coord, "encharge")
-        and _battery_write_access_confirmed(coord)
         and callable(getattr(client, "battery_schedules", None))
         and callable(getattr(client, "create_battery_schedule", None))
         and callable(getattr(client, "update_battery_schedule", None))

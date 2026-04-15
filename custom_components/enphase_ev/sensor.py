@@ -235,17 +235,6 @@ def _battery_schedule_inventory_supported(coord: EnphaseCoordinator) -> bool:
     )
 
 
-def _battery_schedule_summary_text(records: list[BatteryScheduleRecord]) -> str:
-    if not records:
-        return "None"
-    parts: list[str] = []
-    for schedule in records:
-        parts.append(
-            f"#{schedule.schedule_id} {schedule.start_time}-{schedule.end_time}"
-        )
-    return ", ".join(parts)
-
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -895,10 +884,7 @@ async def async_setup_entry(
                 EnphaseBatteryLastReportedSensor(coord),
             )
             if _battery_schedule_inventory_supported(coord):
-                _add_site_entity(
-                    "battery_schedule_summary",
-                    EnphaseBatteryScheduleSummarySensor(coord),
-                )
+                _async_remove_site_sensor_entity("battery_schedule_summary")
                 _add_site_entity(
                     "battery_cfg_schedules",
                     EnphaseBatteryScheduleModeSensor(coord, "cfg"),
@@ -8333,42 +8319,6 @@ class _BaseBatteryScheduleInventorySensor(_SiteBaseEntity):
         return super().available and _battery_schedule_inventory_supported(self._coord)
 
 
-class EnphaseBatteryScheduleSummarySensor(_BaseBatteryScheduleInventorySensor):
-    _attr_icon = "mdi:calendar-multiple"
-
-    def __init__(self, coord: EnphaseCoordinator):
-        super().__init__(
-            coord,
-            "battery_schedule_summary",
-            "battery_schedule_summary",
-        )
-
-    @property
-    def native_value(self) -> str:
-        return str(len(self._inventory()))
-
-    @property
-    def extra_state_attributes(self):
-        inventory = self._inventory()
-        attrs = self._cloud_diag_attrs()
-        attrs.update(
-            {
-                "schedule_count": len(inventory),
-                "schedule_ids": [schedule.schedule_id for schedule in inventory],
-                "schedule_counts_by_type": {
-                    schedule_type: sum(
-                        1
-                        for schedule in inventory
-                        if schedule.schedule_type == schedule_type
-                    )
-                    for schedule_type in ("cfg", "dtg", "rbd")
-                },
-                "schedules": [schedule.as_dict() for schedule in inventory],
-            }
-        )
-        return attrs
-
-
 class EnphaseBatteryScheduleModeSensor(_BaseBatteryScheduleInventorySensor):
     def __init__(self, coord: EnphaseCoordinator, schedule_type: str):
         mode_key = str(schedule_type).lower()
@@ -8388,7 +8338,7 @@ class EnphaseBatteryScheduleModeSensor(_BaseBatteryScheduleInventorySensor):
 
     @property
     def native_value(self) -> str:
-        return _battery_schedule_summary_text(self._records())
+        return str(len(self._records()))
 
     @property
     def extra_state_attributes(self):

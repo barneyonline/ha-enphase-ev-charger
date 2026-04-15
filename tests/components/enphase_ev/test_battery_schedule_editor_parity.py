@@ -288,10 +288,7 @@ async def test_battery_schedule_platform_setup_adds_editor_entities(
         BatteryNewScheduleTypeSelect,
         BatteryScheduleSelect,
     )
-    from custom_components.enphase_ev.sensor import (
-        EnphaseBatteryScheduleModeSensor,
-        EnphaseBatteryScheduleSummarySensor,
-    )
+    from custom_components.enphase_ev.sensor import EnphaseBatteryScheduleModeSensor
     from custom_components.enphase_ev.switch import BatteryScheduleEditorDaySwitch
     from custom_components.enphase_ev.time import (
         BatteryScheduleEditEndTimeEntity,
@@ -353,9 +350,6 @@ async def test_battery_schedule_platform_setup_adds_editor_entities(
     )
     assert not any(
         entity.unique_id.endswith("battery_schedule_add") for entity in added
-    )
-    assert any(
-        isinstance(entity, EnphaseBatteryScheduleSummarySensor) for entity in added
     )
     assert (
         sum(isinstance(entity, EnphaseBatteryScheduleModeSensor) for entity in added)
@@ -500,6 +494,87 @@ async def test_battery_schedule_platform_setup_skips_editor_when_option_disabled
         isinstance(entity, BatteryScheduleEditorDaySwitch) for entity in added
     )
     assert not any(isinstance(entity, BatteryForceRefreshButton) for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_platform_setup_keeps_entities_when_write_access_unconfirmed(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import button, number, select, switch, time
+    from custom_components.enphase_ev.button import (
+        BatteryForceRefreshButton,
+        BatteryScheduleDeleteButton,
+        BatteryScheduleSaveButton,
+    )
+    from custom_components.enphase_ev.number import BatteryScheduleEditLimitNumber
+    from custom_components.enphase_ev.select import (
+        BatteryNewScheduleTypeSelect,
+        BatteryScheduleSelect,
+    )
+    from custom_components.enphase_ev.switch import BatteryScheduleEditorDaySwitch
+    from custom_components.enphase_ev.time import BatteryScheduleEditStartTimeEntity
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    monkeypatch.setattr(
+        coord, "async_add_listener", lambda callback: (lambda: None), raising=False
+    )
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: (lambda: None),
+        raising=False,
+    )
+    _attach_editor_runtime(config_entry, coord)
+
+    added: list[object] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await select.async_setup_entry(hass, config_entry, _capture)
+    await time.async_setup_entry(hass, config_entry, _capture)
+    await number.async_setup_entry(hass, config_entry, _capture)
+    await switch.async_setup_entry(hass, config_entry, _capture)
+    await button.async_setup_entry(hass, config_entry, _capture)
+
+    schedule_select = next(
+        entity for entity in added if isinstance(entity, BatteryScheduleSelect)
+    )
+    type_select = next(
+        entity for entity in added if isinstance(entity, BatteryNewScheduleTypeSelect)
+    )
+    edit_time = next(
+        entity
+        for entity in added
+        if isinstance(entity, BatteryScheduleEditStartTimeEntity)
+    )
+    edit_limit = next(
+        entity for entity in added if isinstance(entity, BatteryScheduleEditLimitNumber)
+    )
+    day_switch = next(
+        entity for entity in added if isinstance(entity, BatteryScheduleEditorDaySwitch)
+    )
+    refresh_button = next(
+        entity for entity in added if isinstance(entity, BatteryForceRefreshButton)
+    )
+    save_button = next(
+        entity for entity in added if isinstance(entity, BatteryScheduleSaveButton)
+    )
+    delete_button = next(
+        entity for entity in added if isinstance(entity, BatteryScheduleDeleteButton)
+    )
+
+    assert schedule_select is not None
+    assert type_select is not None
+    assert edit_time is not None
+    assert edit_limit is not None
+    assert day_switch is not None
+    assert refresh_button.available is True
+    assert save_button.available is False
+    assert delete_button.available is False
 
 
 @pytest.mark.asyncio
@@ -699,34 +774,25 @@ async def test_battery_schedule_editor_guard_paths_cover_missing_editor_and_fall
     assert edit_day.device_info["manufacturer"] == "Enphase"
 
 
-def test_battery_schedule_inventory_sensors_expose_summary_and_per_mode_state(
+def test_battery_schedule_inventory_sensors_expose_per_mode_counts(
     coordinator_factory,
 ) -> None:
     from custom_components.enphase_ev.sensor import (
         EnphaseBatteryScheduleModeSensor,
-        EnphaseBatteryScheduleSummarySensor,
         _battery_schedule_inventory_supported,
     )
 
     coord = coordinator_factory()
     _prepare_battery_schedule_coord(coord)
 
-    summary = EnphaseBatteryScheduleSummarySensor(coord)
     cfg_sensor = EnphaseBatteryScheduleModeSensor(coord, "cfg")
     rbd_sensor = EnphaseBatteryScheduleModeSensor(coord, "rbd")
 
-    assert summary.available is True
-    assert summary.native_value == "2"
-    assert summary.extra_state_attributes["schedule_ids"] == ["abc123", "def456"]
-    assert summary.extra_state_attributes["schedule_counts_by_type"] == {
-        "cfg": 1,
-        "dtg": 1,
-        "rbd": 0,
-    }
-
-    assert cfg_sensor.native_value == "#abc123 01:00-03:30"
+    assert cfg_sensor.available is True
+    assert cfg_sensor.native_value == "1"
     assert cfg_sensor.extra_state_attributes["schedule_type"] == "cfg"
-    assert rbd_sensor.native_value == "None"
+    assert cfg_sensor.extra_state_attributes["schedule_ids"] == ["abc123"]
+    assert rbd_sensor.native_value == "0"
     assert rbd_sensor.extra_state_attributes["schedule_ids"] == []
     assert _battery_schedule_inventory_supported(coord) is True
     coord._battery_has_encharge = False  # noqa: SLF001
@@ -753,6 +819,48 @@ async def test_battery_schedule_sensor_setup_prunes_stale_inventory_entities_whe
     coord._battery_cfg_schedule_id = None  # noqa: SLF001
     coord._battery_dtg_schedule_id = None  # noqa: SLF001
     coord._battery_rbd_schedule_id = None  # noqa: SLF001
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: (lambda: None),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        coord, "async_add_listener", lambda callback: (lambda: None), raising=False
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_{coord.site_id}_battery_schedule_summary",
+        config_entry=config_entry,
+    )
+    assert stale is not None
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert (
+        ent_reg.async_get_entity_id(
+            "sensor",
+            DOMAIN,
+            f"{DOMAIN}_site_{coord.site_id}_battery_schedule_summary",
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_sensor_setup_prunes_stale_summary_when_supported(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.sensor import async_setup_entry
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
     monkeypatch.setattr(
         coord,
         "async_add_topology_listener",
