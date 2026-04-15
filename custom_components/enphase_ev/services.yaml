@@ -122,6 +122,236 @@ sync_schedules:
           integration: enphase_ev
           multiple: true
 
+force_refresh:
+  name: Force Refresh
+  description: Refresh battery schedule data from the Enphase cloud immediately
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
+        config_entry_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+
+add_schedule:
+  name: Add Battery Schedule
+  description: Create a battery schedule for CFG, DTG, or RBD
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    schedule_type:
+      required: true
+      selector:
+        select:
+          options:
+            - cfg
+            - dtg
+            - rbd
+    start_time:
+      required: true
+      selector:
+        time:
+    end_time:
+      required: true
+      selector:
+        time:
+    limit:
+      required: true
+      selector:
+        number:
+          min: 5
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+    days:
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Monday
+              value: "1"
+            - label: Tuesday
+              value: "2"
+            - label: Wednesday
+              value: "3"
+            - label: Thursday
+              value: "4"
+            - label: Friday
+              value: "5"
+            - label: Saturday
+              value: "6"
+            - label: Sunday
+              value: "7"
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
+        config_entry_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+
+update_schedule:
+  name: Update Battery Schedule
+  description: Update a battery schedule by schedule ID
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    schedule_id:
+      required: true
+      selector:
+        text:
+          multiline: false
+    schedule_type:
+      required: true
+      selector:
+        select:
+          options:
+            - cfg
+            - dtg
+            - rbd
+    start_time:
+      required: true
+      selector:
+        time:
+    end_time:
+      required: true
+      selector:
+        time:
+    limit:
+      required: true
+      selector:
+        number:
+          min: 5
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+    days:
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Monday
+              value: "1"
+            - label: Tuesday
+              value: "2"
+            - label: Wednesday
+              value: "3"
+            - label: Thursday
+              value: "4"
+            - label: Friday
+              value: "5"
+            - label: Saturday
+              value: "6"
+            - label: Sunday
+              value: "7"
+    confirm:
+      required: true
+      selector:
+        boolean:
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
+        config_entry_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+
+delete_schedule:
+  name: Delete Battery Schedule
+  description: Delete one or more battery schedules by schedule ID
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    schedule_id:
+      required: false
+      selector:
+        text:
+          multiline: false
+    schedule_ids:
+      required: false
+      example: "sched-1,sched-2"
+      selector:
+        text:
+          multiline: false
+    confirm:
+      required: true
+      selector:
+        boolean:
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
+        config_entry_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+
+validate_schedule:
+  name: Validate Battery Schedule
+  description: Validate battery schedule permissions and return the Enphase API response
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    schedule_type:
+      required: true
+      selector:
+        select:
+          options:
+            - cfg
+            - dtg
+            - rbd
+    advanced:
+      collapsed: true
+      fields:
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
+        config_entry_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+
 request_grid_toggle_otp:
   name: Request Grid Toggle OTP
   description: Send a one-time code required for changing site grid mode.

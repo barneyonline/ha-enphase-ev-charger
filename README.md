@@ -146,6 +146,7 @@ Notes:
 
 - `.ha-config/` is gitignored and intended only for local verification data.
 - `ha-runtime` inherits the `TZ` environment variable from your shell and defaults to `UTC` if it is unset.
+- `ha-runtime` now pins container DNS to public resolvers by default to avoid intermittent Docker Desktop resolver timeouts. Override with `HA_RUNTIME_DNS_1` and `HA_RUNTIME_DNS_2` if your network requires different upstream DNS servers.
 - The runtime service uses port mapping instead of `network_mode: host` so it works reliably on Docker Desktop for macOS and Windows.
 - If you need Linux-only host networking or hardware access for local discovery testing, adjust the runtime service locally with the options from the official Home Assistant Container docs.
 
@@ -157,5 +158,8 @@ Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-energy/wiki), inc
 
 - Battery schedule toggles and limits are exposed as `switch` and `number` entities.
 - Battery schedule start and end values are exposed as separate `time` entities.
+- Battery schedule inventory is also exposed through diagnostic `sensor` entities, including a combined summary plus per-mode CFG, DTG, and RBD schedule lists with schedule IDs in the attributes.
+- Battery schedule CRUD is available through dedicated `select`, `time`, `number`, `switch`, and `button` editor entities on the battery device, plus `force_refresh`, `add_schedule`, `update_schedule`, `delete_schedule`, and `validate_schedule` services for automations.
+- Use the integration Options page to enable `EV Charger Scheduler` and `Battery Scheduler` independently. The battery scheduler editor now uses a single shared form with a `New schedule` option instead of exposing separate edit and create entity sets.
 - In Home Assistant, those `time` entities may need to be added to dashboards manually if you want the schedule window visible on a card.
 - Related battery schedule entities also expose the current schedule window and write-pending status as state attributes to make delayed Enphase cloud updates easier to diagnose.

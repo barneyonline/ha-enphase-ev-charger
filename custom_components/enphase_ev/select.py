@@ -8,11 +8,17 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import SchedulerUnavailable
+from .battery_schedule_editor import (
+    BatteryScheduleEditorEntity,
+    NEW_SCHEDULE_OPTION,
+    NEW_SCHEDULE_OPTION_LABEL,
+    battery_scheduler_enabled,
+)
 from .ac_battery_support import (
     AC_BATTERY_SOC_OPTIONS,
     ac_battery_control_available,
@@ -127,6 +133,22 @@ def _retain_ac_battery_target_soc(coord: EnphaseCoordinator) -> bool:
     return ac_battery_control_available(coord)
 
 
+def _retain_battery_schedule_editor(
+    coord: EnphaseCoordinator, entry: EnphaseConfigEntry
+) -> bool:
+    client = getattr(coord, "client", None)
+    return (
+        battery_scheduler_enabled(entry)
+        and _site_has_battery(coord)
+        and _type_available(coord, "encharge")
+        and _battery_write_access_confirmed(coord)
+        and callable(getattr(client, "battery_schedules", None))
+        and callable(getattr(client, "create_battery_schedule", None))
+        and callable(getattr(client, "update_battery_schedule", None))
+        and callable(getattr(client, "delete_battery_schedule", None))
+    )
+
+
 def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
     if not message:
         return None, None
@@ -154,9 +176,16 @@ async def async_setup_entry(
     known_serials: set[str] = set()
     site_entity_added = False
     ac_battery_select_added = False
+    battery_schedule_editor_added = False
 
     def _system_profile_unique_id() -> str:
         return f"{DOMAIN}_site_{coord.site_id}_system_profile"
+
+    def _battery_schedule_select_unique_id() -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_battery_schedule_selected"
+
+    def _battery_new_schedule_type_unique_id() -> str:
+        return f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_type"
 
     def _charge_mode_unique_id(sn: str) -> str:
         return f"{DOMAIN}_{sn}_charge_mode_select"
@@ -165,9 +194,11 @@ async def async_setup_entry(
     def _async_sync_site_entities() -> None:
         nonlocal site_entity_added
         nonlocal ac_battery_select_added
+        nonlocal battery_schedule_editor_added
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         retain_system_profile = _retain_system_profile(coord)
         retain_ac_battery_target_soc = _retain_ac_battery_target_soc(coord)
+        retain_battery_schedule_editor = _retain_battery_schedule_editor(coord, entry)
         if (
             not site_entity_added
             and _site_has_battery(coord)
@@ -181,10 +212,21 @@ async def async_setup_entry(
                 [AcBatteryTargetStateOfChargeSelect(coord)], update_before_add=False
             )
             ac_battery_select_added = True
+        if not battery_schedule_editor_added and retain_battery_schedule_editor:
+            async_add_entities(
+                [
+                    BatteryScheduleSelect(coord, entry),
+                    BatteryNewScheduleTypeSelect(coord, entry),
+                ],
+                update_before_add=False,
+            )
+            battery_schedule_editor_added = True
         if not retain_system_profile:
             site_entity_added = False
         if not retain_ac_battery_target_soc:
             ac_battery_select_added = False
+        if not retain_battery_schedule_editor:
+            battery_schedule_editor_added = False
         if not inventory_ready:
             return
         prune_managed_entities(
@@ -199,6 +241,14 @@ async def async_setup_entry(
                         f"{DOMAIN}_site_{coord.site_id}_ac_battery_target_state_of_charge",
                         retain_ac_battery_target_soc,
                     ),
+                    (
+                        _battery_schedule_select_unique_id(),
+                        retain_battery_schedule_editor,
+                    ),
+                    (
+                        _battery_new_schedule_type_unique_id(),
+                        retain_battery_schedule_editor,
+                    ),
                 )
                 if retained
             },
@@ -206,6 +256,8 @@ async def async_setup_entry(
             in {
                 _system_profile_unique_id(),
                 f"{DOMAIN}_site_{coord.site_id}_ac_battery_target_state_of_charge",
+                _battery_schedule_select_unique_id(),
+                _battery_new_schedule_type_unique_id(),
             },
         )
 
@@ -334,6 +386,99 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
             manufacturer="Enphase",
         )
+
+
+class _BatteryScheduleEditorSelect(BatteryScheduleEditorEntity, SelectEntity):
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry) -> None:
+        super().__init__(coord, entry)
+        self._attr_has_entity_name = True
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return (
+            super().available
+            and battery_scheduler_enabled(self._entry)
+            and _retain_battery_schedule_editor(self._coord, self._entry)
+            and self._editor is not None
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        info = _type_device_info(self._coord, "encharge")
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
+            manufacturer="Enphase",
+        )
+
+
+class BatteryScheduleSelect(_BatteryScheduleEditorSelect):
+    _attr_translation_key = "battery_schedule_selected"
+    _attr_icon = "mdi:calendar-edit"
+
+    def __init__(self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry) -> None:
+        super().__init__(coord, entry)
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_battery_schedule_selected"
+        )
+
+    @property
+    def options(self) -> list[str]:
+        if self._editor is None:
+            return []
+        return [
+            *(schedule.schedule_id for schedule in self._editor.schedules),
+            NEW_SCHEDULE_OPTION_LABEL,
+        ]
+
+    @property
+    def current_option(self) -> str | None:
+        if self._editor is None:
+            return None
+        if self._editor.current_selection == NEW_SCHEDULE_OPTION:
+            return NEW_SCHEDULE_OPTION_LABEL
+        return self._editor.current_selection
+
+    async def async_select_option(self, option: str) -> None:
+        if self._editor is not None:
+            self._editor.select_schedule(
+                NEW_SCHEDULE_OPTION if option == NEW_SCHEDULE_OPTION_LABEL else option
+            )
+
+
+class BatteryNewScheduleTypeSelect(_BatteryScheduleEditorSelect):
+    _attr_translation_key = "battery_new_schedule_type"
+    _attr_icon = "mdi:calendar-plus"
+
+    def __init__(self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry) -> None:
+        super().__init__(coord, entry)
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_type"
+        )
+        self._options = ["cfg", "dtg", "rbd"]
+
+    @property
+    def options(self) -> list[str]:
+        return list(self._options)
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return (
+            super().available and self._editor is not None and self._editor.is_creating
+        )
+
+    @property
+    def current_option(self) -> str | None:
+        if self._editor is None:
+            return None
+        return self._editor.edit.schedule_type
+
+    async def async_select_option(self, option: str) -> None:
+        if option in self._options and self._editor is not None:
+            self._editor.set_new_schedule_type(option)
 
 
 class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
