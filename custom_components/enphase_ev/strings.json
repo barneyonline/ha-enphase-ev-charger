@@ -147,7 +147,8 @@
           "api_timeout": "API timeout (s)",
           "nominal_voltage": "Nominal voltage (V)",
           "session_history_interval": "Session history interval (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Enable EV Charger Scheduler",
+          "battery_schedules_enabled": "Enable Battery Scheduler",
           "reauth": "Start reauthentication",
           "forget_password": "Forget stored password"
         },
@@ -164,7 +165,8 @@
           "api_timeout": "Seconds before API requests time out.",
           "nominal_voltage": "Fallback voltage used for charger power estimates.",
           "session_history_interval": "Minutes to wait between cloud session history fetches.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Manage IQ EV Charger Schedules",
+          "battery_schedules_enabled": "Manage IQ Battery Schedules",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
           "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
         }
@@ -185,7 +187,8 @@
           "api_timeout": "API timeout (s)",
           "nominal_voltage": "Nominal voltage (V)",
           "session_history_interval": "Session history interval (min)",
-          "schedule_sync_enabled": "Enable Scheduler Support",
+          "schedule_sync_enabled": "Enable EV Charger Scheduler",
+          "battery_schedules_enabled": "Enable Battery Scheduler",
           "reauth": "Start reauthentication",
           "forget_password": "Forget stored password"
         },
@@ -202,7 +205,8 @@
           "api_timeout": "Seconds before API requests time out.",
           "nominal_voltage": "Fallback voltage used for charger power estimates.",
           "session_history_interval": "Minutes to wait between cloud session history fetches.",
-          "schedule_sync_enabled": "Manage Enphase schedule management",
+          "schedule_sync_enabled": "Manage IQ EV Charger Schedules",
+          "battery_schedules_enabled": "Manage IQ Battery Schedules",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
           "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
         }
@@ -1229,6 +1233,18 @@
           "unpaired": "Unpaired",
           "pairing": "Pairing"
         }
+      },
+      "battery_schedule_summary": {
+        "name": "Battery Schedule Summary"
+      },
+      "battery_cfg_schedules": {
+        "name": "Battery CFG Schedules"
+      },
+      "battery_dtg_schedules": {
+        "name": "Battery DTG Schedules"
+      },
+      "battery_rbd_schedules": {
+        "name": "Battery RBD Schedules"
       }
     },
     "number": {
@@ -1249,6 +1265,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Restrict Battery Discharge Limit"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Battery Schedule Limit"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Battery New Schedule Limit"
       }
     },
     "binary_sensor": {
@@ -1329,6 +1351,48 @@
       },
       "ac_battery_sleep_mode": {
         "name": "AC Battery Sleep Mode"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Battery Schedule Monday"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Battery Schedule Tuesday"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Battery Schedule Wednesday"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Battery Schedule Thursday"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Battery Schedule Friday"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Battery Schedule Saturday"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Battery Schedule Sunday"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Battery New Schedule Monday"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Battery New Schedule Tuesday"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Battery New Schedule Wednesday"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Battery New Schedule Thursday"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Battery New Schedule Friday"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Battery New Schedule Saturday"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Battery New Schedule Sunday"
       }
     },
     "time": {
@@ -1349,6 +1413,18 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Restrict Battery Discharge End Time"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Battery Schedule Start Time"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Battery Schedule End Time"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Battery New Schedule Start Time"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Battery New Schedule End Time"
       }
     },
     "calendar": {
@@ -1365,6 +1441,12 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "AC Battery Target State of Charge"
+      },
+      "battery_schedule_selected": {
+        "name": "Battery Schedule"
+      },
+      "battery_new_schedule_type": {
+        "name": "Battery Schedule Type"
       }
     },
     "button": {
@@ -1382,6 +1464,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Storm Alert Opt Out"
+      },
+      "battery_schedule_refresh": {
+        "name": "Battery Schedule Refresh"
+      },
+      "battery_schedule_save": {
+        "name": "Battery Schedule Save"
+      },
+      "battery_schedule_delete": {
+        "name": "Battery Schedule Delete"
+      },
+      "battery_schedule_add": {
+        "name": "Battery Schedule Add"
       }
     },
     "update": {
@@ -1654,6 +1748,165 @@
         "site_id": {
           "name": "Site ID",
           "description": "Enphase site ID (optional, resolved from device target)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Force Refresh",
+      "description": "Refresh battery schedule data from the Enphase cloud immediately.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        },
+        "config_entry_id": {
+          "name": "Config Entry ID",
+          "description": "Optional config entry identifier for a single Enphase site entry."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Add Battery Schedule",
+      "description": "Create a battery schedule for CFG, DTG, or RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Schedule Type",
+          "description": "Battery schedule family: cfg, dtg, or rbd."
+        },
+        "start_time": {
+          "name": "Start Time",
+          "description": "Schedule start time."
+        },
+        "end_time": {
+          "name": "End Time",
+          "description": "Schedule end time."
+        },
+        "limit": {
+          "name": "Charge Limit",
+          "description": "Maximum battery state of charge (%)."
+        },
+        "days": {
+          "name": "Days",
+          "description": "List of active weekdays using Monday=1 through Sunday=7."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        },
+        "config_entry_id": {
+          "name": "Config Entry ID",
+          "description": "Optional config entry identifier for a single Enphase site entry."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Update Battery Schedule",
+      "description": "Update a battery schedule by schedule ID.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "Existing Enphase battery schedule identifier."
+        },
+        "schedule_type": {
+          "name": "Schedule Type",
+          "description": "Battery schedule family: cfg, dtg, or rbd."
+        },
+        "start_time": {
+          "name": "Start Time",
+          "description": "Schedule start time."
+        },
+        "end_time": {
+          "name": "End Time",
+          "description": "Schedule end time."
+        },
+        "limit": {
+          "name": "Charge Limit",
+          "description": "Maximum battery state of charge (%)."
+        },
+        "days": {
+          "name": "Days",
+          "description": "List of active weekdays using Monday=1 through Sunday=7."
+        },
+        "confirm": {
+          "name": "Confirm",
+          "description": "Set to true to confirm the schedule update."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        },
+        "config_entry_id": {
+          "name": "Config Entry ID",
+          "description": "Optional config entry identifier for a single Enphase site entry."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Delete Battery Schedule",
+      "description": "Delete one or more battery schedules by schedule ID.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Schedule ID",
+          "description": "Single Enphase battery schedule identifier to delete."
+        },
+        "schedule_ids": {
+          "name": "Schedule IDs",
+          "description": "Optional comma-separated or list input for multiple schedule identifiers."
+        },
+        "confirm": {
+          "name": "Confirm",
+          "description": "Set to true to confirm the schedule deletion."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        },
+        "config_entry_id": {
+          "name": "Config Entry ID",
+          "description": "Optional config entry identifier for a single Enphase site entry."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Validate Battery Schedule",
+      "description": "Check whether battery schedule editing is available for the selected schedule family.",
+      "sections": {
+        "advanced": {
+          "name": "Advanced options"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Schedule Type",
+          "description": "Battery schedule family: cfg, dtg, or rbd."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        },
+        "config_entry_id": {
+          "name": "Config Entry ID",
+          "description": "Optional config entry identifier for a single Enphase site entry."
         }
       }
     }

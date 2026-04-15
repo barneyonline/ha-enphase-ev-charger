@@ -3601,9 +3601,66 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     assert migrate_cloud.call_count == 1
     assert config_entry.data["startup_migration_version"] == 3
 
-    state_listeners[0]()
+    for listener in state_listeners[:-1]:
+        listener()
     assert sync_registry_devices.call_count == 1
 
     dummy_coord.data[RANDOM_SERIAL]["sw_version"] = "1.2.3"
-    state_listeners[0]()
+    state_listeners[-1]()
     assert sync_registry_devices.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_registry_sync_listener_swallows_sync_errors(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    state_listeners: list = []
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.serials = {RANDOM_SERIAL}
+            self.data = {RANDOM_SERIAL: {"name": "Fallback Charger"}}
+            self.schedule_sync = SimpleNamespace(async_start=AsyncMock())
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return [RANDOM_SERIAL]
+
+        def iter_type_keys(self) -> list[str]:
+            return ["iqevse"]
+
+        def type_identifier(self, type_key: str):
+            return type_identifier(self.site_id, type_key)
+
+        def type_label(self, _type_key: str) -> str:
+            return "EV Chargers"
+
+        def type_device_name(self, _type_key: str) -> str:
+            return "EV Chargers (1)"
+
+        def async_add_topology_listener(self, callback):
+            return lambda: None
+
+        def async_add_listener(self, callback):
+            state_listeners.append(callback)
+            return lambda: None
+
+    dummy_coord = _with_inventory_view(DummyCoordinator())
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._registry_metadata_signature",
+        Mock(side_effect=["initial-signature", RuntimeError("boom")]),
+    )
+
+    assert await async_setup_entry(hass, config_entry)
+    assert state_listeners
+
+    state_listeners[-1]()

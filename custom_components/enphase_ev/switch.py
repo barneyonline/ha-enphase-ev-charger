@@ -9,7 +9,7 @@ from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -20,6 +20,11 @@ from .ac_battery_support import (
     ac_battery_entities_available,
 )
 from .api import AuthSettingsUnavailable
+from .battery_schedule_editor import (
+    BatteryScheduleEditorEntity,
+    DAY_ORDER,
+    battery_scheduler_enabled,
+)
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity, battery_schedule_extra_state_attributes
@@ -105,8 +110,11 @@ def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:
     return show_storm_guard is not False
 
 
-def _retained_site_switch_keys(coord: EnphaseCoordinator) -> set[str]:
+def _retained_site_switch_keys(
+    coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None = None
+) -> set[str]:
     retained: set[str] = set()
+    client = getattr(coord, "client", None)
     if (
         _site_has_battery(coord)
         and _type_available(coord, "envoy")
@@ -135,6 +143,18 @@ def _retained_site_switch_keys(coord: EnphaseCoordinator) -> set[str]:
             retained.add("restrict_battery_discharge_schedule")
     if ac_battery_control_available(coord):
         retained.add("ac_battery_sleep_mode")
+    if (
+        battery_scheduler_enabled(entry)
+        and _site_has_battery(coord)
+        and _type_available(coord, "encharge")
+        and _battery_write_access_confirmed(coord)
+        and callable(getattr(client, "battery_schedules", None))
+        and callable(getattr(client, "create_battery_schedule", None))
+        and callable(getattr(client, "update_battery_schedule", None))
+        and callable(getattr(client, "delete_battery_schedule", None))
+    ):
+        for day_key, _ in DAY_ORDER:
+            retained.add(f"battery_schedule_edit_{day_key}")
     return retained
 
 
@@ -186,7 +206,7 @@ async def async_setup_entry(
     def _async_sync_site_entities() -> None:
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         site_entities: list[SwitchEntity] = []
-        retain_site_entity_keys = _retained_site_switch_keys(coord)
+        retain_site_entity_keys = _retained_site_switch_keys(coord, entry)
         if (
             "storm_guard" in retain_site_entity_keys
             and "storm_guard" not in site_entity_keys
@@ -233,6 +253,17 @@ async def async_setup_entry(
         ):
             site_entities.append(AcBatterySleepModeSwitch(coord))
             site_entity_keys.add("ac_battery_sleep_mode")
+        if _site_has_battery(coord) and _type_available(coord, "encharge"):
+            for day_key, _ in DAY_ORDER:
+                edit_key = f"battery_schedule_edit_{day_key}"
+                if (
+                    edit_key in retain_site_entity_keys
+                    and edit_key not in site_entity_keys
+                ):
+                    site_entities.append(
+                        BatteryScheduleEditorDaySwitch(coord, entry, day_key=day_key)
+                    )
+                    site_entity_keys.add(edit_key)
         if site_entities:
             async_add_entities(site_entities, update_before_add=False)
         if not _site_has_battery(coord):
@@ -244,6 +275,7 @@ async def async_setup_entry(
                     "charge_from_grid_schedule",
                     "discharge_to_grid_schedule",
                     "restrict_battery_discharge_schedule",
+                    *(f"battery_schedule_edit_{day_key}" for day_key, _ in DAY_ORDER),
                 }
             )
         elif not _type_available(coord, "encharge"):
@@ -254,6 +286,7 @@ async def async_setup_entry(
                     "charge_from_grid_schedule",
                     "discharge_to_grid_schedule",
                     "restrict_battery_discharge_schedule",
+                    *(f"battery_schedule_edit_{day_key}" for day_key, _ in DAY_ORDER),
                 }
             )
         if not ac_battery_entities_available(coord):
@@ -278,6 +311,14 @@ async def async_setup_entry(
                 f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_schedule",
                 f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_schedule",
                 f"{DOMAIN}_site_{coord.site_id}_ac_battery_sleep_mode",
+                *(
+                    f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_{day_key}"
+                    for day_key, _ in DAY_ORDER
+                ),
+                *(
+                    f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_{day_key}"
+                    for day_key, _ in DAY_ORDER
+                ),
             },
         )
 
@@ -1050,3 +1091,64 @@ class ScheduleSlotSwitch(EnphaseBaseEntity, SwitchEntity):
     @callback
     def _handle_schedule_sync_update(self) -> None:
         self.async_write_ha_state()
+
+
+class BatteryScheduleEditorDaySwitch(BatteryScheduleEditorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        entry: EnphaseConfigEntry,
+        *,
+        day_key: str,
+    ) -> None:
+        super().__init__(coord, entry)
+        self._day_key = day_key
+        self._attr_unique_id = (
+            f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_{day_key}"
+        )
+        self._attr_translation_key = f"battery_schedule_edit_{day_key}"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        client = getattr(self._coord, "client", None)
+        return (
+            super().available
+            and battery_scheduler_enabled(self._entry)
+            and _type_available(self._coord, "encharge")
+            and _battery_write_access_confirmed(self._coord)
+            and callable(getattr(client, "battery_schedules", None))
+            and callable(getattr(client, "create_battery_schedule", None))
+            and callable(getattr(client, "update_battery_schedule", None))
+            and callable(getattr(client, "delete_battery_schedule", None))
+            and self._editor is not None
+        )
+
+    @property
+    def is_on(self) -> bool:
+        if self._editor is None:
+            return False
+        return bool(self._editor.edit.days.get(self._day_key))
+
+    async def async_turn_on(self, **kwargs) -> None:
+        if self._editor is None:
+            return
+        self._editor.set_edit_day(self._day_key, True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        if self._editor is None:
+            return
+        self._editor.set_edit_day(self._day_key, False)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        info = _type_device_info(self._coord, "encharge")
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
+            manufacturer="Enphase",
+        )

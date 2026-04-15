@@ -220,6 +220,54 @@ def test_battery_cfg_schedule_status_strings_localized_for_non_english_locales()
             ), f"{name} should localize {path} (still matches English)"
 
 
+def test_battery_schedule_editor_strings_exist_for_english_locales() -> None:
+    """Ensure battery schedule parity entities/services are present in English catalogs."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    paths = [
+        "options.step.init.data.schedule_sync_enabled",
+        "options.step.init.data.battery_schedules_enabled",
+        "options.step.init.data_description.schedule_sync_enabled",
+        "options.step.init.data_description.battery_schedules_enabled",
+        "entity.button.battery_schedule_refresh.name",
+        "entity.button.battery_schedule_save.name",
+        "entity.button.battery_schedule_delete.name",
+        "entity.select.battery_schedule_selected.name",
+        "entity.select.battery_new_schedule_type.name",
+        "entity.number.battery_schedule_edit_limit.name",
+        "entity.time.battery_schedule_edit_start_time.name",
+        "entity.time.battery_schedule_edit_end_time.name",
+        "entity.switch.battery_schedule_edit_mon.name",
+        "entity.sensor.battery_schedule_summary.name",
+        "entity.sensor.battery_cfg_schedules.name",
+        "entity.sensor.battery_dtg_schedules.name",
+        "entity.sensor.battery_rbd_schedules.name",
+        "services.force_refresh.name",
+        "services.add_schedule.name",
+        "services.update_schedule.name",
+        "services.delete_schedule.name",
+        "services.validate_schedule.name",
+    ]
+    for locale_name in (
+        "en.json",
+        "en-AU.json",
+        "en-CA.json",
+        "en-IE.json",
+        "en-NZ.json",
+        "en-US.json",
+    ):
+        locale = translations_dir / locale_name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{locale.name} missing value for {path}"
+
+
 def test_update_cfg_schedule_service_strings_localized_for_non_english_locales() -> (
     None
 ):

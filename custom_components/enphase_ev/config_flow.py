@@ -52,6 +52,7 @@ from .const import (
     DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
     OPT_API_TIMEOUT,
+    OPT_BATTERY_SCHEDULES_ENABLED,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
@@ -1201,6 +1202,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(
                     OPT_SCHEDULE_SYNC_ENABLED,
                     default=self._entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, False),
+                ): bool,
+                vol.Optional(
+                    OPT_BATTERY_SCHEDULES_ENABLED,
+                    default=self._entry.options.get(
+                        OPT_BATTERY_SCHEDULES_ENABLED, False
+                    ),
                 ): bool,
                 vol.Optional("reauth", default=False): bool,
                 vol.Optional("forget_password", default=False): bool,

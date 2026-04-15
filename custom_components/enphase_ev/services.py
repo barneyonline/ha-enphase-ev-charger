@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 import voluptuous as vol
@@ -10,14 +11,16 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers import service as ha_service
 
+from .battery_schedule_editor import battery_schedule_inventory
 from .const import DOMAIN, ISSUE_AUTH_BLOCKED, ISSUE_REAUTH_REQUIRED
 from .device_types import parse_type_identifier
-from .runtime_data import iter_coordinators
+from .runtime_data import EnphaseRuntimeData, iter_coordinators
 
 if TYPE_CHECKING:  # pragma: no cover
     from .coordinator import EnphaseCoordinator
 
 REGISTERED_SERVICES = (
+    "force_refresh",
     "start_charging",
     "stop_charging",
     "trigger_message",
@@ -27,6 +30,10 @@ REGISTERED_SERVICES = (
     "start_live_stream",
     "stop_live_stream",
     "sync_schedules",
+    "add_schedule",
+    "update_schedule",
+    "delete_schedule",
+    "validate_schedule",
     "update_cfg_schedule",
 )
 
@@ -40,6 +47,12 @@ def async_setup_services(
         return
 
     from homeassistant.exceptions import ServiceValidationError
+
+    SCHEDULE_TYPE_SCHEMA = vol.In(("cfg", "dtg", "rbd"))
+    DAYS_SCHEMA = vol.All(
+        cv.ensure_list, [vol.All(vol.Coerce(int), vol.Range(min=1, max=7))]
+    )
+    SCHEDULE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 
     async def _resolve_sn(device_id: str) -> str | None:
         dev_reg = dr.async_get(hass)
@@ -86,7 +99,17 @@ def async_setup_services(
                 return coord
         return None
 
+    def _get_coordinator_for_entry_id(entry_id: str) -> EnphaseCoordinator | None:
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.entry_id != entry_id:
+                continue
+            runtime_data = getattr(entry, "runtime_data", None)
+            if isinstance(runtime_data, EnphaseRuntimeData):
+                return runtime_data.coordinator
+        return None
+
     DEVICE_ID_LIST = vol.All(cv.ensure_list, [cv.string])
+    ENTRY_SCHEMA = {vol.Optional("config_entry_id"): cv.string}
 
     START_SCHEMA = vol.Schema(
         {
@@ -121,6 +144,117 @@ def async_setup_services(
         {vol.Optional("device_id"): DEVICE_ID_LIST, vol.Optional("site_id"): cv.string}
     )
     SYNC_SCHEMA = vol.Schema({vol.Optional("device_id"): DEVICE_ID_LIST})
+    FORCE_REFRESH_SCHEMA = vol.Schema(
+        {
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+            vol.Optional("config_entry_id"): cv.string,
+        }
+    )
+    ADD_SCHEDULE_SCHEMA = vol.Schema(
+        {
+            **ENTRY_SCHEMA,
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+            vol.Required("schedule_type"): SCHEDULE_TYPE_SCHEMA,
+            vol.Required("start_time"): cv.time,
+            vol.Required("end_time"): cv.time,
+            vol.Required("limit"): vol.All(vol.Coerce(int), vol.Range(min=5, max=100)),
+            vol.Required("days"): DAYS_SCHEMA,
+        }
+    )
+    UPDATE_SCHEDULE_SCHEMA = vol.Schema(
+        {
+            **ENTRY_SCHEMA,
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+            vol.Required("schedule_id"): cv.string,
+            vol.Required("schedule_type"): SCHEDULE_TYPE_SCHEMA,
+            vol.Required("start_time"): cv.time,
+            vol.Required("end_time"): cv.time,
+            vol.Required("limit"): vol.All(vol.Coerce(int), vol.Range(min=5, max=100)),
+            vol.Required("days"): DAYS_SCHEMA,
+            vol.Required("confirm"): cv.boolean,
+        }
+    )
+    DELETE_SCHEDULE_SCHEMA = vol.Schema(
+        {
+            **ENTRY_SCHEMA,
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+            vol.Optional("schedule_id"): cv.string,
+            vol.Optional("schedule_ids"): cv.ensure_list,
+            vol.Required("confirm"): cv.boolean,
+        }
+    )
+    VALIDATE_SCHEDULE_SCHEMA = vol.Schema(
+        {
+            **ENTRY_SCHEMA,
+            vol.Optional("device_id"): DEVICE_ID_LIST,
+            vol.Optional("site_id"): cv.string,
+            vol.Required("schedule_type"): SCHEDULE_TYPE_SCHEMA,
+        }
+    )
+
+    def _normalize_schedule_ids(raw: object) -> list[str]:
+        schedule_ids: list[str] = []
+        if raw is None:
+            return schedule_ids
+        if isinstance(raw, (list, tuple, set)):
+            candidates = [str(value) for value in raw]
+        else:
+            candidates = re.split(r"[,\s]+", str(raw))
+        for candidate in candidates:
+            if candidate:
+                schedule_ids.append(candidate)
+        return [
+            schedule_id.strip().strip("'\"")
+            for schedule_id in schedule_ids
+            if schedule_id.strip().strip("'\"")
+        ]
+
+    def _validate_schedule_fields(
+        *,
+        schedule_type: str,
+        start_time,
+        end_time,
+        days: list[int],
+        limit: int,
+    ) -> tuple[str, str]:
+        if not days:
+            raise ServiceValidationError("Select at least one day for the schedule.")
+        start_str = start_time.strftime("%H:%M")
+        end_str = end_time.strftime("%H:%M")
+        if start_str == end_str:
+            raise ServiceValidationError(
+                "Schedule start and end times must be different."
+            )
+        if not 5 <= int(limit) <= 100:
+            raise ServiceValidationError(
+                f"{str(schedule_type).upper()} schedule limit must be between 5 and 100."
+            )
+        return start_str, end_str
+
+    async def _validate_schedule_with_api(
+        coord: EnphaseCoordinator, schedule_type: str
+    ) -> dict[str, object]:
+        validator = getattr(coord.client, "validate_battery_schedule", None)
+        if not callable(validator):
+            return {}
+        result = await validator(schedule_type)
+        if isinstance(result, dict) and result.get("valid") is False:
+            raise ServiceValidationError(
+                str(
+                    result.get(
+                        "message",
+                        "Schedule rejected by the Enphase validation endpoint.",
+                    )
+                )
+            )
+        return result if isinstance(result, dict) else {}
+
+    def _known_schedule_ids(coord: EnphaseCoordinator) -> set[str]:
+        return {schedule.schedule_id for schedule in battery_schedule_inventory(coord)}
 
     def _validate_cfg_schedule(data: dict) -> dict:
         if not any(k in data for k in ("start_time", "end_time", "limit")):
@@ -162,6 +296,11 @@ def async_setup_services(
 
     async def _resolve_site_ids_from_call(call: ServiceCall) -> set[str]:
         site_ids: set[str] = set()
+        config_entry_id = call.data.get("config_entry_id")
+        if config_entry_id:
+            coord = _get_coordinator_for_entry_id(str(config_entry_id))
+            if coord is not None:
+                site_ids.add(str(coord.site_id))
         for device_id in _extract_device_ids(call):
             site_id = await _resolve_site_id(device_id)
             if site_id:
@@ -174,6 +313,11 @@ def async_setup_services(
     async def _resolve_single_site_coordinator(
         call: ServiceCall,
     ) -> EnphaseCoordinator:
+        config_entry_id = call.data.get("config_entry_id")
+        if config_entry_id:
+            coord = _get_coordinator_for_entry_id(str(config_entry_id))
+            if coord is not None:
+                return coord
         site_ids = await _resolve_site_ids_from_call(call)
         if not site_ids:
             raise ServiceValidationError(
@@ -194,6 +338,10 @@ def async_setup_services(
             translation_domain=DOMAIN,
             translation_key="exceptions.grid_site_required",
         )
+
+    async def _svc_force_refresh(call: ServiceCall) -> None:
+        coord = await _resolve_single_site_coordinator(call)
+        await coord.async_request_refresh()
 
     async def _svc_start(call: ServiceCall) -> None:
         device_ids = _extract_device_ids(call)
@@ -305,6 +453,151 @@ def async_setup_services(
             limit=call.data.get("limit"),
         )
 
+    async def _svc_add_schedule(call: ServiceCall) -> None:
+        coord = await _resolve_single_site_coordinator(call)
+        if not coord.battery_write_access_confirmed:
+            raise ServiceValidationError("Battery schedule editing is unavailable.")
+        schedule_type = str(call.data["schedule_type"]).lower()
+        days = sorted({int(day) for day in call.data["days"]})
+        limit = int(call.data["limit"])
+        start_str, end_str = _validate_schedule_fields(
+            schedule_type=schedule_type,
+            start_time=call.data["start_time"],
+            end_time=call.data["end_time"],
+            days=days,
+            limit=limit,
+        )
+        await _validate_schedule_with_api(coord, schedule_type)
+        creator = getattr(coord.client, "create_battery_schedule", None)
+        if not callable(creator):
+            raise ServiceValidationError("Battery schedule API is unavailable.")
+        await creator(
+            schedule_type=str(schedule_type).upper(),
+            start_time=start_str,
+            end_time=end_str,
+            limit=limit,
+            days=days,
+            timezone=str(
+                getattr(coord, "battery_timezone", None)
+                or hass.config.time_zone
+                or "UTC"
+            ),
+            is_enabled=True,
+        )
+        await coord.async_request_refresh()
+
+    async def _svc_update_schedule(call: ServiceCall) -> None:
+        coord = await _resolve_single_site_coordinator(call)
+        if not coord.battery_write_access_confirmed:
+            raise ServiceValidationError("Battery schedule editing is unavailable.")
+        if not call.data.get("confirm"):
+            raise ServiceValidationError("Confirmation required to update a schedule.")
+        schedule_id = str(call.data["schedule_id"]).strip()
+        if not SCHEDULE_ID_PATTERN.match(schedule_id):
+            raise ServiceValidationError(f"Invalid schedule ID: {schedule_id}")
+        schedule_inventory = {
+            schedule.schedule_id: schedule
+            for schedule in battery_schedule_inventory(coord)
+        }
+        known_ids = set(schedule_inventory)
+        if known_ids and schedule_id not in known_ids:
+            raise ServiceValidationError(
+                f"Schedule ID not found in current data: {schedule_id}"
+            )
+        schedule_type = str(call.data["schedule_type"]).lower()
+        days = sorted({int(day) for day in call.data["days"]})
+        limit = int(call.data["limit"])
+        start_str, end_str = _validate_schedule_fields(
+            schedule_type=schedule_type,
+            start_time=call.data["start_time"],
+            end_time=call.data["end_time"],
+            days=days,
+            limit=limit,
+        )
+        await _validate_schedule_with_api(coord, schedule_type)
+        updater = getattr(coord.client, "update_battery_schedule", None)
+        if not callable(updater):
+            raise ServiceValidationError("Battery schedule API is unavailable.")
+        existing_schedule = schedule_inventory.get(schedule_id)
+        await updater(
+            schedule_id,
+            schedule_type=str(schedule_type).upper(),
+            start_time=start_str,
+            end_time=end_str,
+            limit=limit,
+            days=days,
+            timezone=str(
+                (
+                    existing_schedule.timezone
+                    if existing_schedule is not None
+                    else getattr(coord, "battery_timezone", None)
+                )
+                or hass.config.time_zone
+                or "UTC"
+            ),
+            is_enabled=(
+                existing_schedule.enabled if existing_schedule is not None else True
+            ),
+        )
+        await coord.async_request_refresh()
+
+    async def _svc_delete_schedule(call: ServiceCall) -> None:
+        coord = await _resolve_single_site_coordinator(call)
+        if not coord.battery_write_access_confirmed:
+            raise ServiceValidationError("Battery schedule editing is unavailable.")
+        if not call.data.get("confirm"):
+            raise ServiceValidationError("Confirmation required to delete a schedule.")
+        raw_schedule_ids = call.data.get("schedule_ids")
+        if raw_schedule_ids:
+            schedule_ids = _normalize_schedule_ids(raw_schedule_ids)
+        else:
+            schedule_ids = _normalize_schedule_ids(call.data.get("schedule_id"))
+        if not schedule_ids:
+            raise ServiceValidationError("Provide at least one schedule ID to delete.")
+        invalid_ids = [
+            schedule_id
+            for schedule_id in schedule_ids
+            if not SCHEDULE_ID_PATTERN.match(schedule_id)
+        ]
+        if invalid_ids:
+            raise ServiceValidationError(
+                f"Invalid schedule ID(s): {', '.join(invalid_ids)}"
+            )
+        known_ids = _known_schedule_ids(coord)
+        if known_ids:
+            missing = [
+                schedule_id
+                for schedule_id in schedule_ids
+                if schedule_id not in known_ids
+            ]
+            if missing:
+                raise ServiceValidationError(
+                    f"Schedule ID(s) not found in current data: {', '.join(missing)}"
+                )
+        deleter = getattr(coord.client, "delete_battery_schedule", None)
+        if not callable(deleter):
+            raise ServiceValidationError("Battery schedule API is unavailable.")
+        schedule_inventory = {
+            schedule.schedule_id: schedule
+            for schedule in battery_schedule_inventory(coord)
+        }
+        for schedule_id in schedule_ids:
+            schedule = schedule_inventory.get(schedule_id)
+            await deleter(
+                schedule_id,
+                schedule_type=schedule.schedule_type if schedule is not None else "cfg",
+            )
+        await coord.async_request_refresh()
+
+    async def _svc_validate_schedule(call: ServiceCall) -> dict[str, object]:
+        coord = await _resolve_single_site_coordinator(call)
+        if not coord.battery_write_access_confirmed:
+            raise ServiceValidationError("Battery schedule editing is unavailable.")
+        result = await _validate_schedule_with_api(
+            coord, str(call.data["schedule_type"]).lower()
+        )
+        return result
+
     async def _svc_sync_schedules(call: ServiceCall) -> None:
         device_ids = _extract_device_ids(call)
         if device_ids:
@@ -322,6 +615,9 @@ def async_setup_services(
             if hasattr(coord, "schedule_sync"):
                 await coord.schedule_sync.async_refresh(reason="service")
 
+    hass.services.async_register(
+        DOMAIN, "force_refresh", _svc_force_refresh, schema=FORCE_REFRESH_SCHEMA
+    )
     hass.services.async_register(
         DOMAIN, "start_charging", _svc_start, schema=START_SCHEMA
     )
@@ -352,6 +648,23 @@ def async_setup_services(
     hass.services.async_register(DOMAIN, "stop_live_stream", _svc_stop_stream)
     hass.services.async_register(
         DOMAIN, "sync_schedules", _svc_sync_schedules, schema=SYNC_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "add_schedule", _svc_add_schedule, schema=ADD_SCHEDULE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "update_schedule", _svc_update_schedule, schema=UPDATE_SCHEDULE_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN, "delete_schedule", _svc_delete_schedule, schema=DELETE_SCHEDULE_SCHEMA
+    )
+    validate_register_kwargs: dict[str, object] = {"schema": VALIDATE_SCHEDULE_SCHEMA}
+    try:
+        validate_register_kwargs["supports_response"] = supports_response.OPTIONAL
+    except AttributeError:
+        validate_register_kwargs["supports_response"] = supports_response
+    hass.services.async_register(
+        DOMAIN, "validate_schedule", _svc_validate_schedule, **validate_register_kwargs
     )
     hass.services.async_register(
         DOMAIN,
