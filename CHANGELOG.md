@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.7.14 - 2026-04-16
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed battery reserve/profile updates on affected production sites by routing writes directly through the validated API-level mixed-auth BatteryConfig flow instead of the older runtime-side `official_web_lean` and external-compatible fallback sequence that Enphase was still rejecting with `403`.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.14`.
+
 ## v2.7.13 - 2026-04-16
 
 ### 🚧 Breaking changes
