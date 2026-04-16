@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import aiohttp
 import pytest
@@ -518,6 +518,1191 @@ async def test_battery_profile_forbidden_after_permission_change_returns_permiss
             profile="self-consumption",
             reserve=30,
         )
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_modern_inventory_uses_official_web_lean_shape(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [
+                    {
+                        "serial_number": "BAT-5P",
+                        "name": "IQ Battery 5P",
+                        "sku_id": "B05-T02-US00-1-3",
+                    }
+                ],
+            }
+        },
+        ["encharge"],
+    )
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_auth_context = MagicMock(
+        return_value=("bearer-token", "88")
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._xsrf_token = MagicMock(return_value="cfg-token")
+    coord.client._h = {"User-Agent": "Mozilla/5.0"}
+    coord.client._cookie = "session=abc; BP-XSRF-Token=stale"
+    coord.client._json = AsyncMock(return_value={"message": "success"})
+
+    await coord.async_set_battery_reserve(30)
+
+    coord.client._acquire_xsrf_token.assert_awaited_once_with("cfg")
+    coord.client._json.assert_awaited_once()
+    args, kwargs = coord.client._json.await_args
+    assert args[0] == "PUT"
+    assert "batteryConfig/api/v1/profile/" in args[1]
+    assert kwargs["params"] == {"userId": "88", "source": "enho"}
+    assert kwargs["headers"]["Authorization"] == "Bearer bearer-token"
+    assert kwargs["headers"]["e-auth-token"] == "EAUTH"
+    assert kwargs["headers"]["Username"] == "88"
+    assert kwargs["headers"]["X-XSRF-Token"] == "cfg-token"
+    assert kwargs["headers"]["X-CSRF-Token"] == "cfg-token"
+    assert kwargs["headers"]["Cookie"] == "session=abc; BP-XSRF-Token=cfg-token"
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+    assert kwargs["debug_auth_source"] == "official_web_lean"
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_legacy_inventory_uses_external_compatible_shape(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [
+                    {
+                        "serial_number": "BAT-3T",
+                        "name": "IQ Battery 3T",
+                        "sku_id": "IQ-BAT-3T",
+                    }
+                ],
+            }
+        },
+        ["encharge"],
+    )
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": None,
+            "X-Requested-With": None,
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": None,
+            "X-XSRF-Token": "cfg-token",
+        }
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value="88")
+    coord.client._json = AsyncMock(return_value={"message": "success"})
+
+    await coord.async_set_battery_reserve(30)
+
+    coord.client._json.assert_awaited_once()
+    args, kwargs = coord.client._json.await_args
+    assert args[0] == "PUT"
+    assert "batteryConfig/api/v1/profile/" in args[1]
+    assert kwargs["params"] == {"userId": "88"}
+    assert kwargs["headers"]["Cookie"] == "BP-XSRF-Token=cfg-token"
+    assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
+    assert kwargs["headers"]["e-auth-token"] == "retry-token"
+    assert kwargs["headers"]["Username"] == "88"
+    assert "source" not in kwargs["params"]
+    assert kwargs["debug_auth_source"] == "external_compatible_profile_write"
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_unknown_inventory_fallbacks_and_caches_external_compat(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": None,
+            "X-Requested-With": None,
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": None,
+            "X-XSRF-Token": "cfg-token",
+        }
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value="88")
+    calls: list[str] = []
+
+    async def _json_side_effect(*_args, **kwargs):
+        calls.append(kwargs["debug_auth_source"])
+        if kwargs["debug_auth_source"] == "official_web_lean" and len(calls) == 1:
+            raise aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=403,
+                message="Forbidden",
+            )
+        return {"message": "success"}
+
+    coord.client._json = AsyncMock(side_effect=_json_side_effect)
+
+    await coord.async_set_battery_reserve(30)
+
+    assert calls == [
+        "official_web_lean",
+        "external_compatible_profile_retry",
+    ]
+    assert (
+        coord.battery_runtime._battery_profile_write_mode_cache == "external_compatible"
+    )
+
+    coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
+    await coord.async_set_battery_reserve(31)
+
+    assert calls == [
+        "official_web_lean",
+        "external_compatible_profile_retry",
+        "external_compatible_profile_cached",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_modern_inventory_fallbacks_and_caches_external_compat(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [
+                    {
+                        "serial_number": "BAT-5P",
+                        "name": "IQ Battery 5P",
+                        "sku_id": "B05-T02-ROW00-1-2",
+                    }
+                ],
+            }
+        },
+        ["encharge"],
+    )
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": None,
+            "X-Requested-With": None,
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": None,
+            "X-XSRF-Token": "cfg-token",
+        }
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value="88")
+    calls: list[str] = []
+
+    async def _json_side_effect(*_args, **kwargs):
+        calls.append(kwargs["debug_auth_source"])
+        if kwargs["debug_auth_source"] == "official_web_lean":
+            raise aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=403,
+                message="Forbidden",
+            )
+        return {"message": "success"}
+
+    coord.client._json = AsyncMock(side_effect=_json_side_effect)
+
+    await coord.async_set_battery_reserve(30)
+
+    assert calls == [
+        "official_web_lean",
+        "external_compatible_profile_retry",
+    ]
+    assert (
+        coord.battery_runtime._battery_profile_write_mode_cache == "external_compatible"
+    )
+
+    coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
+    await coord.async_set_battery_reserve(31)
+
+    assert calls == [
+        "official_web_lean",
+        "external_compatible_profile_retry",
+        "external_compatible_profile_cached",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_legacy_inventory_fallbacks_and_caches_official_web_lean(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "IQ Battery 3T", "sku_id": "IQ-BAT-3T"}],
+            }
+        },
+        ["encharge"],
+    )
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": None,
+            "X-Requested-With": None,
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": None,
+            "X-XSRF-Token": "cfg-token",
+        }
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value="88")
+    calls: list[str] = []
+
+    async def _json_side_effect(*_args, **kwargs):
+        calls.append(kwargs["debug_auth_source"])
+        if kwargs["debug_auth_source"] == "external_compatible_profile_write":
+            raise aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=403,
+                message="Forbidden",
+            )
+        return {"message": "success"}
+
+    coord.client._json = AsyncMock(side_effect=_json_side_effect)
+
+    await coord.async_set_battery_reserve(30)
+
+    assert calls == [
+        "external_compatible_profile_write",
+        "official_web_lean_retry",
+    ]
+    assert (
+        coord.battery_runtime._battery_profile_write_mode_cache == "official_web_lean"
+    )
+
+    coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
+    await coord.async_set_battery_reserve(31)
+
+    assert calls == [
+        "external_compatible_profile_write",
+        "official_web_lean_retry",
+        "official_web_lean_cached",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_false_result_from_preferred_mode_triggers_fallback(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "IQ Battery 3T", "sku_id": "IQ-BAT-3T"}],
+            }
+        },
+        ["encharge"],
+    )
+    coord.battery_runtime._async_write_battery_profile = AsyncMock(  # noqa: SLF001
+        side_effect=[False, True]
+    )
+
+    await coord.async_set_battery_reserve(30)
+
+    assert (
+        coord.battery_runtime._async_write_battery_profile.await_args_list
+        == [  # noqa: SLF001
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=None,
+                mode="external_compatible",
+                debug_auth_source="external_compatible_profile_write",
+            ),
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=None,
+                mode="official_web_lean",
+                debug_auth_source="official_web_lean_retry",
+            ),
+        ]
+    )
+    assert (
+        coord.battery_runtime._battery_profile_write_mode_cache == "official_web_lean"
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_retries_without_devices_before_switching_modes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "enable": False, "chargeMode": "MANUAL"}
+    ]
+    coord.battery_runtime._async_write_battery_profile = AsyncMock(  # noqa: SLF001
+        side_effect=[
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=403,
+                message="Forbidden",
+            ),
+            True,
+        ]
+    )
+
+    await coord.async_set_battery_reserve(30)
+
+    assert (
+        coord.battery_runtime._async_write_battery_profile.await_args_list
+        == [  # noqa: SLF001
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=[
+                    {
+                        "uuid": "evse-1",
+                        "deviceType": "iqEvse",
+                        "enable": False,
+                        "chargeMode": "MANUAL",
+                    }
+                ],
+                mode="official_web_lean",
+                debug_auth_source="official_web_lean",
+            ),
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=None,
+                mode="official_web_lean",
+                debug_auth_source="official_web_lean_without_devices",
+            ),
+        ]
+    )
+    assert coord.battery_runtime._battery_profile_write_without_devices_cache is True
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_cached_without_devices_skips_device_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "enable": False, "chargeMode": "MANUAL"}
+    ]
+    coord.battery_runtime._battery_profile_write_without_devices_cache = (
+        True  # noqa: SLF001
+    )
+    coord.battery_runtime._async_write_battery_profile = AsyncMock(  # noqa: SLF001
+        return_value=True
+    )
+
+    await coord.async_set_battery_reserve(30)
+
+    assert (
+        coord.battery_runtime._async_write_battery_profile.await_args_list
+        == [  # noqa: SLF001
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=None,
+                mode="official_web_lean",
+                debug_auth_source="official_web_lean",
+            )
+        ]
+    )
+    assert coord.battery_runtime._battery_profile_write_without_devices_cache is True
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_uses_fallback_mode_without_devices_after_retry_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "enable": False, "chargeMode": "MANUAL"}
+    ]
+    coord.battery_runtime._async_write_battery_profile = AsyncMock(  # noqa: SLF001
+        side_effect=[
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=403,
+                message="Forbidden",
+            ),
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=403,
+                message="Forbidden",
+            ),
+            True,
+        ]
+    )
+
+    await coord.async_set_battery_reserve(30)
+
+    assert (
+        coord.battery_runtime._async_write_battery_profile.await_args_list
+        == [  # noqa: SLF001
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=[
+                    {
+                        "uuid": "evse-1",
+                        "deviceType": "iqEvse",
+                        "enable": False,
+                        "chargeMode": "MANUAL",
+                    }
+                ],
+                mode="official_web_lean",
+                debug_auth_source="official_web_lean",
+            ),
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=None,
+                mode="official_web_lean",
+                debug_auth_source="official_web_lean_without_devices",
+            ),
+            call(
+                profile="self-consumption",
+                reserve=30,
+                sub_type=None,
+                devices=None,
+                mode="external_compatible",
+                debug_auth_source="external_compatible_profile_retry",
+            ),
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_forbidden_without_compat_prereqs_still_raises(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={"X-XSRF-Token": "cfg-token"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(return_value=None)
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value=None)
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._json = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
+        await coord.async_set_battery_reserve(30)
+
+    coord.client._json.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_legacy_mode_without_compat_helpers_raises(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "encharge": {
+                "type_key": "encharge",
+                "type_label": "Battery",
+                "count": 1,
+                "devices": [{"name": "IQ Battery 3T", "sku_id": "IQ-BAT-3T"}],
+            }
+        },
+        ["encharge"],
+    )
+    coord.client._json = None
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
+        await coord.async_set_battery_reserve(30)
+
+
+def test_battery_profile_write_mode_from_inventory_handles_invalid_shapes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.inventory_view.type_bucket = None
+    assert coord.battery_runtime._battery_profile_write_mode_from_inventory() is None
+
+    coord.inventory_view.type_bucket = lambda *_args: ["bad"]
+    assert coord.battery_runtime._battery_profile_write_mode_from_inventory() is None
+
+    coord.inventory_view.type_bucket = lambda *_args: {"devices": []}
+    assert coord.battery_runtime._battery_profile_write_mode_from_inventory() is None
+
+    coord.inventory_view.type_bucket = lambda *_args: {"devices": [None]}
+    assert coord.battery_runtime._battery_profile_write_mode_from_inventory() is None
+
+
+def test_battery_profile_write_mode_from_inventory_returns_none_for_mixed_markers(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.inventory_view.type_bucket = lambda *_args: {
+        "devices": [
+            {"name": "IQ Battery 5P", "sku_id": "IQ-BAT-3T"},
+        ]
+    }
+
+    assert coord.battery_runtime._battery_profile_write_mode_from_inventory() is None
+
+
+def test_cache_battery_profile_write_mode_clears_when_it_matches_inventory(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.battery_runtime._battery_profile_write_mode_cache = "external_compatible"
+
+    coord.battery_runtime._cache_battery_profile_write_mode(
+        "official_web_lean", inventory_mode="official_web_lean"
+    )
+
+    assert coord.battery_runtime._battery_profile_write_mode_cache is None
+
+
+def test_cache_battery_profile_write_mode_keeps_override_when_it_differs_from_inventory(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime._cache_battery_profile_write_mode(
+        "external_compatible", inventory_mode="official_web_lean"
+    )
+
+    assert (
+        coord.battery_runtime._battery_profile_write_mode_cache == "external_compatible"
+    )
+
+
+def test_battery_profile_write_override_returns_none_without_instance_dict(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class SlotClient:
+        __slots__ = ()
+
+    coord.client = SlotClient()
+
+    assert coord.battery_runtime._battery_profile_write_override() is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_legacy_battery_config_jwt_returns_token(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class CookieJar:
+        def __init__(self) -> None:
+            self.cookies: dict[str, str] | None = None
+
+        def update_cookies(self, cookies, response_url=None) -> None:
+            self.cookies = dict(cookies)
+
+    class Response:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def json(self):
+            return {"token": "legacy-token"}
+
+    class Session:
+        def __init__(self) -> None:
+            self.cookie_jar = CookieJar()
+            self.calls: list[tuple[str, str, dict[str, str]]] = []
+
+        def request(self, method, url, headers=None):
+            self.calls.append((method, url, dict(headers or {})))
+            return Response()
+
+    coord.client._s = Session()
+    coord.client._cookie = "session=abc; BP-XSRF-Token=cfg-token"
+    coord.client._timeout = 1
+
+    token = await coord.battery_runtime._async_fetch_legacy_battery_config_jwt()
+
+    assert token == "legacy-token"
+    assert coord.client._s.calls == [
+        (
+            "GET",
+            "https://enlighten.enphaseenergy.com/app-api/jwt_token.json",
+            {
+                "Accept": "application/json, text/plain, */*",
+                "Referer": "https://enlighten.enphaseenergy.com/",
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15",
+                "Cookie": "session=abc; BP-XSRF-Token=cfg-token",
+            },
+        )
+    ]
+    assert coord.client._s.cookie_jar.cookies == {
+        "session": "abc",
+        "BP-XSRF-Token": "cfg-token",
+    }
+
+
+@pytest.mark.asyncio
+async def test_fetch_legacy_battery_config_jwt_returns_none_for_http_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class Response:
+        status = 403
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def json(self):
+            raise AssertionError("json should not be called")
+
+    class Session:
+        cookie_jar = None
+
+        def request(self, *_args, **_kwargs):
+            return Response()
+
+    coord.client._s = Session()
+    coord.client._cookie = None
+    coord.client._timeout = 1
+
+    token = await coord.battery_runtime._async_fetch_legacy_battery_config_jwt()
+
+    assert token is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_legacy_battery_config_jwt_returns_none_on_request_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class Session:
+        cookie_jar = None
+
+        def request(self, *_args, **_kwargs):
+            raise TypeError("boom")
+
+    coord.client._s = Session()
+    coord.client._cookie = None
+    coord.client._timeout = 1
+
+    token = await coord.battery_runtime._async_fetch_legacy_battery_config_jwt()
+
+    assert token is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_legacy_battery_config_jwt_returns_none_for_non_dict_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class Response:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def json(self):
+            return []
+
+    class Session:
+        cookie_jar = None
+
+        def request(self, *_args, **_kwargs):
+            return Response()
+
+    coord.client._s = Session()
+    coord.client._cookie = None
+    coord.client._timeout = 1
+
+    token = await coord.battery_runtime._async_fetch_legacy_battery_config_jwt()
+
+    assert token is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_legacy_battery_config_jwt_returns_none_without_token(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class Response:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def json(self):
+            return {}
+
+    class Session:
+        cookie_jar = None
+
+        def request(self, *_args, **_kwargs):
+            return Response()
+
+    coord.client._s = Session()
+    coord.client._cookie = None
+    coord.client._timeout = 1
+
+    token = await coord.battery_runtime._async_fetch_legacy_battery_config_jwt()
+
+    assert token is None
+
+
+@pytest.mark.asyncio
+async def test_write_battery_profile_external_compat_returns_false_without_helpers(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client._json = None
+
+    result = await coord.battery_runtime._async_write_battery_profile_external_compat(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        devices=None,
+        debug_auth_source="external_compatible_profile_write",
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_write_battery_profile_official_web_lean_falls_back_to_client_method(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    calls: list[dict[str, object]] = []
+
+    class Client:
+        _acquire_xsrf_token = None
+        _battery_config_headers = None
+        _battery_config_params = None
+        _json = None
+
+        async def set_battery_profile(self, **kwargs):
+            calls.append(dict(kwargs))
+            return {"message": "success"}
+
+    coord.client = Client()
+
+    await coord.battery_runtime._async_write_battery_profile_official_web_lean(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        devices=None,
+        debug_auth_source="official_web_lean",
+    )
+
+    assert calls == [
+        {
+            "profile": "self-consumption",
+            "battery_backup_percentage": 30,
+            "operation_mode_sub_type": None,
+            "devices": None,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_write_battery_profile_official_web_lean_uses_bearer_when_eauth_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    class Client:
+        _h = {"User-Agent": "Mozilla/5.0"}
+        _cookie = "session=abc; BP-XSRF-Token=stale"
+        _eauth = None
+        _acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+        _battery_config_auth_context = MagicMock(return_value=("bearer-token", "88"))
+        _battery_config_params = MagicMock(
+            return_value={"userId": "88", "source": "enho"}
+        )
+        _xsrf_token = MagicMock(return_value="cfg-token")
+        _json = AsyncMock(return_value={"message": "success"})
+
+    coord.client = Client()
+
+    await coord.battery_runtime._async_write_battery_profile_official_web_lean(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        devices=None,
+        debug_auth_source="official_web_lean",
+    )
+
+    kwargs = coord.client._json.await_args.kwargs
+    assert kwargs["headers"]["Authorization"] == "Bearer bearer-token"
+    assert kwargs["headers"]["e-auth-token"] == "bearer-token"
+
+
+@pytest.mark.asyncio
+async def test_write_battery_profile_external_compat_uses_instance_override(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+
+    result = await coord.battery_runtime._async_write_battery_profile_external_compat(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        devices=None,
+        debug_auth_source="external_compatible_profile_write",
+    )
+
+    assert result is True
+    coord.client.set_battery_profile.assert_awaited_once_with(
+        profile="self-consumption",
+        battery_backup_percentage=30,
+        operation_mode_sub_type=None,
+        devices=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_write_battery_profile_external_compat_includes_subtype_and_devices(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": None,
+            "X-Requested-With": None,
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": None,
+            "X-XSRF-Token": "cfg-token",
+        }
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value="88")
+    coord.client._json = AsyncMock(return_value={"message": "success"})
+
+    result = await coord.battery_runtime._async_write_battery_profile_external_compat(
+        profile="cost_savings",
+        reserve=15,
+        sub_type="prioritize-energy",
+        devices=[{"uuid": "battery-1"}],
+        debug_auth_source="external_compatible_profile_write",
+    )
+
+    assert result is True
+    payload = coord.client._json.await_args.kwargs["json"]
+    assert payload["operationModeSubType"] == "prioritize-energy"
+    assert payload["devices"] == [{"uuid": "battery-1"}]
+
+
+@pytest.mark.asyncio
+async def test_write_battery_profile_external_compat_prefers_legacy_jwt_token(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client._h = {"User-Agent": "Mozilla/5.0"}
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={"X-XSRF-Token": "cfg-token"}
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(
+        return_value="legacy-user"
+    )
+    coord.client._json = AsyncMock(return_value={"message": "success"})
+    coord.battery_runtime._async_fetch_legacy_battery_config_jwt = AsyncMock(
+        return_value="legacy-token"
+    )  # noqa: SLF001
+
+    result = await coord.battery_runtime._async_write_battery_profile_external_compat(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        devices=None,
+        debug_auth_source="external_compatible_profile_retry",
+    )
+
+    assert result is True
+    coord.client._battery_config_single_auth_token.assert_not_called()
+    coord.client._battery_config_user_id_for_token.assert_called_once_with(
+        "legacy-token"
+    )
+    kwargs = coord.client._json.await_args.kwargs
+    assert kwargs["headers"]["e-auth-token"] == "legacy-token"
+    assert kwargs["params"] == {"userId": "legacy-user"}
+
+
+@pytest.mark.asyncio
+async def test_write_battery_profile_external_compat_omits_username_without_user_id(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client._h = {"User-Agent": "Mozilla/5.0", "Username": "stale-user"}
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={"X-XSRF-Token": "cfg-token"}
+    )
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value=None)
+    coord.client._json = AsyncMock(return_value={"message": "success"})
+    coord.battery_runtime._async_fetch_legacy_battery_config_jwt = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+
+    result = await coord.battery_runtime._async_write_battery_profile_external_compat(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        devices=None,
+        debug_auth_source="external_compatible_profile_retry",
+    )
+
+    assert result is True
+    headers = coord.client._json.await_args.kwargs["headers"]
+    assert "Username" not in headers
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_forbidden_retry_error_still_translates(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord.client._acquire_xsrf_token = AsyncMock(return_value="cfg-token")
+    coord.client._battery_config_headers = MagicMock(
+        return_value={
+            "X-XSRF-Token": "cfg-token",
+            "Cookie": None,
+            "X-Requested-With": None,
+            "e-auth-token": None,
+        }
+    )
+    coord.client._battery_config_single_auth_token = MagicMock(
+        return_value="retry-token"
+    )
+    coord.client._battery_config_user_id_for_token = MagicMock(return_value="88")
+    coord.client._battery_config_params = MagicMock(
+        return_value={"userId": "88", "source": "enho"}
+    )
+    coord.client._json = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
+        await coord.async_set_battery_reserve(30)
 
 
 @pytest.mark.asyncio
