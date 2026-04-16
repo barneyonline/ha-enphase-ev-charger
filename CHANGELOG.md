@@ -11,6 +11,23 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.7.12 - 2026-04-16
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
 - Hardened BatteryConfig-backed battery reserve/profile writes by preserving the browser-style request path used by working sites and adding compatibility fallbacks for alternate auth and payload shapes observed on affected installs.
 - Suspended automatic stored-credential reauthentication for 24 hours after repeated rejected refresh attempts so optional HEMS endpoint `401` loops stop re-triggering Enphase login attempts every few minutes and no longer escalate into broader temporary auth blocks.
 
@@ -18,7 +35,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔄 Other changes
-- None
+- Bumped the integration manifest version to `2.7.12`.
 
 ## v2.7.11 - 2026-04-14
 
