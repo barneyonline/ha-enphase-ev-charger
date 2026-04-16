@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔄 Other changes
-- None
+- Bumped the integration manifest version to `2.7.13`.
 
 ## v2.7.11 - 2026-04-14
 
