@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from datetime import time as dt_time, timedelta
@@ -12,6 +13,12 @@ import aiohttp
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
+from .api import (
+    BASE_URL,
+    _ENLIGHTEN_BROWSER_USER_AGENT,
+    _cookie_map_from_header,
+    _seed_cookie_jar,
+)
 from .ac_battery_runtime import AcBatteryRuntime
 from .const import (
     BATTERY_BACKUP_HISTORY_CACHE_TTL,
@@ -52,6 +59,24 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _LOGGER = logging.getLogger(__name__)
 
+_BATTERY_PROFILE_WRITE_OFFICIAL_WEB_LEAN = "official_web_lean"
+_BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT = "external_compatible"
+_BATTERY_PROFILE_MODERN_MARKERS: tuple[str, ...] = (
+    "IQBATTERY-5P",
+    "IQ BATTERY 5P",
+    "IQ-BAT-5P",
+    "B05-T02",
+    "5P FLEXPHASE",
+)
+_BATTERY_PROFILE_LEGACY_MARKERS: tuple[str, ...] = (
+    "IQ BATTERY 3T",
+    "IQ BATTERY 10T",
+    "IQ-BAT-3T",
+    "IQ-BAT-10T",
+    "ENCHARGE 3",
+    "ENCHARGE 10",
+)
+
 
 class BatteryRuntime:
     """Battery profile selection and pending-state helpers."""
@@ -59,6 +84,8 @@ class BatteryRuntime:
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
         self._ac_battery_runtime = AcBatteryRuntime(self)
+        self._battery_profile_write_mode_cache: str | None = None
+        self._battery_profile_write_without_devices_cache = False
 
     @property
     def battery_state(self) -> object:
@@ -1309,17 +1336,116 @@ class BatteryRuntime:
             and normalized_sub_type != SAVINGS_OPERATION_MODE_SUBTYPE
         ):
             normalized_sub_type = SAVINGS_OPERATION_MODE_SUBTYPE
+        devices_payload = coord.battery_profile_devices_payload()
+        preferred_devices_payload = (
+            None
+            if devices_payload and self._battery_profile_write_without_devices_cache
+            else devices_payload
+        )
         async with state._battery_profile_write_lock:
             state._battery_profile_last_write_mono = time.monotonic()
+            inventory_mode = self._battery_profile_write_mode_from_inventory()
+            preferred_mode = (
+                self._battery_profile_write_mode_cache
+                or inventory_mode
+                or _BATTERY_PROFILE_WRITE_OFFICIAL_WEB_LEAN
+            )
+            if preferred_mode == _BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT:
+                preferred_debug_auth_source = (
+                    "external_compatible_profile_cached"
+                    if self._battery_profile_write_mode_cache
+                    == _BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT
+                    else "external_compatible_profile_write"
+                )
+            else:
+                preferred_debug_auth_source = (
+                    "official_web_lean_cached"
+                    if self._battery_profile_write_mode_cache
+                    == _BATTERY_PROFILE_WRITE_OFFICIAL_WEB_LEAN
+                    else "official_web_lean"
+                )
             try:
-                await coord.client.set_battery_profile(
+                if not await self._async_write_battery_profile(
                     profile=normalized_profile,
-                    battery_backup_percentage=normalized_reserve,
-                    operation_mode_sub_type=normalized_sub_type,
-                    devices=coord.battery_profile_devices_payload(),
+                    reserve=normalized_reserve,
+                    sub_type=normalized_sub_type,
+                    devices=preferred_devices_payload,
+                    mode=preferred_mode,
+                    debug_auth_source=preferred_debug_auth_source,
+                ):
+                    raise aiohttp.ClientResponseError(
+                        request_info=None,
+                        history=(),
+                        status=HTTPStatus.FORBIDDEN,
+                        message="Forbidden",
+                    )
+                self._cache_battery_profile_write_mode(
+                    preferred_mode, inventory_mode=inventory_mode
+                )
+                self._battery_profile_write_without_devices_cache = bool(
+                    devices_payload and preferred_devices_payload is None
                 )
             except aiohttp.ClientResponseError as err:
-                if err.status == HTTPStatus.FORBIDDEN:
+                fallback_devices_payload = preferred_devices_payload
+                if (
+                    err.status == HTTPStatus.FORBIDDEN
+                    and devices_payload
+                    and preferred_devices_payload is not None
+                ):
+                    try:
+                        if await self._async_write_battery_profile(
+                            profile=normalized_profile,
+                            reserve=normalized_reserve,
+                            sub_type=normalized_sub_type,
+                            devices=None,
+                            mode=preferred_mode,
+                            debug_auth_source=(
+                                f"{preferred_debug_auth_source}_without_devices"
+                            ),
+                        ):
+                            err = None
+                            fallback_devices_payload = None
+                            self._cache_battery_profile_write_mode(
+                                preferred_mode, inventory_mode=inventory_mode
+                            )
+                            self._battery_profile_write_without_devices_cache = True
+                    except aiohttp.ClientResponseError as retry_err:
+                        err = retry_err
+                        fallback_devices_payload = None
+                if err is None:
+                    pass
+                elif err.status == HTTPStatus.FORBIDDEN:
+                    fallback_mode = (
+                        _BATTERY_PROFILE_WRITE_OFFICIAL_WEB_LEAN
+                        if preferred_mode == _BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT
+                        else _BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT
+                    )
+                    try:
+                        if await self._async_write_battery_profile(
+                            profile=normalized_profile,
+                            reserve=normalized_reserve,
+                            sub_type=normalized_sub_type,
+                            devices=fallback_devices_payload,
+                            mode=fallback_mode,
+                            debug_auth_source=(
+                                "external_compatible_profile_retry"
+                                if fallback_mode
+                                == _BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT
+                                else "official_web_lean_retry"
+                            ),
+                        ):
+                            err = None
+                            self._cache_battery_profile_write_mode(
+                                fallback_mode, inventory_mode=inventory_mode
+                            )
+                            self._battery_profile_write_without_devices_cache = bool(
+                                devices_payload and fallback_devices_payload is None
+                            )
+                    except aiohttp.ClientResponseError as retry_err:
+                        err = retry_err
+                if err is None:
+                    pass
+                elif err.status == HTTPStatus.FORBIDDEN:
                     owner = coord.battery_user_is_owner
                     installer = coord.battery_user_is_installer
                     if owner is False and installer is False:
@@ -1329,11 +1455,12 @@ class BatteryRuntime:
                     raise ServiceValidationError(
                         "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
                     ) from err
-                if err.status == HTTPStatus.UNAUTHORIZED:
+                elif err.status == HTTPStatus.UNAUTHORIZED:
                     raise ServiceValidationError(
                         "Battery profile update could not be authenticated. Reauthenticate and try again."
                     ) from err
-                raise
+                else:
+                    raise
         self.remember_battery_reserve(normalized_profile, normalized_reserve)
         self.set_battery_pending(
             profile=normalized_profile,
@@ -1345,6 +1472,341 @@ class BatteryRuntime:
         state._battery_settings_cache_until = None
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()
+
+    @staticmethod
+    def _battery_profile_write_payload(
+        *,
+        profile: str,
+        reserve: int,
+        sub_type: str | None,
+        devices: list[dict[str, object]] | None,
+    ) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "profile": str(profile),
+            "batteryBackupPercentage": int(reserve),
+        }
+        if sub_type:
+            payload["operationModeSubType"] = str(sub_type)
+        if devices:
+            payload["devices"] = [item for item in devices if isinstance(item, dict)]
+        return payload
+
+    @staticmethod
+    def _battery_profile_marker_match(text: str, markers: tuple[str, ...]) -> bool:
+        normalized = text.upper()
+        return any(marker in normalized for marker in markers)
+
+    def _battery_profile_write_mode_from_inventory(self) -> str | None:
+        inventory_view = getattr(self.coordinator, "inventory_view", None)
+        type_bucket = getattr(inventory_view, "type_bucket", None)
+        if not callable(type_bucket):
+            return None
+        bucket = type_bucket("encharge")
+        if not isinstance(bucket, dict):
+            return None
+        devices = bucket.get("devices")
+        if not isinstance(devices, list) or not devices:
+            return None
+
+        saw_modern = False
+        saw_legacy = False
+        for member in devices:
+            if not isinstance(member, dict):
+                continue
+            member_modern = False
+            member_legacy = False
+            for key in ("sku_id", "model_id", "model", "name"):
+                text = self._coerce_optional_text(member.get(key))
+                if not text:
+                    continue
+                if self._battery_profile_marker_match(
+                    text, _BATTERY_PROFILE_MODERN_MARKERS
+                ):
+                    member_modern = True
+                if self._battery_profile_marker_match(
+                    text, _BATTERY_PROFILE_LEGACY_MARKERS
+                ):
+                    member_legacy = True
+            if member_modern and member_legacy:
+                return None
+            if member_modern:
+                saw_modern = True
+            elif member_legacy:
+                saw_legacy = True
+
+        if saw_modern and not saw_legacy:
+            return _BATTERY_PROFILE_WRITE_OFFICIAL_WEB_LEAN
+        if saw_legacy and not saw_modern:
+            return _BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT
+        return None
+
+    def _cache_battery_profile_write_mode(
+        self, mode: str, *, inventory_mode: str | None
+    ) -> None:
+        if inventory_mode == mode:
+            self._battery_profile_write_mode_cache = None
+            return
+        self._battery_profile_write_mode_cache = mode
+
+    def _battery_profile_write_override(self):
+        client_dict = getattr(self.coordinator.client, "__dict__", None)
+        if not isinstance(client_dict, dict):
+            return None
+        override = client_dict.get("set_battery_profile")
+        if callable(override):
+            return override
+        return None
+
+    async def _async_write_battery_profile(
+        self,
+        *,
+        profile: str,
+        reserve: int,
+        sub_type: str | None,
+        devices: list[dict[str, object]] | None,
+        mode: str,
+        debug_auth_source: str,
+    ) -> bool:
+        if mode == _BATTERY_PROFILE_WRITE_EXTERNAL_COMPAT:
+            return await self._async_write_battery_profile_external_compat(
+                profile=profile,
+                reserve=reserve,
+                sub_type=sub_type,
+                devices=devices,
+                debug_auth_source=debug_auth_source,
+            )
+        await self._async_write_battery_profile_official_web_lean(
+            profile=profile,
+            reserve=reserve,
+            sub_type=sub_type,
+            devices=devices,
+            debug_auth_source=debug_auth_source,
+        )
+        return True
+
+    async def _async_write_battery_profile_official_web_lean(
+        self,
+        *,
+        profile: str,
+        reserve: int,
+        sub_type: str | None,
+        devices: list[dict[str, object]] | None,
+        debug_auth_source: str,
+    ) -> None:
+        override = self._battery_profile_write_override()
+        if override is not None:
+            await override(
+                profile=profile,
+                battery_backup_percentage=reserve,
+                operation_mode_sub_type=sub_type,
+                devices=devices,
+            )
+            return
+
+        coord = self.coordinator
+        client = coord.client
+        acquire_xsrf = getattr(client, "_acquire_xsrf_token", None)
+        auth_context_factory = getattr(client, "_battery_config_auth_context", None)
+        params_factory = getattr(client, "_battery_config_params", None)
+        request_json = getattr(client, "_json", None)
+        xsrf_token_factory = getattr(client, "_xsrf_token", None)
+        if not all(
+            callable(func)
+            for func in (
+                acquire_xsrf,
+                auth_context_factory,
+                params_factory,
+                request_json,
+                xsrf_token_factory,
+            )
+        ):
+            await client.set_battery_profile(
+                profile=profile,
+                battery_backup_percentage=reserve,
+                operation_mode_sub_type=sub_type,
+                devices=devices,
+            )
+            return
+
+        await acquire_xsrf("cfg")
+        headers = dict(getattr(client, "_h", {}) or {})
+        token, user_id = auth_context_factory()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        if getattr(client, "_eauth", None):
+            headers["e-auth-token"] = getattr(client, "_eauth")
+        elif token:
+            headers["e-auth-token"] = token
+        if user_id:
+            headers["Username"] = user_id
+        headers["Accept"] = "application/json, text/plain, */*"
+        headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
+        headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
+        headers["Content-Type"] = "application/json"
+        xsrf = xsrf_token_factory()
+        if xsrf:
+            headers["X-XSRF-Token"] = xsrf
+            headers["X-CSRF-Token"] = xsrf
+            cookie_map = _cookie_map_from_header(getattr(client, "_cookie", None))
+            cookie_parts = [
+                f"{key}={value}"
+                for key, value in cookie_map.items()
+                if str(key).strip().lower() not in {"xsrf-token", "bp-xsrf-token"}
+            ]
+            cookie_parts.append(f"BP-XSRF-Token={xsrf}")
+            headers["Cookie"] = "; ".join(cookie_parts)
+        params = params_factory(include_source=True)
+        if isinstance(params, dict):
+            params = dict(params)
+
+        await request_json(
+            "PUT",
+            f"{BASE_URL}/service/batteryConfig/api/v1/profile/{coord.site_id}",
+            json=self._battery_profile_write_payload(
+                profile=profile,
+                reserve=reserve,
+                sub_type=sub_type,
+                devices=devices,
+            ),
+            headers=headers,
+            params=params,
+            debug_auth_source=debug_auth_source,
+        )
+
+    async def _async_fetch_legacy_battery_config_jwt(self) -> str | None:
+        client = self.coordinator.client
+        session = getattr(client, "_s", None)
+        request = getattr(session, "request", None)
+        if not callable(request):
+            return None
+
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Referer": f"{BASE_URL}/",
+            "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
+        }
+        cookie = getattr(client, "_cookie", None)
+        if cookie:
+            headers["Cookie"] = str(cookie)
+
+        timeout = getattr(client, "_timeout", None) or 15
+        url = f"{BASE_URL}/app-api/jwt_token.json"
+        try:
+            _seed_cookie_jar(session, _cookie_map_from_header(cookie))
+            async with asyncio.timeout(timeout):
+                async with request("GET", url, headers=headers) as response:
+                    if response.status >= HTTPStatus.BAD_REQUEST:
+                        return None
+                    payload = await response.json()
+        except (aiohttp.ClientError, TimeoutError, TypeError, ValueError):
+            return None
+
+        if not isinstance(payload, dict):
+            return None
+        token = payload.get("token") or payload.get("auth_token")
+        if not token:
+            return None
+        return str(token)
+
+    async def _async_write_battery_profile_external_compat(
+        self,
+        *,
+        profile: str,
+        reserve: int,
+        sub_type: str | None,
+        devices: list[dict[str, object]] | None,
+        debug_auth_source: str,
+    ) -> bool:
+        override = self._battery_profile_write_override()
+        if override is not None:
+            await override(
+                profile=profile,
+                battery_backup_percentage=reserve,
+                operation_mode_sub_type=sub_type,
+                devices=devices,
+            )
+            return True
+
+        coord = self.coordinator
+        client = coord.client
+        acquire_xsrf = getattr(client, "_acquire_xsrf_token", None)
+        headers_factory = getattr(client, "_battery_config_headers", None)
+        params_factory = getattr(client, "_battery_config_params", None)
+        auth_token_factory = getattr(client, "_battery_config_single_auth_token", None)
+        user_id_factory = getattr(client, "_battery_config_user_id_for_token", None)
+        request_json = getattr(client, "_json", None)
+        if not all(
+            callable(func)
+            for func in (
+                acquire_xsrf,
+                params_factory,
+                auth_token_factory,
+                user_id_factory,
+                request_json,
+            )
+        ):
+            return False
+
+        await acquire_xsrf("cfg", include_eauth=False, include_requestid=False)
+        headers = dict(getattr(client, "_h", {}) or {})
+        retry_token = await self._async_fetch_legacy_battery_config_jwt()
+        if not retry_token:
+            retry_token = auth_token_factory()
+        xsrf = headers.get("X-XSRF-Token")
+        if not xsrf and callable(
+            headers_factory := getattr(client, "_battery_config_headers", None)
+        ):
+            fallback_headers = headers_factory(
+                include_xsrf=True,
+                include_eauth=False,
+                include_requestid=False,
+            )
+            if isinstance(fallback_headers, dict):
+                xsrf = self._coerce_optional_text(fallback_headers.get("X-XSRF-Token"))
+        if not retry_token or not xsrf:
+            return False
+
+        user_id = user_id_factory(retry_token)
+        headers["Accept"] = "application/json, text/plain, */*"
+        headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
+        headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
+        headers["Authorization"] = None
+        headers["Content-Type"] = "application/json"
+        headers["Cookie"] = f"BP-XSRF-Token={xsrf}"
+        headers["X-Requested-With"] = "XMLHttpRequest"
+        headers["e-auth-token"] = retry_token
+        headers["X-CSRF-Token"] = None
+        headers["X-XSRF-Token"] = xsrf
+        if user_id:
+            headers["Username"] = user_id
+        else:
+            headers.pop("Username", None)
+
+        params = params_factory(include_source=True)
+        if isinstance(params, dict):
+            params = dict(params)
+            params.pop("source", None)
+            if user_id:
+                params["userId"] = user_id
+
+        _LOGGER.debug(
+            "Retrying BatteryConfig profile write for site %s with external-compatible headers",
+            redact_site_id(coord.site_id),
+        )
+        await request_json(
+            "PUT",
+            f"{BASE_URL}/service/batteryConfig/api/v1/profile/{coord.site_id}",
+            json=self._battery_profile_write_payload(
+                profile=profile,
+                reserve=reserve,
+                sub_type=sub_type,
+                devices=devices,
+            ),
+            headers=headers,
+            params=params,
+            debug_auth_source=debug_auth_source,
+        )
+        return True
 
     async def async_apply_battery_settings(self, payload: dict[str, object]) -> None:
         coord = self.coordinator
