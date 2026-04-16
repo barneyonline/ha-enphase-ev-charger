@@ -120,9 +120,11 @@ class RefreshHealthState:
     _auth_settings_backoff_ends_utc: datetime | None = None
     _auth_settings_issue_reported: bool = False
     _auth_refresh_task: Any = None
+    _auth_refresh_rejected_count: int = 0
     _auth_refresh_rejected_until: float | None = None
     _auth_refresh_rejected_ends_utc: datetime | None = None
     _auth_refresh_last_success_mono: float | None = None
+    _auth_refresh_suspended_until_utc: datetime | None = None
     _auth_blocked_until_utc: datetime | None = None
     _auth_block_reason: str | None = None
     _auth_block_issue_reported: bool = False
