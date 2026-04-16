@@ -256,6 +256,13 @@ class CoordinatorDiagnostics:
             "type_device_counts": type_counts,
             "payload_health": self.payload_health_diagnostics(),
             "endpoint_family_health": self.endpoint_family_health_diagnostics(),
+            "auth_refresh_suspended_active": coord._auth_refresh_suspended_active(),
+            "auth_refresh_suspended_until": _iso(
+                getattr(coord, "_auth_refresh_suspended_until_utc", None)
+            ),
+            "auth_refresh_rejected_count": getattr(
+                coord, "_auth_refresh_rejected_count", 0
+            ),
             "auth_blocked_active": coord._auth_block_active(),
             "auth_blocked_until": _iso(getattr(coord, "_auth_blocked_until_utc", None)),
             "auth_block_reason": getattr(coord, "_auth_block_reason", None),
