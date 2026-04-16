@@ -15,17 +15,19 @@ from homeassistant.exceptions import ServiceValidationError
 from custom_components.enphase_ev.const import (
     CONF_AUTH_BLOCK_REASON,
     CONF_AUTH_BLOCKED_UNTIL,
+    CONF_AUTH_REFRESH_SUSPENDED_UNTIL,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
     CONF_SITE_ID,
     CONF_SESSION_ID,
+    AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD,
+    DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
     OPT_API_TIMEOUT,
     OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
-    DEFAULT_SLOW_POLL_INTERVAL,
 )
 from custom_components.enphase_ev.evse_runtime import EvseRuntime
 
@@ -207,6 +209,10 @@ def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     coord.latency_ms = 120
     coord.last_success_utc = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
     coord.last_failure_utc = datetime(2025, 1, 1, 11, 0, tzinfo=timezone.utc)
+    coord._auth_refresh_rejected_count = 2
+    coord._auth_refresh_suspended_until_utc = datetime(
+        2025, 1, 1, 12, 30, tzinfo=timezone.utc
+    )
     coord._auth_blocked_until_utc = datetime(2025, 1, 1, 13, 0, tzinfo=timezone.utc)
     coord._auth_block_reason = "login_wall_after_refresh_reject"
 
@@ -222,6 +228,9 @@ def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     metrics = coord.collect_site_metrics()
 
     assert metrics["site_id"] == "SITE"
+    assert metrics["auth_refresh_suspended_active"] is False
+    assert metrics["auth_refresh_suspended_until"] is None
+    assert metrics["auth_refresh_rejected_count"] == 0
     assert metrics["auth_blocked_active"] is False
     assert metrics["auth_blocked_until"] is None
     assert metrics["auth_block_reason"] is None
@@ -380,6 +389,112 @@ def test_persist_auth_block_state_removes_cleared_fields(hass, monkeypatch):
     assert captured
     assert CONF_AUTH_BLOCKED_UNTIL not in captured[-1]
     assert CONF_AUTH_BLOCK_REASON not in captured[-1]
+
+
+def test_persist_auth_refresh_suspension_state_removes_cleared_field(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(
+        hass,
+        data_override={
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: "2025-01-01T12:00:00+00:00",
+        },
+    )
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._auth_refresh_suspended_until_utc = None
+
+    captured: list[dict] = []
+
+    def _update_entry(entry_obj, data=None, **kwargs):
+        assert entry_obj is entry
+        captured.append(dict(data))
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", _update_entry)
+
+    coord._persist_auth_refresh_suspension_state()
+
+    assert captured
+    assert CONF_AUTH_REFRESH_SUSPENDED_UNTIL not in captured[-1]
+
+
+def test_persist_auth_refresh_suspension_state_stores_field(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass)
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._auth_refresh_suspended_until_utc = datetime(
+        2026, 5, 1, 12, 0, tzinfo=timezone.utc
+    )
+
+    captured: list[dict] = []
+
+    def _update_entry(entry_obj, data=None, **kwargs):
+        assert entry_obj is entry
+        captured.append(dict(data))
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", _update_entry)
+
+    coord._persist_auth_refresh_suspension_state()
+
+    assert captured
+    assert (
+        captured[-1][CONF_AUTH_REFRESH_SUSPENDED_UNTIL] == "2026-05-01T12:00:00+00:00"
+    )
+
+
+def test_clear_auth_refresh_rejection_state_resets_counter_and_cooldown(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_rejected_count = 2
+    coord._auth_refresh_rejected_until = time.monotonic() + 60
+    coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
+        seconds=60
+    )
+
+    coord._clear_auth_refresh_rejection_state()
+
+    assert coord._auth_refresh_rejected_count == 0
+    assert coord._auth_refresh_rejected_until is None
+    assert coord._auth_refresh_rejected_ends_utc is None
+
+
+def test_coordinator_init_restores_auth_refresh_state(hass, monkeypatch):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(
+        hass,
+        data_override={
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: "2026-05-01T12:00:00+00:00",
+            CONF_AUTH_BLOCKED_UNTIL: "2026-05-01T13:00:00+00:00",
+            CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
+        },
+    )
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+
+    assert coord._auth_refresh_suspended_until_utc == datetime(
+        2026, 5, 1, 12, 0, tzinfo=timezone.utc
+    )
+    assert coord._auth_blocked_until_utc == datetime(
+        2026, 5, 1, 13, 0, tzinfo=timezone.utc
+    )
+    assert coord._auth_block_reason == "login_wall_after_refresh_reject"
 
 
 def test_collect_site_metrics_matches_battery_energy_power_sensor_parse_rules(
@@ -994,6 +1109,29 @@ async def test_attempt_auto_refresh_rechecks_rejected_cooldown_inside_lock(hass)
 
 
 @pytest.mark.asyncio
+async def test_attempt_auto_refresh_rechecks_suspension_inside_lock(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+
+    suspended_states = iter([False, True])
+    arr = coord.auth_refresh_runtime
+    coord._auth_refresh_suspended_active = lambda: next(suspended_states)  # type: ignore[method-assign]
+    arr.auth_refresh_rejected_active = lambda: False  # type: ignore[method-assign]
+    arr.auth_refresh_recent_success_active = lambda: False  # type: ignore[method-assign]
+    arr.async_run_auto_refresh = AsyncMock(return_value=True)
+
+    assert await coord._attempt_auto_refresh() is False
+    arr.async_run_auto_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_attempt_auto_refresh_rechecks_recent_success_inside_lock(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -1049,6 +1187,199 @@ def test_note_auth_refresh_rejected_handles_utcnow_error(monkeypatch, hass):
     assert coord._auth_refresh_last_success_mono is None
     assert coord._auth_refresh_rejected_until is not None
     assert coord._auth_refresh_rejected_ends_utc is None
+
+
+def test_auth_refresh_suspended_active_clears_expired_window(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_rejected_count = AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
+    coord._auth_refresh_suspended_until_utc = datetime.now(timezone.utc) - timedelta(
+        seconds=1
+    )
+    coord._persist_auth_refresh_suspension_state = MagicMock()
+
+    assert coord._auth_refresh_suspended_active() is False
+    assert coord._auth_refresh_rejected_count == 0
+    assert coord._auth_refresh_suspended_until_utc is None
+    coord._persist_auth_refresh_suspension_state.assert_called_once_with()
+
+
+def test_clear_auth_repair_issues_on_success_clears_reauth_when_not_suspended(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_suspended_until_utc = None
+    coord.diagnostics = SimpleNamespace(
+        clear_reauth_issue=MagicMock(),
+        clear_auth_block_issue=MagicMock(),
+    )
+
+    coord._clear_auth_repair_issues_on_success()
+
+    coord.diagnostics.clear_reauth_issue.assert_called_once_with()
+    coord.diagnostics.clear_auth_block_issue.assert_not_called()
+
+
+def test_clear_auth_repair_issues_on_success_without_diagnostics(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord.diagnostics = None
+
+    coord._clear_auth_repair_issues_on_success()
+
+
+def test_clear_auth_repair_issues_on_success_preserves_reauth_when_suspended(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_suspended_until_utc = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )
+    coord.diagnostics = SimpleNamespace(
+        clear_reauth_issue=MagicMock(),
+        clear_auth_block_issue=MagicMock(),
+    )
+
+    coord._clear_auth_repair_issues_on_success()
+
+    coord.diagnostics.clear_reauth_issue.assert_not_called()
+    coord.diagnostics.clear_auth_block_issue.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_suspends_after_repeated_rejections(
+    monkeypatch, hass
+):
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import EnlightenAuthInvalidCredentials
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = None
+    coord._auth_refresh_rejected_count = 0
+    coord._auth_refresh_suspended_until_utc = None
+    coord.client = SimpleNamespace(update_credentials=MagicMock())
+    coord._persist_tokens = MagicMock()
+    coord.diagnostics = SimpleNamespace(create_reauth_issue=MagicMock())
+
+    calls = 0
+
+    monkeypatch.setattr(
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    async def _authenticate(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise EnlightenAuthInvalidCredentials()
+
+    monkeypatch.setattr(arr_mod, "async_authenticate", _authenticate)
+
+    for attempt in range(AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD):
+        assert await coord._attempt_auto_refresh() is False
+        assert coord._auth_refresh_rejected_count == attempt + 1
+        if attempt + 1 < AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD:
+            assert coord._auth_refresh_rejected_active() is True
+            coord._auth_refresh_rejected_until = None
+            coord._auth_refresh_rejected_ends_utc = None
+
+    assert calls == AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
+    assert coord._auth_refresh_rejected_until is None
+    assert coord._auth_refresh_rejected_ends_utc is None
+    assert coord._auth_refresh_suspended_until_utc is not None
+    coord.diagnostics.create_reauth_issue.assert_called_once_with()
+
+    assert await coord._attempt_auto_refresh() is False
+    assert calls == AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
+    coord.client.update_credentials.assert_not_called()
+    coord._persist_tokens.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_success_clears_suspension(monkeypatch, hass):
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import AuthTokens
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_rejected_count = AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
+    coord._auth_refresh_suspended_until_utc = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )
+    coord.client = SimpleNamespace(update_credentials=MagicMock())
+    coord._persist_tokens = MagicMock()
+    coord._tokens = AuthTokens(
+        cookie="", session_id=None, access_token="", token_expires_at=None
+    )
+
+    new_tokens = AuthTokens(
+        cookie="cookie",
+        session_id="sess",
+        access_token="token",
+        token_expires_at=12345,
+    )
+
+    monkeypatch.setattr(
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        arr_mod, "async_authenticate", AsyncMock(return_value=(new_tokens, {}))
+    )
+
+    assert await coord._async_run_auto_refresh() is True
+
+    assert coord._auth_refresh_rejected_count == 0
+    assert coord._auth_refresh_suspended_until_utc is None
+    coord.client.update_credentials.assert_called_once_with(
+        eauth="token", cookie="cookie"
+    )
+    coord._persist_tokens.assert_called_once_with(new_tokens)
+
+
+def test_note_auth_refresh_rejected_threshold_handles_utcnow_error(monkeypatch, hass):
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_rejected_count = AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD - 1
+    coord._auth_refresh_rejected_until = time.monotonic() + 60
+    coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
+        seconds=60
+    )
+    coord.diagnostics = SimpleNamespace(create_reauth_issue=MagicMock())
+
+    monkeypatch.setattr(
+        arr_mod.dt_util,
+        "utcnow",
+        MagicMock(side_effect=RuntimeError("boom")),
+    )
+
+    coord._note_auth_refresh_rejected("invalid")
+
+    assert coord._auth_refresh_rejected_count == AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
+    assert coord._auth_refresh_rejected_until is None
+    assert coord._auth_refresh_rejected_ends_utc is None
+    assert coord._auth_refresh_suspended_until_utc is not None
+    coord.diagnostics.create_reauth_issue.assert_called_once_with()
 
 
 @pytest.mark.asyncio
@@ -1131,6 +1462,22 @@ async def test_attempt_auto_refresh_skips_when_auth_block_active(hass):
     coord._remember_password = True
     coord._stored_password = "secret"
     coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    assert await coord._attempt_auto_refresh() is False
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_skips_when_auth_refresh_suspended(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._auth_refresh_suspended_until_utc = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )
 
     assert await coord._attempt_auto_refresh() is False
 
@@ -1403,6 +1750,10 @@ def test_persist_tokens_updates_entry(hass, monkeypatch):
     coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.config_entry = entry
+    coord._auth_refresh_rejected_count = AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
+    coord._auth_refresh_suspended_until_utc = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )
     coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
     coord._auth_block_reason = "login_wall_after_refresh_reject"
 
@@ -1426,9 +1777,12 @@ def test_persist_tokens_updates_entry(hass, monkeypatch):
     assert updated_entry is entry
     assert payload[CONF_COOKIE] == "cookie"
     assert payload[CONF_EAUTH] == "token"
+    assert CONF_AUTH_REFRESH_SUSPENDED_UNTIL not in payload
     assert CONF_AUTH_BLOCKED_UNTIL not in payload
     assert CONF_AUTH_BLOCK_REASON not in payload
     assert payload[CONF_SESSION_ID] == "sess"
+    assert coord._auth_refresh_rejected_count == 0
+    assert coord._auth_refresh_suspended_until_utc is None
 
 
 def test_seed_nominal_voltage_option_from_api_updates_missing_option(hass, monkeypatch):

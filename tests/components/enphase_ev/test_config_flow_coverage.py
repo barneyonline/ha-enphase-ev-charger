@@ -42,6 +42,7 @@ from custom_components.enphase_ev.config_flow import (
 from custom_components.enphase_ev.const import (
     CONF_AUTH_BLOCK_REASON,
     CONF_AUTH_BLOCKED_UNTIL,
+    CONF_AUTH_REFRESH_SUSPENDED_UNTIL,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
@@ -1184,6 +1185,7 @@ async def test_finalize_login_entry_reauth_updates_entry(hass) -> None:
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
             CONF_PASSWORD: "old-secret",
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: "2026-04-10T13:00:00+00:00",
             CONF_AUTH_BLOCKED_UNTIL: "2026-04-10T13:00:00+00:00",
             CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
         },
@@ -1206,6 +1208,7 @@ async def test_finalize_login_entry_reauth_updates_entry(hass) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_PASSWORD] == "new-secret"
+    assert CONF_AUTH_REFRESH_SUSPENDED_UNTIL not in entry.data
     assert CONF_AUTH_BLOCKED_UNTIL not in entry.data
     assert CONF_AUTH_BLOCK_REASON not in entry.data
     mock_reload.assert_awaited_once_with(entry.entry_id)
@@ -1222,6 +1225,7 @@ async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
             CONF_REMEMBER_PASSWORD: True,
             CONF_PASSWORD: "legacy",
             CONF_SESSION_ID: "old-session",
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: "2026-04-10T13:00:00+00:00",
             CONF_AUTH_BLOCKED_UNTIL: "2026-04-10T13:00:00+00:00",
             CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
         },
@@ -1262,6 +1266,7 @@ async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
     assert CONF_COOKIE not in captured["data"]
     assert CONF_EAUTH not in captured["data"]
     assert CONF_ACCESS_TOKEN not in captured["data"]
+    assert CONF_AUTH_REFRESH_SUSPENDED_UNTIL not in captured["data"]
     assert CONF_AUTH_BLOCKED_UNTIL not in captured["data"]
     assert CONF_AUTH_BLOCK_REASON not in captured["data"]
 

@@ -41,6 +41,7 @@ from .const import (
     CONF_ACCESS_TOKEN,
     CONF_AUTH_BLOCK_REASON,
     CONF_AUTH_BLOCKED_UNTIL,
+    CONF_AUTH_REFRESH_SUSPENDED_UNTIL,
     CONF_COOKIE,
     DEFAULT_CHARGE_LEVEL_SETTING,
     DEFAULT_NOMINAL_VOLTAGE,
@@ -294,11 +295,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             access_token=access_token,
             token_expires_at=config.get(CONF_TOKEN_EXPIRES_AT),
         )
-        self._auth_blocked_until_utc = self._coerce_utc_datetime(
+        auth_refresh_suspended_until = self._coerce_utc_datetime(
+            config.get(CONF_AUTH_REFRESH_SUSPENDED_UNTIL)
+        )
+        auth_blocked_until = self._coerce_utc_datetime(
             config.get(CONF_AUTH_BLOCKED_UNTIL)
         )
         raw_auth_block_reason = config.get(CONF_AUTH_BLOCK_REASON)
-        self._auth_block_reason = (
+        auth_block_reason = (
             str(raw_auth_block_reason).strip() if raw_auth_block_reason else None
         )
         timeout = (
@@ -349,6 +353,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
         )
         self._refresh_lock = asyncio.Lock()
+        self._auth_refresh_suspended_until_utc = auth_refresh_suspended_until
+        self._auth_blocked_until_utc = auth_blocked_until
+        self._auth_block_reason = auth_block_reason
         # Nominal voltage for estimated power when API omits voltage; user-configurable
         self._nominal_v = resolve_nominal_voltage_for_hass(hass)
         if config_entry is not None:
@@ -2084,7 +2091,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self.site_only or not self.serials:
             self._backoff_until = None
             self._clear_backoff_timer()
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
             self.diagnostics.clear_network_issue()
             self.diagnostics.clear_cloud_issue()
             self.diagnostics.clear_dns_issue()
@@ -2108,6 +2115,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     phase_timings,
                     plan=SITE_ONLY_FOLLOWUP_PLAN,
                 )
+            if not self._auth_refresh_suspended_active():
+                self._clear_auth_refresh_rejection_state()
             self._prune_runtime_caches(active_serials=(), keep_day_keys=())
             self._sync_battery_profile_pending_issue()
             self.last_success_utc = dt_util.utcnow()
@@ -2251,7 +2260,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.payload_using_stale = False
             self.payload_failure_kind = None
             self._unauth_errors = 0
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
         except ConfigEntryAuthFailed:
             raise
         except Unauthorized as err:
@@ -2299,7 +2308,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._payload_errors = 0
             self._network_errors = 0
             self._http_errors = 0
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
             signature = err.signature_dict()
@@ -2480,7 +2489,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Success path: reset counters, record last success
         if self._unauth_errors:
             # Clear any outstanding reauth issues on success
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
         self._unauth_errors = 0
         self._rate_limit_hits = 0
         self._http_errors = 0
@@ -2506,6 +2515,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 phase_timings,
                 plan=FOLLOWUP_PLAN,
             )
+        if not self._auth_refresh_suspended_active():
+            self._clear_auth_refresh_rejection_state()
 
         prev_data = self.data if isinstance(self.data, dict) else {}
         self._has_successful_refresh = True
@@ -3944,6 +3955,68 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             merged.pop(CONF_AUTH_BLOCK_REASON, None)
         self.hass.config_entries.async_update_entry(config_entry, data=merged)
 
+    def _persist_auth_refresh_suspension_state(self) -> None:
+        """Persist stored-credential auto-refresh suspension metadata."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return
+        merged = dict(config_entry.data)
+        if self._auth_refresh_suspended_until_utc is None:
+            merged.pop(CONF_AUTH_REFRESH_SUSPENDED_UNTIL, None)
+        else:
+            merged[CONF_AUTH_REFRESH_SUSPENDED_UNTIL] = (
+                self._auth_refresh_suspended_until_utc.isoformat()
+            )
+        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+
+    def _clear_auth_refresh_rejection_state(self) -> None:
+        """Clear the short rejected-refresh streak and cooldown state."""
+
+        self._auth_refresh_rejected_count = 0
+        self._auth_refresh_rejected_until = None
+        self._auth_refresh_rejected_ends_utc = None
+
+    def _clear_auth_refresh_suspension(self, *, persist: bool = True) -> None:
+        """Clear stored-credential auto-refresh suspension state."""
+
+        had_state = bool(getattr(self, "_auth_refresh_suspended_until_utc", None))
+        self._clear_auth_refresh_rejection_state()
+        self._auth_refresh_suspended_until_utc = None
+        if persist and had_state:
+            self._persist_auth_refresh_suspension_state()
+
+    def _auth_refresh_suspended_active(self) -> bool:
+        """Return True while stored-credential auto-refresh is suspended."""
+
+        suspended_until = getattr(self, "_auth_refresh_suspended_until_utc", None)
+        if not isinstance(suspended_until, datetime):
+            return False
+        if suspended_until > dt_util.utcnow():
+            return True
+        self._clear_auth_refresh_suspension()
+        return False
+
+    def _note_auth_refresh_suspended(self, *, suspended_until: datetime) -> None:
+        """Persist a long suspension after repeated stored-credential rejection."""
+
+        self._auth_refresh_suspended_until_utc = suspended_until.astimezone(_tz.utc)
+        self._persist_auth_refresh_suspension_state()
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.create_reauth_issue()
+
+    def _clear_auth_repair_issues_on_success(self) -> None:
+        """Clear auth repairs unless auto-refresh suspension should keep reauth visible."""
+
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is None:
+            return
+        if self._auth_refresh_suspended_active():
+            diagnostics.clear_auth_block_issue()
+            return
+        diagnostics.clear_reauth_issue()
+
     def _clear_auth_block(self, *, persist: bool = True) -> None:
         """Clear the Enphase auth-block state and its repair issue."""
 
@@ -4130,6 +4203,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             CONF_ACCESS_TOKEN: tokens.access_token,
             CONF_SESSION_ID: tokens.session_id,
             CONF_TOKEN_EXPIRES_AT: tokens.token_expires_at,
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: None,
             CONF_AUTH_BLOCKED_UNTIL: None,
             CONF_AUTH_BLOCK_REASON: None,
         }
@@ -4138,11 +4212,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 merged.pop(key, None)
             else:
                 merged[key] = value
+        self._clear_auth_refresh_rejection_state()
+        self._auth_refresh_suspended_until_utc = None
         self._auth_blocked_until_utc = None
         self._auth_block_reason = None
         diagnostics = getattr(self, "diagnostics", None)
         if diagnostics is not None:
-            diagnostics.clear_auth_block_issue()
+            diagnostics.clear_reauth_issue()
         self.hass.config_entries.async_update_entry(self.config_entry, data=merged)
 
     def kick_fast(self, seconds: int = 60) -> None:
