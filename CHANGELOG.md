@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Hardened BatteryConfig-backed battery reserve/profile writes by preserving the browser-style request path used by working sites and adding compatibility fallbacks for alternate auth and payload shapes observed on affected installs.
+- Suspended automatic stored-credential reauthentication for 24 hours after repeated rejected refresh attempts so optional HEMS endpoint `401` loops stop re-triggering Enphase login attempts every few minutes and no longer escalate into broader temporary auth blocks.
 
 ### 🔧 Improvements
 - None
