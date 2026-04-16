@@ -19,6 +19,23 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.7.13 - 2026-04-16
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Refined BatteryConfig-backed battery reserve/profile writes by using the validated mixed-auth browser flow for profile updates, retrying without `devices` on rejected payloads, and preferring fresh `BP-XSRF-Token` cookies over stale XSRF values on affected installs.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.13`.
+
 ## v2.7.12 - 2026-04-16
 
 ### 🚧 Breaking changes
