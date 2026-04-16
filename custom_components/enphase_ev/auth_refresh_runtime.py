@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as _tz
 from typing import TYPE_CHECKING
 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -28,6 +28,8 @@ from .api import (
 from .const import (
     AUTH_BLOCKED_COOLDOWN_S,
     AUTH_REFRESH_REJECTED_COOLDOWN_S,
+    AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD,
+    AUTH_REFRESH_SUSPENDED_COOLDOWN_S,
     AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S,
 )
 from .log_redaction import redact_text
@@ -58,6 +60,9 @@ class AuthRefreshRuntime:
         if coord._auth_block_active():
             return False
 
+        if coord._auth_refresh_suspended_active():
+            return False
+
         if self.auth_refresh_recent_success_active():
             return True
 
@@ -69,6 +74,9 @@ class AuthRefreshRuntime:
             return await asyncio.shield(task)
 
         async with coord._refresh_lock:
+            if coord._auth_refresh_suspended_active():
+                return False
+
             if self.auth_refresh_rejected_active():
                 return False
 
@@ -107,8 +115,30 @@ class AuthRefreshRuntime:
         """Start a cooldown after stored credentials are rejected."""
 
         coord = self.coordinator
+        coord._auth_refresh_rejected_count = (
+            int(getattr(coord, "_auth_refresh_rejected_count", 0)) + 1
+        )
         delay = float(AUTH_REFRESH_REJECTED_COOLDOWN_S)
         coord._auth_refresh_last_success_mono = None
+        if coord._auth_refresh_rejected_count >= int(
+            AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
+        ):
+            coord._auth_refresh_rejected_until = None
+            coord._auth_refresh_rejected_ends_utc = None
+            try:
+                suspended_until = dt_util.utcnow() + timedelta(
+                    seconds=AUTH_REFRESH_SUSPENDED_COOLDOWN_S
+                )
+            except Exception:
+                suspended_until = datetime.now(_tz.utc) + timedelta(
+                    seconds=AUTH_REFRESH_SUSPENDED_COOLDOWN_S
+                )
+            coord._note_auth_refresh_suspended(suspended_until=suspended_until)
+            _LOGGER.warning(
+                "Stored-credential automatic reauthentication has been suspended after %s consecutive rejections; reauthenticate via the integration options",
+                coord._auth_refresh_rejected_count,
+            )
+            return
         coord._auth_refresh_rejected_until = time.monotonic() + delay
         try:
             coord._auth_refresh_rejected_ends_utc = dt_util.utcnow() + timedelta(
@@ -171,6 +201,8 @@ class AuthRefreshRuntime:
 
         coord._auth_refresh_rejected_until = None
         coord._auth_refresh_rejected_ends_utc = None
+        coord._clear_auth_refresh_rejection_state()
+        coord._auth_refresh_suspended_until_utc = None
         coord._auth_refresh_last_success_mono = time.monotonic()
         coord._clear_auth_block(persist=False)
         coord._tokens = tokens
