@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, time as dt_time, timezone
+from datetime import datetime, time as dt_time, timedelta, timezone
 from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock, call
 
@@ -10,6 +10,19 @@ import pytest
 from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev.state_models import BatteryControlCapability
+
+
+class _MonotonicSequence:
+    def __init__(self, *values: float) -> None:
+        self._values = list(values)
+        self._index = 0
+
+    def __call__(self) -> float:
+        if self._index < len(self._values):
+            value = self._values[self._index]
+            self._index += 1
+            return value
+        return self._values[-1]
 
 
 def test_parse_battery_settings_payload_maps_mode_and_controls(
@@ -605,6 +618,53 @@ async def test_refresh_battery_settings_bypasses_cache_when_profile_pending(
 
     coord.client.battery_settings_details.assert_awaited_once()
     assert coord.battery_profile_pending is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_battery_settings_cache_ttl_tracks_polling_cadence(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord.update_interval = timedelta(seconds=30)
+    coord._configured_slow_poll_interval = 120  # noqa: SLF001
+    coord._battery_polling_interval_s = 60  # noqa: SLF001
+    coord._endpoint_family_should_run = lambda *args, **kwargs: True  # noqa: SLF001
+    coord._note_endpoint_family_success = lambda *args, **kwargs: None  # noqa: SLF001
+    coord._note_endpoint_family_failure = lambda *args, **kwargs: None  # noqa: SLF001
+    coord.client.battery_settings_details = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "profile": "self-consumption",
+                    "batteryBackupPercentage": 20,
+                }
+            },
+            {
+                "data": {
+                    "profile": "backup_only",
+                    "batteryBackupPercentage": 100,
+                }
+            },
+        ]
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.time.monotonic",
+        _MonotonicSequence(1000.0, 1059.0, 1061.0),
+    )
+
+    await coord.battery_runtime.async_refresh_battery_settings(force=True)
+
+    assert coord.client.battery_settings_details.await_count == 1
+    assert coord._battery_settings_cache_until == 1060.0  # noqa: SLF001
+
+    await coord.battery_runtime.async_refresh_battery_settings()
+
+    assert coord.client.battery_settings_details.await_count == 1
+
+    await coord.battery_runtime.async_refresh_battery_settings()
+
+    assert coord.client.battery_settings_details.await_count == 2
+    assert coord.battery_profile == "backup_only"
 
 
 @pytest.mark.asyncio
@@ -3150,6 +3210,56 @@ async def test_battery_runtime_refresh_storm_alert_parses_payloads_and_cache_sho
     coord.client.storm_guard_alert.reset_mock()
     await coord.battery_runtime.async_refresh_storm_alert()
     coord.client.storm_guard_alert.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_refresh_storm_guard_profile_cache_ttl_tracks_polling_cadence(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord.update_interval = timedelta(seconds=120)
+    coord._configured_slow_poll_interval = 120  # noqa: SLF001
+    coord._endpoint_family_should_run = lambda *args, **kwargs: True  # noqa: SLF001
+    coord._note_endpoint_family_success = lambda *args, **kwargs: None  # noqa: SLF001
+    coord._note_endpoint_family_failure = lambda *args, **kwargs: None  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock(
+        side_effect=[
+            {"data": {"stormGuardState": "enabled", "evseStormEnabled": False}},
+            {"data": {"stormGuardState": "disabled", "evseStormEnabled": True}},
+        ]
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.time.monotonic",
+        _MonotonicSequence(200.0, 319.0, 321.0),
+    )
+
+    await coord.battery_runtime.async_refresh_storm_guard_profile(force=True)
+
+    assert coord.client.storm_guard_profile.await_count == 1
+    assert coord._storm_guard_cache_until == 320.0  # noqa: SLF001
+
+    await coord.battery_runtime.async_refresh_storm_guard_profile()
+
+    assert coord.client.storm_guard_profile.await_count == 1
+
+    await coord.battery_runtime.async_refresh_storm_guard_profile()
+
+    assert coord.client.storm_guard_profile.await_count == 2
+    assert coord.storm_guard_state == "disabled"
+    assert coord.storm_evse_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_refresh_storm_guard_profile_respects_endpoint_family_gate(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._endpoint_family_should_run = lambda *args, **kwargs: False  # noqa: SLF001
+    coord.client.storm_guard_profile = AsyncMock()
+
+    await coord.battery_runtime.async_refresh_storm_guard_profile(force=True)
+
+    coord.client.storm_guard_profile.assert_not_awaited()
 
 
 @pytest.mark.asyncio

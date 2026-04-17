@@ -11,7 +11,10 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Coalesced concurrent stored-credential reauthentication attempts into a single in-flight login and added a cooldown after rejected auth refreshes so one expired or blocked Enlighten session does not fan out into a login storm or hit the account’s active-session cap.
+- Stabilized derived EV charger power around suspend and resume transitions by treating `SUSPENDED_EV` as non-charging for power purposes and reseeding the lifetime baseline when charging starts again, preventing stale non-zero readings after pauses and inflated first values after a resume.
+- Fixed stuck `System Profile Status` updates by only clearing local battery-profile pending state after Enphase reports the change is no longer pending and the request has either settled locally or exceeded a post-write grace window.
+- Reduced external battery profile refresh latency by aligning BatteryConfig profile/settings cache TTLs to the active poll cadence instead of holding stale data for a fixed five minutes.
 
 ### 🔧 Improvements
 - None

@@ -670,6 +670,33 @@ class BatteryRuntime:
             return FAST_TOGGLE_POLL_HOLD_S
         return max(int(polling_interval), FAST_TOGGLE_POLL_HOLD_S)
 
+    def _battery_profile_refresh_cache_ttl_seconds(self, default_ttl: float) -> float:
+        current_interval = None
+        update_interval = getattr(self.coordinator, "update_interval", None)
+        total_seconds = getattr(update_interval, "total_seconds", None)
+        if callable(total_seconds):
+            try:
+                current_interval = float(total_seconds())
+            except Exception:
+                current_interval = None
+        if current_interval is None or current_interval <= 0:
+            slow_interval = self._coerce_optional_int(
+                getattr(self.coordinator, "_configured_slow_poll_interval", None)
+            )
+            if slow_interval is not None and slow_interval > 0:
+                current_interval = float(slow_interval)
+        polling_interval = self._coerce_optional_int(
+            getattr(self.battery_state, "_battery_polling_interval_s", None)
+        )
+        if polling_interval is not None and polling_interval > 0:
+            if current_interval is None or current_interval <= 0:
+                current_interval = float(polling_interval)
+            else:
+                current_interval = max(current_interval, float(polling_interval))
+        if current_interval is None or current_interval <= 0:
+            return float(default_ttl)
+        return min(float(default_ttl), current_interval)
+
     def sync_backend_battery_profile_pending(self, value: object) -> None:
         state = self.battery_state
         backend_pending = self._coerce_optional_bool(value)
@@ -2586,7 +2613,9 @@ class BatteryRuntime:
             clear_missing_schedule_times=True,
         )
         self.sync_cfg_settings_pending()
-        state._battery_settings_cache_until = now + BATTERY_SETTINGS_CACHE_TTL
+        state._battery_settings_cache_until = now + (
+            self._battery_profile_refresh_cache_ttl_seconds(BATTERY_SETTINGS_CACHE_TTL)
+        )
         coord._note_endpoint_family_success(family)
 
     async def async_refresh_battery_schedules(self) -> None:
@@ -2934,7 +2963,9 @@ class BatteryRuntime:
         self.sync_storm_guard_pending(storm_state)
         if evse is not None:
             state._storm_evse_enabled = evse
-        state._storm_guard_cache_until = now + STORM_GUARD_CACHE_TTL
+        state._storm_guard_cache_until = now + (
+            self._battery_profile_refresh_cache_ttl_seconds(STORM_GUARD_CACHE_TTL)
+        )
         coord._note_endpoint_family_success(family)
 
     async def async_refresh_storm_alert(
