@@ -647,10 +647,12 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     await async_setup_entry(hass, config_entry, capture_add)
-    assert len(added) == 2
-    assert isinstance(added[0][0], SystemProfileSelect)
-    assert isinstance(added[1][0], ChargeModeSelect)
-    assert added[1][0]._sn == "1111"
+    flat_added = [entity for group in added for entity in group]
+    assert any(isinstance(entity, SystemProfileSelect) for entity in flat_added)
+    assert any(
+        isinstance(entity, ChargeModeSelect) and entity._sn == "1111"
+        for entity in flat_added
+    )
     assert len(listeners) == 1
 
     added.clear()
@@ -738,8 +740,8 @@ async def test_select_platform_adds_system_profile_after_permission_refresh(
     coord._battery_user_is_installer = False  # noqa: SLF001
     update_callbacks[0]()
 
-    assert len(added) == 2
-    assert isinstance(added[1][0], SystemProfileSelect)
+    flat_added = [entity for group in added for entity in group]
+    assert any(isinstance(entity, SystemProfileSelect) for entity in flat_added)
 
 
 @pytest.mark.asyncio

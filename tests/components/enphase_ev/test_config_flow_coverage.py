@@ -59,6 +59,7 @@ from custom_components.enphase_ev.const import (
     CONF_ACCESS_TOKEN,
     DOMAIN,
     OPT_API_TIMEOUT,
+    OPT_BATTERY_SCHEDULES_ENABLED,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
@@ -2327,6 +2328,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
             OPT_NOMINAL_VOLTAGE: 230,
             OPT_SESSION_HISTORY_INTERVAL: 30,
             OPT_SCHEDULE_SYNC_ENABLED: False,
+            OPT_BATTERY_SCHEDULES_ENABLED: True,
             CONF_SITE_ONLY: True,
         },
     )
@@ -2350,6 +2352,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_NOMINAL_VOLTAGE] == 230
     assert validated[OPT_SESSION_HISTORY_INTERVAL] == 30
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is False
+    assert validated[OPT_BATTERY_SCHEDULES_ENABLED] is True
     assert CONF_SCAN_INTERVAL not in validated
     assert CONF_SITE_ONLY not in validated
 

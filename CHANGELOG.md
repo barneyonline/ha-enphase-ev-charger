@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added battery schedule parity tooling on supported battery sites: public `force_refresh`, `add_schedule`, `update_schedule`, `delete_schedule`, and `validate_schedule` services; schedule inventory summary sensors; and an on-device battery schedule editor with selection, weekday controls, and CRUD buttons.
 
 ### 🐛 Bug fixes
 - Coalesced concurrent stored-credential reauthentication attempts into a single in-flight login and added a cooldown after rejected auth refreshes so one expired or blocked Enlighten session does not fan out into a login storm or hit the account’s active-session cap.
@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 - Fixed BatteryConfig bootstrap handling so failed `isValid` preflights keep the existing `BP-XSRF-Token` instead of poisoning subsequent battery settings/profile writes with a bad token.
 
 ### 🔧 Improvements
-- None
+- Simplified the battery schedule editor UI by collapsing the duplicate edit/create entity sets into one shared form, hiding weekday toggles by default, and separating the integration options into `Enable EV Charger Scheduler` and `Enable Battery Scheduler`.
 
 ### 🔄 Other changes
 - None

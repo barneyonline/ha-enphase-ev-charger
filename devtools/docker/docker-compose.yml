@@ -18,6 +18,9 @@ services:
       - "8123:8123"
     environment:
       - TZ=${TZ:-UTC}
+    dns:
+      - ${HA_RUNTIME_DNS_1:-1.1.1.1}
+      - ${HA_RUNTIME_DNS_2:-8.8.8.8}
     volumes:
       - ../../.ha-config:/config
       - ../../custom_components/enphase_ev:/config/custom_components/enphase_ev:ro

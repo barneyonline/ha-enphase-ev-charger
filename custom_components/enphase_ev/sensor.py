@@ -36,6 +36,7 @@ from .ac_battery_support import (
     ac_battery_snapshot_last_reported,
     ac_battery_storage_snapshot,
 )
+from .battery_schedule_editor import BatteryScheduleRecord, battery_schedule_inventory
 from .const import (
     DEFAULT_NOMINAL_VOLTAGE,
     DOMAIN,
@@ -214,6 +215,24 @@ def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
     if has_encharge is False and has_enpower is False:
         return False
     return _type_available(coord, "encharge")
+
+
+def _battery_schedule_inventory_supported(coord: EnphaseCoordinator) -> bool:
+    client = getattr(coord, "client", None)
+    if not (_site_has_battery(coord) and _type_available(coord, "encharge")):
+        return False
+    if callable(getattr(client, "battery_schedules", None)):
+        return True
+    if isinstance(getattr(coord, "_battery_schedules_payload", None), dict):
+        return True
+    return any(
+        getattr(coord, attr, None) is not None
+        for attr in (
+            "_battery_cfg_schedule_id",
+            "_battery_dtg_schedule_id",
+            "_battery_rbd_schedule_id",
+        )
+    )
 
 
 async def async_setup_entry(
@@ -864,8 +883,37 @@ async def async_setup_entry(
                 "battery_last_reported",
                 EnphaseBatteryLastReportedSensor(coord),
             )
+            if _battery_schedule_inventory_supported(coord):
+                _async_remove_site_sensor_entity("battery_schedule_summary")
+                _add_site_entity(
+                    "battery_cfg_schedules",
+                    EnphaseBatteryScheduleModeSensor(coord, "cfg"),
+                )
+                _add_site_entity(
+                    "battery_dtg_schedules",
+                    EnphaseBatteryScheduleModeSensor(coord, "dtg"),
+                )
+                _add_site_entity(
+                    "battery_rbd_schedules",
+                    EnphaseBatteryScheduleModeSensor(coord, "rbd"),
+                )
+            elif inventory_ready:
+                for entity_key in (
+                    "battery_schedule_summary",
+                    "battery_cfg_schedules",
+                    "battery_dtg_schedules",
+                    "battery_rbd_schedules",
+                ):
+                    _async_remove_site_sensor_entity(entity_key)
         else:
             _async_remove_site_sensor_entity("battery_power")
+            for entity_key in (
+                "battery_schedule_summary",
+                "battery_cfg_schedules",
+                "battery_dtg_schedules",
+                "battery_rbd_schedules",
+            ):
+                _async_remove_site_sensor_entity(entity_key)
         if ac_battery_device_available:
             _add_site_entity(
                 "ac_battery_overall_status",
@@ -8251,6 +8299,60 @@ class EnphaseBatteryCfgScheduleStatusSensor(_SiteBaseEntity):
     @property
     def native_value(self):
         return self._coord.battery_cfg_schedule_status or "none"
+
+
+class _BaseBatteryScheduleInventorySensor(_SiteBaseEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:calendar-clock"
+
+    def __init__(
+        self, coord: EnphaseCoordinator, key: str, translation_key: str
+    ) -> None:
+        super().__init__(coord, key, translation_key, type_key="encharge")
+        self._attr_translation_key = translation_key
+
+    def _inventory(self) -> list[BatteryScheduleRecord]:
+        return battery_schedule_inventory(self._coord)
+
+    @property
+    def available(self) -> bool:
+        return super().available and _battery_schedule_inventory_supported(self._coord)
+
+
+class EnphaseBatteryScheduleModeSensor(_BaseBatteryScheduleInventorySensor):
+    def __init__(self, coord: EnphaseCoordinator, schedule_type: str):
+        mode_key = str(schedule_type).lower()
+        super().__init__(
+            coord,
+            f"battery_{mode_key}_schedules",
+            f"battery_{mode_key}_schedules",
+        )
+        self._schedule_type = mode_key
+
+    def _records(self) -> list[BatteryScheduleRecord]:
+        return [
+            schedule
+            for schedule in self._inventory()
+            if schedule.schedule_type == self._schedule_type
+        ]
+
+    @property
+    def native_value(self) -> str:
+        return str(len(self._records()))
+
+    @property
+    def extra_state_attributes(self):
+        records = self._records()
+        attrs = self._cloud_diag_attrs()
+        attrs.update(
+            {
+                "schedule_type": self._schedule_type,
+                "schedule_count": len(records),
+                "schedule_ids": [schedule.schedule_id for schedule in records],
+                "schedules": [schedule.as_dict() for schedule in records],
+            }
+        )
+        return attrs
 
 
 class EnphaseBatteryAvailableEnergySensor(_SiteBaseEntity):
