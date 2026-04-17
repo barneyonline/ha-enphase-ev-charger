@@ -4412,6 +4412,55 @@ async def test_set_battery_profile_reraises_non_403_errors() -> None:
 
 
 @pytest.mark.asyncio
+async def test_set_battery_profile_retries_without_devices_on_403() -> None:
+    client = _make_client()
+    client._battery_config_write_request = AsyncMock(  # noqa: SLF001
+        side_effect=[
+            _make_cre(403, "Forbidden"),
+            {"message": "success"},
+        ]
+    )
+
+    out = await client.set_battery_profile(
+        profile="self-consumption",
+        battery_backup_percentage=20,
+        devices=[{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
+    )
+
+    assert out == {"message": "success"}
+    first_call = client._battery_config_write_request.await_args_list[0]  # noqa: SLF001
+    fallback_call = client._battery_config_write_request.await_args_list[
+        1
+    ]  # noqa: SLF001
+    assert first_call.kwargs["json_body"] == {
+        "profile": "self-consumption",
+        "batteryBackupPercentage": 20,
+        "devices": [{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
+    }
+    assert fallback_call.kwargs["json_body"] == {
+        "profile": "self-consumption",
+        "batteryBackupPercentage": 20,
+    }
+
+
+@pytest.mark.asyncio
+async def test_set_battery_profile_reraises_403_without_devices() -> None:
+    client = _make_client()
+    client._battery_config_write_request = AsyncMock(  # noqa: SLF001
+        side_effect=_make_cre(403, "Forbidden")
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError) as err:
+        await client.set_battery_profile(
+            profile="self-consumption",
+            battery_backup_percentage=20,
+        )
+
+    assert err.value.status == 403
+    assert client._battery_config_write_request.await_count == 1  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_cancel_battery_profile_update_uses_empty_body() -> None:
     token = _make_token({"user_id": "44"})
     client = _make_client()

@@ -40,6 +40,24 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - Bumped the integration manifest version to `2.8.0`.
 
+## v2.8.1 - 2026-04-17
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed BatteryConfig bootstrap handling so failed `isValid` preflights keep the existing `BP-XSRF-Token` instead of poisoning subsequent battery writes with a bad token.
+- Restored the profile-write compatibility fallback that retries `PUT /profile/<site>` without `devices` after a `403`, fixing reserve/profile changes on affected production sites while keeping the BatteryConfig bootstrap fix in place.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.8.1`.
+
 ## v2.7.14 - 2026-04-16
 
 ### 🚧 Breaking changes
