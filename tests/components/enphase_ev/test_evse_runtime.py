@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, call
 
+import aiohttp
 import pytest
 
 from homeassistant.exceptions import ServiceValidationError
@@ -22,6 +23,22 @@ from custom_components.enphase_ev.evse_runtime import (
 @pytest.fixture(autouse=True)
 def _force_utc_timezone() -> None:
     dt_util.set_default_time_zone(UTC)
+
+
+def _client_response_error(status: int, *, message: str = "", headers=None):
+    req = aiohttp.RequestInfo(
+        url=aiohttp.client.URL("https://example"),
+        method="GET",
+        headers={},
+        real_url=aiohttp.client.URL("https://example"),
+    )
+    return aiohttp.ClientResponseError(
+        request_info=req,
+        history=(),
+        status=status,
+        message=message,
+        headers=headers or {},
+    )
 
 
 def test_evse_runtime_helper_paths(coordinator_factory) -> None:
@@ -57,7 +74,7 @@ def test_evse_runtime_helper_paths(coordinator_factory) -> None:
     assert prefs == ChargeModeStartPreferences(
         mode="SCHEDULED_CHARGING",
         include_level=True,
-        strict=True,
+        strict=False,
         enforce_mode="SCHEDULED_CHARGING",
     )
 
@@ -238,6 +255,138 @@ async def test_evse_runtime_start_stop_and_auto_resume_use_coordinator_hooks(
     )
     coord._ensure_charge_mode.assert_awaited()
     assert coord.async_request_refresh.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_start_charging_invalid_level_falls_back_and_caches(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.evse_runtime
+    coord.data = {"EV1": {"plugged": True, "charge_mode_pref": "MANUAL_CHARGING"}}
+    coord.pick_start_amps = MagicMock(return_value=28)
+    coord.set_last_set_amps = MagicMock()
+    coord.set_desired_charging = MagicMock()
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.async_start_streaming = AsyncMock()
+    coord.async_request_refresh = AsyncMock()
+    coord.require_plugged = MagicMock()
+    coord.client.start_charging = AsyncMock(
+        side_effect=[
+            _client_response_error(
+                500,
+                message='{"error":{"displayMessage":"Invalid charge level","code":"500"}}',
+            ),
+            {"status": "ok"},
+        ]
+    )
+
+    await runtime.async_start_charging("EV1")
+
+    assert coord.client.start_charging.await_args_list[0] == call(
+        "EV1",
+        28,
+        1,
+        include_level=True,
+        strict_preference=False,
+    )
+    assert coord.client.start_charging.await_args_list[1] == call(
+        "EV1",
+        28,
+        1,
+        include_level=False,
+        strict_preference=True,
+    )
+    assert coord._start_without_level_fallback == {"EV1": True}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_start_charging_uses_cached_no_level_fallback(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.evse_runtime
+    coord.data = {"EV1": {"plugged": True, "charge_mode_pref": "MANUAL_CHARGING"}}
+    coord.pick_start_amps = MagicMock(return_value=28)
+    coord.set_last_set_amps = MagicMock()
+    coord.set_desired_charging = MagicMock()
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.async_start_streaming = AsyncMock()
+    coord.async_request_refresh = AsyncMock()
+    coord.require_plugged = MagicMock()
+    coord._start_without_level_fallback = {"EV1": True}  # noqa: SLF001
+    coord.client.start_charging = AsyncMock(return_value={"status": "ok"})
+
+    await runtime.async_start_charging("EV1")
+
+    coord.client.start_charging.assert_awaited_once_with(
+        "EV1",
+        28,
+        1,
+        include_level=False,
+        strict_preference=True,
+    )
+    assert coord._start_without_level_fallback == {"EV1": True}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_explicit_start_clears_cached_no_level_fallback(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.evse_runtime
+    coord.data = {"EV1": {"plugged": True, "charge_mode_pref": "MANUAL_CHARGING"}}
+    coord.pick_start_amps = MagicMock(return_value=24)
+    coord.set_last_set_amps = MagicMock()
+    coord.set_desired_charging = MagicMock()
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.async_start_streaming = AsyncMock()
+    coord.async_request_refresh = AsyncMock()
+    coord.require_plugged = MagicMock()
+    coord._start_without_level_fallback = {"EV1": True}  # noqa: SLF001
+    coord.client.start_charging = AsyncMock(return_value={"status": "ok"})
+
+    await runtime.async_start_charging("EV1", requested_amps=24)
+
+    coord.client.start_charging.assert_awaited_once_with(
+        "EV1",
+        24,
+        1,
+        include_level=True,
+        strict_preference=True,
+    )
+    assert coord._start_without_level_fallback == {}  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_start_charging_reraises_non_fallback_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.evse_runtime
+    coord.data = {"EV1": {"plugged": True, "charge_mode_pref": "MANUAL_CHARGING"}}
+    coord.pick_start_amps = MagicMock(return_value=28)
+    coord.require_plugged = MagicMock()
+    coord.client.start_charging = AsyncMock(
+        side_effect=_client_response_error(
+            500,
+            message='{"error":{"displayMessage":"Backend unavailable","code":"500"}}',
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await runtime.async_start_charging("EV1")
+
+    coord.client.start_charging.assert_awaited_once_with(
+        "EV1",
+        28,
+        1,
+        include_level=True,
+        strict_preference=False,
+    )
 
 
 @pytest.mark.asyncio

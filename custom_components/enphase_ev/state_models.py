@@ -120,9 +120,14 @@ class RefreshHealthState:
     _auth_settings_backoff_ends_utc: datetime | None = None
     _auth_settings_issue_reported: bool = False
     _auth_refresh_task: Any = None
+    _auth_refresh_rejected_count: int = 0
     _auth_refresh_rejected_until: float | None = None
     _auth_refresh_rejected_ends_utc: datetime | None = None
     _auth_refresh_last_success_mono: float | None = None
+    _auth_refresh_suspended_until_utc: datetime | None = None
+    _auth_blocked_until_utc: datetime | None = None
+    _auth_block_reason: str | None = None
+    _auth_block_issue_reported: bool = False
     _session_history_issue_reported: bool = False
     _site_energy_issue_reported: bool = False
     _payload_health: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -210,6 +215,7 @@ class HeatpumpState:
     _heatpump_runtime_state_last_success_mono: float | None = None
     _heatpump_runtime_state_last_success_utc: datetime | None = None
     _heatpump_runtime_state_using_stale: bool = False
+    _heatpump_known_present: bool = False
     _heatpump_daily_consumption: dict[str, object] | None = None
     _heatpump_daily_consumption_cache_until: float | None = None
     _heatpump_daily_consumption_backoff_until: float | None = None
@@ -218,6 +224,10 @@ class HeatpumpState:
     _heatpump_daily_consumption_last_success_mono: float | None = None
     _heatpump_daily_consumption_last_success_utc: datetime | None = None
     _heatpump_daily_consumption_using_stale: bool = False
+    _heatpump_daily_split_last_error: str | None = None
+    _heatpump_daily_split_last_success_mono: float | None = None
+    _heatpump_daily_split_last_success_utc: datetime | None = None
+    _heatpump_daily_split_using_stale: bool = False
     _current_power_consumption_w: float | None = None
     _current_power_consumption_sample_utc: datetime | None = None
     _current_power_consumption_reported_units: str | None = None
@@ -314,6 +324,7 @@ class BatteryState:
     _battery_show_battery_backup_percentage: bool | None = None
     _battery_is_charging_modes_enabled: bool | None = None
     _battery_has_encharge: bool | None = None
+    _battery_has_acb: bool | None = None
     _battery_has_enpower: bool | None = None
     _battery_country_code: str | None = None
     _battery_region: str | None = None
@@ -359,6 +370,11 @@ class BatteryState:
     _battery_settings_write_lock: Any = None
     _battery_settings_last_write_mono: float | None = None
     _battery_settings_cache_until: float | None = None
+    _battery_cfg_pending_charge_from_grid: bool | None = None
+    _battery_cfg_pending_schedule_enabled: bool | None = None
+    _battery_cfg_pending_begin_time: int | None = None
+    _battery_cfg_pending_end_time: int | None = None
+    _battery_cfg_pending_expires_mono: float | None = None
     _battery_grid_mode: str | None = None
     _battery_hide_charge_from_grid: bool | None = None
     _battery_envoy_supports_vls: bool | None = None
@@ -413,6 +429,24 @@ class BatteryState:
     _battery_aggregate_status: str | None = None
     _battery_aggregate_status_details: dict[str, object] = field(default_factory=dict)
     _battery_summary_sample_utc: datetime | None = None
+    _ac_battery_devices_cache_until: float | None = None
+    _ac_battery_devices_payload: dict[str, object] | None = None
+    _ac_battery_devices_html_payload: dict[str, object] | None = None
+    _ac_battery_telemetry_cache_until: float | None = None
+    _ac_battery_telemetry_payloads: dict[str, object] = field(default_factory=dict)
+    _ac_battery_events_payloads: dict[str, object] = field(default_factory=dict)
+    _ac_battery_data: dict[str, dict[str, object]] = field(default_factory=dict)
+    _ac_battery_order: list[str] = field(default_factory=list)
+    _ac_battery_aggregate_status: str | None = None
+    _ac_battery_aggregate_status_details: dict[str, object] = field(
+        default_factory=dict
+    )
+    _ac_battery_power_w: float | None = None
+    _ac_battery_summary_sample_utc: datetime | None = None
+    _ac_battery_selected_sleep_min_soc: int | None = None
+    _ac_battery_sleep_state: str | None = None
+    _ac_battery_control_pending: bool = False
+    _ac_battery_last_command: dict[str, object] | None = None
 
 
 STATE_MODELS = {

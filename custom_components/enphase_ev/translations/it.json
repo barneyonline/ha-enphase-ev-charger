@@ -43,7 +43,8 @@
           "type_iqevse": "Caricatori",
           "type_microinverter": "Microinverter",
           "scan_interval": "Intervallo di scansione (s)",
-          "type_heatpump": "Pompa di calore"
+          "type_heatpump": "Pompa di calore",
+          "type_ac_battery": "Batteria AC"
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Include entità e controlli dei caricatori EV.",
           "type_microinverter": "Include sensori di connettività dei microinverter, conteggio attivi e produzione cumulata.",
           "scan_interval": "Secondi tra i poll di stato cloud. Predefinito 60s.",
-          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore."
+          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore.",
+          "type_ac_battery": "Include sensori della batteria AC e controlli della modalità sospensione quando disponibili."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Abilita il supporto dello scheduler",
           "reauth": "Avvia riautenticazione",
           "forget_password": "Dimentica password salvata",
-          "type_heatpump": "Pompa di calore"
+          "type_heatpump": "Pompa di calore",
+          "type_ac_battery": "Batteria AC"
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Gestire la gestione della pianificazione Enphase",
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
           "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato.",
-          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore."
+          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore.",
+          "type_ac_battery": "Include sensori della batteria AC e controlli della modalità sospensione quando disponibili."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Abilita il supporto dello scheduler",
           "reauth": "Avvia riautenticazione",
           "forget_password": "Dimentica password salvata",
-          "type_heatpump": "Pompa di calore"
+          "type_heatpump": "Pompa di calore",
+          "type_ac_battery": "Batteria AC"
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Gestire la gestione della pianificazione Enphase",
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
           "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato.",
-          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore."
+          "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore.",
+          "type_ac_battery": "Include sensori della batteria AC e controlli della modalità sospensione quando disponibili."
         }
       },
       "migrate_envoy_source": {
@@ -229,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Conferma migrazione cronologia Envoy",
-        "description": "Le entità sorgente selezionate verranno rinominate con ID entità legacy archiviati.\n\nLe entità Enphase Energy verranno quindi rinominate con gli ID entità originali delle sorgenti.\n\nSe un'associazione è errata, annulla ora. Ripristinare da un backup è il modo più sicuro per tornare indietro.\n\n{mapping_preview}",
+        "description": "Le entità sorgente selezionate verranno rinominate con ID entità legacy archiviati.\n\nLe entità Enphase Energy verranno quindi rinominate con gli ID entità originali delle sorgenti.\n\nSe un'associazione è errata, annulla ora. Ripristinare da un backup è il modo più sicuro per tornare indietro.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Comprendo che gli ID entità sorgente selezionati verranno riassegnati",
           "disable_archived_envoy_sensors": "Disattiva i sensori sorgente archiviati dopo la migrazione"
@@ -243,8 +249,7 @@
       "migration_no_selection": "Seleziona almeno un sensore di energia compatibile da migrare.",
       "migration_duplicate_selection": "La stessa entità sorgente non può essere usata più di una volta.",
       "envoy_entry_loaded": "L’integrazione Envoy non ha potuto essere scaricata temporaneamente per la migrazione.",
-      "incompatible_energy_total": "Le entità selezionate non sono totali energia compatibili.",
-      "new_value_lower": "Il nuovo valore del sensore è inferiore al valore esistente di Envoy."
+      "incompatible_energy_total": "Le entità selezionate non sono totali energia compatibili."
     },
     "abort": {
       "migration_no_envoy_sources": "Non sono disponibili sensori energia Enphase Envoy da migrare.",
@@ -1177,6 +1182,45 @@
           "unpaired": "Non associato",
           "pairing": "Associazione in corso"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Stato complessivo della batteria AC",
+        "state": {
+          "charging": "In carica",
+          "discharging": "In scarica",
+          "idle": "Inattivo",
+          "unknown": "Sconosciuto"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Potenza della batteria AC"
+      },
+      "ac_battery_last_reported": {
+        "name": "Ultimo report della batteria AC"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Livello di carica della batteria AC"
+      },
+      "ac_battery_storage_status": {
+        "name": "Stato di {serial}",
+        "state": {
+          "charging": "In carica",
+          "discharging": "In scarica",
+          "idle": "Inattivo",
+          "unknown": "Sconosciuto"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Potenza di {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Modalità operativa di {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Conteggio cicli di {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Ultimo report di {serial}"
       }
     },
     "number": {
@@ -1274,6 +1318,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Programma di restrizione della scarica della batteria"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Modalità sospensione della batteria AC"
       }
     },
     "select": {
@@ -1282,6 +1329,9 @@
       },
       "system_profile": {
         "name": "Profilo del sistema"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Stato di carica obiettivo della batteria AC"
       }
     },
     "button": {
@@ -1359,6 +1409,10 @@
     "reauth_required": {
       "title": "Enphase Energy richiede riautenticazione",
       "description": "Il sito {site_id} richiede intestazioni di sessione aggiornate. Esegui la riautenticazione."
+    },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
     },
     "rate_limited": {
       "title": "Enphase Energy ha limitazione di frequenza",

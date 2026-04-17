@@ -43,7 +43,8 @@
           "type_iqevse": "Laders",
           "type_microinverter": "Micro-omvormers",
           "scan_interval": "Scaninterval (s)",
-          "type_heatpump": "Warmtepomp"
+          "type_heatpump": "Warmtepomp",
+          "type_ac_battery": "AC-batterij"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Bevat EV-lader-entiteiten en bediening.",
           "type_microinverter": "Bevat sensoren voor micro-omvormerconnectiviteit, actief aantal en levensduurproductie.",
           "scan_interval": "Seconden tussen cloudstatuspolls. Standaard 60s.",
-          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten",
-          "type_heatpump": "Warmtepomp"
+          "type_heatpump": "Warmtepomp",
+          "type_ac_battery": "AC-batterij"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
-          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten",
-          "type_heatpump": "Warmtepomp"
+          "type_heatpump": "Warmtepomp",
+          "type_ac_battery": "AC-batterij"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
-          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik."
+          "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
         }
       },
       "migrate_envoy_source": {
@@ -229,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Migratie van Envoy-geschiedenis bevestigen",
-        "description": "De geselecteerde bron-entiteiten worden hernoemd naar gearchiveerde oude entiteits-ID's.\n\nDe Enphase Energy-entiteiten worden daarna hernoemd naar de oorspronkelijke bron-entiteits-ID's.\n\nAls een koppeling onjuist is, annuleer dan nu. Herstellen vanaf een back-up is de veiligste manier om terug te draaien.\n\n{mapping_preview}",
+        "description": "De geselecteerde bron-entiteiten worden hernoemd naar gearchiveerde oude entiteits-ID's.\n\nDe Enphase Energy-entiteiten worden daarna hernoemd naar de oorspronkelijke bron-entiteits-ID's.\n\nAls een koppeling onjuist is, annuleer dan nu. Herstellen vanaf een back-up is de veiligste manier om terug te draaien.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Ik begrijp dat de geselecteerde bron-entiteits-ID's opnieuw worden toegewezen",
           "disable_archived_envoy_sensors": "Gearchiveerde bronsensoren uitschakelen na de migratie"
@@ -243,8 +249,7 @@
       "migration_no_selection": "Selecteer ten minste één compatibele energiesensor om te migreren.",
       "migration_duplicate_selection": "Dezelfde bron-entiteit kan niet meer dan één keer worden gebruikt.",
       "envoy_entry_loaded": "De Envoy-integratie kon niet tijdelijk worden ontladen voor de migratie.",
-      "incompatible_energy_total": "De geselecteerde entiteiten zijn geen compatibele cumulatieve energietotalen.",
-      "new_value_lower": "De nieuwe sensorwaarde is lager dan de bestaande Envoy-waarde."
+      "incompatible_energy_total": "De geselecteerde entiteiten zijn geen compatibele cumulatieve energietotalen."
     },
     "abort": {
       "migration_no_envoy_sources": "Er zijn geen Enphase Envoy-energiesensoren beschikbaar om te migreren.",
@@ -1177,6 +1182,45 @@
           "unpaired": "Niet gekoppeld",
           "pairing": "Koppelen"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Algemene status van AC-batterij",
+        "state": {
+          "charging": "Opladen",
+          "discharging": "Ontladen",
+          "idle": "Inactief",
+          "unknown": "Onbekend"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Vermogen van AC-batterij"
+      },
+      "ac_battery_last_reported": {
+        "name": "Laatst gerapporteerd door AC-batterij"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Laadniveau van AC-batterij"
+      },
+      "ac_battery_storage_status": {
+        "name": "Status van {serial}",
+        "state": {
+          "charging": "Opladen",
+          "discharging": "Ontladen",
+          "idle": "Inactief",
+          "unknown": "Onbekend"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Vermogen van {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Bedrijfsmodus van {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Cyclusaantal van {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Laatst gerapporteerd door {serial}"
       }
     },
     "number": {
@@ -1274,6 +1318,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Schema voor beperkte batterijontlading"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Slaapmodus van AC-batterij"
       }
     },
     "select": {
@@ -1282,6 +1329,9 @@
       },
       "system_profile": {
         "name": "Systeemprofiel"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Doel-laadniveau van AC-batterij"
       }
     },
     "button": {
@@ -1359,6 +1409,10 @@
     "reauth_required": {
       "title": "Enphase Energy vereist herauthenticatie",
       "description": "Site {site_id} vereist bijgewerkte sessieheaders. Authenticeer opnieuw."
+    },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
     },
     "rate_limited": {
       "title": "Enphase Energy is beperkt door rate limiting",

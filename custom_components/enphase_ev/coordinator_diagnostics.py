@@ -17,6 +17,7 @@ from .const import (
     ISSUE_RATE_LIMITED,
     ISSUE_REAUTH_REQUIRED,
     ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+    ISSUE_AUTH_BLOCKED,
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
@@ -206,17 +207,22 @@ class CoordinatorDiagnostics:
             return begin is not None and end is not None
 
         battery_type_available = _type_available_for_entities("encharge")
+        ac_battery_type_available = _type_available_for_entities("ac_battery")
         battery_write_access = _battery_write_access_confirmed()
         battery_sensor_base_available = _site_sensor_base_available("encharge")
+        ac_battery_sensor_base_available = _site_sensor_base_available("ac_battery")
         battery_status_summary = coord.battery_status_summary
+        ac_battery_status_summary = coord.ac_battery_status_summary
         battery_aggregate_charge = coord.battery_aggregate_charge_pct
         battery_aggregate_status = coord.battery_aggregate_status
+        ac_battery_aggregate_status = coord.ac_battery_aggregate_status
         battery_available_energy = _parsed_float(
             battery_status_summary.get("site_available_energy_kwh")
         )
         battery_available_power = _parsed_float(
             battery_status_summary.get("site_available_power_kw")
         )
+        ac_battery_power = _parsed_float(ac_battery_status_summary.get("power_w"))
 
         metrics: dict[str, object] = {
             "site_id": coord.site_id,
@@ -250,6 +256,16 @@ class CoordinatorDiagnostics:
             "type_device_counts": type_counts,
             "payload_health": self.payload_health_diagnostics(),
             "endpoint_family_health": self.endpoint_family_health_diagnostics(),
+            "auth_refresh_suspended_active": coord._auth_refresh_suspended_active(),
+            "auth_refresh_suspended_until": _iso(
+                getattr(coord, "_auth_refresh_suspended_until_utc", None)
+            ),
+            "auth_refresh_rejected_count": getattr(
+                coord, "_auth_refresh_rejected_count", 0
+            ),
+            "auth_blocked_active": coord._auth_block_active(),
+            "auth_blocked_until": _iso(getattr(coord, "_auth_blocked_until_utc", None)),
+            "auth_block_reason": getattr(coord, "_auth_block_reason", None),
             "inverters_enabled": bool(getattr(coord, "include_inverters", True)),
             "inverters_count": len(getattr(coord, "_inverter_data", {}) or {}),
             "inverters_summary_counts": dict(
@@ -463,6 +479,7 @@ class CoordinatorDiagnostics:
                 coord, "_battery_show_battery_backup_percentage", None
             ),
             "battery_has_encharge": getattr(coord, "_battery_has_encharge", None),
+            "battery_has_acb": getattr(coord, "_battery_has_acb", None),
             "battery_has_enpower": getattr(coord, "_battery_has_enpower", None),
             "battery_country_code": getattr(coord, "_battery_country_code", None),
             "battery_region": getattr(coord, "_battery_region", None),
@@ -500,6 +517,51 @@ class CoordinatorDiagnostics:
             "battery_status_details": dict(
                 getattr(coord, "_battery_aggregate_status_details", {}) or {}
             ),
+            "ac_battery_type_available_for_entities": ac_battery_type_available,
+            "ac_battery_overall_status_sensor_available": (
+                ac_battery_sensor_base_available
+                and ac_battery_aggregate_status is not None
+            ),
+            "ac_battery_power_sensor_available": (
+                ac_battery_sensor_base_available and ac_battery_power is not None
+            ),
+            "ac_battery_last_reported_sensor_available": (
+                ac_battery_sensor_base_available
+                and ac_battery_status_summary.get("latest_reported_utc") is not None
+            ),
+            "ac_battery_sleep_switch_available": (
+                _coordinator_available()
+                and ac_battery_type_available
+                and battery_write_access
+                and getattr(coord, "_battery_has_acb", None) is True
+                and coord.ac_battery_sleep_state is not None
+            ),
+            "ac_battery_target_soc_select_available": (
+                _coordinator_available()
+                and ac_battery_type_available
+                and battery_write_access
+                and getattr(coord, "_battery_has_acb", None) is True
+            ),
+            "ac_battery_status_aggregate_state": getattr(
+                coord, "_ac_battery_aggregate_status", None
+            ),
+            "ac_battery_count": len(getattr(coord, "_ac_battery_data", {}) or {}),
+            "ac_battery_selected_sleep_min_soc": coord.ac_battery_selected_sleep_min_soc,
+            "ac_battery_sleep_state": coord.ac_battery_sleep_state,
+            "ac_battery_control_pending": coord.ac_battery_control_pending,
+            "ac_battery_status_details": {
+                "battery_count": ac_battery_status_summary.get("battery_count"),
+                "sleep_state": ac_battery_status_summary.get("sleep_state"),
+                "selected_sleep_min_soc": ac_battery_status_summary.get(
+                    "selected_sleep_min_soc"
+                ),
+                "worst_status": ac_battery_status_summary.get("worst_status"),
+                "power_w": ac_battery_status_summary.get("power_w"),
+                "latest_reported_utc": ac_battery_status_summary.get(
+                    "latest_reported_utc"
+                ),
+            },
+            "ac_battery_last_command": getattr(coord, "_ac_battery_last_command", None),
             "battery_backup_history_count": len(
                 getattr(coord, "_battery_backup_history_events", []) or []
             ),
@@ -775,6 +837,9 @@ class CoordinatorDiagnostics:
         status = metrics.get("last_failure_status")
         if status is not None:
             placeholders["last_status"] = str(status)
+        blocked_until = metrics.get("auth_blocked_until")
+        if blocked_until:
+            placeholders["blocked_until"] = str(blocked_until)
         return placeholders
 
     def issue_context(self) -> tuple[dict[str, object], dict[str, str]]:
@@ -1045,11 +1110,34 @@ class CoordinatorDiagnostics:
 
     def clear_reauth_issue(self) -> None:
         self._delete_issue(ISSUE_REAUTH_REQUIRED)
+        self._delete_issue(ISSUE_AUTH_BLOCKED)
+        self.coordinator._auth_block_issue_reported = False
 
     def create_reauth_issue(self) -> None:
+        self.clear_auth_block_issue()
         self._create_site_metrics_issue(
             ISSUE_REAUTH_REQUIRED,
             severity=ir.IssueSeverity.ERROR,
+        )
+
+    def clear_auth_block_issue(self) -> None:
+        self._clear_reported_issue("_auth_block_issue_reported", ISSUE_AUTH_BLOCKED)
+
+    def create_auth_block_issue(self) -> None:
+        coord = self.coordinator
+        placeholders: dict[str, str] = {}
+        blocked_until = coord._format_auth_blocked_until(
+            getattr(coord, "_auth_blocked_until_utc", None)
+        )
+        if blocked_until:
+            placeholders["blocked_until"] = blocked_until
+        self._delete_issue(ISSUE_REAUTH_REQUIRED)
+        coord._auth_block_issue_reported = False
+        self._report_flagged_issue(
+            "_auth_block_issue_reported",
+            ISSUE_AUTH_BLOCKED,
+            severity=ir.IssueSeverity.ERROR,
+            placeholders=placeholders,
         )
 
     def clear_network_issue(self) -> None:

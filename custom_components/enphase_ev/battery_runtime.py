@@ -12,6 +12,7 @@ import aiohttp
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
+from .ac_battery_runtime import AcBatteryRuntime
 from .const import (
     BATTERY_BACKUP_HISTORY_CACHE_TTL,
     BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
@@ -57,6 +58,7 @@ class BatteryRuntime:
 
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
+        self._ac_battery_runtime = AcBatteryRuntime(self)
 
     @property
     def battery_state(self) -> object:
@@ -134,6 +136,37 @@ class BatteryRuntime:
         if callable(func):
             return func(value)
         return None
+
+    def parse_ac_battery_devices_page(self, html_text: object) -> None:
+        self._ac_battery_runtime.parse_ac_battery_devices_page(html_text)
+
+    def parse_ac_battery_show_stat_data(
+        self,
+        serial: str,
+        battery_id: str | None,
+        html_text: object,
+    ) -> dict[str, object]:
+        return self._ac_battery_runtime.parse_ac_battery_show_stat_data(
+            serial, battery_id, html_text
+        )
+
+    def _refresh_ac_battery_summary(self) -> None:
+        self._ac_battery_runtime.refresh_ac_battery_summary()
+
+    async def async_refresh_ac_battery_devices(self, *, force: bool = False) -> None:
+        await self._ac_battery_runtime.async_refresh_ac_battery_devices(force=force)
+
+    async def async_refresh_ac_battery_telemetry(self, *, force: bool = False) -> None:
+        await self._ac_battery_runtime.async_refresh_ac_battery_telemetry(force=force)
+
+    async def async_refresh_ac_battery_events(self, *, force: bool = False) -> None:
+        await self._ac_battery_runtime.async_refresh_ac_battery_events(force=force)
+
+    async def async_set_ac_battery_sleep_mode(self, enabled: bool) -> None:
+        await self._ac_battery_runtime.async_set_ac_battery_sleep_mode(enabled)
+
+    async def async_set_ac_battery_target_soc(self, value: int) -> None:
+        await self._ac_battery_runtime.async_set_ac_battery_target_soc(value)
 
     def _refresh_cached_topology(self) -> None:
         func = getattr(self.coordinator, "_refresh_cached_topology", None)
@@ -1059,6 +1092,75 @@ class BatteryRuntime:
             end = 300
         return begin, end
 
+    def clear_cfg_settings_pending(self) -> None:
+        state = self.battery_state
+        state._battery_cfg_pending_charge_from_grid = None
+        state._battery_cfg_pending_schedule_enabled = None
+        state._battery_cfg_pending_begin_time = None
+        state._battery_cfg_pending_end_time = None
+        state._battery_cfg_pending_expires_mono = None
+
+    def set_cfg_settings_pending_from_payload(self, payload: dict[str, object]) -> None:
+        if not isinstance(payload, dict):
+            return
+        state = self.battery_state
+        pending = False
+        if "chargeFromGrid" in payload:
+            state._battery_cfg_pending_charge_from_grid = self._coerce_optional_bool(
+                payload.get("chargeFromGrid")
+            )
+            pending = True
+        if "chargeFromGridScheduleEnabled" in payload:
+            state._battery_cfg_pending_schedule_enabled = self._coerce_optional_bool(
+                payload.get("chargeFromGridScheduleEnabled")
+            )
+            pending = True
+        if "chargeBeginTime" in payload:
+            state._battery_cfg_pending_begin_time = self._normalize_minutes_of_day(
+                payload.get("chargeBeginTime")
+            )
+            pending = True
+        if "chargeEndTime" in payload:
+            state._battery_cfg_pending_end_time = self._normalize_minutes_of_day(
+                payload.get("chargeEndTime")
+            )
+            pending = True
+        if pending:
+            state._battery_cfg_pending_expires_mono = (
+                time.monotonic() + FAST_TOGGLE_POLL_HOLD_S
+            )
+        else:
+            self.clear_cfg_settings_pending()
+
+    def sync_cfg_settings_pending(self) -> None:
+        state = self.battery_state
+        expires_at = getattr(state, "_battery_cfg_pending_expires_mono", None)
+        if expires_at is None:
+            return
+        if time.monotonic() >= float(expires_at):
+            self.clear_cfg_settings_pending()
+            return
+
+        pending_pairs = (
+            ("_battery_cfg_pending_charge_from_grid", "_battery_charge_from_grid"),
+            (
+                "_battery_cfg_pending_schedule_enabled",
+                "_battery_charge_from_grid_schedule_enabled",
+            ),
+            ("_battery_cfg_pending_begin_time", "_battery_charge_begin_time"),
+            ("_battery_cfg_pending_end_time", "_battery_charge_end_time"),
+        )
+        all_match = True
+        for pending_attr, state_attr in pending_pairs:
+            pending_value = getattr(state, pending_attr, None)
+            if pending_value is None:
+                continue
+            if getattr(state, state_attr, None) != pending_value:
+                setattr(state, state_attr, pending_value)
+                all_match = False
+        if all_match:
+            self.clear_cfg_settings_pending()
+
     @staticmethod
     def _battery_schedule_label(schedule_type: str) -> str:
         labels = {
@@ -1296,6 +1398,7 @@ class BatteryRuntime:
             clear_missing_schedule_times=False,
             clear_missing_reserve_bounds=False,
         )
+        self.set_cfg_settings_pending_from_payload(payload)
         state._battery_settings_cache_until = None
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()
@@ -1675,6 +1778,7 @@ class BatteryRuntime:
         state._battery_has_encharge = self._coerce_optional_bool(
             data.get("hasEncharge")
         )
+        state._battery_has_acb = self._coerce_optional_bool(data.get("hasAcb"))
         state._battery_has_enpower = self._coerce_optional_bool(data.get("hasEnpower"))
         state._battery_country_code = _as_text(data.get("countryCode"))
         state._battery_region = _as_text(data.get("region"))
@@ -2508,6 +2612,7 @@ class BatteryRuntime:
             payload,
             clear_missing_schedule_times=True,
         )
+        self.sync_cfg_settings_pending()
         state._battery_settings_cache_until = now + (
             self._battery_profile_refresh_cache_ttl_seconds(BATTERY_SETTINGS_CACHE_TTL)
         )
@@ -2971,15 +3076,10 @@ class BatteryRuntime:
         )
         if not coord.charge_from_grid_control_available:
             raise ServiceValidationError("Charge from grid setting is unavailable.")
-        payload: dict[str, object] = {"chargeFromGrid": bool(enabled)}
-        if enabled:
-            start, end = self.current_charge_from_grid_schedule_window()
-            payload["acceptedItcDisclaimer"] = self.battery_itc_disclaimer_value()
-            payload["chargeBeginTime"] = start
-            payload["chargeEndTime"] = end
-            payload["chargeFromGridScheduleEnabled"] = bool(
-                getattr(coord, "_battery_charge_from_grid_schedule_enabled", None)
-            )
+        payload: dict[str, object] = {
+            "chargeFromGrid": bool(enabled),
+            "acceptedItcDisclaimer": self.battery_itc_disclaimer_value(),
+        }
         await self.async_apply_battery_settings(payload)
 
     async def async_set_charge_from_grid_schedule_enabled(self, enabled: bool) -> None:
@@ -3314,7 +3414,12 @@ class BatteryRuntime:
             schedule_id is not None or not enabled
         ):
             control_key = f"{normalized_schedule_type}Control"
-            payload = {control_key: {"enabled": bool(enabled)}}
+            control_payload: dict[str, object] = {"enabled": bool(enabled)}
+            if normalized_schedule_type == "dtg" and enabled:
+                control_payload["scheduleSupported"] = True
+                control_payload["startTime"] = current_start
+                control_payload["endTime"] = current_end
+            payload = {control_key: control_payload}
             async with state._battery_settings_write_lock:
                 state._battery_settings_last_write_mono = time.monotonic()
                 try:

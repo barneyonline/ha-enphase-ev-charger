@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
+from .entity import battery_schedule_extra_state_attributes
 from .entity import EnphaseBaseEntity, evse_amp_control_applicable
 from .entity_cleanup import prune_managed_entities
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
@@ -32,11 +33,13 @@ def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | 
 
 def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
     confirmed = getattr(coord, "battery_write_access_confirmed", None)
-    if confirmed is not None:
-        return bool(confirmed)
     owner = getattr(coord, "battery_user_is_owner", None)
     installer = getattr(coord, "battery_user_is_installer", None)
-    return owner is True or installer is True
+    if owner is True or installer is True:
+        return True
+    if confirmed is not None:
+        return bool(confirmed)
+    return False
 
 
 def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
@@ -419,6 +422,17 @@ class BatteryCfgScheduleLimitNumber(CoordinatorEntity, NumberEntity):
         level = self._coord.battery_shutdown_level
         return float(level) if level is not None else 0.0
 
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return battery_schedule_extra_state_attributes(
+            self._coord,
+            start_time=self._coord.battery_charge_from_grid_start_time,
+            end_time=self._coord.battery_charge_from_grid_end_time,
+            schedule_status=self._coord.battery_cfg_schedule_status,
+            schedule_pending=self._coord.battery_cfg_schedule_pending,
+            schedule_enabled=self._coord.battery_charge_from_grid_schedule_enabled,
+        )
+
     async def async_set_native_value(self, value: float) -> None:
         limit = int(value)
         if self._coord.charge_from_grid_force_schedule_available:
@@ -484,6 +498,15 @@ class _BaseBatteryScheduleLimitNumber(CoordinatorEntity, NumberEntity):
         level = self._coord.battery_shutdown_level
         return float(level) if level is not None else 0.0
 
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {}
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return battery_schedule_extra_state_attributes(
+            self._coord, **self._extra_schedule_state_attributes()
+        )
+
     async def async_set_native_value(self, value: float) -> None:
         await getattr(self._coord, self._setter_name)(int(value))
 
@@ -510,6 +533,15 @@ class BatteryDischargeToGridScheduleLimitNumber(_BaseBatteryScheduleLimitNumber)
             setter_name="async_set_discharge_to_grid_schedule_limit",
         )
 
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_discharge_to_grid_start_time,
+            "end_time": self._coord.battery_discharge_to_grid_end_time,
+            "schedule_status": self._coord.battery_dtg_schedule_status,
+            "schedule_pending": self._coord.battery_dtg_schedule_pending,
+            "schedule_enabled": self._coord.battery_discharge_to_grid_schedule_enabled,
+        }
+
 
 class BatteryRestrictBatteryDischargeScheduleLimitNumber(
     _BaseBatteryScheduleLimitNumber
@@ -524,3 +556,12 @@ class BatteryRestrictBatteryDischargeScheduleLimitNumber(
             availability_check=_rbd_schedule_edit_available,
             setter_name="async_set_restrict_battery_discharge_schedule_limit",
         )
+
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_restrict_battery_discharge_start_time,
+            "end_time": self._coord.battery_restrict_battery_discharge_end_time,
+            "schedule_status": self._coord.battery_rbd_schedule_status,
+            "schedule_pending": self._coord.battery_rbd_schedule_pending,
+            "schedule_enabled": self._coord.battery_restrict_battery_discharge_schedule_enabled,
+        }

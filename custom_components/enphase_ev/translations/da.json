@@ -43,7 +43,8 @@
           "type_iqevse": "Ladere",
           "type_microinverter": "Mikroinvertere",
           "scan_interval": "Scan-interval (s)",
-          "type_heatpump": "Varmepumpe"
+          "type_heatpump": "Varmepumpe",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Inkluderer EV-lader-entiteter og styringer.",
           "type_microinverter": "Inkluderer sensorer for mikroinverter-tilslutning, aktivt antal og livstidsproduktion.",
           "scan_interval": "Sekunder mellem cloud-statuspolls. Standard 60s.",
-          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Aktiver Scheduler Support",
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode",
-          "type_heatpump": "Varmepumpe"
+          "type_heatpump": "Varmepumpe",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
-          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Aktiver Scheduler Support",
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode",
-          "type_heatpump": "Varmepumpe"
+          "type_heatpump": "Varmepumpe",
+          "type_ac_battery": "AC-batteri"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
-          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug."
+          "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
         }
       },
       "migrate_envoy_source": {
@@ -229,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Bekræft migrering af Envoy-historik",
-        "description": "De valgte kildeentiteter omdøbes til arkiverede ældre entitets-id'er.\n\nEnphase Energy-entiteterne omdøbes derefter til de oprindelige kildeentitets-id'er.\n\nHvis en tilknytning er forkert, så annuller nu. Gendannelse fra backup er den sikreste tilbageførsel.\n\n{mapping_preview}",
+        "description": "De valgte kildeentiteter omdøbes til arkiverede ældre entitets-id'er.\n\nEnphase Energy-entiteterne omdøbes derefter til de oprindelige kildeentitets-id'er.\n\nHvis en tilknytning er forkert, så annuller nu. Gendannelse fra backup er den sikreste tilbageførsel.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Jeg forstår, at de valgte kildeentitets-id'er bliver omfordelt",
           "disable_archived_envoy_sensors": "Deaktiver arkiverede kildesensorer efter migreringen"
@@ -243,8 +249,7 @@
       "migration_no_selection": "Vælg mindst én kompatibel energisensor, der skal migreres.",
       "migration_duplicate_selection": "Den samme kildeentitet kan ikke bruges mere end én gang.",
       "envoy_entry_loaded": "Envoy-integrationen kunne ikke midlertidigt afindlæses til migreringen.",
-      "incompatible_energy_total": "De valgte entiteter er ikke kompatible kumulative energitotaler.",
-      "new_value_lower": "Den nye sensorværdi er lavere end den eksisterende Envoy-værdi."
+      "incompatible_energy_total": "De valgte entiteter er ikke kompatible kumulative energitotaler."
     },
     "abort": {
       "migration_no_envoy_sources": "Ingen Enphase Envoy-energisensorer er tilgængelige til migrering.",
@@ -1177,6 +1182,45 @@
           "unpaired": "Ikke parret",
           "pairing": "Parring"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Samlet status for AC-batteri",
+        "state": {
+          "charging": "Oplader",
+          "discharging": "Aflader",
+          "idle": "Inaktiv",
+          "unknown": "Ukendt"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC-batterieffekt"
+      },
+      "ac_battery_last_reported": {
+        "name": "Senest rapporteret fra AC-batteri"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC-batteriets ladeniveau"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} status",
+        "state": {
+          "charging": "Oplader",
+          "discharging": "Aflader",
+          "idle": "Inaktiv",
+          "unknown": "Ukendt"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} effekt"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} driftstilstand"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} antal cyklusser"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} sidst rapporteret"
       }
     },
     "number": {
@@ -1274,6 +1318,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Tidsplan for begrænset batteriafladning"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC-batteriets dvaletilstand"
       }
     },
     "select": {
@@ -1282,6 +1329,9 @@
       },
       "system_profile": {
         "name": "Systemprofil"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "AC-batteriets mål for ladeniveau"
       }
     },
     "button": {
@@ -1359,6 +1409,10 @@
     "reauth_required": {
       "title": "Enphase Energy kræver reautentificering",
       "description": "Site {site_id} kræver opdaterede sessionsheaders. Genautentificer venligst."
+    },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
     },
     "rate_limited": {
       "title": "Enphase Energy er rate-begrænset",

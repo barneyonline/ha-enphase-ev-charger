@@ -43,7 +43,8 @@
           "type_iqevse": "Įkrovikliai",
           "type_microinverter": "Mikroinverteriai",
           "scan_interval": "Skenavimo intervalas (s)",
-          "type_heatpump": "Šilumos siurblys"
+          "type_heatpump": "Šilumos siurblys",
+          "type_ac_battery": "AC baterija"
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Apima EV įkroviklių esybes ir valdiklius.",
           "type_microinverter": "Apima mikroinverterių junglumo, aktyvaus skaičiaus ir viso laikotarpio gamybos jutiklius.",
           "scan_interval": "Sekundės tarp debesies būsenos apklausų. Numatyta 60s.",
-          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
+          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius.",
+          "type_ac_battery": "Apima AC baterijos jutiklius ir miego režimo valdiklius, kai jie prieinami."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
           "reauth": "Pradėti perautentifikavimą",
           "forget_password": "Pamiršti išsaugotą slaptažodį",
-          "type_heatpump": "Šilumos siurblys"
+          "type_heatpump": "Šilumos siurblys",
+          "type_ac_battery": "AC baterija"
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
           "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
           "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
-          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
+          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius.",
+          "type_ac_battery": "Apima AC baterijos jutiklius ir miego režimo valdiklius, kai jie prieinami."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Įgalinti planuoklio palaikymą",
           "reauth": "Pradėti perautentifikavimą",
           "forget_password": "Pamiršti išsaugotą slaptažodį",
-          "type_heatpump": "Šilumos siurblys"
+          "type_heatpump": "Šilumos siurblys",
+          "type_ac_battery": "AC baterija"
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Tvarkyti Enphase tvarkaraščio valdymą",
           "reauth": "Paleiskite prisijungimo eigą, kad atnaujintumėte duomenis nepašalindami integracijos.",
           "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
-          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius."
+          "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius.",
+          "type_ac_battery": "Apima AC baterijos jutiklius ir miego režimo valdiklius, kai jie prieinami."
         }
       },
       "migrate_envoy_source": {
@@ -229,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Patvirtinti Envoy istorijos migraciją",
-        "description": "Pasirinkti šaltinio objektai bus pervadinti į archyvuotus senus objektų identifikatorius.\n\nTuomet Enphase Energy objektai bus pervadinti į pradinius šaltinio objektų identifikatorius.\n\nJei kuris nors susiejimas neteisingas, atšaukite dabar. Atkūrimas iš atsarginės kopijos yra saugiausias būdas grįžti atgal.\n\n{mapping_preview}",
+        "description": "Pasirinkti šaltinio objektai bus pervadinti į archyvuotus senus objektų identifikatorius.\n\nTuomet Enphase Energy objektai bus pervadinti į pradinius šaltinio objektų identifikatorius.\n\nJei kuris nors susiejimas neteisingas, atšaukite dabar. Atkūrimas iš atsarginės kopijos yra saugiausias būdas grįžti atgal.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Suprantu, kad pasirinkti šaltinio objektų identifikatoriai bus priskirti iš naujo",
           "disable_archived_envoy_sensors": "Išjungti archyvuotus šaltinio jutiklius po migracijos"
@@ -243,8 +249,7 @@
       "migration_no_selection": "Pasirinkite bent vieną suderinamą energijos jutiklį migracijai.",
       "migration_duplicate_selection": "Tas pats šaltinio objektas negali būti naudojamas daugiau nei vieną kartą.",
       "envoy_entry_loaded": "Envoy integracijos nepavyko laikinai iškrauti migracijai.",
-      "incompatible_energy_total": "Pasirinkti objektai nėra suderinami kaupiamosios energijos kiekiai.",
-      "new_value_lower": "Nauja jutiklio reikšmė yra mažesnė už esamą Envoy reikšmę."
+      "incompatible_energy_total": "Pasirinkti objektai nėra suderinami kaupiamosios energijos kiekiai."
     },
     "abort": {
       "migration_no_envoy_sources": "Nėra Enphase Envoy energijos jutiklių, kuriuos būtų galima migruoti.",
@@ -1177,6 +1182,45 @@
           "unpaired": "Nesuporuotas",
           "pairing": "Poravimas"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Bendra AC baterijos būsena",
+        "state": {
+          "charging": "Įkrovimas",
+          "discharging": "Iškrovimas",
+          "idle": "Neaktyvus",
+          "unknown": "Nežinoma"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC baterijos galia"
+      },
+      "ac_battery_last_reported": {
+        "name": "Paskutinė AC baterijos ataskaita"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC baterijos įkrovos lygis"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} būsena",
+        "state": {
+          "charging": "Įkrovimas",
+          "discharging": "Iškrovimas",
+          "idle": "Neaktyvus",
+          "unknown": "Nežinoma"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} galia"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} veikimo režimas"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} ciklų skaičius"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Paskutinė {serial} ataskaita"
       }
     },
     "number": {
@@ -1274,6 +1318,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Baterijos iškrovimo ribojimo tvarkaraštis"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC baterijos miego režimas"
       }
     },
     "select": {
@@ -1282,6 +1329,9 @@
       },
       "system_profile": {
         "name": "Sistemos profilis"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Tikslinis AC baterijos įkrovos lygis"
       }
     },
     "button": {
@@ -1359,6 +1409,10 @@
     "reauth_required": {
       "title": "Enphase Energy reikia perautentifikavimo",
       "description": "Vietai {site_id} reikia atnaujintų sesijos antraščių. Prašome perautentifikuoti."
+    },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
     },
     "rate_limited": {
       "title": "Enphase Energy ribojamas",

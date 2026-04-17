@@ -562,6 +562,39 @@ async def test_refresh_battery_settings_caches_and_redacts(coordinator_factory) 
 
 
 @pytest.mark.asyncio
+async def test_refresh_battery_settings_preserves_pending_cfg_values_when_backend_stale(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = False  # noqa: SLF001
+    coord._battery_charge_begin_time = None  # noqa: SLF001
+    coord._battery_charge_end_time = None  # noqa: SLF001
+
+    monotonic_now = 100.0
+    monkeypatch.setattr(time, "monotonic", lambda: monotonic_now)
+    runtime.set_cfg_settings_pending_from_payload({"chargeFromGrid": True})
+
+    coord.client.battery_settings_details = AsyncMock(
+        return_value={"data": {"chargeFromGrid": False}}
+    )
+
+    await runtime.async_refresh_battery_settings(force=True)
+
+    assert coord.battery_charge_from_grid_enabled is True
+    assert (
+        coord.battery_state._battery_cfg_pending_expires_mono == 160.0
+    )  # noqa: SLF001
+
+    monotonic_now = 200.0
+    runtime.sync_cfg_settings_pending()
+    assert coord.battery_state._battery_cfg_pending_expires_mono is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_refresh_battery_settings_bypasses_cache_when_profile_pending(
     coordinator_factory,
 ) -> None:
@@ -696,11 +729,91 @@ async def test_set_charge_from_grid_enable_autostamps_and_defaults(
     payload = args[0]
     assert payload["chargeFromGrid"] is True
     assert payload["acceptedItcDisclaimer"] == fixed_now.isoformat()
-    assert payload["chargeBeginTime"] == 120
-    assert payload["chargeEndTime"] == 300
-    assert payload["chargeFromGridScheduleEnabled"] is False
+    assert "chargeBeginTime" not in payload
+    assert "chargeEndTime" not in payload
+    assert "chargeFromGridScheduleEnabled" not in payload
     assert coord.battery_charge_from_grid_enabled is True
     coord.async_request_refresh.assert_awaited_once()
+
+
+def test_cfg_settings_pending_helpers_overlay_and_clear(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    monkeypatch.setattr(time, "monotonic", lambda: 100.0)
+    runtime.set_cfg_settings_pending_from_payload(
+        {
+            "chargeFromGrid": True,
+            "chargeFromGridScheduleEnabled": False,
+            "chargeBeginTime": 120,
+            "chargeEndTime": 300,
+        }
+    )
+
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_charge_begin_time = None  # noqa: SLF001
+    coord._battery_charge_end_time = None  # noqa: SLF001
+
+    runtime.sync_cfg_settings_pending()
+
+    assert coord.battery_charge_from_grid_enabled is True
+    assert coord.battery_charge_from_grid_schedule_enabled is False
+    assert coord._battery_charge_begin_time == 120  # noqa: SLF001
+    assert coord._battery_charge_end_time == 300  # noqa: SLF001
+    assert (
+        coord.battery_state._battery_cfg_pending_expires_mono == 160.0
+    )  # noqa: SLF001
+
+    runtime.sync_cfg_settings_pending()
+
+    assert (
+        coord.battery_state._battery_cfg_pending_charge_from_grid is None
+    )  # noqa: SLF001
+    assert (
+        coord.battery_state._battery_cfg_pending_schedule_enabled is None
+    )  # noqa: SLF001
+    assert coord.battery_state._battery_cfg_pending_begin_time is None  # noqa: SLF001
+    assert coord.battery_state._battery_cfg_pending_end_time is None  # noqa: SLF001
+    assert coord.battery_state._battery_cfg_pending_expires_mono is None  # noqa: SLF001
+
+
+def test_cfg_settings_pending_helpers_clear_on_empty_payload_and_expiry(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    monkeypatch.setattr(time, "monotonic", lambda: 50.0)
+    runtime.set_cfg_settings_pending_from_payload({"chargeFromGrid": True})
+    assert (
+        coord.battery_state._battery_cfg_pending_charge_from_grid is True
+    )  # noqa: SLF001
+
+    runtime.set_cfg_settings_pending_from_payload({})
+    assert (
+        coord.battery_state._battery_cfg_pending_charge_from_grid is None
+    )  # noqa: SLF001
+
+    runtime.set_cfg_settings_pending_from_payload({"chargeFromGrid": False})
+    monkeypatch.setattr(time, "monotonic", lambda: 200.0)
+    runtime.sync_cfg_settings_pending()
+    assert coord.battery_state._battery_cfg_pending_expires_mono is None  # noqa: SLF001
+
+
+def test_cfg_settings_pending_helpers_ignore_non_dict_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    runtime.set_cfg_settings_pending_from_payload(None)  # type: ignore[arg-type]
+
+    assert (
+        coord.battery_state._battery_cfg_pending_charge_from_grid is None
+    )  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -964,6 +1077,27 @@ def test_charge_from_grid_schedule_supported_uses_capability_without_times(
     assert coord.charge_from_grid_force_schedule_supported is False
 
 
+def test_charge_from_grid_schedule_availability_does_not_require_enabled_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=True,
+    )
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+
+    assert coord.charge_from_grid_schedule_available is True
+    assert coord.charge_from_grid_force_schedule_available is True
+
+
 def test_charge_from_grid_control_falls_back_to_legacy_hide_when_cfg_control_absent(
     coordinator_factory,
 ) -> None:
@@ -991,6 +1125,68 @@ def test_charge_from_grid_control_enabled_state_does_not_hide_writable_control(
     )
 
     assert coord.charge_from_grid_control_available is True
+
+
+def test_charge_from_grid_control_available_without_live_toggle_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = None  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=True,
+    )
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+
+    assert coord.charge_from_grid_control_available is True
+
+
+@pytest.mark.parametrize(
+    ("attr_name", "attr_value"),
+    [
+        ("_battery_charge_from_grid_schedule_enabled", False),
+        ("_battery_cfg_schedule_limit", 85),
+        ("_battery_cfg_schedule_id", "cfg-schedule"),
+    ],
+)
+def test_charge_from_grid_control_available_with_schedule_evidence(
+    coordinator_factory,
+    attr_name: str,
+    attr_value: object,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = None  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(  # noqa: SLF001
+        show=True,
+        enabled=False,
+        locked=False,
+    )
+    coord._battery_charge_begin_time = None  # noqa: SLF001
+    coord._battery_charge_end_time = None  # noqa: SLF001
+    setattr(coord, attr_name, attr_value)
+
+    assert coord.charge_from_grid_control_available is True
+
+
+def test_battery_settings_write_age_seconds_handles_monotonic_errors(
+    coordinator_factory,
+) -> None:
+    class BadFloat(float):
+        def __float__(self) -> float:
+            raise RuntimeError("boom")
+
+    coord = coordinator_factory()
+    coord._battery_settings_last_write_mono = BadFloat(1.0)  # noqa: SLF001
+
+    assert coord.battery_settings_write_age_seconds is None
+    assert coord.battery_settings_write_pending is False
 
 
 def test_battery_control_capability_helpers_cover_none_inputs(
@@ -2247,6 +2443,31 @@ async def test_dtg_schedule_enabled_uses_in_place_put(
         schedule_type="dtg",
     )
     assert coord._battery_dtg_schedule_enabled is False  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_dtg_schedule_enabled_true_uses_richer_battery_settings_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+
+    await coord.async_set_discharge_to_grid_schedule_enabled(True)
+
+    coord.client.update_battery_schedule.assert_not_awaited()
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": True,
+                "scheduleSupported": True,
+                "startTime": 1080,
+                "endTime": 1380,
+            }
+        },
+        schedule_type="dtg",
+    )
+    assert coord._battery_dtg_schedule_enabled is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio

@@ -919,7 +919,7 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
         },
         ["heatpump"],
     )
-    assert sensor.available is False
+    assert sensor.available is True
 
 
 def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(

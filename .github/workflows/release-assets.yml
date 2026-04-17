@@ -24,6 +24,6 @@ jobs:
           zip -r "enphase_ev-${RELEASE_TAG}.zip" custom_components/enphase_ev
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: enphase_ev-${{ github.ref_name }}.zip

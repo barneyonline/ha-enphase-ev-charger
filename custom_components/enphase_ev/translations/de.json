@@ -43,7 +43,8 @@
           "type_iqevse": "Ladegeräte",
           "type_microinverter": "Mikrowechselrichter",
           "scan_interval": "Abfrageintervall (s)",
-          "type_heatpump": "Wärmepumpe"
+          "type_heatpump": "Wärmepumpe",
+          "type_ac_battery": "AC-Batterie"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Enthält EV-Ladegeräte-Entitäten und Steuerungen.",
           "type_microinverter": "Enthält Sensoren für Mikrowechselrichter-Konnektivität, aktive Anzahl und Lebenszeit-Erzeugung.",
           "scan_interval": "Sekunden zwischen Cloud-Statusabfragen. Standard 60 s.",
-          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen",
-          "type_heatpump": "Wärmepumpe"
+          "type_heatpump": "Wärmepumpe",
+          "type_ac_battery": "AC-Batterie"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
-          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen",
-          "type_heatpump": "Wärmepumpe"
+          "type_heatpump": "Wärmepumpe",
+          "type_ac_battery": "AC-Batterie"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
-          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch."
+          "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
         }
       },
       "migrate_envoy_source": {
@@ -229,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Envoy-Verlaufsmigration bestätigen",
-        "description": "Die ausgewählten Quell-Entitäten werden in archivierte Legacy-Entitäts-IDs umbenannt.\n\nDie Enphase-Energy-Entitäten werden anschließend auf die ursprünglichen Quell-Entitäts-IDs umbenannt.\n\nWenn eine Zuordnung falsch ist, brechen Sie jetzt ab. Das Wiederherstellen aus einem Backup ist der sicherste Rollback-Weg.\n\n{mapping_preview}",
+        "description": "Die ausgewählten Quell-Entitäten werden in archivierte Legacy-Entitäts-IDs umbenannt.\n\nDie Enphase-Energy-Entitäten werden anschließend auf die ursprünglichen Quell-Entitäts-IDs umbenannt.\n\nWenn eine Zuordnung falsch ist, brechen Sie jetzt ab. Das Wiederherstellen aus einem Backup ist der sicherste Rollback-Weg.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Ich verstehe, dass die ausgewählten Quell-Entitäts-IDs neu zugewiesen werden",
           "disable_archived_envoy_sensors": "Archivierte Quell-Sensoren nach der Migration deaktivieren"
@@ -243,8 +249,7 @@
       "migration_no_selection": "Wählen Sie mindestens einen kompatiblen Energiesensor zur Migration aus.",
       "migration_duplicate_selection": "Dieselbe Quell-Entität kann nicht mehr als einmal verwendet werden.",
       "envoy_entry_loaded": "Die Envoy-Integration konnte für die Migration nicht vorübergehend entladen werden.",
-      "incompatible_energy_total": "Die ausgewählten Entitäten sind keine kompatiblen kumulativen Energiewerte.",
-      "new_value_lower": "Der neue Sensorwert ist niedriger als der bestehende Envoy-Wert."
+      "incompatible_energy_total": "Die ausgewählten Entitäten sind keine kompatiblen kumulativen Energiewerte."
     },
     "abort": {
       "migration_no_envoy_sources": "Es sind keine Enphase-Envoy-Energiesensoren für die Migration verfügbar.",
@@ -1177,6 +1182,45 @@
           "unpaired": "Nicht gekoppelt",
           "pairing": "Wird gekoppelt"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Gesamtstatus der AC-Batterie",
+        "state": {
+          "charging": "Laden",
+          "discharging": "Entladen",
+          "idle": "Leerlauf",
+          "unknown": "Unbekannt"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Leistung der AC-Batterie"
+      },
+      "ac_battery_last_reported": {
+        "name": "Zuletzt gemeldet von AC-Batterie"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Ladezustand der AC-Batterie"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} Status",
+        "state": {
+          "charging": "Laden",
+          "discharging": "Entladen",
+          "idle": "Leerlauf",
+          "unknown": "Unbekannt"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} Leistung"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} Betriebsmodus"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} Ladezyklen"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} zuletzt gemeldet"
       }
     },
     "number": {
@@ -1274,6 +1318,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Zeitplan für eingeschränkte Batterieentladung"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Schlafmodus der AC-Batterie"
       }
     },
     "select": {
@@ -1282,6 +1329,9 @@
       },
       "system_profile": {
         "name": "Systemprofil"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Ziel-Ladezustand der AC-Batterie"
       }
     },
     "button": {
@@ -1359,6 +1409,10 @@
     "reauth_required": {
       "title": "Enphase Energy benötigt Reauthentifizierung",
       "description": "Standort {site_id} benötigt aktualisierte Sitzungs-Header. Bitte erneut authentifizieren."
+    },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
     },
     "rate_limited": {
       "title": "Enphase Energy ist rate-limitiert",

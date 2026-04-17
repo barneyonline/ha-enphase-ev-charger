@@ -43,7 +43,8 @@
           "type_iqevse": "Încărcătoare",
           "type_microinverter": "Microinvertoare",
           "scan_interval": "Interval de scanare (s)",
-          "type_heatpump": "Pompă de căldură"
+          "type_heatpump": "Pompă de căldură",
+          "type_ac_battery": "Baterie AC"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -51,7 +52,8 @@
           "type_iqevse": "Include entități și controale pentru încărcătoarele EV.",
           "type_microinverter": "Include senzori pentru conectivitatea microinvertoarelor, numărul activ și producția pe durata de viață.",
           "scan_interval": "Secunde între interogările stării cloud. Implicit 60s.",
-          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
+          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură.",
+          "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile."
         }
       }
     },
@@ -146,7 +148,8 @@
           "schedule_sync_enabled": "Activați asistența pentru programator",
           "reauth": "Pornește reautentificarea",
           "forget_password": "Uită parola salvată",
-          "type_heatpump": "Pompă de căldură"
+          "type_heatpump": "Pompă de căldură",
+          "type_ac_battery": "Baterie AC"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -162,7 +165,8 @@
           "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
-          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
+          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură.",
+          "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile."
         }
       },
       "settings": {
@@ -182,7 +186,8 @@
           "schedule_sync_enabled": "Activați asistența pentru programator",
           "reauth": "Pornește reautentificarea",
           "forget_password": "Uită parola salvată",
-          "type_heatpump": "Pompă de căldură"
+          "type_heatpump": "Pompă de căldură",
+          "type_ac_battery": "Baterie AC"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -198,7 +203,8 @@
           "schedule_sync_enabled": "Gestionați gestionarea programului Enphase",
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
-          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură."
+          "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură.",
+          "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile."
         }
       },
       "migrate_envoy_source": {
@@ -229,7 +235,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Confirmați migrarea istoricului Envoy",
-        "description": "Entitățile sursă selectate vor fi redenumite în ID-uri de entitate vechi arhivate.\n\nEntitățile Enphase Energy vor fi apoi redenumite în ID-urile originale ale entităților sursă.\n\nDacă vreo mapare este greșită, anulați acum. Restaurarea dintr-un backup este cea mai sigură metodă de revenire.\n\n{mapping_preview}",
+        "description": "Entitățile sursă selectate vor fi redenumite în ID-uri de entitate vechi arhivate.\n\nEntitățile Enphase Energy vor fi apoi redenumite în ID-urile originale ale entităților sursă.\n\nDacă vreo mapare este greșită, anulați acum. Restaurarea dintr-un backup este cea mai sigură metodă de revenire.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "Înțeleg că ID-urile entităților sursă selectate vor fi realocate",
           "disable_archived_envoy_sensors": "Dezactivează senzorii sursă arhivați după migrare"
@@ -243,8 +249,7 @@
       "migration_no_selection": "Selectați cel puțin un senzor de energie compatibil pentru migrare.",
       "migration_duplicate_selection": "Aceeași entitate sursă nu poate fi folosită de mai multe ori.",
       "envoy_entry_loaded": "Integrarea Envoy nu a putut fi descărcată temporar pentru migrare.",
-      "incompatible_energy_total": "Entitățile selectate nu sunt totaluri cumulative de energie compatibile.",
-      "new_value_lower": "Noua valoare a senzorului este mai mică decât valoarea existentă Envoy."
+      "incompatible_energy_total": "Entitățile selectate nu sunt totaluri cumulative de energie compatibile."
     },
     "abort": {
       "migration_no_envoy_sources": "Nu există senzori de energie Enphase Envoy disponibili pentru migrare.",
@@ -1177,6 +1182,45 @@
           "unpaired": "Neperecheat",
           "pairing": "Împerechere"
         }
+      },
+      "ac_battery_overall_status": {
+        "name": "Starea generală a bateriei AC",
+        "state": {
+          "charging": "Încărcare",
+          "discharging": "Descărcare",
+          "idle": "Inactiv",
+          "unknown": "Necunoscut"
+        }
+      },
+      "ac_battery_power": {
+        "name": "Puterea bateriei AC"
+      },
+      "ac_battery_last_reported": {
+        "name": "Ultimul raport al bateriei AC"
+      },
+      "ac_battery_storage_charge": {
+        "name": "Nivelul de încărcare al bateriei AC"
+      },
+      "ac_battery_storage_status": {
+        "name": "Starea {serial}",
+        "state": {
+          "charging": "Încărcare",
+          "discharging": "Descărcare",
+          "idle": "Inactiv",
+          "unknown": "Necunoscut"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "Puterea {serial}"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "Modul de funcționare al {serial}"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "Numărul de cicluri al {serial}"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "Ultimul raport pentru {serial}"
       }
     },
     "number": {
@@ -1274,6 +1318,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Program de restricționare a descărcării bateriei"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "Modul de repaus al bateriei AC"
       }
     },
     "select": {
@@ -1282,6 +1329,9 @@
       },
       "system_profile": {
         "name": "Profil de sistem"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "Starea de încărcare țintă a bateriei AC"
       }
     },
     "button": {
@@ -1359,6 +1409,10 @@
     "reauth_required": {
       "title": "Enphase Energy necesită reautentificare",
       "description": "Locația {site_id} necesită antete de sesiune actualizate. Vă rugăm să vă reautentificați."
+    },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
     },
     "rate_limited": {
       "title": "Enphase Energy are limitare de rată",

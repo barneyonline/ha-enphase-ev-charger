@@ -68,6 +68,7 @@ SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
 class CoordinatorTopologySnapshot:
     charger_serials: tuple[str, ...]
     battery_serials: tuple[str, ...]
+    ac_battery_serials: tuple[str, ...]
     inverter_serials: tuple[str, ...]
     active_type_keys: tuple[str, ...]
     gateway_iq_router_keys: tuple[str, ...]
@@ -331,6 +332,7 @@ class InventoryRuntime:
             "inventory_ready": bool(snapshot.inventory_ready),
             "charger_count": len(snapshot.charger_serials),
             "battery_count": len(snapshot.battery_serials),
+            "ac_battery_count": len(snapshot.ac_battery_serials),
             "inverter_count": len(snapshot.inverter_serials),
             "active_type_keys": list(snapshot.active_type_keys),
             "gateway_iq_router_count": len(snapshot.gateway_iq_router_keys),
@@ -454,6 +456,9 @@ class InventoryRuntime:
         return CoordinatorTopologySnapshot(
             charger_serials=tuple(self.iter_serials()),
             battery_serials=tuple(self.iter_battery_serials()),
+            ac_battery_serials=tuple(
+                getattr(self.coordinator, "iter_ac_battery_serials", lambda: [])()
+            ),
             inverter_serials=tuple(self.iter_inverter_serials()),
             active_type_keys=tuple(self.iter_type_keys()),
             gateway_iq_router_keys=router_keys,
@@ -2495,10 +2500,7 @@ class InventoryRuntime:
                 else:
                     if isinstance(fetched_production, dict):
                         production_payload = fetched_production
-                        coord._note_endpoint_family_success(
-                            production_family,
-                            success_ttl_s=self._seconds_until_next_site_local_day(),
-                        )
+                        coord._note_endpoint_family_success(production_family)
                         self._set_shared_state_attr(
                             "_inverter_production_cache_key",
                             current_production_cache_key,
@@ -2773,6 +2775,18 @@ class InventoryRuntime:
 
     def inverter_diagnostics_payloads(self) -> dict[str, object]:
         """Return inverter-related payload snapshots used by diagnostics."""
+        cache_until = getattr(self, "_inverter_production_cache_until", None)
+        cache_key = getattr(self, "_inverter_production_cache_key", None)
+        cache_remaining_s = None
+        cache_age_s = None
+        if isinstance(cache_until, (int, float)):
+            cache_remaining_s = max(0.0, float(cache_until) - time.monotonic())
+        production_health = self.coordinator._endpoint_family_state(
+            "inverter_production"
+        )
+        last_success_mono = getattr(production_health, "last_success_mono", None)
+        if isinstance(last_success_mono, (int, float)):
+            cache_age_s = max(0.0, time.monotonic() - float(last_success_mono))
         bucket_snapshot = self.type_bucket("microinverter")
         return {
             "enabled": bool(getattr(self, "include_inverters", True)),
@@ -2783,6 +2797,9 @@ class InventoryRuntime:
             "inventory_payload": getattr(self, "_inverters_inventory_payload", None),
             "status_payload": getattr(self, "_inverter_status_payload", None),
             "production_payload": getattr(self, "_inverter_production_payload", None),
+            "production_cache_key": cache_key,
+            "production_cache_remaining_seconds": cache_remaining_s,
+            "production_cache_age_seconds": cache_age_s,
             "bucket_snapshot": bucket_snapshot,
         }
 

@@ -1977,7 +1977,7 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
         2026, 2, 27, 0, 0, tzinfo=timezone.utc
     )  # noqa: SLF001
     coord._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
-    coord._heatpump_power_source = "hems_energy_consumption:HP-1"  # noqa: SLF001
+    coord._heatpump_power_source = "hems_energy_consumption_delta:HP-1"  # noqa: SLF001
     coord._heatpump_power_last_error = None  # noqa: SLF001
     coord.heatpump_runtime._heatpump_power_last_success_utc = datetime(  # noqa: SLF001
         2026, 2, 27, 9, 16, tzinfo=timezone.utc
@@ -2064,7 +2064,7 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     assert power_sensor.native_value == pytest.approx(863.2)
     power_attrs = power_sensor.extra_state_attributes
     assert power_attrs["device_uid"] == "HP-1"
-    assert power_attrs["source"] == "hems_energy_consumption:HP-1"
+    assert power_attrs["source"] == "hems_energy_consumption_delta:HP-1"
     assert "using_stale" in power_attrs
     assert "last_success_utc" in power_attrs
 
@@ -2357,6 +2357,32 @@ def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(
     )
     meter_sensor = EnphaseHeatPumpEnergyMeterSensor(coord)
     monkeypatch.setattr(meter_sensor, "_snapshot", lambda: {"member_count": 0})
+    assert meter_sensor.available is False
+
+    monkeypatch.setattr(
+        coord.inventory_view,
+        "has_type_for_entities",
+        lambda _type_key: False,
+    )
+    assert meter_sensor.available is False
+    monkeypatch.setattr(
+        coord.inventory_view,
+        "has_type_for_entities",
+        lambda _type_key: True,
+    )
+
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 0,
+                "devices": [],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._devices_inventory_ready = True  # noqa: SLF001
     assert meter_sensor.available is False
 
     coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
@@ -4923,20 +4949,26 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     coord._heatpump_power_w = 725.125  # noqa: SLF001
     coord._heatpump_daily_consumption = {  # noqa: SLF001
         "daily_energy_wh": 230.0,
+        "split_daily_energy_wh": 230.0,
         "daily_solar_wh": 10.0,
         "daily_battery_wh": 20.0,
         "daily_grid_wh": 200.0,
-        "device_uid": "HP-1",
-        "device_name": "Heat Pump",
+        "device_uid": None,
+        "device_name": None,
+        "split_device_uid": "HP-1",
+        "split_device_name": "Heat Pump",
         "member_name": "Primary Heat Pump",
         "member_device_type": "HEAT_PUMP",
         "pairing_status": "PAIRED",
         "device_state": "ACTIVE",
-        "endpoint_type": "hems-device-details",
-        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
+        "endpoint_type": "site-today",
+        "endpoint_timestamp": "2026-03-20T08:00:00Z",
+        "split_endpoint_type": "hems-device-details",
+        "split_endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
         "day_key": "2026-03-20",
         "timezone": "Europe/Berlin",
-        "source": "hems_energy_consumption:HP-1",
+        "source": "site_today_heatpump",
+        "split_source": "hems_energy_consumption:HP-1",
     }
     coord.energy.site_energy = {
         "heat_pump": {
@@ -4960,17 +4992,17 @@ def test_site_heat_pump_energy_sensor_uses_heatpump_device_info(
     assert attrs["heat_pump_power_w"] == pytest.approx(725.125)
     assert attrs["daily_energy_wh"] == pytest.approx(230.0)
     assert attrs["daily_grid_wh"] == pytest.approx(200.0)
-    assert attrs["daily_device_uid"] == "HP-1"
-    assert attrs["daily_device_name"] == "Heat Pump"
+    assert attrs["daily_device_uid"] is None
+    assert attrs["daily_device_name"] is None
     assert attrs["daily_member_name"] == "Primary Heat Pump"
     assert attrs["daily_member_device_type"] == "HEAT_PUMP"
     assert attrs["daily_pairing_status"] == "PAIRED"
     assert attrs["daily_device_state"] == "ACTIVE"
-    assert attrs["daily_endpoint_type"] == "hems-device-details"
-    assert attrs["daily_endpoint_timestamp"] == "2026-03-20T07:53:00.739143826Z"
+    assert attrs["daily_endpoint_type"] == "site-today"
+    assert attrs["daily_endpoint_timestamp"] == "2026-03-20T08:00:00Z"
     assert attrs["day_key"] == "2026-03-20"
     assert attrs["timezone"] == "Europe/Berlin"
-    assert attrs["daily_source"] == "hems_energy_consumption:HP-1"
+    assert attrs["daily_source"] == "site_today_heatpump"
 
 
 def test_heat_pump_daily_energy_and_sg_ready_gateway_sensors(
@@ -5014,22 +5046,38 @@ def test_heat_pump_daily_energy_and_sg_ready_gateway_sensors(
     )
     coord._heatpump_daily_consumption = {  # noqa: SLF001
         "daily_energy_wh": 230.0,
+        "split_daily_energy_wh": 230.0,
         "daily_solar_wh": 10.0,
         "daily_battery_wh": 20.0,
         "daily_grid_wh": 200.0,
-        "device_uid": "HP-1",
-        "device_name": "Heat Pump",
+        "device_uid": None,
+        "device_name": None,
+        "split_device_uid": "HP-1",
+        "split_device_name": "Heat Pump",
         "member_name": "Heat Pump",
         "member_device_type": "HEAT_PUMP",
         "pairing_status": "PAIRED",
         "device_state": "ACTIVE",
-        "endpoint_type": "hems-device-details",
-        "endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
+        "endpoint_type": "site-today",
+        "endpoint_timestamp": "2026-03-20T08:00:00Z",
+        "split_endpoint_type": "hems-device-details",
+        "split_endpoint_timestamp": "2026-03-20T07:53:00.739143826Z",
         "day_key": "2026-03-20",
         "timezone": "Europe/Berlin",
         "details": [230.0],
-        "source": "hems_energy_consumption:HP-1",
+        "source": "site_today_heatpump",
+        "split_source": "hems_energy_consumption:HP-1",
     }
+    coord._heatpump_daily_consumption_last_success_utc = datetime(  # noqa: SLF001
+        2026, 3, 20, 8, 0, tzinfo=timezone.utc
+    )
+    coord._heatpump_daily_split_last_success_utc = datetime(  # noqa: SLF001
+        2026, 3, 20, 7, 53, tzinfo=timezone.utc
+    )
+    coord._heatpump_daily_split_using_stale = True  # noqa: SLF001
+    coord._heatpump_daily_split_last_error = (
+        "No usable HEMS daily split payload"  # noqa: SLF001
+    )
 
     daily_sensor = EnphaseHeatPumpDailyEnergySensor(coord)
     grid_sensor = EnphaseHeatPumpDailyGridEnergySensor(coord)
@@ -5040,8 +5088,18 @@ def test_heat_pump_daily_energy_and_sg_ready_gateway_sensors(
     assert daily_sensor.available is True
     assert daily_sensor.state_class == SensorStateClass.TOTAL
     assert daily_sensor.native_value == pytest.approx(0.23)
-    assert daily_sensor.extra_state_attributes["daily_endpoint_timestamp"] == (
-        "2026-03-20T07:53:00.739143826Z"
+    assert daily_sensor.extra_state_attributes["source"] == "site_today_heatpump"
+    assert (
+        grid_sensor.extra_state_attributes["source"] == "hems_energy_consumption:HP-1"
+    )
+    assert grid_sensor.extra_state_attributes["using_stale"] is True
+    assert (
+        grid_sensor.extra_state_attributes["last_success_utc"]
+        == "2026-03-20T07:53:00+00:00"
+    )
+    assert (
+        grid_sensor.extra_state_attributes["last_error"]
+        == "No usable HEMS daily split payload"
     )
     assert grid_sensor.available is True
     assert grid_sensor.native_value == pytest.approx(0.2)
