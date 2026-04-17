@@ -388,6 +388,9 @@ def coordinator_factory(hass, mock_clientsession, mock_issue_registry, monkeypat
             )
         if not hasattr(coord.client, "set_storm_guard"):
             coord.client.set_storm_guard = AsyncMock(return_value={"status": "ok"})
+        coord.client.pv_system_today = AsyncMock(
+            return_value={"stats": [{"heatpump": [0.0]}]}
+        )
         if client is None:
             coord.client.battery_site_settings = AsyncMock(
                 return_value={

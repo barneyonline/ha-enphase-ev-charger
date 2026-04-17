@@ -9,6 +9,8 @@ from datetime import timedelta
 from datetime import timezone as _tz
 from typing import TYPE_CHECKING, Iterable
 
+import aiohttp
+
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
@@ -312,6 +314,7 @@ class EvseRuntime:
             "last_set_amps",
             "_operating_v",
             "_charge_mode_cache",
+            "_start_without_level_fallback",
             "_green_battery_cache",
             "_charger_config_cache",
             "_charger_config_backoff_until",
@@ -427,11 +430,11 @@ class EvseRuntime:
         amps = coord.pick_start_amps(sn_str)
         prefs = coord._charge_mode_start_preferences(sn_str)
         try:
-            result = await coord.client.start_charging(
+            result = await self.async_issue_start_charging(
                 sn_str,
                 amps,
-                include_level=prefs.include_level,
-                strict_preference=prefs.strict,
+                prefs,
+                requested_amps=None,
             )
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug(
@@ -574,14 +577,13 @@ class EvseRuntime:
             )
         fallback = fallback_amps if fallback_amps is not None else 32
         amps = coord.pick_start_amps(sn_str, requested_amps, fallback=fallback)
-        connector = connector_id if connector_id is not None else 1
         prefs = coord._charge_mode_start_preferences(sn_str)
-        result = await coord.client.start_charging(
+        result = await self.async_issue_start_charging(
             sn_str,
             amps,
-            connector,
-            include_level=prefs.include_level,
-            strict_preference=prefs.strict,
+            prefs,
+            connector_id=connector_id,
+            requested_amps=requested_amps,
         )
         coord.set_last_set_amps(sn_str, amps)
         if isinstance(result, dict) and result.get("status") == "not_ready":
@@ -596,6 +598,68 @@ class EvseRuntime:
         if prefs.enforce_mode:
             await coord._ensure_charge_mode(sn_str, prefs.enforce_mode)
         await coord.async_request_refresh()
+        return result
+
+    async def async_issue_start_charging(
+        self,
+        sn: str,
+        amps: int,
+        prefs: ChargeModeStartPreferences,
+        *,
+        connector_id: int | None = 1,
+        requested_amps: int | float | str | None = None,
+    ) -> object:
+        coord = self.coordinator
+        sn_str = str(sn)
+        connector = connector_id if connector_id is not None else 1
+        fallback_cache = getattr(coord, "_start_without_level_fallback", None)
+        degraded = bool(
+            requested_amps is None
+            and prefs.include_level is True
+            and not prefs.strict
+            and isinstance(fallback_cache, dict)
+            and fallback_cache.get(sn_str)
+        )
+        include_level = False if degraded else prefs.include_level
+        # Keep explicit setpoint requests strict so service/action calls do not
+        # silently fall back to a no-level start and misreport the applied amps.
+        strict_preference = prefs.strict or (
+            requested_amps is not None and prefs.include_level is True
+        )
+        if degraded:
+            strict_preference = True
+        try:
+            result = await coord.client.start_charging(
+                sn_str,
+                amps,
+                connector,
+                include_level=include_level,
+                strict_preference=strict_preference,
+            )
+        except aiohttp.ClientResponseError as err:
+            if (
+                requested_amps is None
+                and include_level is True
+                and not strict_preference
+                and err.status == 500
+                and "invalid charge level" in str(err.message or "").lower()
+            ):
+                result = await coord.client.start_charging(
+                    sn_str,
+                    amps,
+                    connector,
+                    include_level=False,
+                    strict_preference=True,
+                )
+                if not isinstance(fallback_cache, dict):
+                    fallback_cache = {}
+                    coord._start_without_level_fallback = fallback_cache
+                fallback_cache[sn_str] = True
+                return result
+            raise
+        if include_level is True and prefs.include_level is True:
+            if isinstance(fallback_cache, dict):
+                fallback_cache.pop(sn_str, None)
         return result
 
     async def async_stop_charging(
@@ -1544,10 +1608,8 @@ class EvseRuntime:
         enforce_mode: str | None = None
         if mode == "MANUAL_CHARGING":
             include_level = True
-            strict = True
         elif mode == "SCHEDULED_CHARGING":
             include_level = True
-            strict = True
             enforce_mode = "SCHEDULED_CHARGING"
         elif mode in {"GREEN_CHARGING", "SMART_CHARGING"}:
             include_level = False

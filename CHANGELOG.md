@@ -17,10 +17,196 @@ All notable changes to this project will be documented in this file.
 - Reduced external battery profile refresh latency by aligning BatteryConfig profile/settings cache TTLs to the active poll cadence instead of holding stale data for a fixed five minutes.
 
 ### 🔧 Improvements
-- Split the repository Docker workflows into a pinned `ha-dev` contributor container and a separate `ha-runtime` Home Assistant runtime container based on the official image, making local UI verification more reliable.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v2.7.14 - 2026-04-16
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed battery reserve/profile updates on affected production sites by routing writes directly through the validated API-level mixed-auth BatteryConfig flow instead of the older runtime-side `official_web_lean` and external-compatible fallback sequence that Enphase was still rejecting with `403`.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.14`.
+
+## v2.7.13 - 2026-04-16
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Refined BatteryConfig-backed battery reserve/profile writes by using the validated mixed-auth browser flow for profile updates, retrying without `devices` on rejected payloads, and preferring fresh `BP-XSRF-Token` cookies over stale XSRF values on affected installs.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.13`.
+
+## v2.7.12 - 2026-04-16
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Hardened BatteryConfig-backed battery reserve/profile writes by preserving the browser-style request path used by working sites and adding compatibility fallbacks for alternate auth and payload shapes observed on affected installs.
+- Suspended automatic stored-credential reauthentication for 24 hours after repeated rejected refresh attempts so optional HEMS endpoint `401` loops stop re-triggering Enphase login attempts every few minutes and no longer escalate into broader temporary auth blocks.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.12`.
+
+## v2.7.11 - 2026-04-14
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Decoupled the charge-from-grid main toggle from schedule state so supported battery sites can update CFG enablement even when Enphase has not exposed a dedicated schedule payload yet.
+- Aligned BatteryConfig request handling and related API documentation with the current first-party Enphase web variants for issue `#460`, reducing drift from the browser client shape used by battery settings flows.
+- Relaxed EV charger manual and scheduled start strictness for issue `#544` so `start_charging` still prefers amp-bearing payloads but now falls back to no-level variants when older IQ 40 backends reject `chargingLevel` as invalid.
+- Fixed HEMS device lifetime sensors so zero-only primary EVSE, Heat Pump, and Water Heater placeholder buckets still trigger the dedicated HEMS fallback when needed, while zero-valued results copied from that fallback now report `0.0 kWh` instead of `Unavailable`.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped GitHub Actions dependencies by updating `actions/github-script` from v8 to v9 and `softprops/action-gh-release` from v2 to v3.
+- Bumped the integration manifest version to `2.7.11`.
+
+## v2.7.10 - 2026-04-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Restored the standard Enlighten browser-style `Accept`, `User-Agent`, and `X-Requested-With` headers on the external-compatible BatteryConfig retry path for issue `#460` so the fallback write flow no longer trips Enphase `406 Not Acceptable` checks while still suppressing the rejected auth headers.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.10`.
+
+## v2.7.9 - 2026-04-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Trimmed the external-compatible BatteryConfig retry headers for issue `#460` so the fallback write path now omits extra browser defaults like `Accept`, `User-Agent`, and `X-Requested-With` while keeping the XSRF-only cookie retry path intact.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.9`.
+
+## v2.7.8 - 2026-04-12
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Relaxed Envoy history migration validation so lower Enphase Energy totals now raise a detailed confirmation warning instead of blocking the flow, while preserving blocking checks for incompatible totals and unload failures.
+- Fixed the external-compatible BatteryConfig retry path so suppressed `Authorization` and `X-CSRF-Token` headers are actually removed from the merged retry request for issue `#460`.
+- Fixed heat-pump power reporting for issue `#443` by deriving the `heat_pump_power` sensor from the change in cumulative HEMS heat-pump energy over the reported sample window instead of exposing the cumulative energy bucket itself as watts.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.8`.
+
+## v2.7.7 - 2026-04-11
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Detect Enphase browser login-wall HTML responses on JSON/text API endpoints, surface a dedicated temporary-auth-block repair issue, and persist a 24-hour auth cooldown after a rejected stored-credential refresh so blocked sessions fail fast instead of repeatedly hammering the cloud API.
+- Improved BatteryConfig write compatibility for stubborn `403 Forbidden` sites by making schedule validation send `forceScheduleOpted` only for CFG, retrying rejected battery writes once with an external-client-style auth shape, and enriching DTG enable toggles to match the broader payload observed in a working third-party client.
+
+### 🔧 Improvements
+- Expanded `docs/api/api_spec.md` with the additional BatteryConfig observations from a working third-party integration so the repository now records the alternate JWT bootstrap, user/site discovery, CFG disclaimer, and DTG toggle request shapes relevant to issue `#460`.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.7`.
+
+## v2.7.6 - 2026-04-10
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Fixed heat-pump daily energy semantics by sourcing the primary `heat_pump_daily_energy` sensor from `/pv/systems/<site>/today`, preserving HEMS split daily values independently for diagnostics, and keeping heat-pump entities available through short-lived inventory/runtime UID churn and stale-data windows.
+- Added the `X-CSRF-Token` header alongside the existing XSRF token handling for BatteryConfig write requests so battery profile, settings, storm-guard, and schedule updates continue working when Enphase requires both CSRF header variants.
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.7.6`.
+
+## v2.7.5 - 2026-04-09
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added beta selectable cloud support for Enphase AC Battery as a dedicated device type using `BatteryConfig.hasAcb`, including AC Battery discovery, sleep-mode controls, telemetry sensors, refreshed diagnostics, and documented AC Battery cloud endpoints.
+
+### 🐛 Bug fixes
+- Coalesced concurrent stored-credential reauthentication attempts into a single in-flight login and added a cooldown after rejected auth refreshes so one expired or blocked Enlighten session does not fan out into a login storm or hit the account’s active-session cap.
+- Stabilized derived EV charger power around suspend and resume transitions by treating `SUSPENDED_EV` as non-charging for power purposes and reseeding the lifetime baseline when charging starts again, preventing stale non-zero readings after pauses and inflated first values after a resume.
+- Fixed stuck `System Profile Status` updates by only clearing local battery-profile pending state after Enphase reports the change is no longer pending and the request has either settled locally or exceeded a post-write grace window.
+- Refreshed microinverter lifetime energy sensors on the normal inverter polling cadence instead of holding the production totals until the next site-local day, while keeping the last known totals available during inverter production endpoint cooldowns and failures.
+- Relaxed charge-from-grid schedule time visibility so supported battery sites can surface schedule window entities from the existing battery-settings window even before Enphase reports a dedicated CFG schedule ID.
+
+### 🔧 Improvements
+- Split the repository Docker workflows into a pinned `ha-dev` contributor container and a separate `ha-runtime` Home Assistant runtime container based on the official image, making local UI verification more reliable.
+- Exposed battery schedule window and write-pending attributes on the related battery schedule switches, limits, and time entities to make delayed Enphase cloud updates easier to understand.
+- Documented the newly observed mobile/web HAR endpoints in `docs/api/api_spec.md` and clarified in `README.md` that battery schedule start/end values are separate Home Assistant `time` entities.
+
+### 🔄 Other changes
+- Removed the redundant EV charger site/type device from the device registry and extracted shared runtime helpers to simplify coordinator internals without changing supported charger functionality.
+- Bumped the integration manifest version to `2.7.5`.
 
 ## v2.7.4 - 2026-04-07
 

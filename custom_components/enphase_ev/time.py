@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
+from .entity import battery_schedule_extra_state_attributes
 from .entity_cleanup import prune_managed_entities
 from .log_redaction import redact_identifier
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
@@ -83,8 +84,6 @@ def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
     if not getattr(coord, "charge_from_grid_control_available", False):
         return False
     if not getattr(coord, "charge_from_grid_schedule_supported", False):
-        return False
-    if getattr(coord, "_battery_cfg_schedule_id", None) is None:
         return False
     start_time = getattr(coord, "battery_charge_from_grid_start_time", None)
     end_time = getattr(coord, "battery_charge_from_grid_end_time", None)
@@ -262,6 +261,21 @@ class _BaseChargeFromGridTimeEntity(CoordinatorEntity, TimeEntity):
             self._coord, "encharge"
         ) and _cfg_schedule_edit_available(self._coord)
 
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_charge_from_grid_start_time,
+            "end_time": self._coord.battery_charge_from_grid_end_time,
+            "schedule_status": self._coord.battery_cfg_schedule_status,
+            "schedule_pending": self._coord.battery_cfg_schedule_pending,
+            "schedule_enabled": self._coord.battery_charge_from_grid_schedule_enabled,
+        }
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return battery_schedule_extra_state_attributes(
+            self._coord, **self._extra_schedule_state_attributes()
+        )
+
     @property
     def device_info(self) -> DeviceInfo:
         info = _type_device_info(self._coord, "encharge")
@@ -288,7 +302,10 @@ class ChargeFromGridStartTimeEntity(_BaseChargeFromGridTimeEntity):
         return self._coord.battery_charge_from_grid_start_time
 
     async def async_set_value(self, value: dt_time) -> None:
-        if self._coord.charge_from_grid_schedule_available:
+        if (
+            self._coord.charge_from_grid_schedule_available
+            and self._coord.battery_charge_from_grid_enabled is True
+        ):
             await self._coord.async_set_charge_from_grid_schedule_time(start=value)
             return
         await self._coord.async_update_cfg_schedule(start=value)
@@ -309,7 +326,10 @@ class ChargeFromGridEndTimeEntity(_BaseChargeFromGridTimeEntity):
         return self._coord.battery_charge_from_grid_end_time
 
     async def async_set_value(self, value: dt_time) -> None:
-        if self._coord.charge_from_grid_schedule_available:
+        if (
+            self._coord.charge_from_grid_schedule_available
+            and self._coord.battery_charge_from_grid_enabled is True
+        ):
             await self._coord.async_set_charge_from_grid_schedule_time(end=value)
             return
         await self._coord.async_update_cfg_schedule(end=value)
@@ -351,6 +371,15 @@ class _BaseNamedBatteryScheduleTimeEntity(CoordinatorEntity, TimeEntity):
     @property
     def native_value(self) -> dt_time | None:
         return getattr(self._coord, self._value_attr)
+
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {}
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return battery_schedule_extra_state_attributes(
+            self._coord, **self._extra_schedule_state_attributes()
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -394,6 +423,15 @@ class DischargeToGridStartTimeEntity(_BaseNamedBatteryScheduleStartTimeEntity):
             suggested_object_id="discharge_to_grid_schedule_from_time",
         )
 
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_discharge_to_grid_start_time,
+            "end_time": self._coord.battery_discharge_to_grid_end_time,
+            "schedule_status": self._coord.battery_dtg_schedule_status,
+            "schedule_pending": self._coord.battery_dtg_schedule_pending,
+            "schedule_enabled": self._coord.battery_discharge_to_grid_schedule_enabled,
+        }
+
 
 class DischargeToGridEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEntity):
     _attr_translation_key = "discharge_to_grid_end_time"
@@ -407,6 +445,15 @@ class DischargeToGridEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEntity):
             setter_name="async_set_discharge_to_grid_schedule_time",
             suggested_object_id="discharge_to_grid_schedule_to_time",
         )
+
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_discharge_to_grid_start_time,
+            "end_time": self._coord.battery_discharge_to_grid_end_time,
+            "schedule_status": self._coord.battery_dtg_schedule_status,
+            "schedule_pending": self._coord.battery_dtg_schedule_pending,
+            "schedule_enabled": self._coord.battery_discharge_to_grid_schedule_enabled,
+        }
 
 
 class RestrictBatteryDischargeStartTimeEntity(_BaseNamedBatteryScheduleStartTimeEntity):
@@ -422,6 +469,15 @@ class RestrictBatteryDischargeStartTimeEntity(_BaseNamedBatteryScheduleStartTime
             suggested_object_id="restrict_battery_discharge_schedule_from_time",
         )
 
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_restrict_battery_discharge_start_time,
+            "end_time": self._coord.battery_restrict_battery_discharge_end_time,
+            "schedule_status": self._coord.battery_rbd_schedule_status,
+            "schedule_pending": self._coord.battery_rbd_schedule_pending,
+            "schedule_enabled": self._coord.battery_restrict_battery_discharge_schedule_enabled,
+        }
+
 
 class RestrictBatteryDischargeEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEntity):
     _attr_translation_key = "restrict_battery_discharge_end_time"
@@ -435,3 +491,12 @@ class RestrictBatteryDischargeEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEnti
             setter_name="async_set_restrict_battery_discharge_schedule_time",
             suggested_object_id="restrict_battery_discharge_schedule_to_time",
         )
+
+    def _extra_schedule_state_attributes(self) -> dict[str, object]:
+        return {
+            "start_time": self._coord.battery_restrict_battery_discharge_start_time,
+            "end_time": self._coord.battery_restrict_battery_discharge_end_time,
+            "schedule_status": self._coord.battery_rbd_schedule_status,
+            "schedule_pending": self._coord.battery_rbd_schedule_pending,
+            "schedule_enabled": self._coord.battery_restrict_battery_discharge_schedule_enabled,
+        }

@@ -17,7 +17,12 @@
 
 [![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.svg)](https://github.com/barneyonline/ha-enphase-energy/wiki/Service-Status-History)
 
-Cloud-based Home Assistant integration for Enphase Energy systems using the same Enlighten endpoints as the Enphase mobile app.
+Cloud-based Home Assistant integration for Enphase Energy systems.
+
+> [!IMPORTANT]
+> This is an unofficial community project. It is not affiliated with, endorsed by, or supported by Enphase Energy.
+>
+> The integration relies on undocumented Enphase APIs. Those APIs may change or stop working without notice, which can break features until the integration is updated.
 
 ## Supported device categories
 
@@ -147,3 +152,10 @@ Notes:
 ## Documentation
 
 Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-energy/wiki), including [Envoy History Migration](https://github.com/barneyonline/ha-enphase-energy/wiki/Envoy-History-Migration) for preserving Energy dashboard history when migrating from Enphase Envoy.
+
+## Battery Scheduling Notes
+
+- Battery schedule toggles and limits are exposed as `switch` and `number` entities.
+- Battery schedule start and end values are exposed as separate `time` entities.
+- In Home Assistant, those `time` entities may need to be added to dashboards manually if you want the schedule window visible on a card.
+- Related battery schedule entities also expose the current schedule window and write-pending status as state attributes to make delayed Enphase cloud updates easier to diagnose.

@@ -521,6 +521,90 @@ async def test_battery_profile_forbidden_after_permission_change_returns_permiss
 
 
 @pytest.mark.asyncio
+async def test_battery_profile_write_calls_client_set_battery_profile(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_profile_devices = [  # noqa: SLF001
+        {"uuid": "evse-1", "enable": False, "chargeMode": "MANUAL"}
+    ]
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+
+    await coord.async_set_battery_reserve(30)
+
+    coord.client.set_battery_profile.assert_awaited_once_with(
+        profile="self-consumption",
+        battery_backup_percentage=30,
+        operation_mode_sub_type=None,
+        devices=[
+            {
+                "uuid": "evse-1",
+                "deviceType": "iqEvse",
+                "enable": False,
+                "chargeMode": "MANUAL",
+            }
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_write_forbidden_translates_from_client_call(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="HTTP 403 Forbidden"):
+        await coord.async_set_battery_reserve(30)
+
+
+@pytest.mark.asyncio
+async def test_battery_profile_write_read_only_user_translates_permission_error(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="not permitted"):
+        await coord.async_set_battery_reserve(30)
+
+
+@pytest.mark.asyncio
 async def test_ai_profile_write_defaults_required_subtype(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})

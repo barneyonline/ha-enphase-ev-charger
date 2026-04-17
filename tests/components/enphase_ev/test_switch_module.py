@@ -15,6 +15,7 @@ from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
+    AcBatterySleepModeSwitch,
     _migrated_switch_entity_id,
     _migrate_storm_guard_evse_entity_id,
     AppAuthenticationSwitch,
@@ -81,11 +82,13 @@ def test_switch_helper_fallbacks_and_retained_site_keys() -> None:
     coord = SimpleNamespace(
         battery_has_encharge=True,
         inventory_view=SimpleNamespace(
-            has_type_for_entities=lambda type_key: type_key in {"envoy", "encharge"}
+            has_type_for_entities=lambda type_key: type_key
+            in {"envoy", "encharge", "ac_battery"}
         ),
         battery_write_access_confirmed=None,
         battery_user_is_owner=True,
         battery_user_is_installer=False,
+        battery_has_acb=True,
         battery_show_storm_guard=True,
         storm_guard_state="enabled",
         storm_evse_enabled=True,
@@ -105,11 +108,119 @@ def test_switch_helper_fallbacks_and_retained_site_keys() -> None:
         "charge_from_grid_schedule",
         "discharge_to_grid_schedule",
         "restrict_battery_discharge_schedule",
+        "ac_battery_sleep_mode",
     }
 
     coord.battery_write_access_confirmed = False
+    assert switch_mod._battery_write_access_confirmed(coord) is True
+    assert switch_mod._retained_site_switch_keys(coord) == {
+        "storm_guard",
+        "savings_use_battery_after_peak",
+        "charge_from_grid",
+        "charge_from_grid_schedule",
+        "discharge_to_grid_schedule",
+        "restrict_battery_discharge_schedule",
+        "ac_battery_sleep_mode",
+    }
+
+    coord.battery_user_is_owner = False
+    coord.battery_user_is_installer = False
     assert switch_mod._battery_write_access_confirmed(coord) is False
     assert switch_mod._retained_site_switch_keys(coord) == set()
+
+
+def test_switch_battery_write_access_confirmed_falls_back_to_false() -> None:
+    from custom_components.enphase_ev import switch as switch_mod
+
+    coord = SimpleNamespace(
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=None,
+        battery_user_is_installer=None,
+    )
+
+    assert switch_mod._battery_write_access_confirmed(coord) is False
+
+
+def test_ac_battery_sleep_mode_switch_state_and_attributes(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._ac_battery_sleep_state = "pending"  # noqa: SLF001
+    coord._ac_battery_control_pending = True  # noqa: SLF001
+    coord._ac_battery_selected_sleep_min_soc = 25  # noqa: SLF001
+    coord._ac_battery_aggregate_status_details = {  # noqa: SLF001
+        "sleep_state_raw": {"BAT-AC-1": "cancel"},
+        "sleep_state_map": {"BAT-AC-1": "pending"},
+    }
+    coord.async_set_ac_battery_sleep_mode = AsyncMock()
+
+    sw = AcBatterySleepModeSwitch(coord)
+
+    assert sw.available is True
+    assert sw.is_on is True
+    assert sw.extra_state_attributes["selected_sleep_min_soc"] == 25
+    assert sw.extra_state_attributes["pending"] is True
+
+
+def test_ac_battery_sleep_mode_switch_edge_branches(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_acb = False  # noqa: SLF001
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._ac_battery_sleep_state = None  # noqa: SLF001
+
+    sw = AcBatterySleepModeSwitch(coord)
+
+    assert sw.suggested_object_id == "ac_battery_sleep_mode"
+    assert sw.available is False
+    assert sw.device_info["name"] == "AC Battery"
+
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord.last_update_success = False
+    assert sw.available is False
+
+
+@pytest.mark.asyncio
+async def test_ac_battery_sleep_mode_switch_turn_on_off(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._ac_battery_sleep_state = "off"  # noqa: SLF001
+    coord.async_set_ac_battery_sleep_mode = AsyncMock()
+
+    sw = AcBatterySleepModeSwitch(coord)
+
+    await sw.async_turn_on()
+    coord.async_set_ac_battery_sleep_mode.assert_awaited_with(True)
+
+    await sw.async_turn_off()
+    coord.async_set_ac_battery_sleep_mode.assert_awaited_with(False)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_ac_battery_sleep_mode_switch(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._ac_battery_sleep_state = "on"  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(entity, AcBatterySleepModeSwitch) for entity in added)
 
 
 @pytest.fixture
@@ -229,6 +340,125 @@ async def test_async_setup_entry_syncs_chargers(
     charger_entities = [ent for ent in added if hasattr(ent, "_sn")]
     assert {ent._sn for ent in charger_entities} == {RANDOM_SERIAL, new_serial}
     assert config_entry._on_unload and callable(config_entry._on_unload[0])
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_cfg_switches_when_support_becomes_available(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_write_access_confirmed = False  # noqa: SLF001
+    coord._battery_user_is_owner = None  # noqa: SLF001
+    coord._battery_user_is_installer = None  # noqa: SLF001
+    listener_callbacks = []
+    original_add_listener = coord.async_add_listener
+
+    def _capture_listener(callback):
+        listener_callbacks.append(callback)
+        return original_add_listener(callback)
+
+    coord.async_add_listener = MagicMock(side_effect=_capture_listener)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert not any(isinstance(entity, ChargeFromGridSwitch) for entity in added)
+    assert not any(isinstance(entity, ChargeFromGridScheduleSwitch) for entity in added)
+
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+
+    listener_callbacks[0]()
+
+    assert any(isinstance(entity, ChargeFromGridSwitch) for entity in added)
+    assert any(isinstance(entity, ChargeFromGridScheduleSwitch) for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_supported_battery_site_switches_and_prunes_types(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_show_storm_guard = True  # noqa: SLF001
+    coord._storm_guard_state = "enabled"  # noqa: SLF001
+    coord._storm_evse_enabled = True  # noqa: SLF001
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    coord._battery_show_savings_mode = True  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    current_types = {"envoy", "encharge", "iqevse"}
+    coord.inventory_view.has_type_for_entities = (
+        lambda type_key: type_key in current_types
+    )
+    listener_callbacks = []
+    original_add_listener = coord.async_add_listener
+
+    def _capture_listener(callback):
+        listener_callbacks.append(callback)
+        return original_add_listener(callback)
+
+    coord.async_add_listener = MagicMock(side_effect=_capture_listener)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    prune_spy = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.switch.prune_managed_entities", prune_spy
+    )
+
+    added = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert any(isinstance(entity, StormGuardSwitch) for entity in added)
+    assert any(isinstance(entity, SavingsUseBatteryAfterPeakSwitch) for entity in added)
+    assert any(isinstance(entity, DischargeToGridScheduleSwitch) for entity in added)
+    assert any(
+        isinstance(entity, RestrictBatteryDischargeScheduleSwitch) for entity in added
+    )
+
+    current_types = {"encharge", "iqevse"}
+    listener_callbacks[0]()
+    active_unique_ids = prune_spy.call_args_list[-1].kwargs["active_unique_ids"]
+    assert f"enphase_ev_site_{coord.site_id}_storm_guard" not in active_unique_ids
+
+    current_types = {"envoy", "iqevse"}
+    listener_callbacks[0]()
+    active_unique_ids = prune_spy.call_args_list[-1].kwargs["active_unique_ids"]
+    assert (
+        f"enphase_ev_site_{coord.site_id}_savings_use_battery_after_peak"
+        not in active_unique_ids
+    )
+    assert f"enphase_ev_site_{coord.site_id}_charge_from_grid" not in active_unique_ids
 
 
 @pytest.mark.asyncio
@@ -1508,6 +1738,30 @@ def test_charge_from_grid_switch_availability(coordinator_factory) -> None:
     assert sw.available is False
 
 
+def test_charge_from_grid_switch_exposes_schedule_attributes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 95  # noqa: SLF001
+    coord._battery_cfg_schedule_status = "pending"  # noqa: SLF001
+
+    attrs = ChargeFromGridSwitch(coord).extra_state_attributes
+
+    assert attrs["start_time"] == "02:00"
+    assert attrs["end_time"] == "05:00"
+    assert attrs["schedule_limit"] == 95
+    assert attrs["schedule_status"] == "pending"
+    assert attrs["schedule_pending"] is True
+    assert attrs["schedule_enabled"] is True
+
+
 @pytest.mark.asyncio
 async def test_charge_from_grid_switch_turn_on_off(coordinator_factory) -> None:
     coord = coordinator_factory()
@@ -1536,8 +1790,6 @@ def test_charge_from_grid_schedule_switch_availability(coordinator_factory) -> N
     coord._battery_charge_from_grid_schedule_enabled = True  # noqa: SLF001
     sw = ChargeFromGridScheduleSwitch(coord)
 
-    assert sw.available is False
-    coord._battery_charge_from_grid = True  # noqa: SLF001
     assert sw.available is True
     assert sw.is_on is True
 
@@ -1573,6 +1825,29 @@ def test_charge_from_grid_schedule_switch_suggested_object_id(
     coord = coordinator_factory()
     sw = ChargeFromGridScheduleSwitch(coord)
     assert sw.suggested_object_id == "charge_from_grid_schedule"
+
+
+def test_charge_from_grid_schedule_switch_exposes_schedule_attributes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_hide_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = False  # noqa: SLF001
+    coord._battery_cfg_schedule_limit = 80  # noqa: SLF001
+    coord._battery_cfg_schedule_status = "active"  # noqa: SLF001
+
+    attrs = ChargeFromGridScheduleSwitch(coord).extra_state_attributes
+
+    assert attrs["start_time"] == "02:00"
+    assert attrs["end_time"] == "05:00"
+    assert attrs["schedule_limit"] == 80
+    assert attrs["schedule_status"] == "active"
+    assert attrs["schedule_pending"] is False
+    assert attrs["schedule_enabled"] is False
 
 
 @pytest.mark.asyncio
@@ -1617,6 +1892,84 @@ def test_discharge_to_grid_schedule_switch_availability(coordinator_factory) -> 
 
     assert sw.available is True
     assert sw.is_on is True
+
+
+def test_discharge_to_grid_schedule_switch_exposes_schedule_attributes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 1080  # noqa: SLF001
+    coord._battery_dtg_end_time = 1380  # noqa: SLF001
+    coord._battery_dtg_schedule_enabled = True  # noqa: SLF001
+    coord._battery_dtg_schedule_limit = 25  # noqa: SLF001
+    coord._battery_dtg_schedule_status = "pending"  # noqa: SLF001
+
+    attrs = DischargeToGridScheduleSwitch(coord).extra_state_attributes
+
+    assert attrs["start_time"] == "18:00"
+    assert attrs["end_time"] == "23:00"
+    assert attrs["schedule_limit"] == 25
+    assert attrs["schedule_status"] == "pending"
+    assert attrs["schedule_pending"] is True
+    assert attrs["schedule_enabled"] is True
+
+
+def test_restrict_battery_discharge_schedule_switch_exposes_schedule_attributes(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+    coord._battery_rbd_schedule_limit = 100  # noqa: SLF001
+    coord._battery_rbd_schedule_enabled = False  # noqa: SLF001
+    coord._battery_rbd_schedule_status = "active"  # noqa: SLF001
+
+    attrs = RestrictBatteryDischargeScheduleSwitch(coord).extra_state_attributes
+
+    assert attrs["start_time"] == "01:00"
+    assert attrs["end_time"] == "16:00"
+    assert attrs["schedule_limit"] == 100
+    assert attrs["schedule_status"] == "active"
+    assert attrs["schedule_pending"] is False
+    assert attrs["schedule_enabled"] is False
+
+
+def test_base_battery_schedule_switch_extra_state_attributes_empty(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev import switch as switch_mod
+
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+
+    sw = switch_mod._BaseBatteryScheduleSwitch(
+        coord,
+        unique_suffix="custom_schedule",
+        availability_attr="custom_available",
+        enabled_attr="custom_enabled",
+        setter_name="async_custom_schedule_setter",
+        suggested_object_id="custom_schedule",
+    )
+
+    assert sw._extra_schedule_state_attributes() == {}  # noqa: SLF001
+    assert "schedule_status" not in sw.extra_state_attributes
 
 
 @pytest.mark.asyncio

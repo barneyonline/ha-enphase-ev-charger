@@ -59,6 +59,7 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
         "inventory_ready": False,
         "charger_count": 0,
         "battery_count": 0,
+        "ac_battery_count": 0,
         "inverter_count": 0,
         "active_type_keys": [],
         "gateway_iq_router_count": 0,
@@ -704,6 +705,22 @@ def test_devices_inventory_runtime_parser_shapes_and_buckets(
     )
     assert valid is True
     assert grouped["encharge"]["model_summary"] == "IQ Battery 5P x1"
+
+
+def test_inventory_view_iter_type_keys_infers_ac_battery_when_no_buckets(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.serials = set()
+    coord.data = {}
+    coord.iter_serials = lambda: []
+    coord._type_device_order = None  # noqa: SLF001
+    coord._type_device_buckets = None  # noqa: SLF001
+    coord._selected_type_keys = None  # noqa: SLF001
+    coord._battery_has_encharge = False  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+
+    assert coord.inventory_view.iter_type_keys() == ["envoy", "ac_battery"]
 
 
 def test_devices_inventory_runtime_dry_contact_dedupe_and_helpers(
@@ -2269,6 +2286,68 @@ async def test_inventory_runtime_refresh_inverters_uses_success_cache_ttls(
 
 
 @pytest.mark.asyncio
+async def test_inventory_runtime_refresh_inverters_refetches_production_after_ttl(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+
+    coord._devices_inventory_payload = {"curr_date_site": "2026-02-09"}  # noqa: SLF001
+    coord.energy._site_energy_meta = {"start_date": "2022-08-10"}  # noqa: SLF001
+    coord.client.inverters_inventory = AsyncMock(
+        return_value={
+            "total": 1,
+            "inverters": [
+                {"serial_number": "INV-A", "name": "IQ7", "status": "normal"}
+            ],
+        }
+    )
+    coord.client.inverter_status = AsyncMock(
+        return_value={
+            "1001": {
+                "serialNum": "INV-A",
+                "deviceId": 11,
+                "statusCode": "normal",
+                "type": "IQ7",
+            }
+        }
+    )
+    coord.client.inverter_production = AsyncMock(
+        side_effect=[
+            {
+                "production": {"1001": 456.0},
+                "start_date": "2022-08-10",
+                "end_date": "2026-02-09",
+            },
+            {
+                "production": {"1001": 789.0},
+                "start_date": "2022-08-10",
+                "end_date": "2026-02-09",
+            },
+        ]
+    )
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    production_health = coord._endpoint_family_state(
+        "inverter_production"
+    )  # noqa: SLF001
+    production_health.next_retry_mono = time.monotonic() - 1
+    production_health.next_retry_utc = None
+    production_health.cooldown_active = False
+    monkeypatch.setattr(
+        time,
+        "monotonic",
+        lambda: (production_health.last_success_mono or 0.0) + 301.0,
+    )
+
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    assert coord.client.inverter_production.await_count == 2
+    assert coord.inverter_data("INV-A")["lifetime_production_wh"] == 789.0
+
+
+@pytest.mark.asyncio
 async def test_inventory_runtime_refresh_inverters_not_blocked_by_topology_family_ttl(
     coordinator_factory,
 ) -> None:
@@ -2473,6 +2552,29 @@ def test_inventory_runtime_misc_helper_edges(coordinator_factory) -> None:
     assert (
         runtime._inverter_connectivity_state({"total": 2, "unknown": 2}) == "unknown"
     )  # noqa: SLF001
+
+
+def test_inventory_runtime_helper_timing_diagnostics(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+
+    assert (
+        1.0 <= runtime._seconds_until_next_site_local_day() <= 86_400.0
+    )  # noqa: SLF001
+
+    coord._inverter_production_cache_until = 110.0  # noqa: SLF001
+    coord._inverter_production_cache_key = ("2022-08-10", "2026-02-09")  # noqa: SLF001
+    health = coord._endpoint_family_state("inverter_production")  # noqa: SLF001
+    health.last_success_mono = 70.0
+    monkeypatch.setattr(inventory_runtime_mod.time, "monotonic", lambda: 100.0)
+
+    payload = runtime.inverter_diagnostics_payloads()
+
+    assert payload["production_cache_key"] == ("2022-08-10", "2026-02-09")
+    assert payload["production_cache_remaining_seconds"] == 10.0
+    assert payload["production_cache_age_seconds"] == 30.0
 
 
 def test_inventory_runtime_refresh_cached_topology_handles_snapshot_errors(

@@ -3,12 +3,16 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import http.cookiejar
 import json
 import logging
 import re
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
-from urllib.parse import unquote
+from http import HTTPStatus
+from urllib.parse import urlencode, unquote
+import urllib.error
+import urllib.request
 import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Iterable
@@ -47,6 +51,37 @@ _enlighten_read_semaphore: asyncio.Semaphore | None = None
 
 class Unauthorized(Exception):
     pass
+
+
+class EnphaseLoginWallUnauthorized(Unauthorized):
+    """Raised when Enlighten serves the browser login wall to API requests."""
+
+    def __init__(
+        self,
+        *,
+        endpoint: str | None,
+        request_label: str,
+        status: int | None = None,
+        content_type: str | None = None,
+        body_preview_redacted: str | None = None,
+    ) -> None:
+        self.endpoint = endpoint
+        self.request_label = request_label
+        self.status = status
+        self.content_type = content_type
+        self.body_preview_redacted = body_preview_redacted
+        detail_parts: list[str] = []
+        if endpoint:
+            detail_parts.append(f"endpoint={endpoint}")
+        if status is not None:
+            detail_parts.append(f"status={status}")
+        if content_type:
+            detail_parts.append(f"content_type={content_type}")
+        detail = ", ".join(detail_parts)
+        message = "Enphase login wall returned HTML for API request"
+        if detail:
+            message = f"{message} ({detail})"
+        super().__init__(message)
 
 
 class EnlightenAuthError(Exception):
@@ -210,6 +245,15 @@ class InvalidPayloadError(aiohttp.ClientError):
         return self.signature.to_dict()
 
 
+@dataclass(slots=True, frozen=True)
+class TextResponse:
+    status: int
+    text: str
+    url: str
+    headers: dict[str, str]
+    location: str | None = None
+
+
 def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
     """Return True when an optional endpoint returned a non-JSON success page."""
 
@@ -243,6 +287,34 @@ def _truncate_preview(text: str, *, max_length: int = 256) -> str:
     if len(compact) > max_length:
         return f"{compact[:max_length]}..."
     return compact
+
+
+def _is_enphase_login_wall(
+    *,
+    endpoint: str | None,
+    payload: object,
+) -> bool:
+    """Return True when a JSON API request received the Enlighten browser login wall."""
+
+    endpoint_text = str(endpoint or "").strip()
+    if not endpoint_text.startswith(("/service/", "/app-api/", "/systems/", "/pv/")):
+        return False
+    try:
+        body = str(payload or "")
+    except Exception:  # noqa: BLE001
+        return False
+    preview = body.lower()
+    if "<!doctype html" not in preview and "<html" not in preview:
+        return False
+    markers = (
+        "window.optanonwrapper",
+        "var otlang",
+        "x-ua-compatible",
+        "enphaseenergy.com",
+        "/login/login",
+        "one trust",
+    )
+    return any(marker in preview for marker in markers)
 
 
 def _is_hems_invalid_site_error(err: aiohttp.ClientResponseError) -> bool:
@@ -663,6 +735,19 @@ def _cookie_names_from_header(cookie_header: object) -> list[str]:
     """Return sorted cookie names parsed from a Cookie header string."""
 
     return sorted(_cookie_map_from_header(cookie_header).keys())
+
+
+def _authorization_bearer_token(headers: dict[str, str]) -> str | None:
+    """Return the bearer token from an Authorization header when present."""
+
+    raw = headers.get("Authorization")
+    if not isinstance(raw, str):
+        return None
+    prefix = "Bearer "
+    if not raw.startswith(prefix):
+        return None
+    token = raw[len(prefix) :].strip()
+    return token or None
 
 
 def _request_failure_debug_family(method: object, path_or_url: object) -> str | None:
@@ -1590,6 +1675,39 @@ async def async_fetch_devices_inventory(
     return None
 
 
+async def async_fetch_battery_site_settings(
+    session: aiohttp.ClientSession,
+    site_id: str,
+    tokens: AuthTokens,
+    *,
+    timeout: int = DEFAULT_AUTH_TIMEOUT,
+) -> dict[str, object] | None:
+    """Fetch BatteryConfig site settings for config-flow category selection."""
+
+    if not site_id:
+        return {}
+
+    client = EnphaseEVClient(
+        session,
+        site_id,
+        tokens.access_token,
+        tokens.cookie,
+        timeout=timeout,
+    )
+    try:
+        payload = await client.battery_site_settings()
+    except Exception as err:  # noqa: BLE001 - best-effort for flow UX
+        _LOGGER.debug(
+            "Failed to fetch battery site settings for site %s: %s",
+            redact_site_id(site_id),
+            redact_text(err, site_ids=(site_id,)),
+        )
+        return None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
 async def async_fetch_inverters_inventory(
     session: aiohttp.ClientSession,
     site_id: str,
@@ -1922,6 +2040,26 @@ class EnphaseEVClient:
             self._log_invalid_payload(err)
         return err
 
+    def _login_wall_unauthorized(
+        self,
+        *,
+        endpoint: str | None,
+        request_label: str,
+        status: int | None,
+        content_type: str | None,
+        payload: object,
+    ) -> EnphaseLoginWallUnauthorized:
+        """Build a structured unauthorized error for Enlighten login-wall responses."""
+
+        _, _, body_preview = _payload_preview_and_hash(payload, site_ids=(self._site,))
+        return EnphaseLoginWallUnauthorized(
+            endpoint=endpoint,
+            request_label=request_label,
+            status=status,
+            content_type=content_type,
+            body_preview_redacted=body_preview,
+        )
+
     def _history_bearer(self) -> str | None:
         """Return the preferred bearer token for session history calls."""
 
@@ -2024,6 +2162,16 @@ class EnphaseEVClient:
         headers["Referer"] = self._site_web_referer("layout")
         return headers
 
+    def _systems_html_headers(self, referer: str | None = None) -> dict[str, str]:
+        """Return browser-style headers for site-scoped HTML /systems routes."""
+
+        headers = dict(self._h)
+        headers["Accept"] = (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        )
+        headers["Referer"] = referer or f"{BASE_URL}/systems/{self._site}/devices"
+        return headers
+
     def _systems_json_headers(self) -> dict[str, str]:
         """Return headers for site-scoped /systems JSON endpoints."""
 
@@ -2066,6 +2214,8 @@ class EnphaseEVClient:
     def _system_dashboard_is_optional_error(err: Exception) -> bool:
         """Return True when a dashboard route should fall back or soft-fail."""
 
+        if isinstance(err, EnphaseLoginWallUnauthorized):
+            return False
         if isinstance(err, Unauthorized):
             return True
         if isinstance(err, InvalidPayloadError):
@@ -2113,6 +2263,89 @@ class EnphaseEVClient:
         _token, user_id = self._battery_config_auth_context()
         return user_id
 
+    def _battery_config_single_auth_token(self) -> str | None:
+        """Return the single-token auth candidate used by external clients."""
+
+        return self._bearer() or self._eauth
+
+    def _battery_config_user_id_for_token(self, token: str | None = None) -> str | None:
+        """Return the preferred BatteryConfig user id for a specific token."""
+
+        if token:
+            user_id = _jwt_user_id(token)
+            if user_id:
+                return user_id
+        return self._battery_config_user_id()
+
+    def _battery_config_auth_source_label(self, token: str | None) -> str:
+        """Return a coarse label describing the selected BatteryConfig token source."""
+
+        if not token:
+            return "none"
+        bearer = self._bearer()
+        eauth = self._eauth
+        if bearer and eauth and token == bearer and token == eauth:
+            return "shared"
+        if bearer and eauth and token in {bearer, eauth} and bearer != eauth:
+            return "mixed"
+        if bearer and token == bearer:
+            return "manager_cookie"
+        if eauth and token == eauth:
+            return "access_token"
+        return "unknown"
+
+    def _battery_config_header_debug_flags(
+        self,
+        headers: dict[str, str],
+        *,
+        auth_source_override: str | None = None,
+    ) -> dict[str, object]:
+        """Return safe debug flags describing BatteryConfig auth-header shape."""
+
+        bearer = _authorization_bearer_token(headers)
+        eauth = headers.get("e-auth-token")
+        auth_mode = "none"
+        if bearer and eauth:
+            auth_mode = "dual_match" if bearer == eauth else "dual_mismatch"
+        elif bearer:
+            auth_mode = "authorization_only"
+        elif eauth:
+            auth_mode = "eauth_only"
+
+        auth_source = auth_source_override or self._battery_config_auth_source_label(
+            bearer or eauth
+        )
+        if auth_mode == "dual_mismatch":
+            auth_source = "mixed"
+
+        return {
+            "has_authorization": "Authorization" in headers,
+            "has_e_auth_token": "e-auth-token" in headers,
+            "has_requestid": "requestid" in headers,
+            "has_username": "Username" in headers,
+            "has_x_csrf_token": "X-CSRF-Token" in headers,
+            "has_x_xsrf_token": "X-XSRF-Token" in headers,
+            "auth_mode": auth_mode,
+            "auth_source": auth_source,
+        }
+
+    @staticmethod
+    def _merge_request_headers(
+        base_headers: dict[str, str],
+        extra_headers: dict[str, str | None] | None,
+    ) -> dict[str, str]:
+        """Merge request headers, treating ``None`` values as explicit removals."""
+
+        merged = dict(base_headers)
+        if not isinstance(extra_headers, dict):
+            return merged
+        for header_key, header_value in extra_headers.items():
+            if header_value is None:
+                merged.pop(header_key, None)
+            else:
+                merged[header_key] = header_value
+        return merged
+
     def _battery_config_auth_context(self) -> tuple[str | None, str | None]:
         """Return preferred BatteryConfig auth token and resolved user id.
 
@@ -2138,73 +2371,75 @@ class EnphaseEVClient:
                 return token, user_id
         return fallback_token, None
 
-    def _battery_config_auth_token(self) -> str | None:
-        """Return bearer token to use for BatteryConfig requests."""
-
-        token, _user_id = self._battery_config_auth_context()
-        return token
-
-    def _battery_config_cookie(self, *, include_xsrf: bool = False) -> str | None:
-        """Return a normalized BatteryConfig cookie header value.
-
-        BatteryConfig write endpoints reject stale duplicate ``BP-XSRF-Token``
-        cookies, so always strip any existing token from the base cookie string
-        before optionally appending the current one.
-        """
-
-        try:
-            cookie_str = str(self._cookie) if self._cookie else ""
-        except Exception:  # noqa: BLE001 - defensive parsing
-            cookie_str = ""
-
-        parts = [
-            part.strip()
-            for part in cookie_str.split(";")
-            if part.strip()
-            and part.strip().partition("=")[0].strip().lower() not in _XSRF_COOKIE_NAMES
-        ]
-        if include_xsrf:
-            xsrf = self._xsrf_token()
-            if xsrf:
-                parts.append(f"BP-XSRF-Token={xsrf}")
-        if not parts:
-            return None
-        return "; ".join(parts)
-
     def _battery_config_headers(
         self,
         *,
         include_xsrf: bool = False,
-    ) -> dict[str, str]:
+        include_eauth: bool = True,
+        include_requestid: bool = True,
+    ) -> dict[str, str | None]:
         """Return headers for BatteryConfig read/write calls."""
 
-        headers = dict(self._h)
+        headers: dict[str, str | None] = dict(self._h)
+        headers["Accept"] = "application/json, text/plain, */*"
+        headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
+        headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
+        headers["requestid"] = str(uuid.uuid4()) if include_requestid else None
         token, user_id = self._battery_config_auth_context()
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        if self._eauth:
-            headers["e-auth-token"] = self._eauth
-        elif token:
-            headers["e-auth-token"] = token
+        else:
+            headers["Authorization"] = None
+        if include_eauth:
+            if self._eauth:
+                headers["e-auth-token"] = self._eauth
+            elif token:
+                headers["e-auth-token"] = token
+            else:
+                headers["e-auth-token"] = None
+        else:
+            headers["e-auth-token"] = None
         if user_id:
             headers["Username"] = user_id
-        headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
-        headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
-        cookie = self._battery_config_cookie(include_xsrf=include_xsrf)
-        if cookie:
-            headers["Cookie"] = cookie
         else:
-            headers.pop("Cookie", None)
+            headers.pop("Username", None)
+        cookie_map = _cookie_map_from_header(self._cookie)
+        cookie_parts = [
+            f"{key}={value}"
+            for key, value in cookie_map.items()
+            if str(key).strip().lower() not in _XSRF_COOKIE_NAMES
+        ]
         if include_xsrf:
             xsrf = self._xsrf_token()
             if xsrf:
                 headers["X-XSRF-Token"] = xsrf
+                headers["X-CSRF-Token"] = xsrf
+                cookie_parts.append(f"BP-XSRF-Token={xsrf}")
+            else:
+                headers["X-CSRF-Token"] = None
+        else:
+            headers["X-CSRF-Token"] = None
+        if cookie_parts:
+            headers["Cookie"] = "; ".join(cookie_parts)
+        else:
+            headers["Cookie"] = None
         return headers
+
+    def _battery_schedule_validation_payload(
+        self, schedule_type: str = "cfg"
+    ) -> dict[str, object]:
+        """Return the XSRF bootstrap / validation payload for a schedule family."""
+
+        normalized = str(schedule_type).lower()
+        payload: dict[str, object] = {"scheduleType": normalized}
+        if normalized == "cfg":
+            payload["forceScheduleOpted"] = True
+        return payload
 
     def _battery_config_params(
         self,
         *,
-        include_source: bool = False,
+        include_source: bool | str = False,
         locale: str | None = None,
     ) -> dict[str, str]:
         """Return query parameters for BatteryConfig calls."""
@@ -2214,7 +2449,9 @@ class EnphaseEVClient:
         if user_id:
             params["userId"] = user_id
         if include_source:
-            params["source"] = "enho"
+            params["source"] = (
+                str(include_source) if isinstance(include_source, str) else "enho"
+            )
         if locale:
             params["locale"] = locale
         return params
@@ -2248,7 +2485,251 @@ class EnphaseEVClient:
                 return token
         return None
 
-    async def _acquire_xsrf_token(self, schedule_type: str = "cfg") -> str | None:
+    async def _battery_config_profile_write_request(
+        self,
+        *,
+        url: str,
+        payload: dict[str, Any],
+        params: dict[str, str] | None,
+        schedule_type: str = "cfg",
+    ) -> dict:
+        """Issue a profile write using the mixed browser-plus-legacy auth flow."""
+
+        def _request_once(body: dict[str, Any]) -> dict:
+            auth_token, user_id = self._battery_config_auth_context()
+            cookie_map = _cookie_map_from_header(self._cookie)
+            if not auth_token or not user_id or not cookie_map:
+                raise aiohttp.ClientResponseError(
+                    request_info=None,
+                    history=(),
+                    status=HTTPStatus.FORBIDDEN,
+                    message="Forbidden",
+                )
+
+            cookie_jar = http.cookiejar.CookieJar()
+            opener = urllib.request.build_opener(
+                urllib.request.HTTPCookieProcessor(cookie_jar)
+            )
+            for key, value in cookie_map.items():
+                cookie_jar.set_cookie(
+                    http.cookiejar.Cookie(
+                        version=0,
+                        name=str(key),
+                        value=str(value),
+                        port=None,
+                        port_specified=False,
+                        domain=".enphaseenergy.com",
+                        domain_specified=True,
+                        domain_initial_dot=True,
+                        path="/",
+                        path_specified=True,
+                        secure=False,
+                        expires=None,
+                        discard=False,
+                        comment=None,
+                        comment_url=None,
+                        rest={},
+                    )
+                )
+
+            try:
+                legacy_request = urllib.request.Request(
+                    f"{BASE_URL}/app-api/jwt_token.json",
+                    headers={
+                        "Accept": "application/json, text/plain, */*",
+                        "Referer": f"{BASE_URL}/",
+                        "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
+                    },
+                )
+                with opener.open(legacy_request, timeout=self._timeout) as response:
+                    legacy_payload = json.loads(response.read().decode())
+            except (OSError, ValueError, urllib.error.HTTPError) as err:
+                raise aiohttp.ClientResponseError(
+                    request_info=None,
+                    history=(),
+                    status=HTTPStatus.FORBIDDEN,
+                    message=str(err),
+                ) from err
+
+            legacy_token = legacy_payload.get("token") or legacy_payload.get(
+                "auth_token"
+            )
+            if not legacy_token:
+                raise aiohttp.ClientResponseError(
+                    request_info=None,
+                    history=(),
+                    status=HTTPStatus.FORBIDDEN,
+                    message="Forbidden",
+                )
+
+            is_valid_headers = {
+                "Accept": "application/json, text/plain, */*",
+                "Origin": "https://battery-profile-ui.enphaseenergy.com",
+                "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+                "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
+                "Authorization": f"Bearer {auth_token}",
+                "e-auth-token": str(legacy_token),
+                "Username": str(user_id),
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/json",
+            }
+            is_valid_url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+                f"{self._site}/schedules/isValid?userId={user_id}&source=enho"
+            )
+            try:
+                opener.open(
+                    urllib.request.Request(
+                        is_valid_url,
+                        data=json.dumps(
+                            self._battery_schedule_validation_payload(schedule_type)
+                        ).encode(),
+                        headers=is_valid_headers,
+                        method="POST",
+                    ),
+                    timeout=self._timeout,
+                )
+            except urllib.error.HTTPError:
+                pass
+
+            xsrf = None
+            fallback_xsrf = None
+            for cookie in cookie_jar:
+                cookie_name = cookie.name.lower()
+                if cookie_name == "bp-xsrf-token":
+                    xsrf = cookie.value
+                    break
+                if cookie_name in _XSRF_COOKIE_NAMES and fallback_xsrf is None:
+                    fallback_xsrf = cookie.value
+            if xsrf is None:
+                xsrf = fallback_xsrf
+
+            request_headers = {
+                "Accept": "application/json, text/plain, */*",
+                "Origin": "https://battery-profile-ui.enphaseenergy.com",
+                "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+                "User-Agent": _ENLIGHTEN_BROWSER_USER_AGENT,
+                "Authorization": f"Bearer {auth_token}",
+                "e-auth-token": str(legacy_token),
+                "Username": str(user_id),
+                "X-Requested-With": "XMLHttpRequest",
+                "Content-Type": "application/json",
+                "requestid": str(uuid.uuid4()),
+            }
+            if xsrf:
+                request_headers["X-XSRF-Token"] = xsrf
+                request_headers["X-CSRF-Token"] = xsrf
+
+            request_url = url
+            if params:
+                request_url = f"{url}?{urlencode(params)}"
+
+            try:
+                with opener.open(
+                    urllib.request.Request(
+                        request_url,
+                        data=json.dumps(body).encode(),
+                        headers=request_headers,
+                        method="PUT",
+                    ),
+                    timeout=self._timeout,
+                ) as response:
+                    response_text = response.read().decode()
+            except urllib.error.HTTPError as err:
+                body_text = err.read().decode()
+                raise aiohttp.ClientResponseError(
+                    request_info=None,
+                    history=(),
+                    status=err.code,
+                    message=body_text or str(err),
+                    headers=err.headers,
+                ) from err
+
+            if not response_text.strip():
+                return {}
+            return json.loads(response_text)
+
+        try:
+            return await asyncio.to_thread(_request_once, dict(payload))
+        except aiohttp.ClientResponseError as err:
+            if err.status != HTTPStatus.FORBIDDEN or "devices" not in payload:
+                raise
+        fallback_payload = dict(payload)
+        fallback_payload.pop("devices", None)
+        return await asyncio.to_thread(_request_once, fallback_payload)
+
+    async def _battery_config_write_request(
+        self,
+        method: str,
+        url: str,
+        *,
+        json_body: dict[str, Any] | list[Any] | None = None,
+        params: dict[str, str] | None = None,
+        schedule_type: str = "cfg",
+    ) -> dict:
+        """Issue a BatteryConfig write with a narrow first-party fallback."""
+
+        await self._acquire_xsrf_token(schedule_type)
+
+        try:
+            primary_headers = self._battery_config_headers(include_xsrf=True)
+            if json_body is not None:
+                primary_headers.setdefault("Content-Type", "application/json")
+            try:
+                return await self._json(
+                    method,
+                    url,
+                    json=json_body,
+                    headers=primary_headers,
+                    params=params,
+                )
+            except aiohttp.ClientResponseError as err:
+                if err.status != 403:
+                    raise
+                await self._acquire_xsrf_token(
+                    schedule_type,
+                    include_eauth=False,
+                    include_requestid=False,
+                )
+                fallback_headers = self._battery_config_headers(
+                    include_xsrf=True,
+                    include_eauth=False,
+                    include_requestid=False,
+                )
+                if json_body is not None:
+                    fallback_headers.setdefault("Content-Type", "application/json")
+                fallback_preview = self._merge_request_headers(
+                    self._h, fallback_headers
+                )
+                fallback_flags = self._battery_config_header_debug_flags(
+                    fallback_preview,
+                    auth_source_override="official_web_lean",
+                )
+                _LOGGER.debug(
+                    "Retrying BatteryConfig write for %s with lean official-web headers "
+                    "(has_e_auth_token=%s, has_requestid=%s)",
+                    _request_label(method, url),
+                    fallback_flags["has_e_auth_token"],
+                    "requestid" in fallback_preview,
+                )
+                return await self._json(
+                    method,
+                    url,
+                    json=json_body,
+                    headers=fallback_headers,
+                    params=params,
+                    debug_auth_source="official_web_lean",
+                )
+        finally:
+            self._bp_xsrf_token = None
+
+    async def _acquire_xsrf_token(
+        self,
+        schedule_type: str = "cfg",
+        *,
+        include_eauth: bool = True,
+        include_requestid: bool = True,
+    ) -> str | None:
         """Acquire a BP-XSRF-Token by POSTing to the schedules isValid endpoint.
 
         The Enphase BatteryConfig API requires an XSRF token for write operations.
@@ -2260,26 +2741,14 @@ class EnphaseEVClient:
             f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
             f"{self._site}/schedules/isValid"
         )
-        token, user_id = self._battery_config_auth_context()
-        headers = {
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Origin": "https://battery-profile-ui.enphaseenergy.com",
-            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
-        }
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-        if self._eauth:
-            headers["e-auth-token"] = self._eauth
-        if user_id:
-            headers["Username"] = user_id
-        cookie = self._battery_config_cookie()
-        if cookie:
-            headers["Cookie"] = cookie
-        payload = {
-            "scheduleType": str(schedule_type).lower(),
-            "forceScheduleOpted": True,
-        }
+        headers = self._battery_config_headers(
+            include_xsrf=True,
+            include_eauth=include_eauth,
+            include_requestid=include_requestid,
+        )
+        headers["Content-Type"] = "application/json"
+        request_headers = self._merge_request_headers({}, headers)
+        payload = self._battery_schedule_validation_payload(schedule_type)
 
         try:
             _seed_cookie_jar(self._s, _cookie_map_from_header(self._cookie))
@@ -2293,9 +2762,19 @@ class EnphaseEVClient:
 
             async with asyncio.timeout(self._timeout):
                 async with self._s.request(
-                    "POST", url, json=payload, headers=headers
+                    "POST", url, json=payload, headers=request_headers
                 ) as r:
-                    for value in r.headers.getall("Set-Cookie", []):
+                    header_values: list[str] = []
+                    getall = getattr(r.headers, "getall", None)
+                    if callable(getall):
+                        header_values = list(getall("Set-Cookie", []))
+                    else:
+                        header_value = getattr(
+                            r.headers, "get", lambda *_a, **_k: None
+                        )("Set-Cookie")
+                        if isinstance(header_value, str) and header_value:
+                            header_values = [header_value]
+                    for value in header_values:
                         match = re.search(
                             r"(?i)(?:^|;\s*)(?:bp-)?xsrf-token=([^;]+)", value
                         )
@@ -2636,6 +3115,7 @@ class EnphaseEVClient:
         auth-sensitive headers after a successful reauthentication callback.
         """
         extra_headers = kwargs.pop("headers", None)
+        debug_auth_source = kwargs.pop("debug_auth_source", None)
         attempt = 0
         request_label = _request_label(method, url)
         endpoint = ""
@@ -2650,11 +3130,9 @@ class EnphaseEVClient:
             else:
                 attempt_headers = extra_headers
             if isinstance(attempt_headers, dict):
-                for header_key, header_value in attempt_headers.items():
-                    if header_value is None:
-                        base_headers.pop(header_key, None)
-                    else:
-                        base_headers[header_key] = header_value
+                base_headers = self._merge_request_headers(
+                    base_headers, attempt_headers
+                )
 
             async with _enlighten_read_request_guard(method, url):
                 async with asyncio.timeout(self._timeout):
@@ -2748,13 +3226,10 @@ class EnphaseEVClient:
                                             str(key) for key in data_payload.keys()
                                         )
                                     }
-                                header_flags = {
-                                    "has_authorization": "Authorization"
-                                    in base_headers,
-                                    "has_e_auth_token": "e-auth-token" in base_headers,
-                                    "has_username": "Username" in base_headers,
-                                    "has_x_xsrf_token": "X-XSRF-Token" in base_headers,
-                                }
+                                header_flags = self._battery_config_header_debug_flags(
+                                    base_headers,
+                                    auth_source_override=debug_auth_source,
+                                )
                                 _LOGGER.debug(
                                     "%s failed for %s: status=%s params=%s payload=%s "
                                     "header_flags=%s cookie_names=%s headers=%s response=%s",
@@ -2798,6 +3273,18 @@ class EnphaseEVClient:
                                 body_text = (
                                     f"<unavailable:{text_err.__class__.__name__}>"
                                 )
+                            if _is_enphase_login_wall(
+                                endpoint=endpoint or None,
+                                payload=body_text,
+                            ):
+                                self._last_unauthorized_request = request_label
+                                raise self._login_wall_unauthorized(
+                                    endpoint=endpoint or None,
+                                    request_label=request_label,
+                                    status=status or None,
+                                    content_type=content_type or None,
+                                    payload=body_text,
+                                ) from err
                             failure_kind = (
                                 "content_type"
                                 if isinstance(err, aiohttp.ContentTypeError)
@@ -2815,6 +3302,129 @@ class EnphaseEVClient:
                         if mark_payload_success:
                             self._mark_payload_healthy(endpoint or None)
                         return payload
+
+    async def _text_response(
+        self,
+        method: str,
+        url: str,
+        *,
+        expected_statuses: tuple[int, ...] | None = None,
+        mark_payload_success: bool = True,
+        **kwargs,
+    ) -> TextResponse:
+        """Perform an HTTP request returning text plus response metadata."""
+
+        extra_headers = kwargs.pop("headers", None)
+        attempt = 0
+        request_label = _request_label(method, url)
+        endpoint = ""
+        try:
+            endpoint = URL(url).path
+        except Exception:  # noqa: BLE001
+            endpoint = ""
+        while True:
+            base_headers = dict(self._h)
+            if callable(extra_headers):
+                attempt_headers = extra_headers()
+            else:
+                attempt_headers = extra_headers
+            if isinstance(attempt_headers, dict):
+                for header_key, header_value in attempt_headers.items():
+                    if header_value is None:
+                        base_headers.pop(header_key, None)
+                    else:
+                        base_headers[header_key] = header_value
+
+            async with _enlighten_read_request_guard(method, url):
+                async with asyncio.timeout(self._timeout):
+                    async with self._s.request(
+                        method, url, headers=base_headers, **kwargs
+                    ) as r:
+                        if r.status == 401:
+                            self._last_unauthorized_request = request_label
+                            if self._reauth_cb and attempt == 0:
+                                attempt += 1
+                                if await self._reauth_cb():
+                                    continue
+                            raise Unauthorized()
+                        if expected_statuses and r.status in expected_statuses:
+                            text = await r.text()
+                            if _is_enphase_login_wall(
+                                endpoint=endpoint or None, payload=text
+                            ):
+                                self._last_unauthorized_request = request_label
+                                raise self._login_wall_unauthorized(
+                                    endpoint=endpoint or None,
+                                    request_label=request_label,
+                                    status=int(r.status),
+                                    content_type=r.headers.get("Content-Type"),
+                                    payload=text,
+                                )
+                            if mark_payload_success:
+                                self._mark_payload_healthy(endpoint or None)
+                            return TextResponse(
+                                status=int(r.status),
+                                text=text,
+                                url=str(r.url),
+                                headers={str(k): str(v) for k, v in r.headers.items()},
+                                location=r.headers.get("Location"),
+                            )
+                        if r.status >= 400:
+                            try:
+                                body_text = await r.text()
+                            except Exception:  # noqa: BLE001
+                                body_text = ""
+                            message = (body_text or r.reason or "").strip()
+                            if len(message) > 512:
+                                message = f"{message[:512]}…"
+                            raise aiohttp.ClientResponseError(
+                                r.request_info,
+                                r.history,
+                                status=r.status,
+                                message=message or r.reason,
+                                headers=r.headers,
+                            )
+                        text = await r.text()
+                        if _is_enphase_login_wall(
+                            endpoint=endpoint or None, payload=text
+                        ):
+                            self._last_unauthorized_request = request_label
+                            raise self._login_wall_unauthorized(
+                                endpoint=endpoint or None,
+                                request_label=request_label,
+                                status=int(r.status),
+                                content_type=r.headers.get("Content-Type"),
+                                payload=text,
+                            )
+                        if mark_payload_success:
+                            self._mark_payload_healthy(endpoint or None)
+                        return TextResponse(
+                            status=int(r.status),
+                            text=text,
+                            url=str(r.url),
+                            headers={str(k): str(v) for k, v in r.headers.items()},
+                            location=r.headers.get("Location"),
+                        )
+
+    async def _text(
+        self,
+        method: str,
+        url: str,
+        *,
+        expected_statuses: tuple[int, ...] | None = None,
+        mark_payload_success: bool = True,
+        **kwargs,
+    ) -> str:
+        """Perform an HTTP request returning text only."""
+
+        response = await self._text_response(
+            method,
+            url,
+            expected_statuses=expected_statuses,
+            mark_payload_success=mark_payload_success,
+            **kwargs,
+        )
+        return response.text
 
     async def status(self) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_chargers/status"
@@ -3446,7 +4056,7 @@ class EnphaseEVClient:
         """Return BatteryConfig battery details for charge-grid and shutdown controls."""
 
         url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
-        params = self._battery_config_params(include_source=True)
+        params = self._battery_config_params(include_source="enlm")
         headers = self._battery_config_headers()
         return await self._json("GET", url, headers=headers, params=params)
 
@@ -3457,21 +4067,16 @@ class EnphaseEVClient:
         schedule_type: str = "cfg",
     ) -> dict:
         """Update BatteryConfig battery detail settings using a partial payload."""
-
-        await self._acquire_xsrf_token(schedule_type)
-
-        try:
-            url = (
-                f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
-            )
-            params = self._battery_config_params(include_source=True)
-            headers = self._battery_config_headers(include_xsrf=True)
-            body = payload if isinstance(payload, dict) else {}
-            return await self._json(
-                "PUT", url, json=body, headers=headers, params=params
-            )
-        finally:
-            self._bp_xsrf_token = None
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+        params = self._battery_config_params(include_source=True)
+        body = payload if isinstance(payload, dict) else {}
+        return await self._battery_config_write_request(
+            "PUT",
+            url,
+            json_body=body,
+            params=params,
+            schedule_type=schedule_type,
+        )
 
     async def set_battery_profile(
         self,
@@ -3482,62 +4087,63 @@ class EnphaseEVClient:
         devices: list[dict[str, Any]] | None = None,
     ) -> dict:
         """Update the site battery profile and reserve percentage."""
-
-        await self._acquire_xsrf_token()
-
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
+        params = self._battery_config_params(include_source=True)
+        payload: dict[str, Any] = {
+            "profile": str(profile),
+            "batteryBackupPercentage": int(battery_backup_percentage),
+        }
+        if operation_mode_sub_type:
+            payload["operationModeSubType"] = str(operation_mode_sub_type)
+        if devices:
+            payload["devices"] = [item for item in devices if isinstance(item, dict)]
         try:
-            url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
-            params = self._battery_config_params(include_source=True)
-            headers = self._battery_config_headers(include_xsrf=True)
-            payload: dict[str, Any] = {
-                "profile": str(profile),
-                "batteryBackupPercentage": int(battery_backup_percentage),
-            }
-            if operation_mode_sub_type:
-                payload["operationModeSubType"] = str(operation_mode_sub_type)
-            if devices:
-                payload["devices"] = [
-                    item for item in devices if isinstance(item, dict)
-                ]
-            return await self._json(
-                "PUT", url, json=payload, headers=headers, params=params
+            return await self._battery_config_profile_write_request(
+                url=url,
+                payload=payload,
+                params=params,
             )
-        finally:
-            self._bp_xsrf_token = None
+        except aiohttp.ClientResponseError as err:
+            if err.status != HTTPStatus.FORBIDDEN:
+                raise
+        if "devices" in payload:
+            payload = dict(payload)
+            payload.pop("devices", None)
+        return await self._battery_config_write_request(
+            "PUT",
+            url,
+            json_body=payload,
+            params=params,
+        )
 
     async def cancel_battery_profile_update(self) -> dict:
         """Cancel a pending site battery profile change."""
-
-        await self._acquire_xsrf_token()
-
-        try:
-            url = f"{BASE_URL}/service/batteryConfig/api/v1/cancel/profile/{self._site}"
-            params = self._battery_config_params(include_source=True)
-            headers = self._battery_config_headers(include_xsrf=True)
-            return await self._json("PUT", url, json={}, headers=headers, params=params)
-        finally:
-            self._bp_xsrf_token = None
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/cancel/profile/{self._site}"
+        params = self._battery_config_params(include_source=True)
+        return await self._battery_config_write_request(
+            "PUT",
+            url,
+            json_body={},
+            params=params,
+        )
 
     async def set_storm_guard(self, *, enabled: bool, evse_enabled: bool) -> dict:
         """Toggle Storm Guard and the EVSE charge-to-100% option.
 
         PUT /service/batteryConfig/api/v1/stormGuard/toggle/<site_id>?userId=<user_id>
         """
-        await self._acquire_xsrf_token()
-
-        try:
-            url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/toggle/{self._site}"
-            params = self._battery_config_params(include_source=True)
-            headers = self._battery_config_headers(include_xsrf=True)
-            payload = {
-                "stormGuardState": "enabled" if enabled else "disabled",
-                "evseStormEnabled": bool(evse_enabled),
-            }
-            return await self._json(
-                "PUT", url, json=payload, headers=headers, params=params
-            )
-        finally:
-            self._bp_xsrf_token = None
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/stormGuard/toggle/{self._site}"
+        params = self._battery_config_params(include_source=True)
+        payload = {
+            "stormGuardState": "enabled" if enabled else "disabled",
+            "evseStormEnabled": bool(evse_enabled),
+        }
+        return await self._battery_config_write_request(
+            "PUT",
+            url,
+            json_body=payload,
+            params=params,
+        )
 
     # ------------------------------------------------------------------
     # Battery schedule CRUD (newer /battery/sites/{id}/schedules API)
@@ -3584,29 +4190,27 @@ class EnphaseEVClient:
             timezone: IANA timezone string.
         """
 
-        await self._acquire_xsrf_token(schedule_type)
-
-        try:
-            url = (
-                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
-                f"{self._site}/schedules"
-            )
-            headers = self._battery_config_headers(include_xsrf=True)
-            headers["Content-Type"] = "application/json"
-            payload = {
-                "timezone": timezone,
-                "startTime": start_time[:5],
-                "endTime": end_time[:5],
-                "scheduleType": str(schedule_type).upper(),
-                "days": [int(d) for d in days],
-            }
-            if limit is not None:
-                payload["limit"] = int(limit)
-            if is_enabled is not None:
-                payload["isEnabled"] = bool(is_enabled)
-            return await self._json("POST", url, json=payload, headers=headers)
-        finally:
-            self._bp_xsrf_token = None
+        url = (
+            f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+            f"{self._site}/schedules"
+        )
+        payload = {
+            "timezone": timezone,
+            "startTime": start_time[:5],
+            "endTime": end_time[:5],
+            "scheduleType": str(schedule_type).upper(),
+            "days": [int(d) for d in days],
+        }
+        if limit is not None:
+            payload["limit"] = int(limit)
+        if is_enabled is not None:
+            payload["isEnabled"] = bool(is_enabled)
+        return await self._battery_config_write_request(
+            "POST",
+            url,
+            json_body=payload,
+            schedule_type=schedule_type,
+        )
 
     async def update_battery_schedule(
         self,
@@ -3636,31 +4240,29 @@ class EnphaseEVClient:
             timezone: IANA timezone string.
         """
 
-        await self._acquire_xsrf_token(schedule_type)
-
-        try:
-            url = (
-                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
-                f"{self._site}/schedules/{schedule_id}"
-            )
-            headers = self._battery_config_headers(include_xsrf=True)
-            headers["Content-Type"] = "application/json"
-            payload = {
-                "timezone": timezone,
-                "startTime": start_time[:5],
-                "endTime": end_time[:5],
-                "scheduleType": str(schedule_type).upper(),
-                "days": [int(d) for d in days],
-            }
-            if limit is not None:
-                payload["limit"] = int(limit)
-            if is_enabled is not None:
-                payload["isEnabled"] = bool(is_enabled)
-            if is_deleted is not None:
-                payload["isDeleted"] = bool(is_deleted)
-            return await self._json("PUT", url, json=payload, headers=headers)
-        finally:
-            self._bp_xsrf_token = None
+        url = (
+            f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+            f"{self._site}/schedules/{schedule_id}"
+        )
+        payload = {
+            "timezone": timezone,
+            "startTime": start_time[:5],
+            "endTime": end_time[:5],
+            "scheduleType": str(schedule_type).upper(),
+            "days": [int(d) for d in days],
+        }
+        if limit is not None:
+            payload["limit"] = int(limit)
+        if is_enabled is not None:
+            payload["isEnabled"] = bool(is_enabled)
+        if is_deleted is not None:
+            payload["isDeleted"] = bool(is_deleted)
+        return await self._battery_config_write_request(
+            "PUT",
+            url,
+            json_body=payload,
+            schedule_type=schedule_type,
+        )
 
     async def delete_battery_schedule(
         self,
@@ -3673,18 +4275,16 @@ class EnphaseEVClient:
         POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/{id}/delete
         """
 
-        await self._acquire_xsrf_token(schedule_type)
-
-        try:
-            url = (
-                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
-                f"{self._site}/schedules/{schedule_id}/delete"
-            )
-            headers = self._battery_config_headers(include_xsrf=True)
-            headers["Content-Type"] = "application/json"
-            return await self._json("POST", url, json={}, headers=headers)
-        finally:
-            self._bp_xsrf_token = None
+        url = (
+            f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+            f"{self._site}/schedules/{schedule_id}/delete"
+        )
+        return await self._battery_config_write_request(
+            "POST",
+            url,
+            json_body={},
+            schedule_type=schedule_type,
+        )
 
     async def validate_battery_schedule(self, schedule_type: str = "cfg") -> dict:
         """Validate a battery schedule configuration.
@@ -3700,10 +4300,7 @@ class EnphaseEVClient:
         )
         headers = self._battery_config_headers()
         headers["Content-Type"] = "application/json"
-        payload = {
-            "scheduleType": schedule_type,
-            "forceScheduleOpted": True,
-        }
+        payload = self._battery_schedule_validation_payload(schedule_type)
         return await self._json("POST", url, json=payload, headers=headers)
 
     async def charger_auth_settings(self, sn: str) -> list[dict[str, Any]]:
@@ -4812,6 +5409,30 @@ class EnphaseEVClient:
             families[family_key] = entries
         return normalized
 
+    @classmethod
+    def _normalize_pv_system_today_payload(cls, payload: object) -> dict | None:
+        """Normalize site-today payloads used by heat-pump daily totals."""
+
+        if not isinstance(payload, dict):
+            return None
+        stats = payload.get("stats")
+        normalized_stats: list[dict[str, object]] = []
+        if isinstance(stats, list):
+            for item in stats:
+                if not isinstance(item, dict):
+                    continue
+                normalized_stat = dict(item)
+                for key in ("heatpump", "heat_pump", "heat-pump"):
+                    value = item.get(key)
+                    if value is None:
+                        continue
+                    normalized_stat["heatpump"] = value
+                    break
+                normalized_stats.append(normalized_stat)
+        normalized = dict(payload)
+        normalized["stats"] = normalized_stats
+        return normalized
+
     async def hems_heatpump_state(
         self, device_uid: str, *, timezone: str | None = None
     ) -> dict | None:
@@ -4908,6 +5529,38 @@ class EnphaseEVClient:
                 return None
             raise
         return self._normalize_hems_energy_consumption_payload(data)
+
+    async def pv_system_today(self) -> dict | None:
+        """Return the site today payload when available."""
+
+        url = f"{BASE_URL}/pv/systems/{self._site}/today"
+        try:
+            data = await self._json("GET", url, headers=self._today_json_headers)
+        except Unauthorized:
+            _LOGGER.debug(
+                "PV site today endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            return None
+        except InvalidPayloadError as err:
+            if _is_optional_non_json_payload(err):
+                _LOGGER.debug(
+                    "PV site today endpoint unavailable for site %s (%s)",
+                    redact_site_id(self._site),
+                    redact_text(err.summary, site_ids=(self._site,)),
+                )
+                return None
+            raise
+        except aiohttp.ClientResponseError as err:
+            if err.status in (401, 403, 404):
+                _LOGGER.debug(
+                    "PV site today endpoint unavailable for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                return None
+            raise
+        return self._normalize_pv_system_today_payload(data)
 
     @classmethod
     def _normalize_hems_power_timeseries_payload(cls, payload: object) -> dict | None:
@@ -5370,6 +6023,8 @@ class EnphaseEVClient:
         )
         try:
             data = await self._json("GET", url, headers=self._today_headers())
+        except EnphaseLoginWallUnauthorized:
+            raise
         except Unauthorized:
             _LOGGER.debug(
                 "EVSE feature flags endpoint unavailable for site %s (unauthorized)",
@@ -5609,6 +6264,86 @@ class EnphaseEVClient:
         if isinstance(data, dict):
             return data
         return {}
+
+    async def ac_battery_devices_page(self, *, status: str = "active") -> str:
+        """Return the AC Battery devices page HTML for the site."""
+
+        url = str(
+            URL(f"{BASE_URL}/systems/{self._site}/devices").update_query(
+                {"status": status}
+            )
+        )
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status={status}"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def ac_battery_detail_page(self, battery_id: str) -> str:
+        """Return the AC Battery detail page HTML."""
+
+        url = f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}"
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status=active"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def ac_battery_events_page(self, battery_id: str) -> str:
+        """Return the AC Battery events page HTML."""
+
+        url = f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/events"
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def ac_battery_show_stat_data(self, battery_id: str) -> str:
+        """Return the AC Battery telemetry HTML fragment."""
+
+        url = (
+            f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/show_stat_data"
+        )
+        headers = self._layout_headers()
+        headers["Accept"] = "*/*"
+        headers["Referer"] = (
+            f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}"
+        )
+        return await self._text("GET", url, headers=headers)
+
+    async def set_ac_battery_sleep(
+        self, battery_id: str, sleep_min_soc: int
+    ) -> TextResponse:
+        """Request AC Battery sleep mode using the Enlighten web route."""
+
+        url = str(
+            URL(
+                f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/sleep"
+            ).update_query({"sleep_min_soc": int(sleep_min_soc)})
+        )
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status=active"
+        )
+        return await self._text_response(
+            "GET",
+            url,
+            headers=headers,
+            allow_redirects=False,
+            expected_statuses=(302,),
+        )
+
+    async def set_ac_battery_wake(self, battery_id: str) -> TextResponse:
+        """Request AC Battery wake/cancel using the Enlighten web route."""
+
+        url = f"{BASE_URL}/systems/{self._site}/ac_batteries/{battery_id}/wake"
+        headers = self._systems_html_headers(
+            f"{BASE_URL}/systems/{self._site}/devices?status=active"
+        )
+        return await self._text_response(
+            "GET",
+            url,
+            headers=headers,
+            allow_redirects=False,
+            expected_statuses=(302,),
+        )
 
     async def dry_contacts_settings(self) -> dict:
         """Return dry-contact settings payload used by site settings views.

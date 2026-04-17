@@ -40,6 +40,7 @@
         "data": {
           "type_envoy": "Gateway",
           "type_encharge": "Battery",
+          "type_ac_battery": "AC Battery",
           "type_iqevse": "EV Chargers",
           "type_heatpump": "Heat Pump",
           "type_microinverter": "Microinverters",
@@ -48,6 +49,7 @@
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
           "type_encharge": "Includes battery status and control entities when available.",
+          "type_ac_battery": "Includes AC Battery sensors and sleep mode controls when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
@@ -135,6 +137,7 @@
         "data": {
           "type_envoy": "Gateway",
           "type_encharge": "Battery",
+          "type_ac_battery": "AC Battery",
           "type_iqevse": "EV Chargers",
           "type_heatpump": "Heat Pump",
           "type_microinverter": "Microinverters",
@@ -151,6 +154,7 @@
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
           "type_encharge": "Includes battery status and control entities when available.",
+          "type_ac_battery": "Includes AC Battery sensors and sleep mode controls when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
@@ -171,6 +175,7 @@
         "data": {
           "type_envoy": "Gateway",
           "type_encharge": "Battery",
+          "type_ac_battery": "AC Battery",
           "type_iqevse": "EV Chargers",
           "type_heatpump": "Heat Pump",
           "type_microinverter": "Microinverters",
@@ -187,6 +192,7 @@
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
           "type_encharge": "Includes battery status and control entities when available.",
+          "type_ac_battery": "Includes AC Battery sensors and sleep mode controls when available.",
           "type_iqevse": "Includes EV charger entities and controls.",
           "type_heatpump": "Includes heat pump status, diagnostics, and usage sensors.",
           "type_microinverter": "Includes microinverter connectivity, active count, and lifetime production sensors.",
@@ -237,7 +243,7 @@
       },
       "migrate_envoy_confirm": {
         "title": "Confirm Envoy History Migration",
-        "description": "The selected source entities will be renamed to archived legacy entity IDs.\n\nThe Enphase Energy entities will then be renamed to the original source entity IDs.\n\nIf any mapping is wrong, cancel now. Restoring from backup is the safest rollback.\n\n{mapping_preview}",
+        "description": "The selected source entities will be renamed to archived legacy entity IDs.\n\nThe Enphase Energy entities will then be renamed to the original source entity IDs.\n\nIf any mapping is wrong, cancel now. Restoring from backup is the safest rollback.\n\n{mapping_preview}{warning_preview}",
         "data": {
           "confirm_reassign": "I understand the selected source entity IDs will be reassigned",
           "disable_archived_envoy_sensors": "Disable archived source sensors after migration"
@@ -251,8 +257,7 @@
       "migration_no_selection": "Select at least one compatible energy sensor to migrate.",
       "migration_duplicate_selection": "The same source entity cannot be used more than once.",
       "envoy_entry_loaded": "Envoy integration could not be temporarily unloaded for migration.",
-      "incompatible_energy_total": "Selected entities are not compatible energy totals.",
-      "new_value_lower": "New sensor value is lower than the existing Envoy value."
+      "incompatible_energy_total": "Selected entities are not compatible energy totals."
     },
     "abort": {
       "migration_no_envoy_sources": "No Enphase Envoy energy sensors are available to migrate.",
@@ -1012,6 +1017,45 @@
       "battery_last_reported": {
         "name": "Battery Last Reported"
       },
+      "ac_battery_overall_status": {
+        "name": "AC Battery Overall Status",
+        "state": {
+          "normal": "Normal",
+          "warning": "Warning",
+          "error": "Error",
+          "unknown": "Unknown"
+        }
+      },
+      "ac_battery_power": {
+        "name": "AC Battery Power"
+      },
+      "ac_battery_last_reported": {
+        "name": "AC Battery Last Reported"
+      },
+      "ac_battery_storage_charge": {
+        "name": "AC Battery Charge Level"
+      },
+      "ac_battery_storage_status": {
+        "name": "{serial} Status",
+        "state": {
+          "normal": "Normal",
+          "warning": "Warning",
+          "error": "Error",
+          "unknown": "Unknown"
+        }
+      },
+      "ac_battery_storage_power": {
+        "name": "{serial} Power"
+      },
+      "ac_battery_storage_operating_mode": {
+        "name": "{serial} Operating Mode"
+      },
+      "ac_battery_storage_cycle_count": {
+        "name": "{serial} Cycle Count"
+      },
+      "ac_battery_storage_last_reported": {
+        "name": "{serial} Last Reported At"
+      },
       "system_controller_inventory": {
         "name": "System Controller"
       },
@@ -1282,6 +1326,9 @@
       },
       "restrict_battery_discharge_schedule": {
         "name": "Restrict Battery Discharge Schedule"
+      },
+      "ac_battery_sleep_mode": {
+        "name": "AC Battery Sleep Mode"
       }
     },
     "time": {
@@ -1315,6 +1362,9 @@
       },
       "charge_mode": {
         "name": "Charge Mode"
+      },
+      "ac_battery_target_state_of_charge": {
+        "name": "AC Battery Target State of Charge"
       }
     },
     "button": {
@@ -1367,6 +1417,10 @@
     "reauth_required": {
       "title": "Enphase Energy needs reauthentication",
       "description": "Site {site_id} requires updated session headers. Please reauthenticate."
+    },
+    "auth_blocked": {
+      "title": "Enphase Energy authentication temporarily blocked",
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
     },
     "rate_limited": {
       "title": "Enphase Energy is rate limited",

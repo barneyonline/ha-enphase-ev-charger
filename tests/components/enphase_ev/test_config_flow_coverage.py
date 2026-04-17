@@ -27,6 +27,7 @@ from custom_components.enphase_ev.api import (
 from custom_components.enphase_ev.config_flow import (
     CONF_OTP,
     CONF_RESEND_CODE,
+    CONF_TYPE_AC_BATTERY,
     CONF_TYPE_ENCHARGE,
     CONF_TYPE_ENVOY,
     CONF_TYPE_HEATPUMP,
@@ -39,6 +40,9 @@ from custom_components.enphase_ev.config_flow import (
     OptionsFlowHandler,
 )
 from custom_components.enphase_ev.const import (
+    CONF_AUTH_BLOCK_REASON,
+    CONF_AUTH_BLOCKED_UNTIL,
+    CONF_AUTH_REFRESH_SUSPENDED_UNTIL,
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
@@ -66,6 +70,7 @@ from custom_components.enphase_ev.envoy_history import migration_target_unique_i
 from custom_components.enphase_ev.envoy_history import skip_option_value
 from custom_components.enphase_ev.envoy_history import EnvoyHistoryExecutionError
 from custom_components.enphase_ev.envoy_history import EnvoyHistoryMapping
+from custom_components.enphase_ev.envoy_history import EnvoyHistoryValidation
 
 TOKENS = AuthTokens(
     cookie="jar=1",
@@ -701,7 +706,13 @@ async def test_devices_step_defaults_to_available_type_keys(hass) -> None:
     flow._chargers_loaded = True
     flow._chargers = [("EV1", "Garage"), ("EV2", "Driveway")]
     flow._type_keys_loaded = True
-    flow._available_type_keys = ["envoy", "iqevse", "heatpump", "microinverter"]
+    flow._available_type_keys = [
+        "envoy",
+        "ac_battery",
+        "iqevse",
+        "heatpump",
+        "microinverter",
+    ]
 
     result = await flow.async_step_devices()
 
@@ -736,6 +747,17 @@ async def test_devices_step_defaults_to_available_type_keys(hass) -> None:
         else heatpump_key.default
     )
     assert heatpump_default is True
+    ac_battery_key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_TYPE_AC_BATTERY
+    )
+    ac_battery_default = (
+        ac_battery_key.default()
+        if callable(ac_battery_key.default)
+        else ac_battery_key.default
+    )
+    assert ac_battery_default is True
 
 
 @pytest.mark.asyncio
@@ -1163,6 +1185,9 @@ async def test_finalize_login_entry_reauth_updates_entry(hass) -> None:
             CONF_EMAIL: "user@example.com",
             CONF_REMEMBER_PASSWORD: True,
             CONF_PASSWORD: "old-secret",
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: "2026-04-10T13:00:00+00:00",
+            CONF_AUTH_BLOCKED_UNTIL: "2026-04-10T13:00:00+00:00",
+            CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
         },
     )
     entry.add_to_hass(hass)
@@ -1183,6 +1208,9 @@ async def test_finalize_login_entry_reauth_updates_entry(hass) -> None:
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data[CONF_PASSWORD] == "new-secret"
+    assert CONF_AUTH_REFRESH_SUSPENDED_UNTIL not in entry.data
+    assert CONF_AUTH_BLOCKED_UNTIL not in entry.data
+    assert CONF_AUTH_BLOCK_REASON not in entry.data
     mock_reload.assert_awaited_once_with(entry.entry_id)
 
 
@@ -1197,6 +1225,9 @@ async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
             CONF_REMEMBER_PASSWORD: True,
             CONF_PASSWORD: "legacy",
             CONF_SESSION_ID: "old-session",
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: "2026-04-10T13:00:00+00:00",
+            CONF_AUTH_BLOCKED_UNTIL: "2026-04-10T13:00:00+00:00",
+            CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
         },
     )
     entry.add_to_hass(hass)
@@ -1235,6 +1266,9 @@ async def test_finalize_login_entry_sync_update_removes_none(hass) -> None:
     assert CONF_COOKIE not in captured["data"]
     assert CONF_EAUTH not in captured["data"]
     assert CONF_ACCESS_TOKEN not in captured["data"]
+    assert CONF_AUTH_REFRESH_SUSPENDED_UNTIL not in captured["data"]
+    assert CONF_AUTH_BLOCKED_UNTIL not in captured["data"]
+    assert CONF_AUTH_BLOCK_REASON not in captured["data"]
 
 
 @pytest.mark.asyncio
@@ -1538,6 +1572,33 @@ async def test_ensure_available_type_keys_clears_unknown_when_legacy_fallback_su
     assert flow._available_type_keys == ["microinverter"]
 
 
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_discovers_ac_battery_from_site_settings(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+            AsyncMock(return_value={"data": {"hasAcb": True}}),
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._available_type_keys == ["ac_battery"]
+
+
 def test_legacy_microinverters_available_from_nested_result() -> None:
     assert config_flow._legacy_microinverters_available(
         {
@@ -1621,6 +1682,19 @@ def test_default_selected_type_keys_uses_flow_state(hass) -> None:
     assert flow._default_selected_type_keys(["envoy", "iqevse", "microinverter"]) == [
         "envoy"
     ]
+
+
+def test_battery_site_settings_has_acb_helper_branches() -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert config_flow._battery_site_settings_has_acb(None) is False
+    assert config_flow._battery_site_settings_has_acb({"data": "bad"}) is False
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": True}) is True
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": None}) is False
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": "YES"}) is True
+    assert config_flow._battery_site_settings_has_acb({"hasAcb": BadStr()}) is False
 
 
 def test_default_selected_type_keys_reconfigure_auto_selects_discovered_heatpump(
@@ -1723,6 +1797,22 @@ def test_fallback_type_keys_for_unknown_inventory_adds_iqevse_when_discovered(
         "envoy",
         "encharge",
         "iqevse",
+    ]
+
+
+def test_default_selected_type_keys_and_fallback_include_ac_battery(hass) -> None:
+    flow = _make_flow(hass)
+    assert flow._default_selected_type_keys(["envoy", "ac_battery"]) == [
+        "envoy",
+        "ac_battery",
+    ]
+
+    flow._available_type_keys = ["envoy", "ac_battery"]
+    flow._include_inverters = False
+    assert flow._fallback_type_keys_for_unknown_inventory([]) == [
+        "envoy",
+        "encharge",
+        "ac_battery",
     ]
 
 
@@ -1902,6 +1992,138 @@ def test_options_flow_build_schema_skips_missing_type_mapping(hass) -> None:
         isinstance(key, VolOptional) and key.schema == CONF_TYPE_IQEVSE
         for key in schema_keys
     )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_settings_hides_ac_battery_when_site_not_supported(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+        AsyncMock(return_value={"data": {"hasAcb": False}}),
+    )
+
+    result = await handler.async_step_settings()
+
+    schema_keys = list(result["data_schema"].schema.keys())
+    assert not any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_AC_BATTERY
+        for key in schema_keys
+    )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_settings_shows_ac_battery_when_site_supported(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+        AsyncMock(return_value={"data": {"hasAcb": True}}),
+    )
+
+    result = await handler.async_step_settings()
+
+    schema_keys = list(result["data_schema"].schema.keys())
+    assert any(
+        isinstance(key, VolOptional) and key.schema == CONF_TYPE_AC_BATTERY
+        for key in schema_keys
+    )
+
+
+@pytest.mark.asyncio
+async def test_options_flow_ac_battery_supported_for_options_short_circuits_when_selected(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "ac_battery"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    assert await handler._ac_battery_supported_for_options() is True
+
+
+@pytest.mark.asyncio
+async def test_options_flow_ac_battery_supported_for_options_requires_tokens_and_site(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "", CONF_SELECTED_TYPE_KEYS: ["envoy"]},
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    assert await handler._ac_battery_supported_for_options() is False
+
+
+@pytest.mark.asyncio
+async def test_options_flow_settings_ignores_unknown_visible_type_keys(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_COOKIE: "cookie=1",
+            CONF_EAUTH: "token",
+            CONF_SELECTED_TYPE_KEYS: ["envoy"],
+            CONF_SERIALS: [],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    monkeypatch.setattr(
+        handler,
+        "_settings_type_keys",
+        AsyncMock(return_value=["envoy", "unknown_type"]),
+    )
+
+    result = await handler.async_step_settings({CONF_TYPE_ENVOY: True})
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert handler._entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy"]
 
 
 def test_options_flow_default_nominal_voltage_uses_country(hass) -> None:
@@ -2945,6 +3167,52 @@ async def test_options_flow_migrate_mapping_handles_user_input_paths(
 
 
 @pytest.mark.asyncio
+async def test_options_flow_migrate_mapping_allows_lower_target_value(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="4.0",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_mapping(
+        {"solar_production": old_entity}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_confirm"
+    assert result["errors"] == {}
+
+
+@pytest.mark.asyncio
 async def test_options_flow_migrate_mapping_redirects_when_source_missing(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
@@ -3292,7 +3560,7 @@ async def test_options_flow_migrate_confirm_errors_when_auto_unload_fails(
 
 
 @pytest.mark.asyncio
-async def test_options_flow_migrate_confirm_reloads_source_after_validation_error(
+async def test_options_flow_migrate_confirm_warns_for_lower_target_value_and_continues(
     hass, monkeypatch
 ) -> None:
     entry = MockConfigEntry(
@@ -3336,13 +3604,151 @@ async def test_options_flow_migrate_confirm_reloads_source_after_validation_erro
     reload_spy = AsyncMock(return_value=True)
     monkeypatch.setattr(hass.config_entries, "async_reload", reload_spy)
 
+    form = await handler.async_step_migrate_envoy_confirm()
+
+    assert form["type"] is FlowResultType.FORM
+    assert form["errors"] == {}
+    assert (
+        form["description_placeholders"]["warning_preview"]
+        == "\n\nWarning: selected Enphase Energy totals are currently lower than "
+        "the existing source totals. Migration can still continue.\n"
+        "- `Site Solar Production`: Enphase Energy `sensor.site_solar_production` "
+        "= 4.00 kWh; existing `sensor.envoy_lifetime_production` = 5.00 kWh"
+    )
+
+    result = await handler.async_step_migrate_envoy_confirm(
+        {CONF_MIGRATION_CONFIRM_REASSIGN: True}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert reload_spy.awaited
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_reloads_source_after_post_unload_validation_error(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    object.__setattr__(envoy, "state", config_entries.ConfigEntryState.LOADED)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    new_entity = _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    monkeypatch.setattr(
+        hass.config_entries, "async_unload", AsyncMock(return_value=True)
+    )
+    reload_source_spy = AsyncMock(return_value=True)
+    monkeypatch.setattr(
+        handler, "_async_reload_migration_source_entry", reload_source_spy
+    )
+
+    success_validation = EnvoyHistoryValidation(
+        None,
+        [
+            EnvoyHistoryMapping(
+                flow_key="solar_production",
+                label="Solar",
+                old_entity_id=old_entity,
+                archived_entity_id="sensor.envoy_lifetime_production_envoy_legacy",
+                old_value_kwh=5.0,
+                new_entity_id=new_entity,
+                new_value_kwh=5.1,
+                target_unique_id=migration_target_unique_id(
+                    "12345", "solar_production"
+                ),
+            )
+        ],
+    )
+    error_validation = EnvoyHistoryValidation("incompatible_energy_total", [])
+
+    def _validate(*_args, require_source_unloaded=True, **_kwargs):
+        return error_validation if require_source_unloaded else success_validation
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.config_flow.validate_selected_mappings",
+        _validate,
+    )
+
     result = await handler.async_step_migrate_envoy_confirm(
         {CONF_MIGRATION_CONFIRM_REASSIGN: True}
     )
 
     assert result["type"] is FlowResultType.FORM
-    assert result["errors"] == {"base": "new_value_lower"}
-    assert reload_spy.awaited
+    assert result["errors"] == {"base": "incompatible_energy_total"}
+    reload_source_spy.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_omits_warning_preview_when_not_needed(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    old_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+    handler._migration_selection = {"solar_production": old_entity}
+
+    form = await handler.async_step_migrate_envoy_confirm()
+
+    assert form["type"] is FlowResultType.FORM
+    assert form["description_placeholders"]["warning_preview"] == ""
 
 
 @pytest.mark.asyncio

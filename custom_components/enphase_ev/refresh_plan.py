@@ -130,6 +130,12 @@ WARMUP_DISCOVERY_STAGE = RefreshStage(
             "async_refresh_battery_status",
         ),
         object_method_task(
+            "ac_battery_devices_s",
+            "AC Battery devices",
+            "battery_runtime",
+            "async_refresh_ac_battery_devices",
+        ),
+        object_method_task(
             "devices_inventory_s",
             "device inventory",
             "inventory_runtime",
@@ -155,6 +161,12 @@ WARMUP_STATE_STAGE = RefreshStage(
         ),
         method_task(
             "battery_settings_s", "battery settings", "_async_refresh_battery_settings"
+        ),
+        object_method_task(
+            "ac_battery_telemetry_s",
+            "AC Battery telemetry",
+            "battery_runtime",
+            "async_refresh_ac_battery_telemetry",
         ),
         method_task(
             "battery_schedules_s",
@@ -239,6 +251,12 @@ SITE_ONLY_FOLLOWUP_STAGE = RefreshStage(
             "async_refresh_battery_status",
         ),
         object_method_task(
+            "ac_battery_devices_s",
+            "AC Battery devices",
+            "battery_runtime",
+            "async_refresh_ac_battery_devices",
+        ),
+        object_method_task(
             "devices_inventory_s",
             "device inventory",
             "inventory_runtime",
@@ -263,6 +281,12 @@ FOLLOWUP_STAGE = RefreshStage(
             "battery status",
             "battery_runtime",
             "async_refresh_battery_status",
+        ),
+        object_method_task(
+            "ac_battery_devices_s",
+            "AC Battery devices",
+            "battery_runtime",
+            "async_refresh_ac_battery_devices",
         ),
         object_method_task(
             "devices_inventory_s",

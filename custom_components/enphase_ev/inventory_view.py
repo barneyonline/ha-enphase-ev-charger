@@ -70,6 +70,8 @@ class InventoryView:
             inferred.append("iqevse")
         if getattr(self.coordinator, "_battery_has_encharge", None) is True:
             inferred.append("encharge")
+        if getattr(self.coordinator, "_battery_has_acb", None) is True:
+            inferred.append("ac_battery")
         return [key for key in inferred if self._type_is_selected(key)]
 
     def _type_is_selected(self, type_key: object) -> bool:
@@ -107,8 +109,20 @@ class InventoryView:
             return True
         if self.has_type(normalized):
             return True
+        if normalized == "heatpump":
+            runtime = getattr(self.coordinator, "heatpump_runtime", None)
+            if bool(getattr(self.coordinator, "_heatpump_known_present", False)):
+                return True
+            helper = getattr(runtime, "heatpump_entities_established", None)
+            if callable(helper):
+                try:
+                    return bool(helper())
+                except Exception:  # noqa: BLE001
+                    return False
         if normalized == "encharge":
             return getattr(self.coordinator, "_battery_has_encharge", None) is True
+        if normalized == "ac_battery":
+            return getattr(self.coordinator, "_battery_has_acb", None) is True
         if normalized == "iqevse":
             return self._has_known_chargers()
         return False
@@ -167,7 +181,11 @@ class InventoryView:
             return None
         if not self._type_is_selected(normalized):
             return None
-        if not self.has_type(normalized):
+        if self.has_type(normalized):
+            return type_identifier(self.site_id, normalized)
+        if normalized not in {"encharge", "ac_battery"}:
+            return None
+        if not self.has_type_for_entities(normalized):
             return None
         return type_identifier(self.site_id, normalized)
 
@@ -215,6 +233,7 @@ class InventoryView:
         return {
             "envoy": "IQ Gateway",
             "encharge": "IQ Battery",
+            "ac_battery": "AC Battery",
             "iqevse": "IQ EV Charger",
             "heatpump": "Heat Pump",
             "microinverter": "IQ Microinverters",

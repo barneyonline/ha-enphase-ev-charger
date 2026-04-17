@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.exceptions import ConfigEntryAuthFailed
 
 from custom_components.enphase_ev.refresh_plan import (
     FOLLOWUP_STAGE,
@@ -405,6 +406,7 @@ def test_followup_refresh_stage_binds_zero_arg_calls() -> None:
     ]
     assert [call[0] for call in bound.ordered_calls] == [
         "battery_status_s",
+        "ac_battery_devices_s",
         "devices_inventory_s",
         "hems_devices_s",
     ]
@@ -470,7 +472,7 @@ async def test_coordinator_refresh_plan_runner_executes_each_stage(
     await coord.refresh_runner.async_run_refresh_plan({}, plan=FOLLOWUP_PLAN)
 
     assert seen == [
-        (None, True, 9, 3),
+        (None, True, 9, 4),
     ]
 
 
@@ -525,3 +527,61 @@ def test_coordinator_lazily_creates_refresh_runner() -> None:
 
     assert isinstance(runner, RefreshRunner)
     assert runner is coord.refresh_runner
+
+
+@pytest.mark.asyncio
+async def test_refresh_runner_login_wall_raises_auth_failed_with_block_message(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+
+    coord = coordinator_factory()
+    coord._activate_auth_block_from_login_wall = MagicMock(return_value=True)  # type: ignore[method-assign]  # noqa: SLF001
+    coord._blocked_auth_failure_message = MagicMock(return_value="blocked")  # type: ignore[method-assign]  # noqa: SLF001
+
+    async def _raise() -> None:
+        raise EnphaseLoginWallUnauthorized(
+            endpoint="/service/test",
+            request_label="GET /service/test",
+            status=200,
+            content_type="text/html; charset=utf-8",
+            body_preview_redacted="<!DOCTYPE html>",
+        )
+
+    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+        await coord.refresh_runner.async_run_refresh_call("k", "label", _raise)
+
+
+@pytest.mark.asyncio
+async def test_refresh_runner_login_wall_without_block_still_raises_auth_failed(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+
+    coord = coordinator_factory()
+    coord._activate_auth_block_from_login_wall = MagicMock(return_value=False)  # type: ignore[method-assign]  # noqa: SLF001
+
+    async def _raise() -> None:
+        raise EnphaseLoginWallUnauthorized(
+            endpoint="/service/test",
+            request_label="GET /service/test",
+            status=200,
+            content_type="text/html; charset=utf-8",
+            body_preview_redacted="<!DOCTYPE html>",
+        )
+
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coord.refresh_runner.async_run_refresh_call("k", "label", _raise)
+
+
+@pytest.mark.asyncio
+async def test_refresh_runner_does_not_swallow_config_entry_auth_failed(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    async def _raise() -> None:
+        raise ConfigEntryAuthFailed("reauth")
+
+    with pytest.raises(ConfigEntryAuthFailed, match="reauth"):
+        await coord.refresh_runner.async_run_refresh_call("k", "label", _raise)

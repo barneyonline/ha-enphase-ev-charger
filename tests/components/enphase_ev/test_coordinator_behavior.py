@@ -1813,7 +1813,7 @@ async def test_handle_client_unauthorized_refresh(monkeypatch, hass):
     assert result is True
     assert coord._unauth_errors == 0
     assert coord._last_error == "unauthorized"
-    assert deleted == ["reauth_required"]
+    assert deleted == ["reauth_required", "auth_blocked"]
     assert created == []
 
 
@@ -1861,6 +1861,39 @@ async def test_handle_client_unauthorized_failure(monkeypatch, hass):
     metrics = payload["data"]["site_metrics"]
     assert metrics["site_name"] == "Garage Site"
     assert metrics["last_error"] == "unauthorized"
+
+
+@pytest.mark.asyncio
+async def test_handle_client_unauthorized_reports_auth_block_when_active(
+    monkeypatch, hass
+):
+    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
+
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._attempt_auto_refresh = AsyncMock(return_value=False)
+    coord._auth_block_active = MagicMock(return_value=True)  # type: ignore[method-assign]  # noqa: SLF001
+    coord._blocked_auth_failure_message = MagicMock(return_value="blocked")  # type: ignore[method-assign]  # noqa: SLF001
+
+    created: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(
+        diag_mod.ir,
+        "async_create_issue",
+        lambda hass_, domain, issue_id, **kwargs: created.append((issue_id, kwargs)),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        diag_mod.ir,
+        "async_delete_issue",
+        lambda *args, **kwargs: None,
+        raising=False,
+    )
+
+    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+        await coord._handle_client_unauthorized()
+
+    assert [issue_id for issue_id, _payload in created] == ["auth_blocked"]
 
 
 @pytest.mark.asyncio
@@ -1941,7 +1974,41 @@ async def test_async_start_charging_manual_mode_sends_requested_amps(hass, monke
     await coord.async_start_charging(RANDOM_SERIAL)
 
     coord.client.start_charging.assert_awaited_once_with(
-        RANDOM_SERIAL, 26, 1, include_level=True, strict_preference=True
+        RANDOM_SERIAL, 26, 1, include_level=True, strict_preference=False
+    )
+    coord.client.set_charge_mode.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_start_charging_manual_mode_explicit_request_stays_strict(
+    hass, monkeypatch
+):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {
+        RANDOM_SERIAL: {
+            "plugged": True,
+            "charging_level": 26,
+            "charge_mode_pref": "MANUAL_CHARGING",
+        }
+    }
+    coord.last_set_amps = {}
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value=None),
+        set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
+    )
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_start_charging(RANDOM_SERIAL, requested_amps=24)
+
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 24, 1, include_level=True, strict_preference=True
     )
     coord.client.set_charge_mode.assert_not_awaited()
 
@@ -1972,7 +2039,7 @@ async def test_async_start_and_stop_preserve_scheduled_mode(hass, monkeypatch):
 
     await coord.async_start_charging(RANDOM_SERIAL)
     coord.client.start_charging.assert_awaited_once_with(
-        RANDOM_SERIAL, 18, 1, include_level=True, strict_preference=True
+        RANDOM_SERIAL, 18, 1, include_level=True, strict_preference=False
     )
     coord.client.set_charge_mode.assert_awaited_once_with(
         RANDOM_SERIAL, "SCHEDULED_CHARGING"
@@ -1980,6 +2047,42 @@ async def test_async_start_and_stop_preserve_scheduled_mode(hass, monkeypatch):
 
     coord.client.set_charge_mode.reset_mock()
     await coord.async_stop_charging(RANDOM_SERIAL)
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "SCHEDULED_CHARGING"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_start_charging_scheduled_mode_explicit_request_stays_strict(
+    hass, monkeypatch
+):
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.serials = {RANDOM_SERIAL}
+    coord.data = {
+        RANDOM_SERIAL: {
+            "plugged": True,
+            "charging_level": 18,
+            "charge_mode_pref": "SCHEDULED_CHARGING",
+        }
+    }
+    coord.last_set_amps = {}
+    coord.set_charging_expectation = MagicMock()
+    coord.kick_fast = MagicMock()
+    coord.client = SimpleNamespace(
+        start_charging=AsyncMock(return_value={"status": "ok"}),
+        stop_charging=AsyncMock(return_value={"status": "ok"}),
+        set_charge_mode=AsyncMock(return_value={"status": "ok"}),
+        start_live_stream=AsyncMock(
+            return_value={"status": "accepted", "duration_s": 900}
+        ),
+    )
+    coord.async_request_refresh = AsyncMock()
+
+    await coord.async_start_charging(RANDOM_SERIAL, requested_amps=24)
+
+    coord.client.start_charging.assert_awaited_once_with(
+        RANDOM_SERIAL, 24, 1, include_level=True, strict_preference=True
+    )
     coord.client.set_charge_mode.assert_awaited_once_with(
         RANDOM_SERIAL, "SCHEDULED_CHARGING"
     )
@@ -2704,8 +2807,11 @@ def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) ->
     coord._inverter_data = {"INV-1": {"name": "Inverter 1"}}  # noqa: SLF001
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_has_enpower = False  # noqa: SLF001
+    coord._heatpump_known_present = True  # noqa: SLF001
+    coord._type_device_buckets["heatpump"] = {"count": 0, "devices": []}  # noqa: SLF001
 
     snapshot = coord.discovery_snapshot.capture()
+    assert snapshot["heatpump_known_present"] is True
     assert snapshot["site_energy_channels"] == ["heat_pump"]
     assert snapshot["gateway_iq_energy_router_records"] == [
         {"device-uid": "REST-1", "device-type": "IQ_ENERGY_ROUTER"}
@@ -2773,6 +2879,7 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
             },
             "battery_has_encharge": "enabled",
             "battery_has_enpower": "disabled",
+            "heatpump_known_present": "enabled",
             "site_energy_channels": ["", "heat_pump"],
             "gateway_iq_energy_router_records": [{"device-uid": "REST-1"}, "bad"],
         }
@@ -2789,6 +2896,7 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
     assert coord._restored_gateway_iq_energy_router_records == [  # noqa: SLF001
         {"device-uid": "REST-1"}
     ]
+    assert coord._heatpump_known_present is True  # noqa: SLF001
 
     coord = _make_coordinator(hass, monkeypatch)
     coord._devices_inventory_ready = True  # noqa: SLF001
@@ -4602,7 +4710,11 @@ async def test_timeout_backoff_issue_recovery(hass, monkeypatch):
     assert coord._last_error is None
     assert delete_calls
     assert delete_calls[-1][1] == ISSUE_NETWORK_UNREACHABLE
-    assert len(delete_calls) == 2
+    assert [issue_id for _, issue_id in delete_calls] == [
+        "reauth_required",
+        "auth_blocked",
+        ISSUE_NETWORK_UNREACHABLE,
+    ]
     assert coord._backoff_until is None
 
 

@@ -27,6 +27,7 @@ from homeassistant.util import dt as dt_util
 
 from .api import (
     AuthTokens,
+    EnphaseLoginWallUnauthorized,
     EnphaseEVClient,
     InvalidPayloadError,
     OptionalEndpointUnavailable,
@@ -35,8 +36,12 @@ from .api import (
 )
 from .auth_refresh_runtime import AuthRefreshRuntime
 from .const import (
+    AUTH_BLOCKED_COOLDOWN_S,
     BATTERY_MIN_SOC_FALLBACK,
     CONF_ACCESS_TOKEN,
+    CONF_AUTH_BLOCK_REASON,
+    CONF_AUTH_BLOCKED_UNTIL,
+    CONF_AUTH_REFRESH_SUSPENDED_UNTIL,
     CONF_COOKIE,
     DEFAULT_CHARGE_LEVEL_SETTING,
     DEFAULT_NOMINAL_VOLTAGE,
@@ -80,6 +85,7 @@ from .evse_timeseries import EVSETimeseriesManager
 from .evse_feature_flags_runtime import EvseFeatureFlagsRuntime
 from .evse_runtime import (
     AMP_RESTART_DELAY_S,
+    FAST_TOGGLE_POLL_HOLD_S,
     SUSPENDED_EVSE_STATUS,
     ChargeModeStartPreferences,
     EvseRuntime,
@@ -289,6 +295,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             access_token=access_token,
             token_expires_at=config.get(CONF_TOKEN_EXPIRES_AT),
         )
+        auth_refresh_suspended_until = self._coerce_utc_datetime(
+            config.get(CONF_AUTH_REFRESH_SUSPENDED_UNTIL)
+        )
+        auth_blocked_until = self._coerce_utc_datetime(
+            config.get(CONF_AUTH_BLOCKED_UNTIL)
+        )
+        raw_auth_block_reason = config.get(CONF_AUTH_BLOCK_REASON)
+        auth_block_reason = (
+            str(raw_auth_block_reason).strip() if raw_auth_block_reason else None
+        )
         timeout = (
             int(config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT))
             if config_entry
@@ -316,6 +332,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 _topology_snapshot_cache=CoordinatorTopologySnapshot(
                     charger_serials=(),
                     battery_serials=(),
+                    ac_battery_serials=(),
                     inverter_serials=(),
                     active_type_keys=(),
                     gateway_iq_router_keys=(),
@@ -336,6 +353,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
         )
         self._refresh_lock = asyncio.Lock()
+        self._auth_refresh_suspended_until_utc = auth_refresh_suspended_until
+        self._auth_blocked_until_utc = auth_blocked_until
+        self._auth_block_reason = auth_block_reason
         # Nominal voltage for estimated power when API omits voltage; user-configurable
         self._nominal_v = resolve_nominal_voltage_for_hass(hass)
         if config_entry is not None:
@@ -493,6 +513,33 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 max_backoff_s=3600.0,
                 support_state_on_success=True,
             ),
+            "ac_battery_devices": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=1800.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+            "ac_battery_telemetry": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=1800.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+            "ac_battery_events": EndpointFamilyPolicy(
+                success_ttl_s=900.0,
+                stale_after_s=21600.0,
+                failure_backoff_schedule_s=(900.0, 1800.0, 3600.0, 7200.0),
+                max_backoff_s=7200.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
             "grid_control_check": EndpointFamilyPolicy(
                 success_ttl_s=300.0,
                 stale_after_s=GRID_CONTROL_CHECK_STALE_AFTER_S,
@@ -573,6 +620,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 support_state_on_success=True,
             ),
             "inverter_production": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=1800.0,
                 failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
                 max_backoff_s=3600.0,
                 optional=True,
@@ -1653,9 +1702,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return total if found else None
 
     def _build_heatpump_daily_consumption_snapshot(
-        self, payload: object
+        self, split_payload: object, site_today_payload: object | None = None
     ) -> dict[str, object] | None:
-        return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(payload)
+        if site_today_payload is None:
+            return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(
+                split_payload
+            )
+        return self.heatpump_runtime._build_heatpump_daily_consumption_snapshot(
+            split_payload,
+            site_today_payload,
+        )
 
     def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
         return self.heatpump_runtime._heatpump_power_candidate_device_uids()
@@ -1854,6 +1910,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             "devices_inventory_payload": getattr(
                 self, "_devices_inventory_payload", None
             ),
+            "ac_battery_devices_payload": getattr(
+                self, "_ac_battery_devices_payload", None
+            ),
+            "ac_battery_telemetry_payloads": getattr(
+                self, "_ac_battery_telemetry_payloads", None
+            ),
+            "ac_battery_events_payloads": getattr(
+                self, "_ac_battery_events_payloads", None
+            ),
         }
 
     def heatpump_runtime_diagnostics(self) -> dict[str, object]:
@@ -2026,7 +2091,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self.site_only or not self.serials:
             self._backoff_until = None
             self._clear_backoff_timer()
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
             self.diagnostics.clear_network_issue()
             self.diagnostics.clear_cloud_issue()
             self.diagnostics.clear_dns_issue()
@@ -2050,6 +2115,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     phase_timings,
                     plan=SITE_ONLY_FOLLOWUP_PLAN,
                 )
+            if not self._auth_refresh_suspended_active():
+                self._clear_auth_refresh_rejection_state()
             self._prune_runtime_caches(active_serials=(), keep_day_keys=())
             self._sync_battery_profile_pending_issue()
             self.last_success_utc = dt_util.utcnow()
@@ -2164,6 +2231,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self._backoff_until and time.monotonic() < self._backoff_until:
             raise UpdateFailed("In backoff due to rate limiting or server errors")
 
+        if self._auth_block_active():
+            self._last_error = "auth_blocked"
+            self.last_failure_utc = dt_util.utcnow()
+            self.last_failure_status = None
+            self.last_failure_description = self._blocked_auth_failure_message()
+            self.last_failure_response = self.last_failure_description
+            self.last_failure_source = "auth"
+            self.last_failure_endpoint = None
+            self._network_errors = 0
+            self._http_errors = 0
+            self._payload_errors = 0
+            self.diagnostics.create_auth_block_issue()
+            raise ConfigEntryAuthFailed(self.last_failure_description)
+
         try:
             status_start = time.monotonic()
             data = await self.client.status()
@@ -2179,10 +2260,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.payload_using_stale = False
             self.payload_failure_kind = None
             self._unauth_errors = 0
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
         except ConfigEntryAuthFailed:
             raise
         except Unauthorized as err:
+            if self._activate_auth_block_from_login_wall(err):
+                raise ConfigEntryAuthFailed(
+                    self._blocked_auth_failure_message()
+                ) from err
             raise ConfigEntryAuthFailed from err
         except OptionalEndpointUnavailable as err:
             reason = (str(err) or "EVSE status endpoint unavailable").strip()
@@ -2223,7 +2308,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._payload_errors = 0
             self._network_errors = 0
             self._http_errors = 0
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
             signature = err.signature_dict()
@@ -2404,7 +2489,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # Success path: reset counters, record last success
         if self._unauth_errors:
             # Clear any outstanding reauth issues on success
-            self.diagnostics.clear_reauth_issue()
+            self._clear_auth_repair_issues_on_success()
         self._unauth_errors = 0
         self._rate_limit_hits = 0
         self._http_errors = 0
@@ -2430,6 +2515,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 phase_timings,
                 plan=FOLLOWUP_PLAN,
             )
+        if not self._auth_refresh_suspended_active():
+            self._clear_auth_refresh_rejection_state()
 
         prev_data = self.data if isinstance(self.data, dict) else {}
         self._has_successful_refresh = True
@@ -3814,6 +3901,197 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         return True
         return False
 
+    @staticmethod
+    def _coerce_utc_datetime(value: object) -> datetime | None:
+        """Return a timezone-aware UTC datetime when the value is parseable."""
+
+        if isinstance(value, datetime):
+            if value.tzinfo is None:
+                return value.replace(tzinfo=_tz.utc)
+            return value.astimezone(_tz.utc)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not text:
+            return None
+        parsed = dt_util.parse_datetime(text)
+        if parsed is None:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=_tz.utc)
+        return parsed.astimezone(_tz.utc)
+
+    @staticmethod
+    def _format_auth_blocked_until(value: datetime | None) -> str | None:
+        """Return a compact UTC timestamp for repair-issue placeholders."""
+
+        if not isinstance(value, datetime):
+            return None
+        try:
+            return value.astimezone(_tz.utc).strftime("%Y-%m-%d %H:%M UTC")
+        except Exception:  # noqa: BLE001
+            try:
+                return value.isoformat()
+            except Exception:
+                return str(value)
+
+    def _persist_auth_block_state(self) -> None:
+        """Persist the long Enphase auth block metadata on the config entry."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return
+        merged = dict(config_entry.data)
+        if self._auth_blocked_until_utc is None:
+            merged.pop(CONF_AUTH_BLOCKED_UNTIL, None)
+        else:
+            merged[CONF_AUTH_BLOCKED_UNTIL] = self._auth_blocked_until_utc.isoformat()
+        if self._auth_block_reason:
+            merged[CONF_AUTH_BLOCK_REASON] = self._auth_block_reason
+        else:
+            merged.pop(CONF_AUTH_BLOCK_REASON, None)
+        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+
+    def _persist_auth_refresh_suspension_state(self) -> None:
+        """Persist stored-credential auto-refresh suspension metadata."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return
+        merged = dict(config_entry.data)
+        if self._auth_refresh_suspended_until_utc is None:
+            merged.pop(CONF_AUTH_REFRESH_SUSPENDED_UNTIL, None)
+        else:
+            merged[CONF_AUTH_REFRESH_SUSPENDED_UNTIL] = (
+                self._auth_refresh_suspended_until_utc.isoformat()
+            )
+        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+
+    def _clear_auth_refresh_rejection_state(self) -> None:
+        """Clear the short rejected-refresh streak and cooldown state."""
+
+        self._auth_refresh_rejected_count = 0
+        self._auth_refresh_rejected_until = None
+        self._auth_refresh_rejected_ends_utc = None
+
+    def _clear_auth_refresh_suspension(self, *, persist: bool = True) -> None:
+        """Clear stored-credential auto-refresh suspension state."""
+
+        had_state = bool(getattr(self, "_auth_refresh_suspended_until_utc", None))
+        self._clear_auth_refresh_rejection_state()
+        self._auth_refresh_suspended_until_utc = None
+        if persist and had_state:
+            self._persist_auth_refresh_suspension_state()
+
+    def _auth_refresh_suspended_active(self) -> bool:
+        """Return True while stored-credential auto-refresh is suspended."""
+
+        suspended_until = getattr(self, "_auth_refresh_suspended_until_utc", None)
+        if not isinstance(suspended_until, datetime):
+            return False
+        if suspended_until > dt_util.utcnow():
+            return True
+        self._clear_auth_refresh_suspension()
+        return False
+
+    def _note_auth_refresh_suspended(self, *, suspended_until: datetime) -> None:
+        """Persist a long suspension after repeated stored-credential rejection."""
+
+        self._auth_refresh_suspended_until_utc = suspended_until.astimezone(_tz.utc)
+        self._persist_auth_refresh_suspension_state()
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.create_reauth_issue()
+
+    def _clear_auth_repair_issues_on_success(self) -> None:
+        """Clear auth repairs unless auto-refresh suspension should keep reauth visible."""
+
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is None:
+            return
+        if self._auth_refresh_suspended_active():
+            diagnostics.clear_auth_block_issue()
+            return
+        diagnostics.clear_reauth_issue()
+
+    def _clear_auth_block(self, *, persist: bool = True) -> None:
+        """Clear the Enphase auth-block state and its repair issue."""
+
+        had_state = bool(
+            getattr(self, "_auth_blocked_until_utc", None)
+            or getattr(self, "_auth_block_reason", None)
+        )
+        self._auth_blocked_until_utc = None
+        self._auth_block_reason = None
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.clear_auth_block_issue()
+        if persist and had_state:
+            self._persist_auth_block_state()
+
+    def _auth_block_active(self) -> bool:
+        """Return True while Enphase appears to be blocking API authentication."""
+
+        blocked_until = getattr(self, "_auth_blocked_until_utc", None)
+        if not isinstance(blocked_until, datetime):
+            return False
+        if blocked_until > dt_util.utcnow():
+            return True
+        self._clear_auth_block()
+        return False
+
+    def _note_auth_blocked(
+        self,
+        *,
+        blocked_until: datetime,
+        reason: str,
+    ) -> None:
+        """Persist a long auth block after Enphase serves the browser login wall."""
+
+        self._auth_blocked_until_utc = blocked_until.astimezone(_tz.utc)
+        self._auth_block_reason = str(reason).strip() or None
+        self._last_error = "auth_blocked"
+        self._persist_auth_block_state()
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.create_auth_block_issue()
+
+    def _activate_auth_block_from_login_wall(self, err: Unauthorized) -> bool:
+        """Persist a long auth block when a login wall follows a rejected refresh."""
+
+        if not isinstance(err, EnphaseLoginWallUnauthorized):
+            return False
+        if not self._auth_refresh_rejected_active():
+            return False
+        if self._auth_block_active():
+            diagnostics = getattr(self, "diagnostics", None)
+            if diagnostics is not None:
+                diagnostics.create_auth_block_issue()
+            return True
+        self.auth_refresh_runtime.note_login_wall_block(
+            reason="login_wall_after_refresh_reject"
+        )
+        _LOGGER.warning(
+            "Enphase login wall detected for site %s while auth refresh cooldown was active; blocking automatic retries for %s seconds",
+            redact_site_id(self.site_id),
+            int(AUTH_BLOCKED_COOLDOWN_S),
+        )
+        return True
+
+    def _blocked_auth_failure_message(self) -> str:
+        """Return the user-facing auth-block failure message."""
+
+        blocked_until = self._format_auth_blocked_until(self._auth_blocked_until_utc)
+        if blocked_until:
+            return (
+                "Enphase authentication is temporarily blocked; wait until "
+                f"{blocked_until} before retrying."
+            )
+        return "Enphase authentication is temporarily blocked; retry later."
+
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials.
 
@@ -3856,6 +4134,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._unauth_errors = 0
             self.diagnostics.clear_reauth_issue()
             return True
+
+        if self._auth_block_active():
+            self.diagnostics.create_auth_block_issue()
+            raise ConfigEntryAuthFailed(self._blocked_auth_failure_message())
 
         if self._unauth_errors >= 2:
             self.diagnostics.create_reauth_issue()
@@ -3921,12 +4203,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             CONF_ACCESS_TOKEN: tokens.access_token,
             CONF_SESSION_ID: tokens.session_id,
             CONF_TOKEN_EXPIRES_AT: tokens.token_expires_at,
+            CONF_AUTH_REFRESH_SUSPENDED_UNTIL: None,
+            CONF_AUTH_BLOCKED_UNTIL: None,
+            CONF_AUTH_BLOCK_REASON: None,
         }
         for key, value in updates.items():
             if value is None:
                 merged.pop(key, None)
             else:
                 merged[key] = value
+        self._clear_auth_refresh_rejection_state()
+        self._auth_refresh_suspended_until_utc = None
+        self._auth_blocked_until_utc = None
+        self._auth_block_reason = None
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.clear_reauth_issue()
         self.hass.config_entries.async_update_entry(self.config_entry, data=merged)
 
     def kick_fast(self, seconds: int = 60) -> None:
@@ -4294,6 +4586,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return getattr(self, "_battery_has_encharge", None)
 
     @property
+    def battery_has_acb(self) -> bool | None:
+        return getattr(self, "_battery_has_acb", None)
+
+    @property
     def battery_is_charging_modes_enabled(self) -> bool | None:
         return getattr(self, "_battery_is_charging_modes_enabled", None)
 
@@ -4447,6 +4743,50 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         details["aggregate_status"] = self.battery_aggregate_status
         details["battery_order"] = self.iter_battery_serials()
         return details
+
+    @property
+    def ac_battery_aggregate_status(self) -> str | None:
+        value = getattr(self, "_ac_battery_aggregate_status", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip().lower()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @property
+    def ac_battery_status_summary(self) -> dict[str, object]:
+        details = dict(getattr(self, "_ac_battery_aggregate_status_details", {}) or {})
+        details["aggregate_status"] = self.ac_battery_aggregate_status
+        details["battery_order"] = self.iter_ac_battery_serials()
+        details["power_w"] = getattr(self, "_ac_battery_power_w", None)
+        return details
+
+    @property
+    def ac_battery_summary_sample_utc(self) -> datetime | None:
+        value = getattr(self, "_ac_battery_summary_sample_utc", None)
+        return value if isinstance(value, datetime) else None
+
+    @property
+    def ac_battery_selected_sleep_min_soc(self) -> int | None:
+        value = getattr(self, "_ac_battery_selected_sleep_min_soc", None)
+        return helper_coerce_optional_int(value)
+
+    @property
+    def ac_battery_sleep_state(self) -> str | None:
+        value = getattr(self, "_ac_battery_sleep_state", None)
+        if value is None:
+            return None
+        try:
+            text = str(value).strip().lower()
+        except Exception:  # noqa: BLE001
+            return None
+        return text or None
+
+    @property
+    def ac_battery_control_pending(self) -> bool:
+        return bool(getattr(self, "_ac_battery_control_pending", False))
 
     @property
     def battery_profile_option_keys(self) -> list[str]:
@@ -4627,7 +4967,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         installer = self.battery_user_is_installer
         if owner is False and installer is False:
             return False
-        return getattr(self, "_battery_charge_from_grid", None) is not None
+        if getattr(self, "_battery_charge_from_grid", None) is not None:
+            return True
+        if (
+            getattr(self, "_battery_charge_from_grid_schedule_enabled", None)
+            is not None
+        ):
+            return True
+        if getattr(self, "_battery_cfg_schedule_limit", None) is not None:
+            return True
+        if getattr(self, "_battery_cfg_schedule_id", None) is not None:
+            return True
+        begin = getattr(self, "_battery_charge_begin_time", None)
+        end = getattr(self, "_battery_charge_end_time", None)
+        return begin is not None and end is not None
 
     @property
     def battery_charge_from_grid_enabled(self) -> bool | None:
@@ -4653,9 +5006,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def charge_from_grid_schedule_available(self) -> bool:
-        if not self.charge_from_grid_schedule_supported:
-            return False
-        return self.battery_charge_from_grid_enabled is True
+        return self.charge_from_grid_schedule_supported
 
     @property
     def charge_from_grid_force_schedule_supported(self) -> bool:
@@ -4677,9 +5028,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def charge_from_grid_force_schedule_available(self) -> bool:
-        if not self.charge_from_grid_force_schedule_supported:
-            return False
-        return self.battery_charge_from_grid_enabled is True
+        return self.charge_from_grid_force_schedule_supported
 
     def _battery_schedule_control_available(self, control: object) -> bool:
         if getattr(self, "_battery_has_encharge", None) is False:
@@ -4765,6 +5114,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def battery_cfg_schedule_pending(self) -> bool:
         """Return True if a CFG schedule change is pending Envoy sync."""
         return self.battery_cfg_schedule_status == "pending"
+
+    @property
+    def battery_settings_write_age_seconds(self) -> float | None:
+        value = getattr(self, "_battery_settings_last_write_mono", None)
+        if not isinstance(value, (int, float)):
+            return None
+        try:
+            age = time.monotonic() - float(value)
+        except Exception:  # noqa: BLE001
+            return None
+        return age if age >= 0 else 0.0
+
+    @property
+    def battery_settings_write_pending(self) -> bool:
+        age = self.battery_settings_write_age_seconds
+        return age is not None and age < FAST_TOGGLE_POLL_HOLD_S
 
     @property
     def discharge_to_grid_schedule_supported(self) -> bool:
@@ -5178,6 +5543,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return self.heatpump_runtime.heatpump_daily_consumption_last_success_utc
 
     @property
+    def heatpump_daily_split_last_error(self) -> str | None:
+        return self.heatpump_runtime.heatpump_daily_split_last_error
+
+    @property
+    def heatpump_daily_split_using_stale(self) -> bool:
+        return self.heatpump_runtime.heatpump_daily_split_using_stale
+
+    @property
+    def heatpump_daily_split_last_success_utc(self) -> datetime | None:
+        return self.heatpump_runtime.heatpump_daily_split_last_success_utc
+
+    @property
     def heatpump_power_w(self) -> float | None:
         return self.heatpump_runtime.heatpump_power_w
 
@@ -5481,6 +5858,24 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             out.append(key)
         return out
 
+    def iter_ac_battery_serials(self) -> list[str]:
+        """Return active AC Battery identities in a stable order."""
+
+        order = getattr(self, "_ac_battery_order", None)
+        snapshots = getattr(self, "_ac_battery_data", None)
+        if not isinstance(order, list) or not isinstance(snapshots, dict):
+            return []
+        out: list[str] = []
+        for item in order:
+            try:
+                key = str(item).strip()
+            except Exception:  # noqa: BLE001
+                continue
+            if not key or key not in snapshots:
+                continue
+            out.append(key)
+        return out
+
     def battery_storage(
         self, serial: str
     ) -> dict[str, object] | None:  # pragma: no cover
@@ -5506,6 +5901,40 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     continue
                 out[detail_key] = detail_value
         return out
+
+    def ac_battery_storage(self, serial: str) -> dict[str, object] | None:
+        """Return normalized AC Battery snapshot for an active battery identity."""
+
+        snapshots = getattr(self, "_ac_battery_data", None)
+        if not isinstance(snapshots, dict):
+            return None
+        try:
+            key = str(serial).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not key:
+            return None
+        payload = snapshots.get(key)
+        if not isinstance(payload, dict):
+            return None
+        return dict(payload)
+
+    async def async_ensure_ac_battery_diagnostics(self) -> None:
+        if (
+            isinstance(getattr(self, "_ac_battery_devices_payload", None), dict)
+            and isinstance(getattr(self, "_ac_battery_telemetry_payloads", None), dict)
+            and isinstance(getattr(self, "_ac_battery_events_payloads", None), dict)
+        ):
+            return
+        await self.battery_runtime.async_refresh_ac_battery_devices(force=True)
+        await self.battery_runtime.async_refresh_ac_battery_telemetry(force=True)
+        await self.battery_runtime.async_refresh_ac_battery_events(force=True)
+
+    async def async_set_ac_battery_sleep_mode(self, enabled: bool) -> None:
+        await self.battery_runtime.async_set_ac_battery_sleep_mode(enabled)
+
+    async def async_set_ac_battery_target_soc(self, value: int) -> None:
+        await self.battery_runtime.async_set_ac_battery_target_soc(value)
 
     def get_desired_charging(self, sn: str) -> bool | None:
         return self.evse_runtime.get_desired_charging(sn)
