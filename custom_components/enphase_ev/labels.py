@@ -48,6 +48,7 @@ STATUS_LABELS: dict[str, str] = {
 }
 
 _SHARED_LABEL_KEY_PREFIX = f"component.{DOMAIN}.entity.sensor.shared_labels.state."
+_ENTITY_LABEL_KEY_PREFIX = f"component.{DOMAIN}.entity."
 
 
 async def async_prime_label_translations(hass: HomeAssistant) -> None:
@@ -72,6 +73,22 @@ def _translation_value(hass: Any | None, key: str) -> str | None:
         return None
     language = getattr(getattr(hass, "config", None), "language", "en")
     path = f"{_SHARED_LABEL_KEY_PREFIX}{key}"
+    value = async_get_cached_translations(hass, language, "entity", DOMAIN).get(path)
+    if isinstance(value, str) and value.strip():
+        return value
+    value = async_get_cached_translations(hass, "en", "entity", DOMAIN).get(path)
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
+
+
+def _entity_translation_value(
+    hass: Any | None, platform: str, key: str, field: str = "name"
+) -> str | None:
+    if hass is None:
+        return None
+    language = getattr(getattr(hass, "config", None), "language", "en")
+    path = f"{_ENTITY_LABEL_KEY_PREFIX}{platform}.{key}.{field}"
     value = async_get_cached_translations(hass, language, "entity", DOMAIN).get(path)
     if isinstance(value, str) and value.strip():
         return value
@@ -190,3 +207,38 @@ def friendly_status_text(value: object) -> str | None:
     if text.islower():
         return text.capitalize()
     return text
+
+
+def battery_schedule_create_label(*, hass: Any | None = None) -> str:
+    value = _entity_translation_value(hass, "button", "battery_schedule_add")
+    if value is not None:
+        return value
+    return "Battery Schedule Add"
+
+
+def battery_schedule_type_label(
+    value: object, *, hass: Any | None = None
+) -> str | None:
+    key = _normalize_state_key(value)
+    if key is None:
+        return None
+    path_map = {
+        "cfg": ("switch", "charge_from_grid_schedule", "Charge From Grid Schedule"),
+        "dtg": (
+            "switch",
+            "discharge_to_grid_schedule",
+            "Discharge To Grid Schedule",
+        ),
+        "rbd": (
+            "switch",
+            "restrict_battery_discharge_schedule",
+            "Restrict Battery Discharge Schedule",
+        ),
+    }
+    path = path_map.get(key)
+    if path is not None:
+        translated = _entity_translation_value(hass, path[0], path[1])
+        if translated is not None:
+            return translated
+        return path[2]
+    return _friendly_label_text(value)

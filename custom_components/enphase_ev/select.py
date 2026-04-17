@@ -16,7 +16,8 @@ from .api import SchedulerUnavailable
 from .battery_schedule_editor import (
     BatteryScheduleEditorEntity,
     NEW_SCHEDULE_OPTION,
-    NEW_SCHEDULE_OPTION_LABEL,
+    battery_schedule_type_label,
+    battery_schedule_type_options,
     battery_scheduler_enabled,
 )
 from .ac_battery_support import (
@@ -29,7 +30,12 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 from .entity_cleanup import prune_managed_entities
-from .labels import CHARGE_MODE_LABELS, battery_profile_label, charge_mode_label
+from .labels import (
+    CHARGE_MODE_LABELS,
+    battery_profile_label,
+    battery_schedule_create_label,
+    charge_mode_label,
+)
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -428,24 +434,36 @@ class BatteryScheduleSelect(_BatteryScheduleEditorSelect):
     def options(self) -> list[str]:
         if self._editor is None:
             return []
+        hass = getattr(self, "hass", None) or self._coord.hass
         return [
-            *(schedule.schedule_id for schedule in self._editor.schedules),
-            NEW_SCHEDULE_OPTION_LABEL,
+            *self._editor.option_label_by_schedule_id(hass=hass).values(),
+            battery_schedule_create_label(hass=hass),
         ]
 
     @property
     def current_option(self) -> str | None:
         if self._editor is None:
             return None
+        hass = getattr(self, "hass", None) or self._coord.hass
         if self._editor.current_selection == NEW_SCHEDULE_OPTION:
-            return NEW_SCHEDULE_OPTION_LABEL
-        return self._editor.current_selection
+            return battery_schedule_create_label(hass=hass)
+        selected_schedule = self._editor.get_schedule(self._editor.current_selection)
+        if selected_schedule is None:
+            return None
+        return self._editor.option_label_by_schedule_id(hass=hass).get(
+            selected_schedule.schedule_id
+        )
 
     async def async_select_option(self, option: str) -> None:
         if self._editor is not None:
-            self._editor.select_schedule(
-                NEW_SCHEDULE_OPTION if option == NEW_SCHEDULE_OPTION_LABEL else option
+            hass = getattr(self, "hass", None) or self._coord.hass
+            selected = (
+                NEW_SCHEDULE_OPTION
+                if option == battery_schedule_create_label(hass=hass)
+                else self._editor.schedule_id_for_option_label(option, hass=hass)
+                or option
             )
+            self._editor.select_schedule(selected)
 
 
 class BatteryNewScheduleTypeSelect(_BatteryScheduleEditorSelect):
@@ -457,11 +475,11 @@ class BatteryNewScheduleTypeSelect(_BatteryScheduleEditorSelect):
         self._attr_unique_id = (
             f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_type"
         )
-        self._options = ["cfg", "dtg", "rbd"]
 
     @property
     def options(self) -> list[str]:
-        return list(self._options)
+        hass = getattr(self, "hass", None) or self._coord.hass
+        return [label for _key, label in battery_schedule_type_options(hass=hass)]
 
     @property
     def available(self) -> bool:  # type: ignore[override]
@@ -473,11 +491,17 @@ class BatteryNewScheduleTypeSelect(_BatteryScheduleEditorSelect):
     def current_option(self) -> str | None:
         if self._editor is None:
             return None
-        return self._editor.edit.schedule_type
+        hass = getattr(self, "hass", None) or self._coord.hass
+        return battery_schedule_type_label(self._editor.edit.schedule_type, hass=hass)
 
     async def async_select_option(self, option: str) -> None:
-        if option in self._options and self._editor is not None:
-            self._editor.set_new_schedule_type(option)
+        if self._editor is None:
+            return
+        hass = getattr(self, "hass", None) or self._coord.hass
+        for schedule_type, label in battery_schedule_type_options(hass=hass):
+            if label == option:
+                self._editor.set_new_schedule_type(schedule_type)
+                return
 
 
 class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):

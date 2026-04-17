@@ -5245,11 +5245,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_shutdown_level_available(self) -> bool:
-        if getattr(self, "_battery_envoy_supports_vls", None) is False:
+        state = self.battery_state
+        envoy_supports_vls = getattr(
+            state,
+            "_battery_envoy_supports_vls",
+            getattr(self, "_battery_envoy_supports_vls", None),
+        )
+        if envoy_supports_vls is False:
             return False
-        if getattr(self, "_battery_very_low_soc", None) is None:
+        very_low_soc = getattr(
+            state,
+            "_battery_very_low_soc",
+            getattr(self, "_battery_very_low_soc", None),
+        )
+        if very_low_soc is not None:
+            return True
+        battery_limit_support = getattr(
+            state,
+            "_battery_limit_support",
+            getattr(self, "_battery_limit_support", None),
+        )
+        if battery_limit_support is False:
             return False
-        return True
+        return False
 
     def _battery_min_soc_floor(self) -> int:
         value = self._coerce_optional_int(

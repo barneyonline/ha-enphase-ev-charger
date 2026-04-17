@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import time as dt_time
 import logging
 import re
@@ -131,43 +132,23 @@ def _rbd_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
         begin = getattr(coord, "_battery_rbd_control_begin_time", None)
     if end is None:
         end = getattr(coord, "_battery_rbd_control_end_time", None)
-    return begin is not None and end is not None
+    return True
 
 
-def _retained_site_time_unique_ids(
-    coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None = None
-) -> set[str]:
-    unique_ids: set[str] = set()
+def _default_schedule_time_for_create(
+    schedule_type: str, *, end: bool = False
+) -> dt_time | None:
+    normalized = str(schedule_type).lower()
+    if normalized == "rbd":
+        return dt_time(16, 0) if end else dt_time(1, 0)
+    return None
+
+
+def _battery_schedule_editor_active(
+    coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None
+) -> bool:
     client = getattr(coord, "client", None)
-    if not _type_available(coord, "encharge"):
-        return unique_ids
-    cfg_supported = getattr(coord, "charge_from_grid_schedule_supported", None)
-    dtg_supported = getattr(coord, "discharge_to_grid_schedule_supported", None)
-    rbd_supported = getattr(
-        coord, "restrict_battery_discharge_schedule_supported", None
-    )
-    if _cfg_schedule_edit_available(coord) or cfg_supported is not False:
-        unique_ids.update(
-            {
-                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_start_time",
-                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_end_time",
-            }
-        )
-    if _dtg_schedule_edit_available(coord) or dtg_supported is not False:
-        unique_ids.update(
-            {
-                f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_start_time",
-                f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_end_time",
-            }
-        )
-    if _rbd_schedule_edit_available(coord) or rbd_supported is not False:
-        unique_ids.update(
-            {
-                f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_start_time",
-                f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_end_time",
-            }
-        )
-    if (
+    return bool(
         battery_scheduler_enabled(entry)
         and callable(getattr(client, "battery_schedules", None))
         and all(
@@ -178,7 +159,46 @@ def _retained_site_time_unique_ids(
                 "delete_battery_schedule",
             )
         )
+    )
+
+
+def _retained_site_time_unique_ids(
+    coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None = None
+) -> set[str]:
+    unique_ids: set[str] = set()
+    if not _type_available(coord, "encharge"):
+        return unique_ids
+    editor_active = _battery_schedule_editor_active(coord, entry)
+    cfg_supported = getattr(coord, "charge_from_grid_schedule_supported", None)
+    dtg_supported = getattr(coord, "discharge_to_grid_schedule_supported", None)
+    rbd_supported = getattr(
+        coord, "restrict_battery_discharge_schedule_supported", None
+    )
+    if not editor_active and (
+        _cfg_schedule_edit_available(coord) or cfg_supported is not False
     ):
+        unique_ids.update(
+            {
+                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_start_time",
+                f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_end_time",
+            }
+        )
+    if not editor_active:
+        if _dtg_schedule_edit_available(coord) or dtg_supported is not False:
+            unique_ids.update(
+                {
+                    f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_start_time",
+                    f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_end_time",
+                }
+            )
+        if _rbd_schedule_edit_available(coord) or rbd_supported is not False:
+            unique_ids.update(
+                {
+                    f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_start_time",
+                    f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_end_time",
+                }
+            )
+    if editor_active:
         unique_ids.update(
             {
                 f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_start_time",
@@ -194,7 +214,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
-    site_entities_added = False
+    added_site_time_unique_ids: set[str] = set()
 
     ent_reg = er.async_get(hass)
     rename_by_unique = _time_entity_id_migrations(coord)
@@ -234,52 +254,85 @@ async def async_setup_entry(
             f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_end_time",
         }
 
+    def _core_site_time_unique_ids() -> set[str]:
+        return set()
+
+    def _site_time_entities_by_unique_id(
+        retained_site_time_unique_ids: set[str],
+    ) -> dict[str, TimeEntity]:
+        entity_factories: dict[str, Callable[[], TimeEntity]] = {
+            f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_start_time": lambda: ChargeFromGridStartTimeEntity(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_charge_from_grid_end_time": lambda: ChargeFromGridEndTimeEntity(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_start_time": lambda: DischargeToGridStartTimeEntity(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_discharge_to_grid_end_time": lambda: DischargeToGridEndTimeEntity(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_start_time": lambda: RestrictBatteryDischargeStartTimeEntity(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_restrict_battery_discharge_end_time": lambda: RestrictBatteryDischargeEndTimeEntity(
+                coord
+            ),
+        }
+        if battery_scheduler_enabled(entry):
+            entity_factories[
+                f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_start_time"
+            ] = lambda: BatteryScheduleEditStartTimeEntity(coord, entry)
+            entity_factories[
+                f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_end_time"
+            ] = lambda: BatteryScheduleEditEndTimeEntity(coord, entry)
+
+        active_site_time_unique_ids = retained_site_time_unique_ids
+
+        return {
+            unique_id: factory()
+            for unique_id, factory in entity_factories.items()
+            if unique_id in active_site_time_unique_ids
+        }
+
     @callback
     def _async_sync_site_entities() -> None:
-        nonlocal site_entities_added
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         retained_site_time_unique_ids = _retained_site_time_unique_ids(coord, entry)
-        if site_entities_added:
-            pass
-        elif _site_has_battery(coord) and _type_available(coord, "encharge"):
-            site_entities: list[TimeEntity] = [
-                ChargeFromGridStartTimeEntity(coord),
-                ChargeFromGridEndTimeEntity(coord),
-                DischargeToGridStartTimeEntity(coord),
-                DischargeToGridEndTimeEntity(coord),
-                RestrictBatteryDischargeStartTimeEntity(coord),
-                RestrictBatteryDischargeEndTimeEntity(coord),
-            ]
-            if (
-                f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_start_time"
-                in retained_site_time_unique_ids
-            ):
-                site_entities.extend(
-                    [
-                        BatteryScheduleEditStartTimeEntity(coord, entry),
-                        BatteryScheduleEditEndTimeEntity(coord, entry),
-                    ]
-                )
-            async_add_entities(
-                site_entities,
-                update_before_add=False,
+        active_site_time_unique_ids: set[str] = set()
+        if _site_has_battery(coord) and _type_available(coord, "encharge"):
+            active_site_time_unique_ids = retained_site_time_unique_ids
+            current_site_entities = _site_time_entities_by_unique_id(
+                retained_site_time_unique_ids
             )
-            site_entities_added = True
-        if not _site_has_battery(coord) or not _type_available(coord, "encharge"):
-            site_entities_added = False
+            site_entities = [
+                entity
+                for unique_id, entity in current_site_entities.items()
+                if unique_id not in added_site_time_unique_ids
+            ]
+            if site_entities:
+                async_add_entities(site_entities, update_before_add=False)
+                added_site_time_unique_ids.update(
+                    entity.unique_id
+                    for entity in site_entities
+                    if isinstance(entity.unique_id, str)
+                )
+        added_site_time_unique_ids.intersection_update(active_site_time_unique_ids)
         if not inventory_ready:
             return
         prune_managed_entities(
             ent_reg,
             entry.entry_id,
             domain="time",
-            active_unique_ids=retained_site_time_unique_ids,
+            active_unique_ids=active_site_time_unique_ids,
             is_managed=lambda unique_id: unique_id in _managed_site_time_unique_ids(),
         )
 
-    add_listener = getattr(coord, "async_add_topology_listener", None)
-    if not callable(add_listener):
-        add_listener = getattr(coord, "async_add_listener", None)
+    add_topology_listener = getattr(coord, "async_add_topology_listener", None)
+    if callable(add_topology_listener):
+        entry.async_on_unload(add_topology_listener(_async_sync_site_entities))
+    add_listener = getattr(coord, "async_add_listener", None)
     if callable(add_listener):
         entry.async_on_unload(add_listener(_async_sync_site_entities))
     _async_sync_site_entities()
@@ -383,6 +436,7 @@ class _BaseNamedBatteryScheduleTimeEntity(CoordinatorEntity, TimeEntity):
         coord: EnphaseCoordinator,
         *,
         suffix: str,
+        schedule_type: str,
         availability_check,
         value_attr: str,
         setter_name: str,
@@ -390,6 +444,7 @@ class _BaseNamedBatteryScheduleTimeEntity(CoordinatorEntity, TimeEntity):
     ) -> None:
         super().__init__(coord)
         self._coord = coord
+        self._schedule_type = schedule_type
         self._availability_check = availability_check
         self._value_attr = value_attr
         self._setter_name = setter_name
@@ -410,7 +465,16 @@ class _BaseNamedBatteryScheduleTimeEntity(CoordinatorEntity, TimeEntity):
 
     @property
     def native_value(self) -> dt_time | None:
-        return getattr(self._coord, self._value_attr)
+        value = getattr(self._coord, self._value_attr)
+        if value is not None:
+            return value
+        default_value = _default_schedule_time_for_create(
+            self._schedule_type,
+            end=self._schedule_endpoint_key() == "end",
+        )
+        if default_value is not None and self._availability_check(self._coord):
+            return default_value
+        return None
 
     def _extra_schedule_state_attributes(self) -> dict[str, object]:
         return {}
@@ -457,6 +521,7 @@ class DischargeToGridStartTimeEntity(_BaseNamedBatteryScheduleStartTimeEntity):
         super().__init__(
             coord,
             suffix="discharge_to_grid_start_time",
+            schedule_type="dtg",
             availability_check=_dtg_schedule_edit_available,
             value_attr="battery_discharge_to_grid_start_time",
             setter_name="async_set_discharge_to_grid_schedule_time",
@@ -480,6 +545,7 @@ class DischargeToGridEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEntity):
         super().__init__(
             coord,
             suffix="discharge_to_grid_end_time",
+            schedule_type="dtg",
             availability_check=_dtg_schedule_edit_available,
             value_attr="battery_discharge_to_grid_end_time",
             setter_name="async_set_discharge_to_grid_schedule_time",
@@ -503,6 +569,7 @@ class RestrictBatteryDischargeStartTimeEntity(_BaseNamedBatteryScheduleStartTime
         super().__init__(
             coord,
             suffix="restrict_battery_discharge_start_time",
+            schedule_type="rbd",
             availability_check=_rbd_schedule_edit_available,
             value_attr="battery_restrict_battery_discharge_start_time",
             setter_name="async_set_restrict_battery_discharge_schedule_time",
@@ -526,6 +593,7 @@ class RestrictBatteryDischargeEndTimeEntity(_BaseNamedBatteryScheduleEndTimeEnti
         super().__init__(
             coord,
             suffix="restrict_battery_discharge_end_time",
+            schedule_type="rbd",
             availability_check=_rbd_schedule_edit_available,
             value_attr="battery_restrict_battery_discharge_end_time",
             setter_name="async_set_restrict_battery_discharge_schedule_time",
