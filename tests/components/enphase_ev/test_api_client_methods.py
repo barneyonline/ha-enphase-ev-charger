@@ -180,6 +180,26 @@ def test_battery_config_cookie_handles_bad_string_and_empty_cookie() -> None:
     assert client._battery_config_cookie() is None  # noqa: SLF001
 
 
+def test_battery_config_cookie_header_xsrf_token_handles_quotes_and_decode_fallback(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    client.update_credentials(cookie='session=1; BP-XSRF-Token="quoted%20token"; a=1')
+
+    assert (
+        client._battery_config_cookie_header_xsrf_token() == "quoted token"
+    )  # noqa: SLF001
+
+    client.update_credentials(cookie='session=1; BP-XSRF-Token=""')
+    assert client._battery_config_cookie_header_xsrf_token() is None  # noqa: SLF001
+
+    client.update_credentials(cookie='session=1; BP-XSRF-Token="opaque"')
+    monkeypatch.setattr(
+        api, "unquote", lambda value: (_ for _ in ()).throw(ValueError(value))
+    )
+    assert client._battery_config_cookie_header_xsrf_token() == "opaque"  # noqa: SLF001
+
+
 def test_battery_config_mixed_auth_headers_without_tokens_or_xsrf() -> None:
     client = api.EnphaseEVClient(_DefaultSession(), "SITE", None, None)
 
@@ -4359,6 +4379,150 @@ def test_battery_config_schedule_write_attempts_include_cookie_compat() -> None:
     ]
 
 
+def test_battery_config_write_attempts_cover_stateful_profile_and_settings_variants() -> (
+    None
+):
+    token = _make_token({"user_id": "88"})
+    client = _make_client()
+    client.update_credentials(eauth=token, cookie="session=1")
+    client._battery_config_write_bases["profile"] = {  # noqa: SLF001
+        "profile": "self-consumption",
+        "devices": {"iqEvse": {"enabled": True}},
+    }
+    client._battery_config_write_bases["battery_settings"] = {  # noqa: SLF001
+        "chargeFromGrid": False,
+        "dtgControl": {"enabled": False},
+        "acceptedItcDisclaimer": "2026-04-17T09:30:00+00:00",
+    }
+
+    profile_attempts = client._battery_config_write_attempts(  # noqa: SLF001
+        "profile",
+        write_intent="profile_update",
+        supports_mqtt=True,
+        params={"userId": "88", "source": "enho"},
+        json_body={"profile": "full_backup", "devices": {"iqEvse": {"enabled": False}}},
+    )
+    assert [attempt.attempt_id for attempt in profile_attempts] == [
+        "profile_primary",
+        "profile_primary_no_devices",
+        "profile_primary_no_source",
+        "profile_stateful_primary",
+        "profile_stateful_primary_no_source",
+        "profile_cookie_eauth_compat",
+        "profile_stateful_cookie_eauth_compat",
+        "profile_mixed_compat",
+        "profile_stateful_mixed_compat",
+    ]
+
+    settings_attempts = client._battery_config_write_attempts(  # noqa: SLF001
+        "battery_settings",
+        write_intent="battery_settings_update",
+        supports_mqtt=True,
+        params={"userId": "88", "source": "enho"},
+        json_body={
+            "chargeFromGrid": True,
+            "acceptedItcDisclaimer": "2026-04-17T09:30:00+00:00",
+        },
+    )
+    assert [attempt.attempt_id for attempt in settings_attempts] == [
+        "battery_settings_primary_source",
+        "battery_settings_lean_source",
+        "battery_settings_primary_no_source",
+        "battery_settings_lean_no_source",
+        "battery_settings_stateful_primary_source",
+        "battery_settings_stateful_lean_source",
+        "battery_settings_stateful_primary_no_source",
+        "battery_settings_stateful_lean_no_source",
+        "battery_settings_cookie_eauth_source",
+        "battery_settings_cookie_eauth_no_source",
+        "battery_settings_stateful_cookie_eauth_source",
+        "battery_settings_stateful_cookie_eauth_no_source",
+        "battery_settings_mixed_source",
+        "battery_settings_mixed_no_source",
+        "battery_settings_stateful_mixed_source",
+        "battery_settings_stateful_mixed_no_source",
+        "battery_settings_disclaimer_true",
+        "battery_settings_stateful_disclaimer_true",
+    ]
+
+    disclaimer_attempts = client._battery_config_write_attempts(  # noqa: SLF001
+        "battery_settings",
+        write_intent="battery_settings_disclaimer_accept",
+        supports_mqtt=None,
+        params=None,
+        json_body={"disclaimer-type": "itc"},
+    )
+    assert [attempt.attempt_id for attempt in disclaimer_attempts] == [
+        "battery_settings_disclaimer_primary",
+        "battery_settings_disclaimer_lean",
+        "battery_settings_disclaimer_cookie_eauth",
+        "battery_settings_disclaimer_mixed",
+    ]
+
+
+def test_battery_config_write_payload_helpers_cover_merge_and_base_fallbacks() -> None:
+    client = _make_client()
+
+    assert client._battery_config_payload_data(None) is None  # noqa: SLF001
+    assert client._battery_config_payload_data({"a": 1}) == {"a": 1}  # noqa: SLF001
+
+    client._remember_battery_config_write_base(
+        "other", {"data": {"a": 1}}
+    )  # noqa: SLF001
+    client._remember_battery_config_write_base("profile", "bad")  # noqa: SLF001
+    assert client._battery_config_write_bases == {}  # noqa: SLF001
+
+    client._remember_battery_config_write_base(  # noqa: SLF001
+        "battery_settings",
+        {
+            "data": {
+                "dtgControl": {"enabled": False, "startTime": "00:00"},
+                "devices": {"iqEvse": {"enabled": True}},
+                "ignored": 1,
+            }
+        },
+    )
+    assert client._battery_config_write_bases["battery_settings"] == {  # noqa: SLF001
+        "dtgControl": {"enabled": False, "startTime": "00:00"},
+        "devices": {"iqEvse": {"enabled": True}},
+    }
+
+    assert (
+        client._battery_config_merged_write_payload("battery_settings", None) is None
+    )  # noqa: SLF001
+    assert client._battery_config_merged_write_payload(
+        "missing", {"chargeFromGrid": True}
+    ) == {  # noqa: SLF001
+        "chargeFromGrid": True
+    }
+    assert client._battery_config_merged_write_payload(  # noqa: SLF001
+        "battery_settings",
+        {"dtgControl": {"enabled": True}, "chargeFromGrid": True},
+    ) == {
+        "dtgControl": {"enabled": True, "startTime": "00:00"},
+        "devices": {"iqEvse": {"enabled": True}},
+        "chargeFromGrid": True,
+    }
+
+    attempt = api._BatteryConfigWriteAttempt(  # noqa: SLF001
+        attempt_id="stateful",
+        auth_mode=api._BATTERY_CONFIG_VARIANT_PRIMARY,
+        merged_payload=True,
+        preserve_base_devices=True,
+    )
+    assert client._battery_config_attempt_json_body(  # noqa: SLF001
+        {
+            "dtgControl": {"enabled": True},
+            "devices": {"iqEvse": {"enabled": False}},
+        },
+        "battery_settings",
+        attempt,
+    ) == {
+        "dtgControl": {"enabled": True, "startTime": "00:00"},
+        "devices": {"iqEvse": {"enabled": True}},
+    }
+
+
 @pytest.mark.asyncio
 async def test_battery_config_write_request_uses_cookie_header_only_for_cookie_attempt() -> (
     None
@@ -4398,6 +4562,24 @@ async def test_battery_config_write_request_uses_cookie_header_only_for_cookie_a
 
 
 @pytest.mark.asyncio
+async def test_request_session_cookie_header_only_uses_ephemeral_client_session() -> (
+    None
+):
+    client = _make_client()
+
+    async with client._request_session(
+        cookie_header_only=False
+    ) as shared:  # noqa: SLF001
+        assert shared is client._s  # noqa: SLF001
+
+    async with client._request_session(
+        cookie_header_only=True
+    ) as isolated:  # noqa: SLF001
+        assert isinstance(isolated, aiohttp.ClientSession)
+        assert isolated is not client._s  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_acquire_xsrf_token_uses_requested_validation_payload() -> None:
     token = _make_token({"user_id": "88"})
     response = _FakeResponse(status=200, json_body={"isValid": True})
@@ -4426,6 +4608,28 @@ async def test_acquire_xsrf_token_uses_requested_validation_payload() -> None:
     assert "Authorization" not in kwargs["headers"]
     assert "requestid" in kwargs["headers"]
     assert "Cookie" not in kwargs["headers"]
+
+
+@pytest.mark.asyncio
+async def test_accept_battery_settings_disclaimer_uses_battery_config_write_request() -> (
+    None
+):
+    client = _make_client()
+    client._battery_config_write_request = AsyncMock(
+        return_value={"status": "ok"}
+    )  # noqa: SLF001
+
+    out = await client.accept_battery_settings_disclaimer("custom")
+
+    assert out == {"status": "ok"}
+    client._battery_config_write_request.assert_awaited_once_with(  # noqa: SLF001
+        "POST",
+        f"{api.BASE_URL}/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/SITE",
+        json_body={"disclaimer-type": "custom"},
+        params=None,
+        endpoint_family="battery_settings_disclaimer",
+        write_intent="battery_settings_disclaimer_accept",
+    )
 
 
 @pytest.mark.asyncio

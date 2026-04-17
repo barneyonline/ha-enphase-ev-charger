@@ -157,6 +157,43 @@ def test_dtg_and_rbd_schedule_edit_available_cover_control_window_fallbacks() ->
     assert time_mod._rbd_schedule_edit_available(rbd) is True
 
 
+def test_default_schedule_time_for_create_and_named_entities_cover_fallbacks(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev import time as time_mod
+
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_rbd_control_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_control_end_time = 960  # noqa: SLF001
+    coord._battery_rbd_begin_time = None  # noqa: SLF001
+    coord._battery_rbd_end_time = None  # noqa: SLF001
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_dtg_control_begin_time = None  # noqa: SLF001
+    coord._battery_dtg_control_end_time = None  # noqa: SLF001
+    coord._battery_dtg_begin_time = None  # noqa: SLF001
+    coord._battery_dtg_end_time = None  # noqa: SLF001
+
+    assert time_mod._default_schedule_time_for_create("dtg") is None
+
+    rbd_start = RestrictBatteryDischargeStartTimeEntity(coord)
+    rbd_end = RestrictBatteryDischargeEndTimeEntity(coord)
+    dtg_start = DischargeToGridStartTimeEntity(coord)
+    assert rbd_start.native_value == dt_time(1, 0)
+    assert rbd_end.native_value == dt_time(16, 0)
+    assert dtg_start.native_value is None
+
+
 def test_retained_site_time_unique_ids_cover_each_schedule_family() -> None:
     from custom_components.enphase_ev import time as time_mod
 

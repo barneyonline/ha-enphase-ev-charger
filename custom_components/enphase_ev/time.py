@@ -254,9 +254,6 @@ async def async_setup_entry(
             f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_end_time",
         }
 
-    def _core_site_time_unique_ids() -> set[str]:
-        return set()
-
     def _site_time_entities_by_unique_id(
         retained_site_time_unique_ids: set[str],
     ) -> dict[str, TimeEntity]:
