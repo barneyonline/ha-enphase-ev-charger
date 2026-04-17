@@ -187,6 +187,57 @@ def test_backend_pending_false_keeps_pending_when_age_unavailable(
     assert coord._battery_backend_not_pending_observed_at is not None  # noqa: SLF001
 
 
+def test_battery_profile_refresh_cache_ttl_tracks_polling_cadence(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    coord._configured_slow_poll_interval = 120  # noqa: SLF001
+    coord.update_interval = timedelta(seconds=30)
+    coord._battery_polling_interval_s = 60  # noqa: SLF001
+
+    assert (
+        runtime._battery_profile_refresh_cache_ttl_seconds(300.0) == 60.0
+    )  # noqa: SLF001
+
+    coord.update_interval = None
+    coord._battery_polling_interval_s = None  # noqa: SLF001
+
+    assert (
+        runtime._battery_profile_refresh_cache_ttl_seconds(300.0) == 120.0
+    )  # noqa: SLF001
+
+
+def test_battery_profile_refresh_cache_ttl_handles_error_and_default_branches(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+
+    class BadInterval:
+        def total_seconds(self) -> float:
+            raise RuntimeError("boom")
+
+    coord._update_interval = BadInterval()  # noqa: SLF001
+    coord._configured_slow_poll_interval = "invalid"  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    assert (
+        runtime._battery_profile_refresh_cache_ttl_seconds(300.0) == 45.0
+    )  # noqa: SLF001
+    coord._battery_polling_interval_s = None  # noqa: SLF001
+    assert (
+        runtime._backend_not_pending_clear_grace_seconds() == FAST_TOGGLE_POLL_HOLD_S
+    )  # noqa: SLF001
+
+    coord._update_interval = object()  # noqa: SLF001
+    coord._configured_slow_poll_interval = None  # noqa: SLF001
+
+    assert (
+        runtime._battery_profile_refresh_cache_ttl_seconds(300.0) == 300.0
+    )  # noqa: SLF001
+
+
 def test_battery_runtime_matching_handles_exact_savings_subtype_branches(
     coordinator_factory,
 ) -> None:
