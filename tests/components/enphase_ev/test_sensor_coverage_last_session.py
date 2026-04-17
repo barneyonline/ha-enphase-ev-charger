@@ -235,7 +235,7 @@ def test_session_metadata_attributes_fill_gaps(monkeypatch):
     assert attrs["session_charge_level"] == 16
     assert attrs["range_added"] is not None
     assert attrs["session_duration_min"] == 75
-    assert attrs["session_id"] is None
+    assert "session_id" not in attrs
     assert attrs["session_started_at"] is None
     assert attrs["session_ended_at"] is None
     assert attrs["active_charge_time_s"] is None

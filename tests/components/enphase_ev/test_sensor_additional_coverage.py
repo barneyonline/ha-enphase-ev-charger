@@ -6381,7 +6381,7 @@ def test_session_metadata_attributes_handle_blanks():
     assert attrs["range_added"] is None
     assert attrs["session_cost"] is None
     assert attrs["session_duration_min"] is None
-    assert attrs["session_id"] is None
+    assert "session_id" not in attrs
     assert attrs["session_started_at"] is None
     assert attrs["session_ended_at"] is None
     assert attrs["active_charge_time_s"] is None
