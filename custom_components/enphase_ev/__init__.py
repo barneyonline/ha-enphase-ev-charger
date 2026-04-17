@@ -1152,6 +1152,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     from .coordinator import (
         EnphaseCoordinator,
     )  # local import to avoid heavy deps during non-HA imports
+    from .battery_schedule_editor import BatteryScheduleEditorManager
     from .evse_firmware import EvseFirmwareDetailsManager
     from .firmware_catalog import FirmwareCatalogManager
     from .labels import async_prime_label_translations
@@ -1159,12 +1160,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
     firmware_catalog = FirmwareCatalogManager(hass)
     evse_firmware_details = EvseFirmwareDetailsManager(lambda: coord.client)
+    battery_schedule_editor = BatteryScheduleEditorManager(coord)
     setattr(coord, "firmware_catalog_manager", firmware_catalog)
     setattr(coord, "evse_firmware_details_manager", evse_firmware_details)
     entry.runtime_data = EnphaseRuntimeData(
         coordinator=coord,
         firmware_catalog=firmware_catalog,
         evse_firmware_details=evse_firmware_details,
+        battery_schedule_editor=battery_schedule_editor,
     )
     discovery_snapshot = getattr(coord, "discovery_snapshot", None)
     restore_discovery_state = getattr(discovery_snapshot, "async_restore_state", None)
@@ -1172,6 +1175,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         await restore_discovery_state()
     await async_prime_label_translations(hass)
     await coord.async_config_entry_first_refresh()
+    battery_schedule_editor.sync_from_coordinator()
     await async_prime_integration_version(hass)
 
     site_id = entry.data.get("site_id")
@@ -1204,6 +1208,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
 
     add_state_listener = getattr(coord, "async_add_listener", None)
     if callable(add_state_listener):
+        entry.async_on_unload(
+            add_state_listener(battery_schedule_editor.sync_from_coordinator)
+        )
         entry.async_on_unload(add_state_listener(_sync_registry_on_update))
 
     def _schedule_background_task(coro, name: str) -> None:
