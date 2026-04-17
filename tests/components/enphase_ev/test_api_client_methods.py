@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import datetime
 import hashlib
-import io
 import json
 import logging
 from types import SimpleNamespace
@@ -608,11 +607,12 @@ def test_battery_config_auth_helpers_cover_token_and_cookie_fallback() -> None:
     assert auth_token == token
     assert user_id == "77"
     assert client._xsrf_token() == "dynamic-token"  # noqa: SLF001
-    assert headers["Authorization"] == f"Bearer {token}"
     assert headers["e-auth-token"] == token
-    assert headers["X-CSRF-Token"] == "dynamic-token"
     assert headers["X-XSRF-Token"] == "dynamic-token"
-    assert headers["Cookie"] == "BP-XSRF-Token=dynamic-token"
+    assert headers["Authorization"] is None
+    assert headers["X-CSRF-Token"] is None
+    assert headers["Cookie"] is None
+    assert headers["X-Requested-With"] is None
     assert "requestid" in headers
 
 
@@ -641,15 +641,11 @@ def test_battery_config_headers_preserve_original_eauth_and_replace_stale_xsrf()
 
     headers = client._battery_config_headers(include_xsrf=True)  # noqa: SLF001
 
-    assert headers["Authorization"] == f"Bearer {bearer}"
     assert headers["e-auth-token"] == "session-token"
-    assert headers["X-CSRF-Token"] == "fresh-token"
     assert headers["X-XSRF-Token"] == "fresh-token"
-    assert headers["Cookie"] == (
-        "session=1; other=1; "
-        "enlighten_manager_token_production="
-        f"{bearer}; BP-XSRF-Token=fresh-token"
-    )
+    assert headers["Authorization"] is None
+    assert headers["X-CSRF-Token"] is None
+    assert headers["Cookie"] is None
     assert headers["Username"] == "77"
 
 
@@ -742,7 +738,7 @@ def test_battery_config_headers_use_bearer_cookie_for_eauth_when_missing() -> No
 
     headers = client._battery_config_headers()  # noqa: SLF001
 
-    assert headers["Authorization"] == f"Bearer {bearer}"
+    assert headers["Authorization"] is None
     assert headers["e-auth-token"] == bearer
     assert headers["X-CSRF-Token"] is None
     assert headers["Username"] == "77"
@@ -765,15 +761,12 @@ def test_battery_config_headers_match_official_web_shape() -> None:
     assert headers["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
     assert headers["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
     assert headers["User-Agent"] == api._ENLIGHTEN_BROWSER_USER_AGENT
-    assert headers["X-Requested-With"] == "XMLHttpRequest"
+    assert headers["X-Requested-With"] is None
     assert headers["X-XSRF-Token"] == "raw-token"
-    assert headers["X-CSRF-Token"] == "raw-token"
-    assert headers["Authorization"] == f"Bearer {bearer}"
+    assert headers["X-CSRF-Token"] is None
+    assert headers["Authorization"] is None
     assert headers["e-auth-token"] == "access-token"
-    assert headers["Cookie"] == (
-        "session=1; enlighten_manager_token_production="
-        f"{bearer}; BP-XSRF-Token=raw-token"
-    )
+    assert headers["Cookie"] is None
     assert headers["Username"] == "77"
     assert "requestid" in headers
 
@@ -789,22 +782,18 @@ def test_battery_config_headers_can_build_lean_fallback_shape() -> None:
         ),
     )
 
-    headers = client._battery_config_headers(
+    headers = client._battery_config_headers(  # noqa: SLF001
         include_xsrf=True,
-        include_eauth=False,
-        include_requestid=False,
-    )  # noqa: SLF001
+        variant=api._BATTERY_CONFIG_VARIANT_LEAN,
+    )
 
-    assert headers["Authorization"] == f"Bearer {bearer}"
+    assert headers["Authorization"] is None
     assert headers["e-auth-token"] is None
     assert headers["requestid"] is None
     assert headers["Username"] == "77"
     assert headers["X-XSRF-Token"] == "raw-token"
-    assert headers["X-CSRF-Token"] == "raw-token"
-    assert headers["Cookie"] == (
-        "session=1; enlighten_manager_token_production="
-        f"{bearer}; BP-XSRF-Token=raw-token"
-    )
+    assert headers["X-CSRF-Token"] is None
+    assert headers["Cookie"] is None
 
 
 def test_battery_config_headers_drop_cookie_when_none_available() -> None:
@@ -3523,13 +3512,16 @@ async def test_storm_guard_alert_passes_headers() -> None:
     args, kwargs = client._json.await_args
     assert args[0] == "GET"
     assert "stormGuard" in args[1]
-    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
     assert kwargs["headers"]["e-auth-token"] == token
     assert kwargs["headers"]["Username"] == "42"
     assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
     assert (
         kwargs["headers"]["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
     )
+    assert kwargs["headers"]["Authorization"] is None
+    assert kwargs["headers"]["Cookie"] is None
+    assert kwargs["headers"]["X-CSRF-Token"] is None
+    assert kwargs["headers"]["X-Requested-With"] is None
     assert "requestid" in kwargs["headers"]
 
 
@@ -3567,10 +3559,13 @@ async def test_battery_site_settings_passes_params_and_headers() -> None:
     assert args[0] == "GET"
     assert "siteSettings" in args[1]
     assert kwargs["params"]["userId"] == "77"
-    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
     assert kwargs["headers"]["e-auth-token"] == token
     assert kwargs["headers"]["Username"] == "77"
     assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
+    assert kwargs["headers"]["Authorization"] is None
+    assert kwargs["headers"]["Cookie"] is None
+    assert kwargs["headers"]["X-CSRF-Token"] is None
+    assert kwargs["headers"]["X-Requested-With"] is None
     assert "requestid" in kwargs["headers"]
 
 
@@ -3590,8 +3585,11 @@ async def test_battery_settings_details_passes_params_and_headers() -> None:
     assert kwargs["params"]["source"] == "enlm"
     assert kwargs["params"]["userId"] == "99"
     assert kwargs["headers"]["Username"] == "99"
-    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
     assert kwargs["headers"]["e-auth-token"] == token
+    assert kwargs["headers"]["Authorization"] is None
+    assert kwargs["headers"]["Cookie"] is None
+    assert kwargs["headers"]["X-CSRF-Token"] is None
+    assert kwargs["headers"]["X-Requested-With"] is None
     assert "requestid" in kwargs["headers"]
 
 
@@ -3616,14 +3614,11 @@ async def test_battery_settings_details_wire_headers_match_official_web_shape() 
     assert headers["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
     assert headers["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
     assert headers["Username"] == "99"
-    assert headers["Authorization"] == f"Bearer {_make_token({'user_id': '99'})}"
+    assert "Authorization" not in headers
     assert headers["e-auth-token"] == "access-token"
-    assert headers["Cookie"] == (
-        "session=1; enlighten_manager_token_production="
-        f"{_make_token({'user_id': '99'})}"
-    )
+    assert "Cookie" not in headers
     assert "X-CSRF-Token" not in headers
-    assert headers["X-Requested-With"] == "XMLHttpRequest"
+    assert "X-Requested-With" not in headers
     assert "requestid" in headers
 
 
@@ -3645,10 +3640,10 @@ async def test_set_battery_settings_payload_and_xsrf() -> None:
     assert kwargs["params"]["userId"] == "88"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf=token"
     assert kwargs["headers"]["e-auth-token"] == token
-    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
+    assert kwargs["headers"]["Authorization"] is None
     assert "requestid" in kwargs["headers"]
-    assert kwargs["headers"]["Cookie"] == "other=1; BP-XSRF-Token=xsrf=token"
-    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf=token"
+    assert kwargs["headers"]["Cookie"] is None
+    assert kwargs["headers"]["X-CSRF-Token"] is None
     assert kwargs["json"] == {"veryLowSoc": 15}
 
 
@@ -3657,7 +3652,12 @@ async def test_set_battery_settings_uses_requested_schedule_type_for_xsrf() -> N
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire(schedule_type: str = "cfg") -> str:
+    async def _acquire(
+        schedule_type: str = "cfg",
+        *,
+        variant: str = api._BATTERY_CONFIG_VARIANT_PRIMARY,
+    ) -> str:
+        assert variant == api._BATTERY_CONFIG_VARIANT_PRIMARY
         client._bp_xsrf_token = f"{schedule_type}-token"  # noqa: SLF001
         return client._bp_xsrf_token  # noqa: SLF001
 
@@ -3668,13 +3668,14 @@ async def test_set_battery_settings_uses_requested_schedule_type_for_xsrf() -> N
         schedule_type="dtg",
     )
 
-    client._acquire_xsrf_token.assert_awaited_once_with("dtg")
-    assert client._json.await_args.kwargs["headers"]["X-XSRF-Token"] == "dtg-token"
-    assert client._json.await_args.kwargs["headers"]["Cookie"] == (
-        "BP-XSRF-Token=dtg-token"
+    client._acquire_xsrf_token.assert_awaited_once_with(
+        "dtg", variant=api._BATTERY_CONFIG_VARIANT_PRIMARY
     )
+    assert client._json.await_args.kwargs["headers"]["X-XSRF-Token"] == "dtg-token"
     assert client._json.await_args.kwargs["headers"]["e-auth-token"] == "EAUTH"
-    assert client._json.await_args.kwargs["headers"]["Authorization"] == "Bearer EAUTH"
+    assert client._json.await_args.kwargs["headers"]["Authorization"] is None
+    assert client._json.await_args.kwargs["headers"]["Cookie"] is None
+    assert client._json.await_args.kwargs["headers"]["X-CSRF-Token"] is None
     assert "requestid" in client._json.await_args.kwargs["headers"]
 
 
@@ -3725,344 +3726,91 @@ async def test_set_battery_settings_retries_403_with_lean_official_web_variant(
     assert session.calls[3][0] == "PUT"
     primary_headers = session.calls[1][2]["headers"]
     fallback_headers = session.calls[3][2]["headers"]
-    assert primary_headers["Authorization"] == f"Bearer {primary_token}"
+    assert "Authorization" not in primary_headers
     assert primary_headers["e-auth-token"] == primary_token
     assert "requestid" in primary_headers
     assert primary_headers["Username"] == "88"
     assert primary_headers["X-XSRF-Token"] == "cfg-token"
-    assert primary_headers["Cookie"] == (
-        "session=1; enlighten_manager_token_production="
-        f"{primary_token}; BP-XSRF-Token=cfg-token"
-    )
-    assert primary_headers["X-CSRF-Token"] == "cfg-token"
-    assert fallback_headers["Authorization"] == f"Bearer {primary_token}"
+    assert "Cookie" not in primary_headers
+    assert "X-CSRF-Token" not in primary_headers
+    assert "Authorization" not in fallback_headers
     assert "e-auth-token" not in fallback_headers
     assert "requestid" not in fallback_headers
     assert fallback_headers["Username"] == "88"
     assert fallback_headers["X-XSRF-Token"] == "cfg-token-lean"
-    assert fallback_headers["X-CSRF-Token"] == "cfg-token-lean"
+    assert "X-CSRF-Token" not in fallback_headers
     assert "Retrying BatteryConfig write" in caplog.text
     assert "official_web_lean" in caplog.text
     assert client._bp_xsrf_token is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
-async def test_set_battery_profile_uses_mixed_legacy_cookie_jar_path(
-    monkeypatch,
-) -> None:
+async def test_set_battery_profile_uses_canonical_batteryconfig_write_path() -> None:
     token = _make_token({"user_id": "100"})
     client = _make_client()
     client.update_credentials(
-        eauth="session-token",
-        cookie=(
-            "session=1; locale=en-AU; XSRF-TOKEN=stale-xsrf; "
-            f"enlighten_manager_token_production={token}"
-        ),
+        eauth=token,
+        cookie=f"XSRF-TOKEN=fresh-xsrf; enlighten_manager_token_production={token}",
     )
-    client._timeout = 1  # noqa: SLF001
-
-    async def _to_thread(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr(api.asyncio, "to_thread", _to_thread)
-
-    class _FakeOpener:
-        def __init__(self, cookie_jar):
-            self.cookie_jar = cookie_jar
-            self.calls: list[tuple[str, str, dict[str, str], str | None]] = []
-
-        def open(self, request, timeout=None):
-            del timeout
-            body = request.data.decode() if request.data else None
-            headers = {key.lower(): value for key, value in request.header_items()}
-            self.calls.append((request.get_method(), request.full_url, headers, body))
-            if request.full_url.endswith("/app-api/jwt_token.json"):
-                return _FakeUrlLibResponse(status=200, body='{"token":"legacy-token"}')
-            if request.full_url.endswith("/schedules/isValid?userId=100&source=enho"):
-                self.cookie_jar.set_cookie(
-                    api.http.cookiejar.Cookie(
-                        version=0,
-                        name="BP-XSRF-Token",
-                        value="fresh-xsrf",
-                        port=None,
-                        port_specified=False,
-                        domain=".enphaseenergy.com",
-                        domain_specified=True,
-                        domain_initial_dot=True,
-                        path="/",
-                        path_specified=True,
-                        secure=False,
-                        expires=None,
-                        discard=False,
-                        comment=None,
-                        comment_url=None,
-                        rest={},
-                    )
-                )
-                return _FakeUrlLibResponse(status=200, body='{"isValid":true}')
-            return _FakeUrlLibResponse(status=200, body='{"message":"success"}')
-
-    openers: list[_FakeOpener] = []
-
-    def _build_opener(processor):
-        opener = _FakeOpener(processor.cookiejar)
-        openers.append(opener)
-        return opener
-
-    monkeypatch.setattr(api.urllib.request, "build_opener", _build_opener)
+    client._acquire_xsrf_token = AsyncMock(return_value="fresh-xsrf")  # noqa: SLF001
+    client._bp_xsrf_token = "fresh-xsrf"  # noqa: SLF001
+    client._json = AsyncMock(return_value={"message": "success"})
 
     out = await client.set_battery_profile(
         profile="self-consumption",
         battery_backup_percentage=10,
+        operation_mode_sub_type="prioritize-energy",
+        devices=[
+            {"uuid": "abc", "deviceType": "iqEvse", "enable": False},
+            "skip",
+        ],
     )
 
     assert out == {"message": "success"}
-    opener = openers[0]
-    assert [call[0] for call in opener.calls] == ["GET", "POST", "PUT"]
-    put_method, put_url, put_headers, put_body = opener.calls[-1]
-    assert put_method == "PUT"
-    assert put_url.endswith(
-        "/service/batteryConfig/api/v1/profile/SITE?userId=100&source=enho"
+    args, kwargs = client._json.await_args
+    assert args == (
+        "PUT",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
     )
-    assert put_headers["authorization"] == f"Bearer {token}"
-    assert put_headers["e-auth-token"] == "legacy-token"
-    assert put_headers["username"] == "100"
-    assert put_headers["x-csrf-token"] == "fresh-xsrf"
-    assert put_headers["x-xsrf-token"] == "fresh-xsrf"
-    assert "requestid" in {key.lower() for key in put_headers}
-    assert json.loads(put_body) == {
+    assert kwargs["params"] == {"userId": "100", "source": "enho"}
+    assert kwargs["json"] == {
         "profile": "self-consumption",
         "batteryBackupPercentage": 10,
+        "operationModeSubType": "prioritize-energy",
+        "devices": [{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
     }
+    assert kwargs["headers"]["e-auth-token"] == token
+    assert kwargs["headers"]["Username"] == "100"
+    assert kwargs["headers"]["X-XSRF-Token"] == "fresh-xsrf"
+    assert kwargs["headers"]["requestid"]
+    assert kwargs["headers"]["Authorization"] is None
+    assert kwargs["headers"]["Cookie"] is None
+    assert kwargs["headers"]["X-CSRF-Token"] is None
+    assert kwargs["headers"]["X-Requested-With"] is None
 
 
-@pytest.mark.asyncio
-async def test_battery_config_profile_write_request_requires_auth_context() -> None:
+def test_battery_config_endpoint_family_identifies_schedule_routes() -> None:
     client = _make_client()
-    client.update_credentials(eauth="", cookie="")
 
-    with pytest.raises(aiohttp.ClientResponseError) as err:
-        await client._battery_config_profile_write_request(  # noqa: SLF001
-            url="https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
-            payload={"profile": "self-consumption", "batteryBackupPercentage": 10},
-            params={"userId": "100", "source": "enho"},
+    assert (
+        client._battery_config_endpoint_family(  # noqa: SLF001
+            "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/"
+            "battery/sites/SITE/schedules/sched-1"
         )
-
-    assert err.value.status == 403
+        == "schedules"
+    )
 
 
 @pytest.mark.asyncio
-async def test_battery_config_profile_write_request_reraises_legacy_token_fetch_errors(
-    monkeypatch,
-) -> None:
-    token = _make_token({"user_id": "100"})
+async def test_battery_config_request_raises_when_no_variants_are_available() -> None:
     client = _make_client()
-    client.update_credentials(
-        eauth="session-token",
-        cookie=f"session=1; enlighten_manager_token_production={token}",
-    )
-    client._timeout = 1  # noqa: SLF001
+    client._battery_config_variant_order = MagicMock(return_value=[])  # noqa: SLF001
 
-    async def _to_thread(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr(api.asyncio, "to_thread", _to_thread)
-
-    class _FakeOpener:
-        def open(self, request, timeout=None):
-            del timeout
-            raise api.urllib.error.HTTPError(
-                request.full_url,
-                403,
-                "Forbidden",
-                hdrs={},
-                fp=io.BytesIO(b'{"status":403}'),
-            )
-
-    monkeypatch.setattr(
-        api.urllib.request,
-        "build_opener",
-        lambda _processor: _FakeOpener(),
-    )
-
-    with pytest.raises(aiohttp.ClientResponseError) as err:
-        await client._battery_config_profile_write_request(  # noqa: SLF001
-            url="https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
-            payload={"profile": "self-consumption", "batteryBackupPercentage": 10},
-            params={"userId": "100", "source": "enho"},
+    with pytest.raises(aiohttp.ClientError, match="exhausted variants"):
+        await client._battery_config_request(  # noqa: SLF001
+            "GET",
+            "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
         )
-
-    assert err.value.status == 403
-
-
-@pytest.mark.asyncio
-async def test_battery_config_profile_write_request_returns_empty_dict_for_blank_body(
-    monkeypatch,
-) -> None:
-    token = _make_token({"user_id": "100"})
-    client = _make_client()
-    client.update_credentials(
-        eauth="session-token",
-        cookie=(
-            "session=1; XSRF-TOKEN=stale-xsrf; "
-            f"enlighten_manager_token_production={token}"
-        ),
-    )
-    client._timeout = 1  # noqa: SLF001
-
-    async def _to_thread(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr(api.asyncio, "to_thread", _to_thread)
-
-    class _FakeOpener:
-        def __init__(self, cookie_jar):
-            self.cookie_jar = cookie_jar
-
-        def open(self, request, timeout=None):
-            del timeout
-            if request.full_url.endswith("/app-api/jwt_token.json"):
-                return _FakeUrlLibResponse(status=200, body='{"token":"legacy-token"}')
-            if request.full_url.endswith("/schedules/isValid?userId=100&source=enho"):
-                self.cookie_jar.set_cookie(
-                    api.http.cookiejar.Cookie(
-                        version=0,
-                        name="BP-XSRF-Token",
-                        value="fresh-xsrf",
-                        port=None,
-                        port_specified=False,
-                        domain=".enphaseenergy.com",
-                        domain_specified=True,
-                        domain_initial_dot=True,
-                        path="/",
-                        path_specified=True,
-                        secure=False,
-                        expires=None,
-                        discard=False,
-                        comment=None,
-                        comment_url=None,
-                        rest={},
-                    )
-                )
-                return _FakeUrlLibResponse(status=200, body='{"isValid":true}')
-            return _FakeUrlLibResponse(status=200, body="   ")
-
-    monkeypatch.setattr(
-        api.urllib.request,
-        "build_opener",
-        lambda processor: _FakeOpener(processor.cookiejar),
-    )
-
-    out = await client._battery_config_profile_write_request(  # noqa: SLF001
-        url="https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
-        payload={"profile": "self-consumption", "batteryBackupPercentage": 10},
-        params={"userId": "100", "source": "enho"},
-    )
-
-    assert out == {}
-
-
-@pytest.mark.asyncio
-async def test_battery_config_profile_write_request_rejects_missing_legacy_token(
-    monkeypatch,
-) -> None:
-    token = _make_token({"user_id": "100"})
-    client = _make_client()
-    client.update_credentials(
-        eauth="session-token",
-        cookie=f"session=1; enlighten_manager_token_production={token}",
-    )
-    client._timeout = 1  # noqa: SLF001
-
-    async def _to_thread(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr(api.asyncio, "to_thread", _to_thread)
-
-    class _FakeOpener:
-        def __init__(self, cookie_jar):
-            self.cookie_jar = cookie_jar
-
-        def open(self, request, timeout=None):
-            del timeout
-            if request.full_url.endswith("/app-api/jwt_token.json"):
-                return _FakeUrlLibResponse(status=200, body="{}")
-            return _FakeUrlLibResponse(status=200, body='{"isValid":true}')
-
-    monkeypatch.setattr(
-        api.urllib.request,
-        "build_opener",
-        lambda processor: _FakeOpener(processor.cookiejar),
-    )
-
-    with pytest.raises(aiohttp.ClientResponseError) as err:
-        await client._battery_config_profile_write_request(  # noqa: SLF001
-            url="https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
-            payload={"profile": "self-consumption", "batteryBackupPercentage": 10},
-            params={"userId": "100", "source": "enho"},
-        )
-
-    assert err.value.status == 403
-
-
-@pytest.mark.asyncio
-async def test_battery_config_profile_write_request_uses_fallback_xsrf_cookie(
-    monkeypatch,
-) -> None:
-    token = _make_token({"user_id": "100"})
-    client = _make_client()
-    client.update_credentials(
-        eauth="session-token",
-        cookie=(
-            "session=1; XSRF-TOKEN=stale-xsrf; "
-            f"enlighten_manager_token_production={token}"
-        ),
-    )
-    client._timeout = 1  # noqa: SLF001
-
-    async def _to_thread(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr(api.asyncio, "to_thread", _to_thread)
-
-    seen_headers: dict[str, str] = {}
-
-    class _FakeOpener:
-        def __init__(self, cookie_jar):
-            self.cookie_jar = cookie_jar
-
-        def open(self, request, timeout=None):
-            del timeout
-            if request.full_url.endswith("/app-api/jwt_token.json"):
-                return _FakeUrlLibResponse(status=200, body='{"token":"legacy-token"}')
-            if request.full_url.endswith("/schedules/isValid?userId=100&source=enho"):
-                raise api.urllib.error.HTTPError(
-                    request.full_url,
-                    403,
-                    "Forbidden",
-                    hdrs={},
-                    fp=io.BytesIO(b'{"status":403}'),
-                )
-            seen_headers.update(
-                {key.lower(): value for key, value in request.header_items()}
-            )
-            return _FakeUrlLibResponse(status=200, body='{"message":"success"}')
-
-    monkeypatch.setattr(
-        api.urllib.request,
-        "build_opener",
-        lambda processor: _FakeOpener(processor.cookiejar),
-    )
-
-    out = await client._battery_config_profile_write_request(  # noqa: SLF001
-        url="https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
-        payload={"profile": "self-consumption", "batteryBackupPercentage": 10},
-        params={"userId": "100", "source": "enho"},
-    )
-
-    assert out == {"message": "success"}
-    assert seen_headers["x-csrf-token"] == "stale-xsrf"
-    assert seen_headers["x-xsrf-token"] == "stale-xsrf"
 
 
 @pytest.mark.asyncio
@@ -4100,11 +3848,101 @@ async def test_battery_config_write_request_reraises_403_after_fallback() -> Non
     assert client._json.await_count == 2
     assert client._acquire_xsrf_token.await_count == 2
     assert client._acquire_xsrf_token.await_args_list[0].args == ("cfg",)
+    assert client._acquire_xsrf_token.await_args_list[0].kwargs == {
+        "variant": api._BATTERY_CONFIG_VARIANT_PRIMARY
+    }
     assert client._acquire_xsrf_token.await_args_list[1].args == ("cfg",)
     assert client._acquire_xsrf_token.await_args_list[1].kwargs == {
-        "include_eauth": False,
-        "include_requestid": False,
+        "variant": api._BATTERY_CONFIG_VARIANT_LEAN
     }
+
+
+@pytest.mark.asyncio
+async def test_battery_config_write_request_caches_successful_fallback_variant() -> (
+    None
+):
+    client = _make_client()
+    client._acquire_xsrf_token = AsyncMock(return_value="xsrf-token")  # noqa: SLF001
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(403, "Forbidden"),
+            {"message": "success"},
+            {"message": "success"},
+        ]
+    )
+
+    first = await client._battery_config_write_request(  # noqa: SLF001
+        "PUT",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/batterySettings/SITE",
+        json_body={"veryLowSoc": 15},
+        params={"userId": "88", "source": "enho"},
+    )
+    second = await client._battery_config_write_request(  # noqa: SLF001
+        "PUT",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/batterySettings/SITE",
+        json_body={"veryLowSoc": 20},
+        params={"userId": "88", "source": "enho"},
+    )
+
+    assert first == {"message": "success"}
+    assert second == {"message": "success"}
+    first_call = client._json.await_args_list[0]
+    fallback_call = client._json.await_args_list[1]
+    cached_call = client._json.await_args_list[2]
+    assert first_call.kwargs["headers"]["requestid"]
+    assert "e-auth-token" in first_call.kwargs["headers"]
+    assert fallback_call.kwargs["headers"]["requestid"] is None
+    assert fallback_call.kwargs["headers"]["e-auth-token"] is None
+    assert cached_call.kwargs["headers"]["requestid"] is None
+    assert cached_call.kwargs["headers"]["e-auth-token"] is None
+
+
+@pytest.mark.asyncio
+async def test_battery_config_write_request_updates_cached_variant_after_403() -> None:
+    client = _make_client()
+    client._cache_battery_config_variant(  # noqa: SLF001
+        "battery_settings", api._BATTERY_CONFIG_VARIANT_PRIMARY
+    )
+    client._acquire_xsrf_token = AsyncMock(return_value="xsrf-token")  # noqa: SLF001
+    client._json = AsyncMock(
+        side_effect=[_make_cre(403, "Forbidden"), {"message": "success"}]
+    )
+
+    out = await client._battery_config_write_request(  # noqa: SLF001
+        "PUT",
+        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/batterySettings/SITE",
+        json_body={"veryLowSoc": 15},
+        params={"userId": "88", "source": "enho"},
+    )
+
+    assert out == {"message": "success"}
+    assert (
+        client._battery_config_cached_variant("battery_settings")  # noqa: SLF001
+        == api._BATTERY_CONFIG_VARIANT_LEAN
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_config_write_request_does_not_cache_on_401() -> None:
+    client = _make_client()
+    client._cache_battery_config_variant(  # noqa: SLF001
+        "battery_settings", api._BATTERY_CONFIG_VARIANT_PRIMARY
+    )
+    client._acquire_xsrf_token = AsyncMock(return_value="xsrf-token")  # noqa: SLF001
+    client._json = AsyncMock(side_effect=_make_cre(401, "Unauthorized"))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client._battery_config_write_request(  # noqa: SLF001
+            "PUT",
+            "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/batterySettings/SITE",
+            json_body={"veryLowSoc": 15},
+            params={"userId": "88", "source": "enho"},
+        )
+
+    assert (
+        client._battery_config_cached_variant("battery_settings")  # noqa: SLF001
+        == api._BATTERY_CONFIG_VARIANT_PRIMARY
+    )
 
 
 @pytest.mark.asyncio
@@ -4133,11 +3971,9 @@ async def test_acquire_xsrf_token_uses_requested_validation_payload() -> None:
     assert kwargs["headers"]["Username"] == "88"
     assert kwargs["headers"]["X-XSRF-Token"] == "stale-token"
     assert kwargs["headers"]["e-auth-token"] == token
-    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
+    assert "Authorization" not in kwargs["headers"]
     assert "requestid" in kwargs["headers"]
-    assert (
-        kwargs["headers"]["Cookie"] == "session=1; other=1; BP-XSRF-Token=stale-token"
-    )
+    assert "Cookie" not in kwargs["headers"]
 
 
 @pytest.mark.asyncio
@@ -4173,14 +4009,12 @@ async def test_acquire_xsrf_token_uses_official_web_headers() -> None:
     await client._acquire_xsrf_token()  # noqa: SLF001
 
     headers = session.calls[0][2]["headers"]
-    assert headers["Authorization"] == f"Bearer {bearer}"
+    assert "Authorization" not in headers
     assert headers["e-auth-token"] == "session-token"
     assert headers["Username"] == "88"
     assert headers["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
     assert headers["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
-    assert (
-        headers["Cookie"] == f"session=1; enlighten_manager_token_production={bearer}"
-    )
+    assert "Cookie" not in headers
     assert "requestid" in headers
 
 
@@ -4296,10 +4130,33 @@ async def test_acquire_xsrf_token_falls_back_to_session_cookie_jar() -> None:
         client._cookie
         == "session=1; other=1; enlighten_manager_token_production=bearer"
     )  # noqa: SLF001
-    assert client._battery_config_headers(include_xsrf=True)["Cookie"] == (
-        "session=1; other=1; enlighten_manager_token_production=bearer; "
-        "BP-XSRF-Token=jar-token"
+    assert client._battery_config_headers(include_xsrf=True)["Cookie"] is None
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_keeps_existing_token_on_bootstrap_403() -> None:
+    response = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    response.headers = CIMultiDict()
+    session = _FakeSession([response])
+    request_url = URL(
+        f"{api.BASE_URL}/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
     )
+    session.cookie_jar.update_cookies(
+        {"bp-xsrf-token": "jar-token"},
+        response_url=request_url,
+    )
+    client = _make_client(session)
+    client.update_credentials(
+        cookie=(
+            "session=1; BP-XSRF-Token=stale-token; other=1; "
+            "enlighten_manager_token_production=bearer"
+        )
+    )
+    client._bp_xsrf_token = "existing-token"  # noqa: SLF001
+
+    assert await client._acquire_xsrf_token() is None  # noqa: SLF001
+    assert client._bp_xsrf_token == "existing-token"  # noqa: SLF001
+    assert client._xsrf_token() == "existing-token"  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -4307,7 +4164,7 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire(*_args: object) -> str:
+    async def _acquire(*_args: object, **_kwargs: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -4339,12 +4196,18 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
         "days": [1, 7],
     }
     assert client._acquire_xsrf_token.await_args_list[0].args == ("cfg",)
+    assert client._acquire_xsrf_token.await_args_list[0].kwargs == {
+        "variant": api._BATTERY_CONFIG_VARIANT_PRIMARY
+    }
     assert delete_call.args == (
         "POST",
         "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/sched-1/delete",
     )
     assert delete_call.kwargs["json"] == {}
     assert client._acquire_xsrf_token.await_args_list[1].args == ("rbd",)
+    assert client._acquire_xsrf_token.await_args_list[1].kwargs == {
+        "variant": api._BATTERY_CONFIG_VARIANT_PRIMARY
+    }
     assert validate_call.args == (
         "POST",
         "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid",
@@ -4360,7 +4223,7 @@ async def test_create_battery_schedule_omits_optional_limit_and_sets_is_enabled(
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire(*_args: object) -> str:
+    async def _acquire(*_args: object, **_kwargs: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -4377,7 +4240,9 @@ async def test_create_battery_schedule_omits_optional_limit_and_sets_is_enabled(
     )
 
     call = client._json.await_args
-    client._acquire_xsrf_token.assert_awaited_once_with("rbd")
+    client._acquire_xsrf_token.assert_awaited_once_with(
+        "rbd", variant=api._BATTERY_CONFIG_VARIANT_PRIMARY
+    )
     assert call.kwargs["json"] == {
         "timezone": "Europe/London",
         "startTime": "01:00",
@@ -4395,7 +4260,7 @@ async def test_update_battery_schedule_sets_optional_is_enabled_and_is_deleted()
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire(*_args: object) -> str:
+    async def _acquire(*_args: object, **_kwargs: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -4414,7 +4279,9 @@ async def test_update_battery_schedule_sets_optional_is_enabled_and_is_deleted()
     )
 
     call = client._json.await_args
-    client._acquire_xsrf_token.assert_awaited_once_with("rbd")
+    client._acquire_xsrf_token.assert_awaited_once_with(
+        "rbd", variant=api._BATTERY_CONFIG_VARIANT_PRIMARY
+    )
     assert call.kwargs["json"] == {
         "timezone": "Europe/London",
         "startTime": "01:00",
@@ -4431,7 +4298,7 @@ async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"message": "success"})
 
-    async def _acquire(*_args: object) -> str:
+    async def _acquire(*_args: object, **_kwargs: object) -> str:
         client._bp_xsrf_token = "fresh-token"  # noqa: SLF001
         return "fresh-token"
 
@@ -4448,7 +4315,9 @@ async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
     )
 
     assert out == {"message": "success"}
-    client._acquire_xsrf_token.assert_awaited_once_with("dtg")
+    client._acquire_xsrf_token.assert_awaited_once_with(
+        "dtg", variant=api._BATTERY_CONFIG_VARIANT_PRIMARY
+    )
     args, kwargs = client._json.await_args
     assert args == (
         "PUT",
@@ -4462,17 +4331,17 @@ async def test_update_battery_schedule_builds_request_and_clears_xsrf() -> None:
         "scheduleType": "DTG",
         "days": [2, 6],
     }
-    assert kwargs["headers"]["Authorization"] == "Bearer EAUTH"
+    assert kwargs["headers"]["Authorization"] is None
     assert kwargs["headers"]["e-auth-token"] == "EAUTH"
     assert "requestid" in kwargs["headers"]
-    assert kwargs["headers"]["X-CSRF-Token"] == "fresh-token"
+    assert kwargs["headers"]["X-CSRF-Token"] is None
     assert kwargs["headers"]["X-XSRF-Token"] == "fresh-token"
     assert kwargs["headers"]["Content-Type"] == "application/json"
     assert kwargs["headers"]["Origin"] == "https://battery-profile-ui.enphaseenergy.com"
     assert (
         kwargs["headers"]["Referer"] == "https://battery-profile-ui.enphaseenergy.com/"
     )
-    assert kwargs["headers"]["Cookie"] == "BP-XSRF-Token=fresh-token"
+    assert kwargs["headers"]["Cookie"] is None
     assert client._bp_xsrf_token is None  # noqa: SLF001
 
 
@@ -4482,8 +4351,13 @@ async def test_set_battery_settings_reacquires_xsrf_for_each_write() -> None:
     client._json = AsyncMock(return_value={"message": "success"})
     call_number = 0
 
-    async def _acquire(schedule_type: str = "cfg") -> str:
+    async def _acquire(
+        schedule_type: str = "cfg",
+        *,
+        variant: str = api._BATTERY_CONFIG_VARIANT_PRIMARY,
+    ) -> str:
         nonlocal call_number
+        assert variant == api._BATTERY_CONFIG_VARIANT_PRIMARY
         call_number += 1
         client._bp_xsrf_token = (  # noqa: SLF001
             f"{schedule_type}-fresh-token-{call_number}"
@@ -4502,7 +4376,13 @@ async def test_set_battery_settings_reacquires_xsrf_for_each_write() -> None:
     assert "requestid" in second_call.kwargs["headers"]
     assert client._acquire_xsrf_token.await_count == 2
     assert client._acquire_xsrf_token.await_args_list[0].args == ("cfg",)
+    assert client._acquire_xsrf_token.await_args_list[0].kwargs == {
+        "variant": api._BATTERY_CONFIG_VARIANT_PRIMARY
+    }
     assert client._acquire_xsrf_token.await_args_list[1].args == ("cfg",)
+    assert client._acquire_xsrf_token.await_args_list[1].kwargs == {
+        "variant": api._BATTERY_CONFIG_VARIANT_PRIMARY
+    }
     assert client._bp_xsrf_token is None  # noqa: SLF001
 
 
@@ -4518,122 +4398,9 @@ async def test_storm_guard_profile_delegates_to_battery_profile_details() -> Non
 
 
 @pytest.mark.asyncio
-async def test_set_battery_profile_retries_without_devices_on_mixed_auth_403(
-    monkeypatch,
-) -> None:
-    token = _make_token({"user_id": "100"})
+async def test_set_battery_profile_reraises_non_403_errors() -> None:
     client = _make_client()
-    client.update_credentials(
-        eauth="session-token",
-        cookie=(
-            "session=1; locale=en-AU; XSRF-TOKEN=stale-xsrf; "
-            f"enlighten_manager_token_production={token}"
-        ),
-    )
-    client._timeout = 1  # noqa: SLF001
-    client._json = AsyncMock(return_value={"message": "success"})  # noqa: SLF001
-
-    async def _to_thread(func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr(api.asyncio, "to_thread", _to_thread)
-
-    class _FakeOpener:
-        def __init__(self, cookie_jar):
-            self.cookie_jar = cookie_jar
-            self.calls: list[tuple[str, str, dict[str, str], str | None]] = []
-            self.put_count = 0
-
-        def open(self, request, timeout=None):
-            del timeout
-            body = request.data.decode() if request.data else None
-            headers = {key.lower(): value for key, value in request.header_items()}
-            self.calls.append((request.get_method(), request.full_url, headers, body))
-            if request.full_url.endswith("/app-api/jwt_token.json"):
-                return _FakeUrlLibResponse(status=200, body='{"token":"legacy-token"}')
-            if request.full_url.endswith("/schedules/isValid?userId=100&source=enho"):
-                self.cookie_jar.set_cookie(
-                    api.http.cookiejar.Cookie(
-                        version=0,
-                        name="BP-XSRF-Token",
-                        value="fresh-xsrf",
-                        port=None,
-                        port_specified=False,
-                        domain=".enphaseenergy.com",
-                        domain_specified=True,
-                        domain_initial_dot=True,
-                        path="/",
-                        path_specified=True,
-                        secure=False,
-                        expires=None,
-                        discard=False,
-                        comment=None,
-                        comment_url=None,
-                        rest={},
-                    )
-                )
-                return _FakeUrlLibResponse(status=200, body='{"isValid":true}')
-            self.put_count += 1
-            if self.put_count == 1:
-                raise api.urllib.error.HTTPError(
-                    request.full_url,
-                    403,
-                    "Forbidden",
-                    hdrs={},
-                    fp=io.BytesIO(b'{"status":403}'),
-                )
-            return _FakeUrlLibResponse(status=200, body='{"message":"success"}')
-
-    openers: list[_FakeOpener] = []
-
-    def _build_opener(processor):
-        opener = _FakeOpener(processor.cookiejar)
-        openers.append(opener)
-        return opener
-
-    monkeypatch.setattr(api.urllib.request, "build_opener", _build_opener)
-
-    out = await client.set_battery_profile(
-        profile="cost_savings",
-        battery_backup_percentage=25,
-        operation_mode_sub_type="prioritize-energy",
-        devices=[{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
-    )
-
-    assert out == {"message": "success"}
-    put_calls = [
-        call for opener in openers for call in opener.calls if call[0] == "PUT"
-    ]
-    assert len(put_calls) == 2
-    assert json.loads(put_calls[0][3]) == {
-        "profile": "cost_savings",
-        "batteryBackupPercentage": 25,
-        "operationModeSubType": "prioritize-energy",
-        "devices": [{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
-    }
-    assert json.loads(put_calls[1][3]) == {
-        "profile": "cost_savings",
-        "batteryBackupPercentage": 25,
-        "operationModeSubType": "prioritize-energy",
-    }
-    client._json.assert_awaited_once()
-    assert client._json.await_args.args == (
-        "PUT",
-        "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/profile/SITE",
-    )
-    assert client._json.await_args.kwargs["json"] == {
-        "profile": "cost_savings",
-        "batteryBackupPercentage": 25,
-        "operationModeSubType": "prioritize-energy",
-    }
-
-
-@pytest.mark.asyncio
-async def test_set_battery_profile_reraises_non_403_profile_write_errors() -> None:
-    client = _make_client()
-    client._battery_config_profile_write_request = AsyncMock(  # noqa: SLF001
-        side_effect=_make_cre(500, "boom")
-    )
+    client._json = AsyncMock(side_effect=_make_cre(500, "boom"))
 
     with pytest.raises(aiohttp.ClientResponseError) as err:
         await client.set_battery_profile(
@@ -4662,9 +4429,9 @@ async def test_cancel_battery_profile_update_uses_empty_body() -> None:
     assert kwargs["json"] == {}
     assert kwargs["params"]["userId"] == "44"
     assert kwargs["headers"]["X-XSRF-Token"] == "t"
-    assert kwargs["headers"]["X-CSRF-Token"] == "t"
+    assert kwargs["headers"]["X-CSRF-Token"] is None
     assert kwargs["headers"]["e-auth-token"] == token
-    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
+    assert kwargs["headers"]["Authorization"] is None
     assert "requestid" in kwargs["headers"]
 
 
@@ -4690,9 +4457,9 @@ async def test_set_storm_guard_passes_payload_and_xsrf() -> None:
     }
     assert kwargs["params"]["userId"] == "99"
     assert kwargs["headers"]["X-XSRF-Token"] == "xsrf-token"
-    assert kwargs["headers"]["X-CSRF-Token"] == "xsrf-token"
+    assert kwargs["headers"]["X-CSRF-Token"] is None
     assert kwargs["headers"]["e-auth-token"] == token
-    assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
+    assert kwargs["headers"]["Authorization"] is None
     assert "requestid" in kwargs["headers"]
 
 
@@ -4756,7 +4523,7 @@ async def test_battery_config_prefers_cookie_bearer_when_it_has_user_id() -> Non
     await client.set_storm_guard(enabled=True, evse_enabled=True)
 
     _args, kwargs = client._json.await_args
-    assert kwargs["headers"]["Authorization"] == f"Bearer {cookie_token}"
+    assert kwargs["headers"]["Authorization"] is None
     assert kwargs["headers"]["e-auth-token"] == eauth_token
     assert kwargs["headers"]["Username"] == "123"
     assert "requestid" in kwargs["headers"]
