@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import hashlib
 import json
 import logging
@@ -42,10 +43,30 @@ _ENLIGHTEN_BROWSER_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
 )
+_BATTERY_CONFIG_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+)
 _BATTERY_CONFIG_VARIANT_PRIMARY = "official_web_primary"
 _BATTERY_CONFIG_VARIANT_LEAN = "official_web_lean"
+_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH = "cookie_eauth_compatible"
+_BATTERY_CONFIG_VARIANT_MIXED = "mixed_auth_compatible"
 _ENLIGHTEN_READ_CONCURRENCY_LIMIT = 2
 _enlighten_read_semaphore: asyncio.Semaphore | None = None
+
+
+@dataclass(frozen=True)
+class _BatteryConfigWriteAttempt:
+    """Describe one BatteryConfig write attempt shape."""
+
+    attempt_id: str
+    auth_mode: str
+    omit_source: bool = False
+    strip_devices: bool = False
+    disclaimer_bool_true: bool = False
+    merged_payload: bool = False
+    preserve_base_devices: bool = False
+    prefer_existing_xsrf: bool = False
 
 
 class Unauthorized(Exception):
@@ -1874,6 +1895,11 @@ class EnphaseEVClient:
         self._stop_variant_idx: int | None = None
         self._bp_xsrf_token: str | None = None
         self._battery_config_variant_cache: dict[tuple[str, str, str], str] = {}
+        self._battery_config_write_attempt_cache: dict[
+            tuple[str, str, str, str], str
+        ] = {}
+        self._battery_config_supports_mqtt: bool | None = None
+        self._battery_config_write_bases: dict[str, dict[str, Any]] = {}
         self._cookie = cookie or ""
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
@@ -2379,25 +2405,25 @@ class EnphaseEVClient:
     ) -> dict[str, str | None]:
         """Return headers for BatteryConfig read/write calls."""
 
-        headers: dict[str, str | None] = dict(self._h)
-        headers["Accept"] = "application/json, text/plain, */*"
-        headers["Origin"] = "https://battery-profile-ui.enphaseenergy.com"
-        headers["Referer"] = "https://battery-profile-ui.enphaseenergy.com/"
-        headers["Authorization"] = None
-        headers["X-Requested-With"] = None
-        headers["Cookie"] = None
-        headers["X-CSRF-Token"] = None
-        headers["requestid"] = (
-            str(uuid.uuid4()) if variant == _BATTERY_CONFIG_VARIANT_PRIMARY else None
-        )
+        headers: dict[str, str | None] = {
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": _BATTERY_CONFIG_BROWSER_USER_AGENT,
+            "Authorization": None,
+            "X-Requested-With": None,
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": (
+                str(uuid.uuid4())
+                if variant == _BATTERY_CONFIG_VARIANT_PRIMARY
+                else None
+            ),
+        }
         token, user_id = self._battery_config_auth_context()
         if variant == _BATTERY_CONFIG_VARIANT_PRIMARY:
-            if self._eauth:
-                headers["e-auth-token"] = self._eauth
-            elif token:
-                headers["e-auth-token"] = token
-            else:
-                headers["e-auth-token"] = None
+            headers["e-auth-token"] = token
         else:
             headers["e-auth-token"] = None
         if user_id:
@@ -2408,6 +2434,140 @@ class EnphaseEVClient:
             xsrf = self._xsrf_token()
             if xsrf:
                 headers["X-XSRF-Token"] = xsrf
+        return headers
+
+    def _battery_config_cookie_eauth_headers(
+        self,
+        *,
+        include_xsrf: bool = False,
+    ) -> dict[str, str | None]:
+        """Return the cookie-backed external-compatible BatteryConfig headers."""
+
+        token = self._battery_config_single_auth_token()
+        user_id = self._battery_config_user_id_for_token(token)
+        headers: dict[str, str | None] = {
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": _BATTERY_CONFIG_BROWSER_USER_AGENT,
+            "Authorization": None,
+            "X-Requested-With": "XMLHttpRequest",
+            "Cookie": self._cookie or None,
+            "e-auth-token": token,
+            "X-CSRF-Token": None,
+            "requestid": None,
+        }
+        if user_id:
+            headers["Username"] = user_id
+        else:
+            headers.pop("Username", None)
+        if include_xsrf:
+            xsrf = self._battery_config_cookie_header_xsrf_token()
+            if xsrf:
+                headers["X-XSRF-Token"] = xsrf
+            else:
+                headers["X-XSRF-Token"] = None
+        return headers
+
+    def _battery_config_cookie(self, *, include_xsrf: bool = False) -> str | None:
+        """Return a normalized BatteryConfig cookie header value."""
+
+        cookies: dict[str, str] = {}
+
+        try:
+            cookie_str = str(self._cookie) if self._cookie else ""
+        except Exception:  # noqa: BLE001 - defensive parsing
+            cookie_str = ""
+
+        cookies.update(_cookie_map_from_header(cookie_str))
+
+        jar = getattr(self._s, "cookie_jar", None)
+        if jar is not None:
+            _cookie_header, jar_cookies = _serialize_cookie_jar(
+                jar,
+                (
+                    BASE_URL,
+                    ENTREZ_URL,
+                    "https://battery-profile-ui.enphaseenergy.com",
+                ),
+            )
+            cookies.update(jar_cookies)
+
+        cookies = {
+            name: value
+            for name, value in cookies.items()
+            if name.strip().lower() not in _XSRF_COOKIE_NAMES
+        }
+
+        if include_xsrf:
+            xsrf = self._xsrf_token()
+            if xsrf:
+                cookies["BP-XSRF-Token"] = xsrf
+        if not cookies:
+            return None
+        return _cookie_header_from_map(cookies)
+
+    def _battery_config_cookie_header_xsrf_token(self) -> str | None:
+        """Return the BP-XSRF token from the stored cookie header."""
+
+        try:
+            parts = [p.strip() for p in (self._cookie or "").split(";")]
+        except Exception:  # noqa: BLE001 - defensive parsing
+            return None
+        for part in parts:
+            key, sep, value = part.partition("=")
+            if not sep or key.strip().lower() not in _XSRF_COOKIE_NAMES:
+                continue
+            token = value.strip()
+            if token.startswith('"') and token.endswith('"') and len(token) >= 2:
+                token = token[1:-1]
+            if not token:
+                continue
+            try:
+                return unquote(token)
+            except Exception:  # noqa: BLE001 - defensive decoding
+                return token
+        return None
+
+    def _battery_config_mixed_auth_headers(
+        self,
+        *,
+        include_xsrf: bool = False,
+    ) -> dict[str, str | None]:
+        """Return the mixed-auth compatibility BatteryConfig headers."""
+
+        headers: dict[str, str | None] = {
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://battery-profile-ui.enphaseenergy.com",
+            "Referer": "https://battery-profile-ui.enphaseenergy.com/",
+            "User-Agent": _BATTERY_CONFIG_BROWSER_USER_AGENT,
+            "Authorization": None,
+            "X-Requested-With": "XMLHttpRequest",
+            "Cookie": None,
+            "e-auth-token": None,
+            "X-CSRF-Token": None,
+            "requestid": None,
+        }
+        token, user_id = self._battery_config_auth_context()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        else:
+            headers["Authorization"] = None
+        headers["e-auth-token"] = token
+        if user_id:
+            headers["Username"] = user_id
+        else:
+            headers.pop("Username", None)
+        cookie = self._battery_config_cookie(include_xsrf=include_xsrf)
+        headers["Cookie"] = cookie
+        if include_xsrf:
+            xsrf = self._xsrf_token()
+            if xsrf:
+                headers["X-XSRF-Token"] = xsrf
+                headers["X-CSRF-Token"] = xsrf
+        else:
+            headers["X-XSRF-Token"] = None
+            headers["X-CSRF-Token"] = None
         return headers
 
     def _battery_schedule_validation_payload(
@@ -2485,6 +2645,637 @@ class EnphaseEVClient:
             if variant
             in {_BATTERY_CONFIG_VARIANT_PRIMARY, _BATTERY_CONFIG_VARIANT_LEAN}
         ]
+
+    def _battery_config_write_attempt_cache_key(
+        self,
+        endpoint_family: str,
+        *,
+        supports_mqtt: bool | None,
+    ) -> tuple[str, str, str, str]:
+        """Return the cache key for BatteryConfig write attempts."""
+
+        user_id = self._battery_config_user_id() or "<unknown>"
+        mqtt_key = (
+            "mqtt"
+            if supports_mqtt is True
+            else "nomqtt" if supports_mqtt is False else "<unknown>"
+        )
+        return (str(self._site), user_id, str(endpoint_family), mqtt_key)
+
+    def _battery_config_cached_write_attempt(
+        self,
+        endpoint_family: str,
+        *,
+        supports_mqtt: bool | None,
+    ) -> str | None:
+        """Return the cached BatteryConfig write attempt id for an endpoint family."""
+
+        key = self._battery_config_write_attempt_cache_key(
+            endpoint_family,
+            supports_mqtt=supports_mqtt,
+        )
+        return self._battery_config_write_attempt_cache.get(key)
+
+    def _cache_battery_config_write_attempt(
+        self,
+        endpoint_family: str,
+        attempt_id: str,
+        *,
+        supports_mqtt: bool | None,
+    ) -> None:
+        """Remember the working BatteryConfig write attempt id for an endpoint family."""
+
+        key = self._battery_config_write_attempt_cache_key(
+            endpoint_family,
+            supports_mqtt=supports_mqtt,
+        )
+        self._battery_config_write_attempt_cache[key] = attempt_id
+
+    def _battery_config_write_attempts(
+        self,
+        endpoint_family: str,
+        *,
+        write_intent: str,
+        supports_mqtt: bool | None,
+        params: dict[str, str] | None,
+        json_body: dict[str, Any] | list[Any] | None,
+    ) -> list[_BatteryConfigWriteAttempt]:
+        """Return ordered write attempts for a BatteryConfig endpoint family."""
+
+        attempts: list[_BatteryConfigWriteAttempt]
+        body = json_body if isinstance(json_body, dict) else None
+        has_source = isinstance(params, dict) and "source" in params
+        has_devices = isinstance(body, dict) and "devices" in body
+        has_disclaimer = (
+            isinstance(body, dict)
+            and "acceptedItcDisclaimer" in body
+            and body.get("acceptedItcDisclaimer") is not True
+        )
+        has_compat_auth_material = bool(self._battery_config_single_auth_token())
+        prefer_cookie_compat = self._battery_config_prefers_cookie_compat()
+        has_stateful_base = endpoint_family in self._battery_config_write_bases
+
+        if write_intent == "profile_update":
+            attempts = [
+                _BatteryConfigWriteAttempt(
+                    attempt_id="profile_primary",
+                    auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                ),
+            ]
+            if has_devices:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="profile_primary_no_devices",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                        strip_devices=True,
+                    )
+                )
+            if has_source:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="profile_primary_no_source",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                        omit_source=True,
+                        strip_devices=has_devices,
+                    )
+                )
+            if has_stateful_base:
+                attempts.extend(
+                    [
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="profile_stateful_primary",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                            merged_payload=True,
+                            preserve_base_devices=has_devices,
+                        ),
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="profile_stateful_primary_no_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                            omit_source=has_source,
+                            merged_payload=True,
+                            preserve_base_devices=has_devices,
+                        ),
+                    ]
+                )
+            if has_compat_auth_material:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="profile_cookie_eauth_compat",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                        omit_source=has_source,
+                        strip_devices=has_devices,
+                        prefer_existing_xsrf=True,
+                    )
+                )
+                if has_stateful_base:
+                    attempts.append(
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="profile_stateful_cookie_eauth_compat",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                            omit_source=has_source,
+                            merged_payload=True,
+                            preserve_base_devices=has_devices,
+                            prefer_existing_xsrf=True,
+                        )
+                    )
+            if has_compat_auth_material:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="profile_mixed_compat",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                        omit_source=has_source,
+                        strip_devices=has_devices,
+                    )
+                )
+                if has_stateful_base:
+                    attempts.append(
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="profile_stateful_mixed_compat",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                            omit_source=has_source,
+                            merged_payload=True,
+                            preserve_base_devices=has_devices,
+                        )
+                    )
+        elif write_intent == "battery_settings_update":
+            attempts = [
+                _BatteryConfigWriteAttempt(
+                    attempt_id="battery_settings_primary_source",
+                    auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                ),
+                _BatteryConfigWriteAttempt(
+                    attempt_id="battery_settings_lean_source",
+                    auth_mode=_BATTERY_CONFIG_VARIANT_LEAN,
+                ),
+            ]
+            if supports_mqtt is True and has_source:
+                attempts.extend(
+                    [
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_primary_no_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                            omit_source=True,
+                        ),
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_lean_no_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_LEAN,
+                            omit_source=True,
+                        ),
+                    ]
+                )
+            if has_stateful_base:
+                attempts.extend(
+                    [
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_stateful_primary_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                            merged_payload=True,
+                        ),
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_stateful_lean_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_LEAN,
+                            merged_payload=True,
+                        ),
+                    ]
+                )
+                if supports_mqtt is True and has_source:
+                    attempts.extend(
+                        [
+                            _BatteryConfigWriteAttempt(
+                                attempt_id=(
+                                    "battery_settings_stateful_primary_no_source"
+                                ),
+                                auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                                omit_source=True,
+                                merged_payload=True,
+                            ),
+                            _BatteryConfigWriteAttempt(
+                                attempt_id="battery_settings_stateful_lean_no_source",
+                                auth_mode=_BATTERY_CONFIG_VARIANT_LEAN,
+                                omit_source=True,
+                                merged_payload=True,
+                            ),
+                        ]
+                    )
+            if has_compat_auth_material:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="battery_settings_cookie_eauth_source",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                        prefer_existing_xsrf=True,
+                    )
+                )
+                if supports_mqtt is True and has_source:
+                    attempts.append(
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_cookie_eauth_no_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                            omit_source=True,
+                            prefer_existing_xsrf=True,
+                        )
+                    )
+                if has_stateful_base:
+                    attempts.append(
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_stateful_cookie_eauth_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                            merged_payload=True,
+                            prefer_existing_xsrf=True,
+                        )
+                    )
+                    if supports_mqtt is True and has_source:
+                        attempts.append(
+                            _BatteryConfigWriteAttempt(
+                                attempt_id=(
+                                    "battery_settings_stateful_cookie_eauth_no_source"
+                                ),
+                                auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                                omit_source=True,
+                                merged_payload=True,
+                                prefer_existing_xsrf=True,
+                            )
+                        )
+            if has_compat_auth_material:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="battery_settings_mixed_source",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                    )
+                )
+                if supports_mqtt is True and has_source:
+                    attempts.append(
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_mixed_no_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                            omit_source=True,
+                        )
+                    )
+                if has_stateful_base:
+                    attempts.append(
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_stateful_mixed_source",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                            merged_payload=True,
+                        )
+                    )
+                    if supports_mqtt is True and has_source:
+                        attempts.append(
+                            _BatteryConfigWriteAttempt(
+                                attempt_id="battery_settings_stateful_mixed_no_source",
+                                auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                                omit_source=True,
+                                merged_payload=True,
+                            )
+                        )
+                if has_disclaimer:
+                    attempts.append(
+                        _BatteryConfigWriteAttempt(
+                            attempt_id="battery_settings_disclaimer_true",
+                            auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                            omit_source=supports_mqtt is True and has_source,
+                            disclaimer_bool_true=True,
+                        )
+                    )
+                    if has_stateful_base:
+                        attempts.append(
+                            _BatteryConfigWriteAttempt(
+                                attempt_id=(
+                                    "battery_settings_stateful_disclaimer_true"
+                                ),
+                                auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                                omit_source=supports_mqtt is True and has_source,
+                                disclaimer_bool_true=True,
+                                merged_payload=True,
+                            )
+                        )
+        elif write_intent == "battery_settings_disclaimer_accept":
+            attempts = [
+                _BatteryConfigWriteAttempt(
+                    attempt_id="battery_settings_disclaimer_primary",
+                    auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                ),
+                _BatteryConfigWriteAttempt(
+                    attempt_id="battery_settings_disclaimer_lean",
+                    auth_mode=_BATTERY_CONFIG_VARIANT_LEAN,
+                ),
+            ]
+            if has_compat_auth_material:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="battery_settings_disclaimer_cookie_eauth",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                        prefer_existing_xsrf=True,
+                    )
+                )
+            if has_compat_auth_material:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id="battery_settings_disclaimer_mixed",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                    )
+                )
+        else:
+            attempts = [
+                _BatteryConfigWriteAttempt(
+                    attempt_id=f"{endpoint_family}_primary",
+                    auth_mode=_BATTERY_CONFIG_VARIANT_PRIMARY,
+                ),
+                _BatteryConfigWriteAttempt(
+                    attempt_id=f"{endpoint_family}_lean",
+                    auth_mode=_BATTERY_CONFIG_VARIANT_LEAN,
+                ),
+            ]
+            if has_compat_auth_material:
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id=f"{endpoint_family}_cookie_eauth",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                        prefer_existing_xsrf=True,
+                    )
+                )
+                attempts.append(
+                    _BatteryConfigWriteAttempt(
+                        attempt_id=f"{endpoint_family}_mixed",
+                        auth_mode=_BATTERY_CONFIG_VARIANT_MIXED,
+                    )
+                )
+
+        cached_attempt = self._battery_config_cached_write_attempt(
+            endpoint_family,
+            supports_mqtt=supports_mqtt,
+        )
+        if cached_attempt:
+            attempts = sorted(
+                attempts,
+                key=lambda attempt: 0 if attempt.attempt_id == cached_attempt else 1,
+            )
+        elif prefer_cookie_compat:
+            attempts = sorted(
+                attempts,
+                key=lambda attempt: (
+                    0
+                    if attempt.auth_mode == _BATTERY_CONFIG_VARIANT_COOKIE_EAUTH
+                    else 1
+                ),
+            )
+        return attempts
+
+    def _battery_config_prefers_cookie_compat(self) -> bool:
+        """Return True when cookie-backed BatteryConfig writes should be preferred.
+
+        Some Enphase battery sites only accept the browser-like request that reuses
+        the stored session cookie and its original BP-XSRF token. When that raw
+        cookie/XSRF pair is present locally, start with the cookie-backed attempt
+        instead of probing the known-bad official-web variants first.
+        """
+
+        return bool(
+            self._cookie
+            and self._battery_config_single_auth_token()
+            and self._battery_config_cookie_header_xsrf_token()
+        )
+
+    def _battery_config_attempt_headers(
+        self,
+        attempt: _BatteryConfigWriteAttempt,
+        *,
+        include_xsrf: bool,
+    ) -> dict[str, str | None]:
+        """Return headers for a BatteryConfig write attempt."""
+
+        if attempt.auth_mode == _BATTERY_CONFIG_VARIANT_MIXED:
+            return self._battery_config_mixed_auth_headers(include_xsrf=include_xsrf)
+        if attempt.auth_mode == _BATTERY_CONFIG_VARIANT_COOKIE_EAUTH:
+            return self._battery_config_cookie_eauth_headers(include_xsrf=include_xsrf)
+        return self._battery_config_headers(
+            include_xsrf=include_xsrf,
+            variant=attempt.auth_mode,
+        )
+
+    def _battery_config_attempt_params(
+        self,
+        params: dict[str, str] | None,
+        attempt: _BatteryConfigWriteAttempt,
+    ) -> dict[str, str] | None:
+        """Return query params for a BatteryConfig write attempt."""
+
+        if not isinstance(params, dict):
+            return params
+        adjusted = dict(params)
+        if attempt.omit_source:
+            adjusted.pop("source", None)
+        return adjusted
+
+    def _battery_config_attempt_json_body(
+        self,
+        json_body: dict[str, Any] | list[Any] | None,
+        endpoint_family: str,
+        attempt: _BatteryConfigWriteAttempt,
+    ) -> dict[str, Any] | list[Any] | None:
+        """Return the request payload for a BatteryConfig write attempt."""
+
+        body_for_attempt = json_body
+        if (
+            attempt.merged_payload
+            and attempt.preserve_base_devices
+            and isinstance(json_body, dict)
+            and "devices" in json_body
+        ):
+            body_for_attempt = copy.deepcopy(json_body)
+            body_for_attempt.pop("devices", None)
+
+        if attempt.merged_payload:
+            adjusted = self._battery_config_merged_write_payload(
+                endpoint_family,
+                body_for_attempt,
+            )
+        else:
+            adjusted = copy.deepcopy(body_for_attempt)
+        if not isinstance(adjusted, dict):
+            return adjusted
+        if attempt.strip_devices:
+            adjusted.pop("devices", None)
+        if attempt.disclaimer_bool_true and "acceptedItcDisclaimer" in adjusted:
+            adjusted["acceptedItcDisclaimer"] = True
+        return adjusted
+
+    def _battery_config_attempt_change_summary(
+        self,
+        attempt: _BatteryConfigWriteAttempt,
+        *,
+        params: dict[str, str] | None,
+        json_body: dict[str, Any] | list[Any] | None,
+    ) -> dict[str, object]:
+        """Return safe debug details describing how an attempt differs from canonical."""
+
+        return {
+            "auth_mode": attempt.auth_mode,
+            "source": (
+                "omitted"
+                if attempt.omit_source
+                and isinstance(params, dict)
+                and "source" in params
+                else "kept"
+            ),
+            "source_value": params.get("source") if isinstance(params, dict) else None,
+            "devices": (
+                "stripped"
+                if attempt.strip_devices
+                and isinstance(json_body, dict)
+                and "devices" in json_body
+                else "kept"
+            ),
+            "payload": "merged" if attempt.merged_payload else "partial",
+            "devices_shape": (
+                "preserved_from_base"
+                if attempt.preserve_base_devices
+                and isinstance(json_body, dict)
+                and "devices" in json_body
+                else "from_request"
+            ),
+            "disclaimer": (
+                "boolean_true"
+                if attempt.disclaimer_bool_true
+                and isinstance(json_body, dict)
+                and "acceptedItcDisclaimer" in json_body
+                else "preserved"
+            ),
+        }
+
+    @staticmethod
+    def _battery_config_attempt_signature(
+        *,
+        attempt: _BatteryConfigWriteAttempt,
+        params: dict[str, str] | None,
+        json_body: dict[str, Any] | list[Any] | None,
+    ) -> str:
+        """Return a stable signature for deduplicating write attempts."""
+
+        return json.dumps(
+            {
+                "attempt_id": attempt.attempt_id,
+                "auth_mode": attempt.auth_mode,
+                "omit_source": attempt.omit_source,
+                "strip_devices": attempt.strip_devices,
+                "disclaimer_bool_true": attempt.disclaimer_bool_true,
+                "merged_payload": attempt.merged_payload,
+                "preserve_base_devices": attempt.preserve_base_devices,
+                "params": params,
+                "json_body": json_body,
+            },
+            sort_keys=True,
+            default=str,
+        )
+
+    def _remember_battery_config_capabilities(self, payload: object) -> None:
+        """Persist BatteryConfig capability hints discovered from payloads."""
+
+        if not isinstance(payload, dict):
+            return
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = payload
+        supports_mqtt = data.get("supportsMqtt")
+        if isinstance(supports_mqtt, bool):
+            self._battery_config_supports_mqtt = supports_mqtt
+
+    @staticmethod
+    def _battery_config_payload_data(payload: object) -> dict[str, Any] | None:
+        """Return the nested BatteryConfig data payload when available."""
+
+        if not isinstance(payload, dict):
+            return None
+        data = payload.get("data")
+        if isinstance(data, dict):
+            return data
+        return payload
+
+    def _remember_battery_config_write_base(
+        self, endpoint_family: str, payload: object
+    ) -> None:
+        """Persist a writable base payload for later state-preserving retries."""
+
+        data = self._battery_config_payload_data(payload)
+        if not isinstance(data, dict):
+            return
+
+        if endpoint_family == "battery_settings":
+            allowed_keys = {
+                "profile",
+                "operationModeSubType",
+                "batteryBackupPercentage",
+                "requestedConfig",
+                "requestedConfigMqtt",
+                "stormGuardState",
+                "showStormGuardAlert",
+                "acceptedItcDisclaimer",
+                "hideChargeFromGrid",
+                "envoySupportsVls",
+                "chargeBeginTime",
+                "chargeEndTime",
+                "batteryGridMode",
+                "veryLowSoc",
+                "chargeFromGrid",
+                "chargeFromGridScheduleEnabled",
+                "systemTask",
+                "dtgControl",
+                "cfgControl",
+                "rbdControl",
+                "evseStormEnabled",
+                "devices",
+            }
+        elif endpoint_family == "profile":
+            allowed_keys = {
+                "profile",
+                "operationModeSubType",
+                "batteryBackupPercentage",
+                "requestedConfig",
+                "requestedConfigMqtt",
+                "stormGuardState",
+                "acceptedStormGuardDisclaimer",
+                "showStormGuardAlert",
+                "systemTask",
+                "veryLowSoc",
+                "dtgControl",
+                "cfgControl",
+                "rbdControl",
+                "evseStormEnabled",
+                "devices",
+            }
+        else:
+            return
+
+        write_base = {
+            key: copy.deepcopy(value)
+            for key, value in data.items()
+            if key in allowed_keys
+        }
+        if write_base:
+            self._battery_config_write_bases[endpoint_family] = write_base
+
+    def _battery_config_merged_write_payload(
+        self,
+        endpoint_family: str,
+        json_body: dict[str, Any] | list[Any] | None,
+    ) -> dict[str, Any] | list[Any] | None:
+        """Merge a partial write payload onto the last successful read payload."""
+
+        if not isinstance(json_body, dict):
+            return json_body
+
+        base_payload = self._battery_config_write_bases.get(endpoint_family)
+        if not isinstance(base_payload, dict):
+            return copy.deepcopy(json_body)
+
+        merged = copy.deepcopy(base_payload)
+        for key, value in json_body.items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                nested = dict(merged[key])
+                nested.update(copy.deepcopy(value))
+                merged[key] = nested
+                continue
+            merged[key] = copy.deepcopy(value)
+        return merged
 
     def _xsrf_token(self) -> str | None:
         """Return the XSRF token value.
@@ -2583,19 +3374,118 @@ class EnphaseEVClient:
         params: dict[str, str] | None = None,
         schedule_type: str = "cfg",
         endpoint_family: str | None = None,
+        write_intent: str = "generic",
+        supports_mqtt: bool | None = None,
     ) -> dict:
-        """Issue a BatteryConfig write with centralized variant selection."""
+        """Issue a BatteryConfig write using endpoint-specific compatibility attempts."""
 
-        return await self._battery_config_request(
-            method,
-            url,
-            json_body=json_body,
+        family = endpoint_family or self._battery_config_endpoint_family(url)
+        attempts = self._battery_config_write_attempts(
+            family,
+            write_intent=write_intent,
+            supports_mqtt=supports_mqtt,
             params=params,
-            schedule_type=schedule_type,
-            endpoint_family=endpoint_family,
-            bootstrap_xsrf=True,
-            cache_on_success=True,
+            json_body=json_body,
         )
+        last_error: aiohttp.ClientResponseError | None = None
+        seen_signatures: set[str] = set()
+
+        try:
+            for index, attempt in enumerate(attempts):
+                attempt_params = self._battery_config_attempt_params(params, attempt)
+                attempt_json_body = self._battery_config_attempt_json_body(
+                    json_body,
+                    family,
+                    attempt,
+                )
+                signature = self._battery_config_attempt_signature(
+                    attempt=attempt,
+                    params=attempt_params,
+                    json_body=attempt_json_body,
+                )
+                if signature in seen_signatures:
+                    continue
+                seen_signatures.add(signature)
+
+                try:
+                    if not (
+                        attempt.prefer_existing_xsrf
+                        and self._battery_config_cookie_header_xsrf_token() is not None
+                    ):
+                        await self._acquire_xsrf_token(
+                            schedule_type,
+                            variant=(
+                                _BATTERY_CONFIG_VARIANT_PRIMARY
+                                if attempt.auth_mode
+                                in {
+                                    _BATTERY_CONFIG_VARIANT_MIXED,
+                                    _BATTERY_CONFIG_VARIANT_COOKIE_EAUTH,
+                                }
+                                else attempt.auth_mode
+                            ),
+                        )
+                    headers = self._battery_config_attempt_headers(
+                        attempt,
+                        include_xsrf=True,
+                    )
+                    if attempt_json_body is not None:
+                        headers.setdefault("Content-Type", "application/json")
+                    result = await self._json(
+                        method,
+                        url,
+                        json=attempt_json_body,
+                        headers=headers,
+                        params=attempt_params,
+                        use_cookie_header_only=(
+                            attempt.auth_mode == _BATTERY_CONFIG_VARIANT_COOKIE_EAUTH
+                        ),
+                        debug_auth_source=attempt.auth_mode,
+                        debug_battery_attempt_id=attempt.attempt_id,
+                        debug_battery_attempt_changes=(
+                            self._battery_config_attempt_change_summary(
+                                attempt,
+                                params=params,
+                                json_body=json_body,
+                            )
+                        ),
+                    )
+                except aiohttp.ClientResponseError as err:
+                    if err.status == HTTPStatus.UNAUTHORIZED:
+                        raise
+                    last_error = err
+                    if err.status != HTTPStatus.FORBIDDEN:
+                        raise
+                    if index == len(attempts) - 1:
+                        raise
+                    _LOGGER.debug(
+                        "Retrying BatteryConfig write for %s with attempt %s "
+                        "(cached_attempt=%s, changes=%s)",
+                        _request_label(method, url),
+                        attempts[index + 1].attempt_id,
+                        self._battery_config_cached_write_attempt(
+                            family,
+                            supports_mqtt=supports_mqtt,
+                        ),
+                        self._battery_config_attempt_change_summary(
+                            attempts[index + 1],
+                            params=params,
+                            json_body=json_body,
+                        ),
+                    )
+                    continue
+
+                self._cache_battery_config_write_attempt(
+                    family,
+                    attempt.attempt_id,
+                    supports_mqtt=supports_mqtt,
+                )
+                return result
+        finally:
+            self._bp_xsrf_token = None
+
+        if last_error is not None:
+            raise last_error
+        raise aiohttp.ClientError("BatteryConfig request exhausted variants")
 
     async def _acquire_xsrf_token(
         self,
@@ -2996,7 +3886,13 @@ class EnphaseEVClient:
         auth-sensitive headers after a successful reauthentication callback.
         """
         extra_headers = kwargs.pop("headers", None)
+        use_cookie_header_only = kwargs.pop("use_cookie_header_only", False)
         debug_auth_source = kwargs.pop("debug_auth_source", None)
+        debug_battery_attempt_id = kwargs.pop("debug_battery_attempt_id", None)
+        debug_battery_attempt_changes = kwargs.pop(
+            "debug_battery_attempt_changes",
+            None,
+        )
         attempt = 0
         request_label = _request_label(method, url)
         endpoint = ""
@@ -3017,172 +3913,201 @@ class EnphaseEVClient:
 
             async with _enlighten_read_request_guard(method, url):
                 async with asyncio.timeout(self._timeout):
-                    async with self._s.request(
-                        method, url, headers=base_headers, **kwargs
-                    ) as r:
-                        if r.status == 401:
-                            self._last_unauthorized_request = request_label
-                            if self._reauth_cb and attempt == 0:
-                                _LOGGER.debug(
-                                    "Received 401 for %s; attempting stored-credential refresh",
-                                    request_label,
-                                )
-                                attempt += 1
-                                reauth_ok = await self._reauth_cb()
-                                if reauth_ok:
+                    async with self._request_session(
+                        cookie_header_only=use_cookie_header_only
+                    ) as request_session:
+                        async with request_session.request(
+                            method, url, headers=base_headers, **kwargs
+                        ) as r:
+                            if r.status == 401:
+                                self._last_unauthorized_request = request_label
+                                if self._reauth_cb and attempt == 0:
                                     _LOGGER.debug(
-                                        "Stored-credential refresh succeeded for %s; retrying request",
+                                        "Received 401 for %s; attempting stored-credential refresh",
                                         request_label,
                                     )
-                                    continue
-                                _LOGGER.debug(
-                                    "Stored-credential refresh failed for %s",
-                                    request_label,
-                                )
-                            else:
-                                _LOGGER.debug(
-                                    "Received 401 for %s with no stored-credential refresh available",
-                                    request_label,
-                                )
-                            raise Unauthorized()
-                        if r.status in (204, 205):
-                            if mark_payload_success:
-                                self._mark_payload_healthy(endpoint or None)
-                            return {}
-                        if r.status >= 400:
-                            try:
-                                body_text = await r.text()
-                            except (
-                                Exception
-                            ):  # noqa: BLE001 - fall back to generic message
-                                body_text = ""
-                            message = (body_text or r.reason or "").strip()
-                            if len(message) > 512:
-                                message = f"{message[:512]}…"
-                            family = _request_failure_debug_family(
-                                method,
-                                endpoint or url,
-                            )
-                            if family is not None:
-                                params = kwargs.get("params")
-                                if isinstance(params, dict):
-                                    params_summary: object = _redact_debug_json_body(
-                                        params,
-                                        site_ids=(self._site,),
-                                    )
-                                elif params is None:
-                                    params_summary = None
-                                else:
-                                    params_summary = redact_text(
-                                        params,
-                                        site_ids=(self._site,),
-                                        max_length=256,
-                                    )
-                                payload_summary: object = None
-                                json_payload = kwargs.get("json")
-                                data_payload = kwargs.get("data")
-                                if isinstance(json_payload, dict):
-                                    payload_summary = {
-                                        "scheduleType": json_payload.get(
-                                            "scheduleType"
-                                        ),
-                                        "json_keys": sorted(
-                                            str(key) for key in json_payload.keys()
-                                        ),
-                                    }
-                                elif isinstance(json_payload, list):
-                                    key_union: set[str] = set()
-                                    for item in json_payload:
-                                        if isinstance(item, dict):
-                                            key_union.update(
-                                                str(key) for key in item.keys()
-                                            )
-                                    payload_summary = {
-                                        "json_item_count": len(json_payload),
-                                        "json_keys": sorted(key_union),
-                                    }
-                                elif isinstance(data_payload, dict):
-                                    payload_summary = {
-                                        "data_keys": sorted(
-                                            str(key) for key in data_payload.keys()
+                                    attempt += 1
+                                    reauth_ok = await self._reauth_cb()
+                                    if reauth_ok:
+                                        _LOGGER.debug(
+                                            "Stored-credential refresh succeeded for %s; retrying request",
+                                            request_label,
                                         )
-                                    }
-                                header_flags = self._battery_config_header_debug_flags(
-                                    base_headers,
-                                    auth_source_override=debug_auth_source,
+                                        continue
+                                    _LOGGER.debug(
+                                        "Stored-credential refresh failed for %s",
+                                        request_label,
+                                    )
+                                else:
+                                    _LOGGER.debug(
+                                        "Received 401 for %s with no stored-credential refresh available",
+                                        request_label,
+                                    )
+                                raise Unauthorized()
+                            if r.status in (204, 205):
+                                if mark_payload_success:
+                                    self._mark_payload_healthy(endpoint or None)
+                                return {}
+                            if r.status >= 400:
+                                try:
+                                    body_text = await r.text()
+                                except (
+                                    Exception
+                                ):  # noqa: BLE001 - fall back to generic message
+                                    body_text = ""
+                                message = (body_text or r.reason or "").strip()
+                                if len(message) > 512:
+                                    message = f"{message[:512]}…"
+                                family = _request_failure_debug_family(
+                                    method,
+                                    endpoint or url,
                                 )
-                                _LOGGER.debug(
-                                    "%s failed for %s: status=%s params=%s payload=%s "
-                                    "header_flags=%s cookie_names=%s headers=%s response=%s",
-                                    family,
-                                    request_label,
-                                    r.status,
-                                    params_summary,
-                                    payload_summary,
-                                    header_flags,
-                                    _cookie_names_from_header(
-                                        base_headers.get("Cookie")
-                                    ),
-                                    self._redact_headers(base_headers),
-                                    redact_text(
-                                        message,
-                                        site_ids=(self._site,),
-                                        max_length=256,
-                                    ),
+                                if family is not None:
+                                    params = kwargs.get("params")
+                                    if isinstance(params, dict):
+                                        params_summary: object = (
+                                            _redact_debug_json_body(
+                                                params,
+                                                site_ids=(self._site,),
+                                            )
+                                        )
+                                    elif params is None:
+                                        params_summary = None
+                                    else:
+                                        params_summary = redact_text(
+                                            params,
+                                            site_ids=(self._site,),
+                                            max_length=256,
+                                        )
+                                    payload_summary: object = None
+                                    json_payload = kwargs.get("json")
+                                    data_payload = kwargs.get("data")
+                                    if isinstance(json_payload, dict):
+                                        payload_summary = {
+                                            "scheduleType": json_payload.get(
+                                                "scheduleType"
+                                            ),
+                                            "json_keys": sorted(
+                                                str(key) for key in json_payload.keys()
+                                            ),
+                                        }
+                                    elif isinstance(json_payload, list):
+                                        key_union: set[str] = set()
+                                        for item in json_payload:
+                                            if isinstance(item, dict):
+                                                key_union.update(
+                                                    str(key) for key in item.keys()
+                                                )
+                                        payload_summary = {
+                                            "json_item_count": len(json_payload),
+                                            "json_keys": sorted(key_union),
+                                        }
+                                    elif isinstance(data_payload, dict):
+                                        payload_summary = {
+                                            "data_keys": sorted(
+                                                str(key) for key in data_payload.keys()
+                                            )
+                                        }
+                                    header_flags = (
+                                        self._battery_config_header_debug_flags(
+                                            base_headers,
+                                            auth_source_override=debug_auth_source,
+                                        )
+                                    )
+                                    _LOGGER.debug(
+                                        "%s failed for %s: status=%s params=%s payload=%s "
+                                        "attempt_id=%s attempt_changes=%s header_flags=%s "
+                                        "cookie_names=%s headers=%s response=%s",
+                                        family,
+                                        request_label,
+                                        r.status,
+                                        params_summary,
+                                        payload_summary,
+                                        debug_battery_attempt_id,
+                                        debug_battery_attempt_changes,
+                                        header_flags,
+                                        _cookie_names_from_header(
+                                            base_headers.get("Cookie")
+                                        ),
+                                        self._redact_headers(base_headers),
+                                        redact_text(
+                                            message,
+                                            site_ids=(self._site,),
+                                            max_length=256,
+                                        ),
+                                    )
+                                raise aiohttp.ClientResponseError(
+                                    r.request_info,
+                                    r.history,
+                                    status=r.status,
+                                    message=message or r.reason,
+                                    headers=r.headers,
                                 )
-                            raise aiohttp.ClientResponseError(
-                                r.request_info,
-                                r.history,
-                                status=r.status,
-                                message=message or r.reason,
-                                headers=r.headers,
-                            )
-                        try:
-                            payload = await r.json()
-                        except (aiohttp.ContentTypeError, ValueError) as err:
-                            status = int(getattr(r, "status", 0) or 0)
-                            content_type = ""
                             try:
-                                content_type = str(
-                                    r.headers.get("Content-Type", "")
-                                ).strip()
-                            except Exception:  # noqa: BLE001 - defensive header parsing
+                                payload = await r.json()
+                            except (aiohttp.ContentTypeError, ValueError) as err:
+                                status = int(getattr(r, "status", 0) or 0)
                                 content_type = ""
-                            try:
-                                body_text = await r.text()
-                            except Exception as text_err:  # noqa: BLE001
-                                body_text = (
-                                    f"<unavailable:{text_err.__class__.__name__}>"
-                                )
-                            if _is_enphase_login_wall(
-                                endpoint=endpoint or None,
-                                payload=body_text,
-                            ):
-                                self._last_unauthorized_request = request_label
-                                raise self._login_wall_unauthorized(
+                                try:
+                                    content_type = str(
+                                        r.headers.get("Content-Type", "")
+                                    ).strip()
+                                except (
+                                    Exception
+                                ):  # noqa: BLE001 - defensive header parsing
+                                    content_type = ""
+                                try:
+                                    body_text = await r.text()
+                                except Exception as text_err:  # noqa: BLE001
+                                    body_text = (
+                                        f"<unavailable:{text_err.__class__.__name__}>"
+                                    )
+                                if _is_enphase_login_wall(
                                     endpoint=endpoint or None,
-                                    request_label=request_label,
+                                    payload=body_text,
+                                ):
+                                    self._last_unauthorized_request = request_label
+                                    raise self._login_wall_unauthorized(
+                                        endpoint=endpoint or None,
+                                        request_label=request_label,
+                                        status=status or None,
+                                        content_type=content_type or None,
+                                        payload=body_text,
+                                    ) from err
+                                failure_kind = (
+                                    "content_type"
+                                    if isinstance(err, aiohttp.ContentTypeError)
+                                    else "json_decode"
+                                )
+                                raise self._invalid_payload_error(
+                                    endpoint=endpoint or None,
                                     status=status or None,
                                     content_type=content_type or None,
+                                    failure_kind=failure_kind,
+                                    decode_error=err.__class__.__name__,
                                     payload=body_text,
+                                    log_warning=log_invalid_payload,
                                 ) from err
-                            failure_kind = (
-                                "content_type"
-                                if isinstance(err, aiohttp.ContentTypeError)
-                                else "json_decode"
-                            )
-                            raise self._invalid_payload_error(
-                                endpoint=endpoint or None,
-                                status=status or None,
-                                content_type=content_type or None,
-                                failure_kind=failure_kind,
-                                decode_error=err.__class__.__name__,
-                                payload=body_text,
-                                log_warning=log_invalid_payload,
-                            ) from err
-                        if mark_payload_success:
-                            self._mark_payload_healthy(endpoint or None)
-                        return payload
+                            if mark_payload_success:
+                                self._mark_payload_healthy(endpoint or None)
+                            return payload
+
+    @asynccontextmanager
+    async def _request_session(self, *, cookie_header_only: bool = False):
+        """Yield the HTTP session to use for a request.
+
+        Cookie-backed BatteryConfig writes need the explicit raw Cookie header to be
+        sent without any session-jar merging. A short-lived stateless session avoids
+        hidden cookie mutations from the shared client while preserving the normal
+        shared session for all other requests.
+        """
+
+        if not cookie_header_only:
+            yield self._s
+            return
+
+        async with aiohttp.ClientSession(cookie_jar=aiohttp.DummyCookieJar()) as s:
+            yield s
 
     async def _text_response(
         self,
@@ -3928,23 +4853,48 @@ class EnphaseEVClient:
 
         url = f"{BASE_URL}/service/batteryConfig/api/v1/profile/{self._site}"
         params = self._battery_config_params(include_source=True, locale=locale)
-        return await self._battery_config_request(
+        result = await self._battery_config_request(
             "GET",
             url,
             params=params,
             endpoint_family="profile",
         )
+        self._remember_battery_config_capabilities(result)
+        self._remember_battery_config_write_base("profile", result)
+        return result
 
     async def battery_settings_details(self) -> dict:
         """Return BatteryConfig battery details for charge-grid and shutdown controls."""
 
         url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
         params = self._battery_config_params(include_source="enlm")
-        return await self._battery_config_request(
+        result = await self._battery_config_request(
             "GET",
             url,
             params=params,
             endpoint_family="battery_settings",
+        )
+        self._remember_battery_config_capabilities(result)
+        self._remember_battery_config_write_base("battery_settings", result)
+        return result
+
+    async def accept_battery_settings_disclaimer(
+        self, disclaimer_type: str = "itc"
+    ) -> dict:
+        """Acknowledge the BatteryConfig charge-from-grid disclaimer."""
+
+        url = (
+            f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/"
+            f"acceptDisclaimer/{self._site}"
+        )
+        body = {"disclaimer-type": str(disclaimer_type)}
+        return await self._battery_config_write_request(
+            "POST",
+            url,
+            json_body=body,
+            params=None,
+            endpoint_family="battery_settings_disclaimer",
+            write_intent="battery_settings_disclaimer_accept",
         )
 
     async def set_battery_settings(
@@ -3956,13 +4906,16 @@ class EnphaseEVClient:
         """Update BatteryConfig battery detail settings using a partial payload."""
         url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
         params = self._battery_config_params(include_source=True)
-        body = payload if isinstance(payload, dict) else {}
+        body = copy.deepcopy(payload) if isinstance(payload, dict) else {}
         return await self._battery_config_write_request(
             "PUT",
             url,
             json_body=body,
             params=params,
             schedule_type=schedule_type,
+            endpoint_family="battery_settings",
+            write_intent="battery_settings_update",
+            supports_mqtt=self._battery_config_supports_mqtt,
         )
 
     async def set_battery_profile(
@@ -3984,26 +4937,14 @@ class EnphaseEVClient:
             payload["operationModeSubType"] = str(operation_mode_sub_type)
         if devices:
             payload["devices"] = [item for item in devices if isinstance(item, dict)]
-        try:
-            return await self._battery_config_write_request(
-                "PUT",
-                url,
-                json_body=payload,
-                params=params,
-                endpoint_family="profile",
-            )
-        except aiohttp.ClientResponseError as err:
-            if err.status != HTTPStatus.FORBIDDEN or "devices" not in payload:
-                raise
-
-        fallback_payload = dict(payload)
-        fallback_payload.pop("devices", None)
         return await self._battery_config_write_request(
             "PUT",
             url,
-            json_body=fallback_payload,
+            json_body=payload,
             params=params,
             endpoint_family="profile",
+            write_intent="profile_update",
+            supports_mqtt=self._battery_config_supports_mqtt,
         )
 
     async def cancel_battery_profile_update(self) -> dict:

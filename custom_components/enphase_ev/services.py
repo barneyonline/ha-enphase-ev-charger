@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
+import aiohttp
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -36,6 +38,8 @@ REGISTERED_SERVICES = (
     "validate_schedule",
     "update_cfg_schedule",
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def async_setup_services(
@@ -241,7 +245,18 @@ def async_setup_services(
         validator = getattr(coord.client, "validate_battery_schedule", None)
         if not callable(validator):
             return {}
-        result = await validator(schedule_type)
+        try:
+            result = await validator(schedule_type)
+        except aiohttp.ClientResponseError as err:
+            if err.status in {403, 404}:
+                _LOGGER.debug(
+                    "Ignoring battery schedule preflight failure for site %s (%s %s)",
+                    getattr(coord, "site_id", "unknown"),
+                    err.status,
+                    str(schedule_type).upper(),
+                )
+                return {}
+            raise
         if isinstance(result, dict) and result.get("valid") is False:
             raise ServiceValidationError(
                 str(

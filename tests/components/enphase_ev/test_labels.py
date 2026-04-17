@@ -83,3 +83,34 @@ def test_unknown_label_paths_return_none_when_display_text_collapses() -> None:
     assert labels.charge_mode_label("_") is None
     assert labels.status_label(None) is None
     assert labels.status_label("mystery_status") is None
+
+
+def test_entity_translation_value_and_schedule_type_label_fallbacks(
+    monkeypatch,
+) -> None:
+    def _fake_get_cached_translations(_hass, language, _category, _integration):
+        if language == "en":
+            return {
+                "component.enphase_ev.entity.switch.charge_from_grid_schedule.name": "Charge Battery From Grid",
+            }
+        return {}
+
+    monkeypatch.setattr(
+        labels, "async_get_cached_translations", _fake_get_cached_translations
+    )
+    hass = SimpleNamespace(config=SimpleNamespace(language="fr"))
+
+    assert (
+        labels._entity_translation_value(None, "switch", "charge_from_grid") is None
+    )  # noqa: SLF001
+    assert (
+        labels._entity_translation_value(hass, "switch", "charge_from_grid_schedule")
+        == "Charge Battery From Grid"
+    )
+    assert labels._entity_translation_value(hass, "switch", "missing_key") is None
+    assert labels.battery_schedule_type_label(None, hass=hass) is None
+    assert (
+        labels.battery_schedule_type_label("cfg", hass=hass)
+        == "Charge Battery From Grid"
+    )
+    assert labels.battery_schedule_type_label("custom_mode", hass=hass) == "Custom Mode"

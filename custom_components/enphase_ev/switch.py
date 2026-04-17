@@ -137,7 +137,7 @@ def _retained_site_switch_keys(
         if getattr(coord, "discharge_to_grid_schedule_available", None) is not False:
             retained.add("discharge_to_grid_schedule")
         if (
-            getattr(coord, "restrict_battery_discharge_schedule_available", None)
+            getattr(coord, "restrict_battery_discharge_schedule_supported", None)
             is not False
         ):
             retained.add("restrict_battery_discharge_schedule")
@@ -757,7 +757,7 @@ class RestrictBatteryDischargeScheduleSwitch(_BaseBatteryScheduleSwitch):
         super().__init__(
             coord,
             unique_suffix="restrict_battery_discharge_schedule",
-            availability_attr="restrict_battery_discharge_schedule_available",
+            availability_attr="restrict_battery_discharge_schedule_supported",
             enabled_attr="battery_restrict_battery_discharge_schedule_enabled",
             setter_name="async_set_restrict_battery_discharge_schedule_enabled",
             suggested_object_id="restrict_battery_discharge_schedule",
