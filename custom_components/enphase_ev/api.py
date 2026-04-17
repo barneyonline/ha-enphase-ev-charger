@@ -3984,10 +3984,24 @@ class EnphaseEVClient:
             payload["operationModeSubType"] = str(operation_mode_sub_type)
         if devices:
             payload["devices"] = [item for item in devices if isinstance(item, dict)]
+        try:
+            return await self._battery_config_write_request(
+                "PUT",
+                url,
+                json_body=payload,
+                params=params,
+                endpoint_family="profile",
+            )
+        except aiohttp.ClientResponseError as err:
+            if err.status != HTTPStatus.FORBIDDEN or "devices" not in payload:
+                raise
+
+        fallback_payload = dict(payload)
+        fallback_payload.pop("devices", None)
         return await self._battery_config_write_request(
             "PUT",
             url,
-            json_body=payload,
+            json_body=fallback_payload,
             params=params,
             endpoint_family="profile",
         )
