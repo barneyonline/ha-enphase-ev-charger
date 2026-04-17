@@ -1994,7 +1994,7 @@ def test_last_session_sensor_uses_history_when_available(monkeypatch):
     attrs = sensor.extra_state_attributes
     assert attrs["energy_consumed_kwh"] == pytest.approx(6.5)
     assert attrs["energy_consumed_wh"] == pytest.approx(6500.0)
-    assert attrs["session_id"] == "a1"
+    assert "session_id" not in attrs
     assert attrs["session_started_at"] == "2025-10-01T01:00:00+00:00"
     assert attrs["session_ended_at"] == "2025-10-01T02:00:00+00:00"
     assert attrs["active_charge_time_s"] == 3600
@@ -2044,7 +2044,7 @@ def test_last_session_prefers_history_when_idle(monkeypatch):
     assert sensor.native_value == pytest.approx(6.5)
     attrs = sensor.extra_state_attributes
     assert attrs["energy_consumed_kwh"] == pytest.approx(6.5)
-    assert attrs["session_id"] == "history-123"
+    assert "session_id" not in attrs
     assert attrs["session_cost"] == pytest.approx(2.2)
     assert attrs["avg_cost_per_kwh"] == pytest.approx(0.34)
 
@@ -2090,7 +2090,7 @@ def test_last_session_merges_history_metadata(monkeypatch):
     assert sensor.native_value == pytest.approx(1.25)
     attrs = sensor.extra_state_attributes
     assert attrs["energy_consumed_kwh"] == pytest.approx(1.25)
-    assert attrs["session_id"] == "history-123"
+    assert "session_id" not in attrs
     assert attrs["session_started_at"] == "2025-10-01T03:00:00+00:00"
     assert attrs["session_ended_at"] == "2025-10-01T04:00:00+00:00"
     assert attrs["session_cost"] == pytest.approx(1.2)
@@ -2794,5 +2794,5 @@ def test_last_session_sensor_exposes_auth_metadata(monkeypatch):
     attrs = sensor.extra_state_attributes
     assert attrs["session_auth_status"] == 1
     assert attrs["session_auth_type"] == "RFID"
-    assert attrs["session_auth_identifier"] == "tag-123"
+    assert "session_auth_identifier" not in attrs
     assert attrs["session_auth_token_present"] is True

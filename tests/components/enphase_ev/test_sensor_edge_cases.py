@@ -195,7 +195,7 @@ def test_last_session_metadata_attribute_edge_values(monkeypatch):
     assert attrs["active_charge_time_s"] is None
     assert attrs["avg_cost_per_kwh"] is None
     assert attrs["charge_profile_stack_level"] is None
-    assert attrs["session_id"] is bad_str
+    assert "session_id" not in attrs
 
     attrs_unknown = EnphaseEnergyTodaySensor._session_metadata_attributes(
         {},

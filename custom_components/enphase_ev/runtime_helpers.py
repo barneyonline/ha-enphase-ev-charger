@@ -6,6 +6,13 @@ from zoneinfo import ZoneInfo
 
 from homeassistant.util import dt as dt_util
 
+from .const import (
+    DEFAULT_FAST_POLL_INTERVAL,
+    DEFAULT_SLOW_POLL_INTERVAL,
+    MIN_FAST_POLL_INTERVAL,
+    MIN_SLOW_POLL_INTERVAL,
+)
+
 
 def coerce_int(value: object, *, default: int = 0) -> int:
     if value is None:
@@ -28,6 +35,21 @@ def coerce_optional_int(value: object) -> int | None:
         return int(str(value).strip())
     except Exception:  # noqa: BLE001
         return None
+
+
+def normalize_poll_intervals(
+    fast_value: object,
+    slow_value: object,
+    *,
+    fast_default: int = DEFAULT_FAST_POLL_INTERVAL,
+    slow_default: int = DEFAULT_SLOW_POLL_INTERVAL,
+) -> tuple[int, int]:
+    """Return sanitized fast/slow polling intervals."""
+
+    fast = max(MIN_FAST_POLL_INTERVAL, coerce_int(fast_value, default=fast_default))
+    slow_floor = max(MIN_SLOW_POLL_INTERVAL, fast)
+    slow = max(slow_floor, coerce_int(slow_value, default=slow_default))
+    return fast, slow
 
 
 def copy_diagnostics_value(value: object) -> object:

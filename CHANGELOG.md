@@ -11,10 +11,10 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Redacted EV charger session auth identifiers and tokens from downloadable diagnostics and removed raw session/auth identifiers from the last-session sensor attributes so Home Assistant history no longer stores those values.
 
 ### 🔧 Improvements
-- None
+- Enforced minimum EV charger polling intervals in the options/runtime paths and added cooldown tracking for `summary_v2` and EVSE timeseries failures so transient cloud issues do not trigger overly aggressive retry loops.
 
 ### 🔄 Other changes
 - None

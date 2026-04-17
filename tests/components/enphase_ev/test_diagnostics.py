@@ -1291,6 +1291,40 @@ async def test_device_diagnostics_missing_coordinator(hass, config_entry) -> Non
 
 
 @pytest.mark.asyncio
+async def test_device_diagnostics_redacts_session_auth_fields(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.data[RANDOM_SERIAL]["energy_today_sessions"] = [
+        {
+            "session_id": "session-123",
+            "auth_identifier": "rfid-456",
+            "auth_token": "secret-token",
+        }
+    ]
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, RANDOM_SERIAL), (DOMAIN, f"site:{RANDOM_SITE_ID}")},
+        manufacturer="Enphase",
+        name="Garage Charger",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+    sessions = result["snapshot"]["energy_today_sessions"]
+
+    assert sessions == [
+        {
+            "session_id": "**REDACTED**",
+            "auth_identifier": "**REDACTED**",
+            "auth_token": "**REDACTED**",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_device_diagnostics_type_device_payload(hass, config_entry) -> None:
     coord = DummyCoordinator()
     coord.type_bucket = lambda type_key: (
