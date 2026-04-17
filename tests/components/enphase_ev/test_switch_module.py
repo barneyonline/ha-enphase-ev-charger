@@ -96,7 +96,7 @@ def test_switch_helper_fallbacks_and_retained_site_keys() -> None:
         charge_from_grid_control_available=True,
         charge_from_grid_force_schedule_available=True,
         discharge_to_grid_schedule_available=True,
-        restrict_battery_discharge_schedule_available=True,
+        restrict_battery_discharge_schedule_supported=True,
     )
 
     assert switch_mod._type_available(coord, "envoy") is True
@@ -2022,6 +2022,35 @@ def test_restrict_battery_discharge_schedule_switch_availability(
 
     sw = RestrictBatteryDischargeScheduleSwitch(coord)
 
+    assert sw.available is True
+    assert sw.is_on is True
+
+
+def test_restrict_battery_discharge_schedule_switch_available_without_schedule(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "enabled": True,
+                "locked": False,
+            }
+        )
+    )
+    coord._battery_rbd_schedule_id = None  # noqa: SLF001
+    coord._battery_rbd_begin_time = None  # noqa: SLF001
+    coord._battery_rbd_end_time = None  # noqa: SLF001
+    coord._battery_rbd_schedule_enabled = True  # noqa: SLF001
+
+    sw = RestrictBatteryDischargeScheduleSwitch(coord)
+
+    assert coord.restrict_battery_discharge_schedule_available is False
+    assert coord.restrict_battery_discharge_schedule_supported is True
     assert sw.available is True
     assert sw.is_on is True
 

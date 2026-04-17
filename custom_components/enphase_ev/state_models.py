@@ -326,6 +326,7 @@ class BatteryState:
     _battery_has_encharge: bool | None = None
     _battery_has_acb: bool | None = None
     _battery_has_enpower: bool | None = None
+    _battery_limit_support: bool | None = None
     _battery_country_code: str | None = None
     _battery_region: str | None = None
     _battery_locale: str | None = None

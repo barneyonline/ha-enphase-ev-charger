@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from custom_components.enphase_ev.const import OPT_BATTERY_SCHEDULES_ENABLED
 from custom_components.enphase_ev.number import (
     BatteryCfgScheduleLimitNumber,
     BatteryDischargeToGridScheduleLimitNumber,
@@ -16,6 +17,34 @@ from custom_components.enphase_ev.number import (
 )
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+
+def _enable_battery_schedule_limits(coord) -> None:
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord.client.battery_schedules = AsyncMock()
+    coord.client.create_battery_schedule = AsyncMock()
+    coord.client.update_battery_schedule = AsyncMock()
+    coord.client.delete_battery_schedule = AsyncMock()
+    capability = coord.battery_runtime._parse_battery_control_capability  # noqa: SLF001
+    coord._battery_cfg_control = capability(  # noqa: SLF001
+        {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+    )
+    coord._battery_cfg_schedule_id = "sched-cfg"  # noqa: SLF001
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord._battery_dtg_control = capability(  # noqa: SLF001
+        {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+    )
+    coord._battery_dtg_schedule_id = "sched-dtg"  # noqa: SLF001
+    coord._battery_dtg_begin_time = 60  # noqa: SLF001
+    coord._battery_dtg_end_time = 120  # noqa: SLF001
+    coord._battery_rbd_control = capability(  # noqa: SLF001
+        {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+    )
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 180  # noqa: SLF001
+    coord._battery_rbd_end_time = 240  # noqa: SLF001
 
 
 def test_evse_resolved_charge_mode_handles_data_access_failure() -> None:
@@ -134,6 +163,7 @@ def test_dtg_and_rbd_schedule_edit_available_cover_control_window_fallbacks() ->
 def test_number_helper_fallbacks_and_retained_site_unique_ids() -> None:
     from custom_components.enphase_ev import number as number_mod
 
+    entry = SimpleNamespace(options={OPT_BATTERY_SCHEDULES_ENABLED: True})
     coord = SimpleNamespace(
         site_id="site",
         inventory_view=SimpleNamespace(
@@ -172,7 +202,7 @@ def test_number_helper_fallbacks_and_retained_site_unique_ids() -> None:
 
     assert number_mod._type_available(coord, "encharge") is True
     assert number_mod._battery_write_access_confirmed(coord) is True
-    assert number_mod._retained_site_number_unique_ids(coord) == {
+    assert number_mod._retained_site_number_unique_ids(coord, entry) == {
         "enphase_ev_site_site_battery_reserve",
         "enphase_ev_site_site_battery_shutdown_level",
         "enphase_ev_site_site_battery_cfg_schedule_limit",
@@ -182,7 +212,7 @@ def test_number_helper_fallbacks_and_retained_site_unique_ids() -> None:
 
     coord.battery_write_access_confirmed = False
     assert number_mod._battery_write_access_confirmed(coord) is True
-    assert number_mod._retained_site_number_unique_ids(coord) == {
+    assert number_mod._retained_site_number_unique_ids(coord, entry) == {
         "enphase_ev_site_site_battery_reserve",
         "enphase_ev_site_site_battery_shutdown_level",
         "enphase_ev_site_site_battery_cfg_schedule_limit",
@@ -193,12 +223,138 @@ def test_number_helper_fallbacks_and_retained_site_unique_ids() -> None:
     coord.battery_user_is_owner = False
     coord.battery_user_is_installer = False
     assert number_mod._battery_write_access_confirmed(coord) is False
-    assert number_mod._retained_site_number_unique_ids(coord) == set()
+    assert number_mod._retained_site_number_unique_ids(coord, entry) == set()
+
+
+def test_retained_site_number_unique_ids_hide_dedicated_schedule_limits_when_editor_active() -> (
+    None
+):
+    from custom_components.enphase_ev import number as number_mod
+
+    entry = SimpleNamespace(options={OPT_BATTERY_SCHEDULES_ENABLED: True})
+    coord = SimpleNamespace(
+        site_id="site",
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key == "encharge"
+        ),
+        client=SimpleNamespace(
+            battery_schedules=lambda: None,
+            create_battery_schedule=lambda: None,
+            update_battery_schedule=lambda: None,
+            delete_battery_schedule=lambda: None,
+        ),
+        battery_write_access_confirmed=None,
+        battery_user_is_owner=True,
+        battery_user_is_installer=False,
+        battery_reserve_editable=True,
+        battery_shutdown_level_available=True,
+        charge_from_grid_schedule_available=False,
+        charge_from_grid_control_available=True,
+        charge_from_grid_schedule_supported=True,
+        _battery_cfg_schedule_id="sched-cfg",
+        battery_charge_from_grid_start_time=1,
+        battery_charge_from_grid_end_time=2,
+        _battery_charge_begin_time=None,
+        _battery_charge_end_time=None,
+        discharge_to_grid_schedule_available=False,
+        discharge_to_grid_schedule_supported=True,
+        battery_discharge_to_grid_start_time=3,
+        battery_discharge_to_grid_end_time=4,
+        _battery_dtg_begin_time=None,
+        _battery_dtg_end_time=None,
+        _battery_dtg_control_begin_time=None,
+        _battery_dtg_control_end_time=None,
+        restrict_battery_discharge_schedule_available=False,
+        restrict_battery_discharge_schedule_supported=True,
+        battery_restrict_battery_discharge_start_time=5,
+        battery_restrict_battery_discharge_end_time=6,
+        _battery_rbd_begin_time=None,
+        _battery_rbd_end_time=None,
+        _battery_rbd_control_begin_time=None,
+        _battery_rbd_control_end_time=None,
+    )
+
+    assert number_mod._retained_site_number_unique_ids(coord, entry) == {
+        "enphase_ev_site_site_battery_reserve",
+        "enphase_ev_site_site_battery_shutdown_level",
+        "enphase_ev_site_site_battery_schedule_edit_limit",
+    }
+
+
+def test_retained_site_number_unique_ids_keeps_shutdown_number_when_unavailable() -> (
+    None
+):
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        site_id="site",
+        client=SimpleNamespace(),
+        battery_write_access_confirmed=True,
+        battery_reserve_editable=False,
+        battery_shutdown_level_available=False,
+        charge_from_grid_control_available=False,
+        battery_charge_from_grid_start_time=None,
+        battery_charge_from_grid_end_time=None,
+        _battery_charge_begin_time=None,
+        _battery_charge_end_time=None,
+        _battery_cfg_control_begin_time=None,
+        _battery_cfg_control_end_time=None,
+        discharge_to_grid_schedule_available=False,
+        discharge_to_grid_schedule_supported=False,
+        battery_discharge_to_grid_start_time=None,
+        battery_discharge_to_grid_end_time=None,
+        _battery_dtg_begin_time=None,
+        _battery_dtg_end_time=None,
+        _battery_dtg_control_begin_time=None,
+        _battery_dtg_control_end_time=None,
+        restrict_battery_discharge_schedule_available=False,
+        restrict_battery_discharge_schedule_supported=False,
+        battery_restrict_battery_discharge_start_time=None,
+        battery_restrict_battery_discharge_end_time=None,
+        _battery_rbd_begin_time=None,
+        _battery_rbd_end_time=None,
+        _battery_rbd_control_begin_time=None,
+        _battery_rbd_control_end_time=None,
+    )
+    setattr(coord, "_site_has_battery", True)
+    coord._type_entries = {"encharge": [object()]}
+
+    assert number_mod._retained_site_number_unique_ids(coord) == {
+        "enphase_ev_site_site_battery_shutdown_level"
+    }
+
+
+def test_retained_site_number_unique_ids_hide_schedule_limits_when_scheduler_disabled() -> (
+    None
+):
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = SimpleNamespace(
+        site_id="site",
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda type_key: type_key == "encharge"
+        ),
+        battery_write_access_confirmed=True,
+        battery_reserve_editable=False,
+        charge_from_grid_schedule_available=True,
+        discharge_to_grid_schedule_available=True,
+        restrict_battery_discharge_schedule_available=True,
+    )
+
+    assert number_mod._retained_site_number_unique_ids(
+        coord, SimpleNamespace(options={OPT_BATTERY_SCHEDULES_ENABLED: False})
+    ) == {
+        "enphase_ev_site_site_battery_shutdown_level",
+        "enphase_ev_site_site_battery_cfg_schedule_limit",
+        "enphase_ev_site_site_battery_dtg_schedule_limit",
+        "enphase_ev_site_site_battery_rbd_schedule_limit",
+    }
 
 
 @pytest.mark.asyncio
 async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     coord = SimpleNamespace()
+    object.__setattr__(config_entry, "options", {OPT_BATTERY_SCHEDULES_ENABLED: True})
     coord.site_id = "123456"
     coord.battery_write_access_confirmed = True
     coord.serials = {RANDOM_SERIAL}
@@ -227,10 +383,11 @@ async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
     }
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
-    assert any(
+    assert not any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
+    assert not any(
         isinstance(ent, BatteryDischargeToGridScheduleLimitNumber) for ent in added
     )
-    assert any(
+    assert not any(
         isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
         for ent in added
     )
@@ -238,9 +395,63 @@ async def test_async_setup_entry_syncs_new_serials(hass, config_entry) -> None:
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_does_not_duplicate_rbd_limit_when_schedule_becomes_editable(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    object.__setattr__(config_entry, "options", {OPT_BATTERY_SCHEDULES_ENABLED: True})
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_rbd_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {"show": True, "showDaySchedule": True, "scheduleSupported": True}
+        )
+    )
+    coord._battery_rbd_schedule_id = None  # noqa: SLF001
+    coord._battery_rbd_begin_time = None  # noqa: SLF001
+    coord._battery_rbd_end_time = None  # noqa: SLF001
+    callbacks: list = []
+    added: list = []
+
+    monkeypatch.setattr(
+        coord,
+        "async_add_listener",
+        lambda callback: callbacks.append(callback) or (lambda: None),
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await async_setup_entry(
+        hass,
+        config_entry,
+        lambda entities, update_before_add=False: added.extend(entities),
+    )
+
+    initial_rbd_entities = [
+        ent
+        for ent in added
+        if isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
+    ]
+    assert len(initial_rbd_entities) == 0
+
+    coord._battery_rbd_schedule_id = "sched-rbd"  # noqa: SLF001
+    coord._battery_rbd_begin_time = 60  # noqa: SLF001
+    coord._battery_rbd_end_time = 960  # noqa: SLF001
+
+    callbacks[0]()
+
+    later_rbd_entities = [
+        ent
+        for ent in added
+        if isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
+    ]
+    assert len(later_rbd_entities) == 0
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
     """No new serials should short-circuit without adding entities."""
     coord = SimpleNamespace()
+    object.__setattr__(config_entry, "options", {OPT_BATTERY_SCHEDULES_ENABLED: True})
     coord.site_id = "123456"
     coord.battery_write_access_confirmed = True
     coord.serials = set()
@@ -258,14 +469,68 @@ async def test_async_setup_entry_handles_no_serials(hass, config_entry) -> None:
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert len(added) == 5
+    assert len(added) == 2
     assert any(isinstance(ent, BatteryReserveNumber) for ent in added)
     assert any(isinstance(ent, BatteryShutdownLevelNumber) for ent in added)
+    assert not any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
+    assert not any(
+        isinstance(ent, BatteryDischargeToGridScheduleLimitNumber) for ent in added
+    )
+    assert not any(
+        isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
+        for ent in added
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_dedicated_dtg_rbd_limits_when_scheduler_disabled(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    _enable_battery_schedule_limits(coord)
+    object.__setattr__(config_entry, "options", {OPT_BATTERY_SCHEDULES_ENABLED: False})
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added = []
+
+    await async_setup_entry(
+        hass,
+        config_entry,
+        lambda entities, update_before_add=False: added.extend(entities),
+    )
+
     assert any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
     assert any(
         isinstance(ent, BatteryDischargeToGridScheduleLimitNumber) for ent in added
     )
     assert any(
+        isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
+        for ent in added
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_hides_cfg_limit_when_scheduler_editor_enabled(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    _enable_battery_schedule_limits(coord)
+    object.__setattr__(config_entry, "options", {OPT_BATTERY_SCHEDULES_ENABLED: True})
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    added = []
+
+    await async_setup_entry(
+        hass,
+        config_entry,
+        lambda entities, update_before_add=False: added.extend(entities),
+    )
+
+    assert not any(isinstance(ent, BatteryCfgScheduleLimitNumber) for ent in added)
+    assert not any(
+        isinstance(ent, BatteryDischargeToGridScheduleLimitNumber) for ent in added
+    )
+    assert not any(
         isinstance(ent, BatteryRestrictBatteryDischargeScheduleLimitNumber)
         for ent in added
     )

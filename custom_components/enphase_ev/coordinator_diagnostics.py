@@ -357,7 +357,9 @@ class CoordinatorDiagnostics:
                 coord.battery_profile_selection_available
             ),
             "battery_reserve_editable": coord.battery_reserve_editable,
-            "battery_shutdown_level_available": coord.battery_shutdown_level_available,
+            "battery_shutdown_level_available": getattr(
+                coord, "battery_shutdown_level_available", None
+            ),
             "charge_from_grid_control_available": (
                 coord.charge_from_grid_control_available
             ),
