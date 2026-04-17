@@ -131,15 +131,15 @@ Example response:
 | Stop charging | `PUT` | `/service/evse_controller/<site_id>/ev_chargers/<sn>/stop_charging` | `e-auth-token` + cookies | Yes |
 | EV charger config read/write | `POST/PUT` | `/service/evse_controller/api/v1/<site_id>/ev_chargers/<sn>/ev_charger_config` | `Authorization: Bearer <token>` overlay on top of session cookies / base EV headers | No (documented from web UI) |
 | Charge mode preference | `GET/PUT` | `/service/evse_scheduler/api/v1/iqevc/charging-mode/<site_id>/<sn>/preference` | bearer token + session headers | Yes |
-| BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Chrome-style `User-Agent`, `Username`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | Yes |
-| BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Chrome-style `User-Agent`, `Username`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No |
-| BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Chrome-style `User-Agent`, `Username`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No (documented from web UI) |
-| BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Chrome-style `User-Agent`, `Username`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No (documented from web UI) |
-| BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No |
-| BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No (documented from web UI) |
-| BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No (documented from web UI) |
-| BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No |
-| BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | documented write pattern only: official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, `X-Requested-With` | No (not currently implemented) |
+| BatteryConfig site settings | `GET` | `/service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | Yes |
+| BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No |
+| BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
+| BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
+| BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No |
+| BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
+| BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
+| BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No |
+| BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | documented write pattern only: official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client would use primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (not currently implemented) |
 | PES in-app banner/status | `GET` | `/service/pes_management/systems/<site_id>/inapp?type=<type>` | authenticated session cookies | No (documented from mobile/web HAR) |
 | Login | `POST` | `/login/login.json` | credentials; session/XSRF cookies are established by the response rather than pre-required | Yes |
 
@@ -4217,8 +4217,12 @@ Updates the system profile and reserve percentage. Observed profile keys include
 
 Implementation auth notes:
 - The current client first acquires a fresh `BP-XSRF-Token` by POSTing to `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid`.
-- It then sends the official-web BatteryConfig shape plus `X-XSRF-Token`: `Accept`, `Username`, battery-profile `Origin`/`Referer`, and a Chrome-style `User-Agent`.
-- The current implementation explicitly suppresses inherited `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` on this write path.
+- It then sends the official-web BatteryConfig shape plus `X-XSRF-Token`: `Accept`, `Username`, battery-profile `Origin`/`Referer`, and the Safari-style browser `User-Agent` used by the current integration.
+- The current implementation explicitly suppresses inherited `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` on this write path.
+- The current implementation tries two observed first-party variants in a centralized API-layer flow:
+  - primary: add `e-auth-token` and `requestid`
+  - lean fallback: omit `e-auth-token` and `requestid`
+- If the initial `/profile` write returns `403` and the payload includes `devices`, the current client retries once without `devices`.
 - The current implementation also appends `source=enho` to profile writes, even though the first-party write capture documented for this spec only confirmed `userId=<user_id>`.
 
 Example payloads observed:
@@ -4308,7 +4312,7 @@ Body: {}
 Cancels a pending profile change. The request body is an empty JSON object.
 
 Implementation auth notes:
-- The current client treats this as another official-web-style BatteryConfig write: acquire fresh XSRF first, then send the BatteryConfig `Accept`/`Username`/`Origin`/`Referer`/Chrome-`User-Agent` shape plus `X-XSRF-Token`.
+- The current client treats this as another official-web-style BatteryConfig write: acquire fresh XSRF first, then send the BatteryConfig `Accept`/`Username`/`Origin`/`Referer`/Safari-`User-Agent` shape plus `X-XSRF-Token`.
 - Inherited `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` are explicitly suppressed here as well.
 
 Example response:
@@ -4398,14 +4402,17 @@ Headers:
   X-XSRF-Token: <token>
   Origin: https://battery-profile-ui.enphaseenergy.com
   Referer: https://battery-profile-ui.enphaseenergy.com/
-  User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36
+  User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15
 ```
 Updates battery settings. Captured requests used partial payloads to change individual controls.
 
 Implementation auth notes:
 - The current client first acquires a fresh `BP-XSRF-Token` via `/battery/sites/<site_id>/schedules/isValid`.
-- It then sends the official-web BatteryConfig shape: `Username`, `X-XSRF-Token`, browser `Origin`/`Referer`, and a Chrome-style `User-Agent`.
-- The current implementation explicitly suppresses inherited `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` for BatteryConfig reads and writes.
+- It then sends the official-web BatteryConfig shape: `Username`, `X-XSRF-Token`, browser `Origin`/`Referer`, and the Safari-style browser `User-Agent` used by the current integration.
+- The current implementation explicitly suppresses inherited `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` for BatteryConfig reads and writes.
+- The current implementation tries two observed first-party variants in a centralized API-layer flow:
+  - primary: add `e-auth-token` and `requestid`
+  - lean fallback: omit `e-auth-token` and `requestid`
 
 Example payloads observed:
 ```json
@@ -4458,6 +4465,7 @@ Notes:
   - REST-only flows use `PUT /batterySettings/<site_id>?source=enho&userId=<user_id>`.
   - MQTT-backed RBD flows on `supportsMqtt=true` systems use `PUT /batterySettings/<site_id>?userId=<user_id>` after opening the MQTT response stream.
 - In the official homeowner web capture used to guide the current implementation, the successful `PUT /batterySettings/<site_id>?userId=<user_id>&source=enho` request did not include `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, or `X-Requested-With`.
+- In the current implementation, BatteryConfig variant selection is cached per `(site_id, battery_config_user_id, endpoint_family)` after a successful write so later calls reuse the proven request shape instead of retrying both variants each time.
 - Additional partial payloads were observed on the same endpoint for DTG/RBD enablement toggles:
   - `{"dtgControl":{"enabled":true}}`
   - `{"dtgControl":{"enabled":false}}`
@@ -4514,8 +4522,9 @@ Body: {
 Opts out of a specific active Storm Guard alert.
 
 Implementation auth notes:
-- The current client treats this as an official-web-style BatteryConfig write: fresh XSRF acquisition first, then send the BatteryConfig `Accept`/`Username`/`Origin`/`Referer`/Chrome-`User-Agent` shape plus `X-XSRF-Token`.
-- Inherited `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` are explicitly suppressed on this path.
+- The current client treats this as an official-web-style BatteryConfig write: fresh XSRF acquisition first, then send the BatteryConfig `Accept`/`Username`/`Origin`/`Referer`/Safari-`User-Agent` shape plus `X-XSRF-Token`.
+- Inherited `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` are explicitly suppressed on this path.
+- The current client tries the primary first-party variant with `e-auth-token` + `requestid` first, then retries once with the lean first-party variant without those headers after a `403`.
 
 Example response:
 ```json
@@ -4543,7 +4552,7 @@ Notes:
 - Alert opt-out uses `PUT /stormGuard/<site_id>/stormAlert` with `status: "opted-out"` per alert ID.
 - Observed behavior: if that opt-out removes the last active Storm Alert and Storm Guard remains enabled, the system profile exits storm-driven Full Backup and returns to the normal configured profile.
 - Once enabled, the profile automatically switches to Full Backup during severe weather alerts and reserves full battery capacity.
-- The current client sends this write with the same BatteryConfig write flow as other mutations: acquire XSRF first, then send bearer-preferred headers plus `X-XSRF-Token`.
+- The current client sends this write with the same BatteryConfig write flow as other mutations: acquire XSRF first, then send the official-web BatteryConfig shape plus `X-XSRF-Token`, using the primary `e-auth-token` + `requestid` variant first and the lean fallback after `403`.
 
 ### 5.7 Third-Party Control Settings
 ```
@@ -4658,7 +4667,8 @@ Creates a new battery schedule entry. The same endpoint is used for CFG, DTG, an
 
 Implementation auth notes:
 - The current client acquires fresh XSRF first, then sends the official-web BatteryConfig shape plus `X-XSRF-Token`.
-- Inherited `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` are explicitly suppressed on this path.
+- Inherited `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` are explicitly suppressed on this path.
+- The current client tries the primary first-party variant with `e-auth-token` + `requestid` first, then retries once with the lean first-party variant without those headers after a `403`.
 
 Observed behavior:
 - `scheduleType` is sent uppercase (`CFG`, `DTG`, `RBD`).
@@ -4692,7 +4702,7 @@ Body: {}
 Observed behavior:
 - Soft-delete is supported through the canonical `PUT /schedules/<schedule_id>` resource, sometimes with the full schedule echoed back and sometimes with only `{ "isDeleted": true }`.
 - A `/delete` alias also exists. This path is useful as a compatibility note, but it was not present in the newer browser traces captured for this repository.
-- The current client implements the legacy `/delete` alias and sends it with the same BatteryConfig write flow: acquire XSRF first, then send bearer-preferred headers plus `X-XSRF-Token`.
+- The current client implements the legacy `/delete` alias and sends it with the same BatteryConfig write flow: acquire XSRF first, then send the official-web BatteryConfig shape plus `X-XSRF-Token`, using the primary `e-auth-token` + `requestid` variant first and the lean fallback after `403`.
 
 ### 5.9 Battery Schedule Validation
 ```
@@ -4724,6 +4734,7 @@ Observed behavior:
 - `forceScheduleOpted: true` was only observed for CFG validation; DTG/RBD validation calls omitted that field.
 - In the current client, this validation route also serves as the XSRF bootstrap mechanism for later BatteryConfig writes.
 - The official homeowner web capture sent `X-XSRF-Token` on the validation request as well; the current implementation mirrors that behavior while still learning fresh `BP-XSRF-Token` from `Set-Cookie` / the updated cookie jar.
+- If this bootstrap route returns `4xx`, the current client keeps the existing `BP-XSRF-Token` instead of promoting a new token from the session cookie jar.
 - External client source matches the CFG-only `forceScheduleOpted` rule: it documents `forceScheduleOpted` only for CFG validation and omits it for DTG validation.
 - Compatibility note: the current integration should not treat `forceScheduleOpted` as a universal BatteryConfig validation field.
 
@@ -4747,11 +4758,12 @@ the Enlighten battery profile UI when the user modifies a CFG schedule.
 - `X-XSRF-Token`: freshly acquired XSRF token echoed in request header
 - `Origin: https://battery-profile-ui.enphaseenergy.com`
 - `Referer: https://battery-profile-ui.enphaseenergy.com/`
-- Chrome-style `User-Agent`
+- Safari-style browser `User-Agent`
 
 Implementation auth notes:
 - The current client acquires fresh XSRF via `/schedules/isValid` immediately before issuing this `PUT`.
-- The current client explicitly suppresses `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` on this BatteryConfig schedule write path to align with the official homeowner web capture.
+- The current client explicitly suppresses `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` on this BatteryConfig schedule write path.
+- The current client tries the primary first-party variant with `e-auth-token` + `requestid` first, then retries once with the lean first-party variant without those headers after a `403`.
 
 Example response (anonymized):
 ```json
@@ -4799,7 +4811,7 @@ Example response (anonymized):
 Observed behavior:
 - This call preceded `PUT /batterySettings/<site_id>` in the captured sequence.
 - A subsequent battery-settings update used `acceptedItcDisclaimer: true`; later `GET /batterySettings/<site_id>` returned `acceptedItcDisclaimer` as a timestamp string, so the backend normalizes the acknowledgement internally.
-- The current integration does not implement this route today, but if added it should follow the same BatteryConfig write pattern as the other mutation endpoints: acquire fresh XSRF first, then send bearer-preferred headers plus `X-XSRF-Token`.
+- The current integration does not implement this route today, but if added it should follow the same BatteryConfig write pattern as the other mutation endpoints: acquire fresh XSRF first, then send the official-web BatteryConfig shape plus `X-XSRF-Token`, using the primary `e-auth-token` + `requestid` variant first and the lean fallback after `403`.
 
 ---
 
@@ -4998,8 +5010,8 @@ There is no single universal header set; the implementation varies headers by en
 | Session history + EVSE timeseries | `Authorization: Bearer <jwt>`; `e-auth-token` set to JWT `session_id`; `username` set to JWT `user_id`; `requestid` UUID |
 | System dashboard reads | authenticated cookies; may also include bearer auth opportunistically |
 | HEMS | bearer-preferred auth plus cookies/base headers; `username` and `requestId` when available |
-| BatteryConfig reads | official-web BatteryConfig shape: `Username`, battery-profile `Origin`/`Referer`, Chrome-style `User-Agent`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` |
-| BatteryConfig writes | acquire fresh XSRF via `/battery/sites/<site_id>/schedules/isValid`, then send official-web BatteryConfig headers plus `X-XSRF-Token`; suppress `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` |
+| BatteryConfig reads | official-web BatteryConfig shape: `Accept`, `Username`, battery-profile `Origin`/`Referer`, Safari-style `User-Agent`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With`; current client prefers the `e-auth-token` + `requestid` variant and falls back to the lean variant if needed |
+| BatteryConfig writes | acquire fresh XSRF via `/battery/sites/<site_id>/schedules/isValid`, keep the existing `BP-XSRF-Token` if bootstrap returns `4xx`, then send official-web BatteryConfig headers plus `X-XSRF-Token`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With`; current client prefers the `e-auth-token` + `requestid` variant and retries once with the lean variant after `403` |
 
 - Base Enlighten reads:
   - `Cookie: <serialized cookie jar>`
@@ -5021,9 +5033,11 @@ There is no single universal header set; the implementation varies headers by en
   - `Accept: application/json, text/plain, */*`
   - `Username: <user_id>` when decodable from the active auth context
   - `Origin` / `Referer` for the battery-profile UI
-  - Chrome-style `User-Agent`
+  - Safari-style `User-Agent`
   - `X-XSRF-Token` for `isValid` preflight and writes after token acquisition
-  - inherited `Authorization`, `e-auth-token`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` are explicitly suppressed
+  - primary variant adds `e-auth-token` and `requestid`
+  - lean fallback omits `e-auth-token` and `requestid`
+  - inherited `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With` are explicitly suppressed
 
 ---
 
