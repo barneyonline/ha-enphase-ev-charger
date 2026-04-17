@@ -1410,6 +1410,8 @@ def test_battery_property_false_paths(hass, monkeypatch) -> None:
     coord._battery_envoy_supports_vls = True  # noqa: SLF001
     coord._battery_very_low_soc = None  # noqa: SLF001
     assert coord.battery_shutdown_level_available is False
+    coord._battery_limit_support = False  # noqa: SLF001
+    assert coord.battery_shutdown_level_available is False
 
 
 @pytest.mark.asyncio

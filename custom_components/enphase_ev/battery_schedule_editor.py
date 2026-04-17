@@ -357,14 +357,6 @@ class BatteryScheduleEditorManager:
         selected = self.get_schedule(self.edit.selected_schedule_id)
         if selected is None:
             fallback = self._default_schedule_selection()
-            if fallback is None:
-                if self.edit.selected_schedule_id is not None:
-                    self._set_create_mode_defaults(auto=False)
-                    self._notify_listeners()
-                    return
-                if schedules_changed:
-                    self._notify_listeners()
-                return
             before = (
                 self.edit.selected_schedule_id,
                 self.edit.create_mode,

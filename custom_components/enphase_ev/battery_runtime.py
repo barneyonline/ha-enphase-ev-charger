@@ -3469,11 +3469,6 @@ class BatteryRuntime:
             coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
             await coord.async_request_refresh()
         else:
-            if current_start is None or current_end is None:
-                default_window = self._schedule_default_window_for_create(schedule_type)
-                if default_window is None:
-                    raise ServiceValidationError(f"{label} schedule time is invalid.")
-                current_start, current_end = default_window
             if current_start == current_end:
                 raise ServiceValidationError(
                     f"{label} schedule start and end times must be different."

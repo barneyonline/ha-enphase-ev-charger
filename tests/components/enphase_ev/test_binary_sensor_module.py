@@ -1114,6 +1114,33 @@ def test_heatpump_sg_ready_active_binary_sensor_handles_runtime_uid_errors(
     assert sensor.available is False
 
 
+def test_heatpump_sg_ready_active_binary_sensor_requires_runtime_uid(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[], data={})
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "type_label": "Heat Pump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord._heatpump_runtime_state = {  # noqa: SLF001
+        "device_uid": "HP-1",
+        "sg_ready_mode_raw": "MODE_2",
+        "sg_ready_mode_label": "Normal",
+        "sg_ready_active": True,
+    }
+    monkeypatch.setattr(coord, "_heatpump_runtime_device_uid", lambda: "")
+
+    sensor = HeatPumpSgReadyActiveBinarySensor(coord)
+    assert sensor.available is False
+
+
 def test_site_cloud_reachable_binary_sensor_fallback_paths(
     coordinator_factory, monkeypatch
 ) -> None:
