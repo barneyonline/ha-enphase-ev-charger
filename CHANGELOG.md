@@ -19,6 +19,28 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.8.2 - 2026-04-17
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Hardened IQ Battery BatteryConfig writes for issue `#460` by using endpoint-specific request planning and a stateless raw-cookie browser compatibility path on affected sites: profile writes now retry without `devices` and then without `source`, battery-settings writes can retry without `source` on `supportsMqtt=true` sites and fall back to `acceptedItcDisclaimer: true`, and schedule create/update/delete writes now use the same cookie-backed compatibility flow instead of failing with `403`.
+- Fixed IQ Battery schedule parity for DTG/RBD in Home Assistant: RBD on/off toggles no longer invent a schedule when Enphase reports `rbdControl.enabled` without any saved RBD schedule.
+- Restored correct gating for the `Manage IQ Battery Schedules` option so the generic battery schedule editor is shown when that option is enabled, the duplicate dedicated CFG/DTG/RBD schedule time and limit editors are hidden in that mode, and the plain CFG/DTG/RBD control switches still remain available.
+- Fixed Home Assistant battery schedule services so Enphase `schedules/isValid` preflight `403` responses are treated as optional compatibility failures instead of crashing `add_schedule` with an internal server error on affected sites.
+
+### 🔧 Improvements
+- Keep the IQ Battery shutdown-level control available when Enphase still returns explicit `veryLowSoc` values, even if `batteryLimitSupport=false` is present in site settings, so working production sites are not hidden by an over-strict capability flag.
+- Rationalised the battery schedule editor by defaulting it to a valid schedule selection after refresh, auto-falling back to create mode only when no schedules exist, and replacing raw schedule IDs with translated, readable schedule labels in the selector.
+- Updated the BatteryConfig API reference to document the verified profile, battery-settings, and schedule request/response shapes and the validated compatibility fallbacks.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `2.8.2`.
+
 ## v2.8.0 - 2026-04-17
 
 ### 🚧 Breaking changes

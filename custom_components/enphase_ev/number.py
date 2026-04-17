@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant, callback
@@ -100,31 +102,42 @@ def _rbd_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
     return begin is not None and end is not None
 
 
-def _retained_site_number_unique_ids(
-    coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None = None
-) -> set[str]:
-    unique_ids: set[str] = set()
+def _battery_schedule_editor_active(
+    coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None
+) -> bool:
     client = getattr(coord, "client", None)
-    if not _type_available(coord, "encharge"):
-        return unique_ids
-    if _battery_write_access_confirmed(coord):
-        if getattr(coord, "battery_reserve_editable", False):
-            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_reserve")
-        if getattr(coord, "battery_shutdown_level_available", False):
-            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level")
-        if _cfg_schedule_edit_available(coord):
-            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit")
-        if _dtg_schedule_edit_available(coord):
-            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit")
-        if _rbd_schedule_edit_available(coord):
-            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit")
-    if (
+    return bool(
         battery_scheduler_enabled(entry)
         and callable(getattr(client, "battery_schedules", None))
         and callable(getattr(client, "create_battery_schedule", None))
         and callable(getattr(client, "update_battery_schedule", None))
         and callable(getattr(client, "delete_battery_schedule", None))
-    ):
+    )
+
+
+def _retained_site_number_unique_ids(
+    coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None = None
+) -> set[str]:
+    unique_ids: set[str] = set()
+    editor_active = _battery_schedule_editor_active(coord, entry)
+    if not _type_available(coord, "encharge"):
+        return unique_ids
+    if _battery_write_access_confirmed(coord):
+        if getattr(coord, "battery_reserve_editable", False):
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_reserve")
+        unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level")
+        if not editor_active and _cfg_schedule_edit_available(coord):
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit")
+        if not editor_active:
+            if _dtg_schedule_edit_available(coord):
+                unique_ids.add(
+                    f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit"
+                )
+            if _rbd_schedule_edit_available(coord):
+                unique_ids.add(
+                    f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit"
+                )
+    if editor_active:
         unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit")
     return unique_ids
 
@@ -137,7 +150,7 @@ async def async_setup_entry(
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     ent_reg = er.async_get(hass)
     known_serials: set[str] = set()
-    site_entities_added = False
+    added_site_number_unique_ids: set[str] = set()
 
     def _managed_site_number_unique_ids() -> set[str]:
         return {
@@ -150,42 +163,101 @@ async def async_setup_entry(
             f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_limit",
         }
 
+    def _core_site_number_unique_ids() -> set[str]:
+        return {
+            f"{DOMAIN}_site_{coord.site_id}_battery_reserve",
+            f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level",
+        }
+
     def _charger_number_unique_id(sn: str) -> str:
         return f"{DOMAIN}_{sn}_amps_number"
 
+    def _site_number_entities_by_unique_id(
+        retained_site_number_unique_ids: set[str],
+    ) -> dict[str, NumberEntity]:
+        site_entities: dict[str, NumberEntity] = {}
+        write_access_confirmed = _battery_write_access_confirmed(coord)
+
+        entity_factories: dict[str, Callable[[], NumberEntity]] = {
+            f"{DOMAIN}_site_{coord.site_id}_battery_reserve": lambda: BatteryReserveNumber(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level": lambda: BatteryShutdownLevelNumber(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit": lambda: BatteryCfgScheduleLimitNumber(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit": lambda: BatteryDischargeToGridScheduleLimitNumber(
+                coord
+            ),
+            f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit": lambda: BatteryRestrictBatteryDischargeScheduleLimitNumber(
+                coord
+            ),
+        }
+
+        if battery_scheduler_enabled(entry):
+            entity_factories[
+                f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
+            ] = lambda: BatteryScheduleEditLimitNumber(coord, entry)
+
+        active_site_number_unique_ids: set[str] = set()
+        if write_access_confirmed:
+            active_site_number_unique_ids |= _core_site_number_unique_ids() | (
+                retained_site_number_unique_ids
+                & {
+                    f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit",
+                    f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit",
+                    f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit",
+                }
+            )
+        if battery_scheduler_enabled(entry):
+            active_site_number_unique_ids |= retained_site_number_unique_ids & {
+                f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
+            }
+
+        for unique_id, factory in entity_factories.items():
+            if unique_id in active_site_number_unique_ids:
+                site_entities[unique_id] = factory()
+
+        return site_entities
+
     @callback
     def _async_sync_chargers() -> None:
-        nonlocal site_entities_added
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         current_serials = {sn for sn in coord.iter_serials() if sn}
         retained_site_number_unique_ids = _retained_site_number_unique_ids(coord, entry)
-        if (
-            not site_entities_added
-            and _site_has_battery(coord)
-            and _type_available(coord, "encharge")
-        ):
-            site_entities: list[NumberEntity] = []
+        active_site_number_unique_ids: set[str] = set()
+        site_entities: list[NumberEntity] = []
+        if _site_has_battery(coord) and _type_available(coord, "encharge"):
             if _battery_write_access_confirmed(coord):
-                site_entities.extend(
-                    [
-                        BatteryReserveNumber(coord),
-                        BatteryShutdownLevelNumber(coord),
-                        BatteryCfgScheduleLimitNumber(coord),
-                        BatteryDischargeToGridScheduleLimitNumber(coord),
-                        BatteryRestrictBatteryDischargeScheduleLimitNumber(coord),
-                    ]
+                active_site_number_unique_ids = _core_site_number_unique_ids() | (
+                    retained_site_number_unique_ids
+                    & {
+                        f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit",
+                        f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit",
+                        f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit",
+                    }
                 )
-            if (
-                f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
-                in retained_site_number_unique_ids
-            ):
-                site_entities.append(BatteryScheduleEditLimitNumber(coord, entry))
+            if battery_scheduler_enabled(entry):
+                active_site_number_unique_ids |= retained_site_number_unique_ids & {
+                    f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
+                }
+            current_site_entities = _site_number_entities_by_unique_id(
+                retained_site_number_unique_ids
+            )
+            site_entities = [
+                entity
+                for unique_id, entity in current_site_entities.items()
+                if unique_id not in added_site_number_unique_ids
+            ]
             if site_entities:
-                async_add_entities(
-                    site_entities,
-                    update_before_add=False,
+                async_add_entities(site_entities, update_before_add=False)
+                added_site_number_unique_ids.update(
+                    entity.unique_id
+                    for entity in site_entities
+                    if isinstance(entity.unique_id, str)
                 )
-                site_entities_added = True
         serials = [sn for sn in current_serials if sn not in known_serials]
         if not serials:
             entities: list[NumberEntity] = []
@@ -193,10 +265,9 @@ async def async_setup_entry(
             entities = [ChargingAmpsNumber(coord, sn) for sn in serials]
         if entities:
             async_add_entities(entities, update_before_add=False)
-        if not retained_site_number_unique_ids:
-            site_entities_added = False
         known_serials.intersection_update(current_serials)
         known_serials.update(serials)
+        added_site_number_unique_ids.intersection_update(active_site_number_unique_ids)
 
         if not inventory_ready:
             return
@@ -206,7 +277,7 @@ async def async_setup_entry(
             entry.entry_id,
             domain="number",
             active_unique_ids={
-                *retained_site_number_unique_ids,
+                *active_site_number_unique_ids,
                 *(_charger_number_unique_id(sn) for sn in current_serials),
             },
             is_managed=lambda unique_id: (

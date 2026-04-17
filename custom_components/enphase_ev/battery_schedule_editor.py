@@ -9,6 +9,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import OPT_BATTERY_SCHEDULES_ENABLED
 from .coordinator import EnphaseCoordinator
+from .labels import battery_schedule_type_label
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 DAY_ORDER: list[tuple[str, int]] = [
@@ -22,7 +23,8 @@ DAY_ORDER: list[tuple[str, int]] = [
 ]
 DAY_KEY_BY_INDEX = {index: key for key, index in DAY_ORDER}
 NEW_SCHEDULE_OPTION = "new_schedule"
-NEW_SCHEDULE_OPTION_LABEL = "New schedule"
+NEW_SCHEDULE_OPTION_LABEL = "Create new schedule"
+SCHEDULE_TYPE_KEYS: tuple[str, ...] = ("cfg", "dtg", "rbd")
 
 
 def default_day_flags() -> dict[str, bool]:
@@ -74,6 +76,25 @@ def battery_scheduler_enabled(entry: EnphaseConfigEntry | None) -> bool:
     if entry is None:
         return False
     return bool(getattr(entry, "options", {}).get(OPT_BATTERY_SCHEDULES_ENABLED, False))
+
+
+def battery_schedule_type_options(
+    *, hass: object | None = None
+) -> list[tuple[str, str]]:
+    return [
+        (key, battery_schedule_type_label(key, hass=hass) or key.upper())
+        for key in SCHEDULE_TYPE_KEYS
+    ]
+
+
+def battery_schedule_option_label(
+    schedule: BatteryScheduleRecord, *, hass: object | None = None
+) -> str:
+    window = f"{schedule.start_time}-{schedule.end_time}"
+    schedule_type = battery_schedule_type_label(schedule.schedule_type, hass=hass)
+    if schedule_type is None:
+        schedule_type = str(schedule.schedule_type).strip() or "Schedule"
+    return f"{schedule_type} {window}"
 
 
 @dataclass(slots=True)
@@ -257,6 +278,35 @@ class BatteryScheduleEditorManager:
         self.edit = BatteryScheduleFormState()
         self.schedules: list[BatteryScheduleRecord] = []
         self._listeners: list[Callable[[], None]] = []
+        self._auto_create_mode = False
+
+    def option_label_by_schedule_id(
+        self, *, hass: object | None = None
+    ) -> dict[str, str]:
+        raw_labels = {
+            schedule.schedule_id: battery_schedule_option_label(schedule, hass=hass)
+            for schedule in self.schedules
+        }
+        counts: dict[str, int] = {}
+        for label in raw_labels.values():
+            counts[label] = counts.get(label, 0) + 1
+        labels: dict[str, str] = {}
+        for schedule in self.schedules:
+            label = raw_labels[schedule.schedule_id]
+            if counts[label] > 1:
+                labels[schedule.schedule_id] = f"{label} [{schedule.schedule_id[:8]}]"
+            else:
+                labels[schedule.schedule_id] = label
+        return labels
+
+    def schedule_id_for_option_label(
+        self, option: str, *, hass: object | None = None
+    ) -> str | None:
+        option_text = str(option).strip()
+        for schedule_id, label in self.option_label_by_schedule_id(hass=hass).items():
+            if label == option_text:
+                return schedule_id
+        return None
 
     @callback
     def async_add_listener(self, listener: Callable[[], None]) -> CALLBACK_TYPE:
@@ -291,17 +341,53 @@ class BatteryScheduleEditorManager:
         self.schedules = next_schedules
 
         if self.edit.create_mode:
+            if self._auto_create_mode and self.schedules:
+                self._apply_schedule_to_form(self.schedules[0])
+                self._notify_listeners()
+                return
+            promoted = self._promote_created_schedule_from_form()
+            if promoted is not None:
+                self._apply_schedule_to_form(promoted)
+                self._notify_listeners()
+                return
             if schedules_changed:
                 self._notify_listeners()
             return
 
         selected = self.get_schedule(self.edit.selected_schedule_id)
         if selected is None:
-            if self.edit.selected_schedule_id is not None:
-                self.edit.reset()
-                self._notify_listeners()
+            fallback = self._default_schedule_selection()
+            if fallback is None:
+                if self.edit.selected_schedule_id is not None:
+                    self._set_create_mode_defaults(auto=False)
+                    self._notify_listeners()
+                    return
+                if schedules_changed:
+                    self._notify_listeners()
                 return
-            if schedules_changed:
+            before = (
+                self.edit.selected_schedule_id,
+                self.edit.create_mode,
+                self.edit.schedule_type,
+                self.edit.start_time,
+                self.edit.end_time,
+                self.edit.limit,
+                self.edit.days,
+            )
+            if fallback == NEW_SCHEDULE_OPTION:
+                self._set_create_mode_defaults(auto=True)
+            else:
+                self._apply_schedule_to_form(fallback)
+            after = (
+                self.edit.selected_schedule_id,
+                self.edit.create_mode,
+                self.edit.schedule_type,
+                self.edit.start_time,
+                self.edit.end_time,
+                self.edit.limit,
+                self.edit.days,
+            )
+            if schedules_changed or before != after:
                 self._notify_listeners()
             return
 
@@ -329,16 +415,38 @@ class BatteryScheduleEditorManager:
     def _apply_schedule_to_form(self, schedule: BatteryScheduleRecord) -> None:
         self.edit.selected_schedule_id = schedule.schedule_id
         self.edit.create_mode = False
+        self._auto_create_mode = False
         self.edit.schedule_type = schedule.schedule_type
         self.edit.start_time = schedule.start_time
         self.edit.end_time = schedule.end_time
         self.edit.limit = int(schedule.limit) if schedule.limit is not None else 100
         self.edit.days = editor_days_from_list(schedule.days)
 
+    def _default_schedule_selection(self) -> BatteryScheduleRecord | str | None:
+        if self.schedules:
+            return self.schedules[0]
+        return NEW_SCHEDULE_OPTION
+
+    def _promote_created_schedule_from_form(self) -> BatteryScheduleRecord | None:
+        matches = [
+            schedule
+            for schedule in self.schedules
+            if schedule.schedule_type == self.edit.schedule_type
+            and schedule.start_time == self.edit.start_time
+            and schedule.end_time == self.edit.end_time
+            and (schedule.limit if schedule.limit is not None else 100)
+            == self.edit.limit
+            and schedule.days == days_list_from_editor(self.edit.days)
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        return None
+
     @callback
-    def _set_create_mode_defaults(self) -> None:
+    def _set_create_mode_defaults(self, *, auto: bool = False) -> None:
         self.edit.reset()
         self.edit.create_mode = True
+        self._auto_create_mode = auto
 
     @property
     def current_selection(self) -> str | None:
@@ -353,12 +461,13 @@ class BatteryScheduleEditorManager:
     @callback
     def select_schedule(self, schedule_id: str) -> None:
         if schedule_id == NEW_SCHEDULE_OPTION:
-            self._set_create_mode_defaults()
+            self._set_create_mode_defaults(auto=False)
             self._notify_listeners()
             return
         schedule = self.get_schedule(schedule_id)
         if schedule is None:
             self.edit.reset()
+            self._auto_create_mode = False
         else:
             self._apply_schedule_to_form(schedule)
         self._notify_listeners()

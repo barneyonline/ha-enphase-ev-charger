@@ -5,6 +5,7 @@ from types import MappingProxyType
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import aiohttp
 import pytest
 from homeassistant.helpers.entity import EntityCategory
 
@@ -12,12 +13,14 @@ from custom_components.enphase_ev.battery_schedule_editor import (
     BatteryScheduleEditorEntity,
     BatteryScheduleEditorManager,
     NEW_SCHEDULE_OPTION,
-    NEW_SCHEDULE_OPTION_LABEL,
     _normalize_days,
     _time_to_text,
+    battery_schedule_option_label,
+    battery_schedule_type_options,
     battery_schedule_inventory,
 )
 from custom_components.enphase_ev.const import DOMAIN, OPT_BATTERY_SCHEDULES_ENABLED
+from custom_components.enphase_ev.labels import battery_schedule_create_label
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 
 
@@ -171,6 +174,8 @@ def test_battery_schedule_editor_manager_syncs_and_resets_selection() -> None:
     assert len(notifications) == 1
     assert [item["schedule_id"] for item in manager.as_dicts()] == ["abc123", "def456"]
     assert manager.get_schedule("abc123") is not None
+    assert manager.edit.selected_schedule_id == "abc123"
+    assert manager.current_selection == "abc123"
 
     manager.select_schedule("abc123")
     assert manager.edit.selected_schedule_id == "abc123"
@@ -217,8 +222,8 @@ def test_battery_schedule_editor_manager_syncs_and_resets_selection() -> None:
     manager.edit.selected_schedule_id = "ghost"
     manager.edit.limit = 12
     manager.sync_from_coordinator()
-    assert manager.edit.selected_schedule_id is None
-    assert manager.edit.limit == 100
+    assert manager.edit.selected_schedule_id == "abc123"
+    assert manager.edit.limit == 90
 
     coord._battery_schedules_payload = {
         "cfg": {"scheduleStatus": "active", "details": []}
@@ -228,6 +233,12 @@ def test_battery_schedule_editor_manager_syncs_and_resets_selection() -> None:
     assert manager.edit.selected_schedule_id is None
     assert manager.edit.limit == 100
     assert manager.edit.days["tue"] is False
+    assert manager.is_creating is True
+
+    coord._battery_schedules_payload = _schedule_payload()
+    manager.sync_from_coordinator()
+    assert manager.edit.selected_schedule_id == "abc123"
+    assert manager.is_creating is False
 
     unsub()
     manager.set_edit_limit(55)
@@ -603,30 +614,41 @@ async def test_battery_schedule_editor_entities_update_state_and_call_services(
     custom_info = {"name": "Battery Device"}
     coord.inventory_view.type_device_info = lambda *_args: custom_info
 
+    create_label = battery_schedule_create_label()
+    cfg_label = battery_schedule_option_label(editor.schedules[0])
+    dtg_label = battery_schedule_option_label(editor.schedules[1])
+
     schedule_select = BatteryScheduleSelect(coord, config_entry)
-    assert schedule_select.options == ["abc123", "def456", NEW_SCHEDULE_OPTION_LABEL]
-    assert schedule_select.current_option is None
+    assert schedule_select.options == [
+        cfg_label,
+        dtg_label,
+        create_label,
+    ]
+    assert schedule_select.current_option == cfg_label
 
     save_button = BatteryScheduleSaveButton(coord, config_entry)
     delete_button = BatteryScheduleDeleteButton(coord, config_entry)
-    assert save_button.available is False
-    assert delete_button.available is False
+    assert save_button.available is True
+    assert delete_button.available is True
 
-    await schedule_select.async_select_option("abc123")
+    await schedule_select.async_select_option(cfg_label)
     assert editor.edit.selected_schedule_id == "abc123"
     assert save_button.available is True
     assert delete_button.available is True
 
     new_type_select = BatteryNewScheduleTypeSelect(coord, config_entry)
     assert new_type_select.available is False
-    await schedule_select.async_select_option(NEW_SCHEDULE_OPTION_LABEL)
+    await schedule_select.async_select_option(create_label)
     assert editor.is_creating is True
-    assert schedule_select.current_option == NEW_SCHEDULE_OPTION_LABEL
+    assert schedule_select.current_option == create_label
     assert save_button.available is True
     assert delete_button.available is False
     assert new_type_select.available is True
-    await new_type_select.async_select_option("rbd")
-    assert new_type_select.current_option == "rbd"
+    rbd_label = [
+        label for key, label in battery_schedule_type_options() if key == "rbd"
+    ][0]
+    await new_type_select.async_select_option(rbd_label)
+    assert new_type_select.current_option == rbd_label
     assert editor.edit.schedule_type == "rbd"
 
     edit_start = BatteryScheduleEditStartTimeEntity(coord, config_entry)
@@ -668,7 +690,7 @@ async def test_battery_schedule_editor_entities_update_state_and_call_services(
 
     await refresh_button.async_press()
     await save_button.async_press()
-    await schedule_select.async_select_option("abc123")
+    await schedule_select.async_select_option(cfg_label)
     await delete_button.async_press()
     await save_button.async_press()
 
@@ -687,7 +709,7 @@ async def test_battery_schedule_editor_entities_update_state_and_call_services(
 
 
 @pytest.mark.asyncio
-async def test_battery_schedule_save_button_noops_without_selected_schedule(
+async def test_battery_schedule_save_button_updates_selected_schedule_by_default(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     from custom_components.enphase_ev.button import BatteryScheduleSaveButton
@@ -710,7 +732,7 @@ async def test_battery_schedule_save_button_noops_without_selected_schedule(
 
     await save_button.async_press()
 
-    assert service_calls == []
+    assert service_calls == [(DOMAIN, "update_schedule")]
 
 
 @pytest.mark.asyncio
@@ -751,7 +773,9 @@ async def test_battery_schedule_editor_guard_paths_cover_missing_editor_and_fall
     assert schedule_select.available is False
     assert schedule_select.options == []
     assert schedule_select.current_option is None
-    assert new_type_select.options == ["cfg", "dtg", "rbd"]
+    assert new_type_select.options == [
+        label for _key, label in battery_schedule_type_options()
+    ]
     assert new_type_select.current_option is None
     assert edit_limit.available is False
     assert edit_limit.native_value is None
@@ -1292,6 +1316,26 @@ async def test_battery_schedule_services_cover_failure_paths(
                 }
             )
         )
+
+    coord.client.validate_battery_schedule = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=Mock(real_url="https://example.invalid"),
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+    assert (
+        await validate_schedule(
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_type": "cfg",
+                }
+            )
+        )
+        == {}
+    )
 
     coord._battery_write_access_confirmed = False  # noqa: SLF001
     coord._battery_user_is_owner = False  # noqa: SLF001
