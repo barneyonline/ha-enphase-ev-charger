@@ -186,6 +186,7 @@ def test_backend_pending_false_keeps_pending_when_age_unavailable(
     assert coord._battery_backend_profile_update_pending is False  # noqa: SLF001
     assert coord._battery_backend_not_pending_observed_at is not None  # noqa: SLF001
 
+
 def test_battery_profile_refresh_cache_ttl_tracks_polling_cadence(
     coordinator_factory,
 ) -> None:
@@ -235,6 +236,7 @@ def test_battery_profile_refresh_cache_ttl_handles_error_and_default_branches(
     assert (
         runtime._battery_profile_refresh_cache_ttl_seconds(300.0) == 300.0
     )  # noqa: SLF001
+
 
 def test_battery_runtime_matching_handles_exact_savings_subtype_branches(
     coordinator_factory,
