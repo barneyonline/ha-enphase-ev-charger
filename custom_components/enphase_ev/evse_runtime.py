@@ -23,11 +23,13 @@ from .const import (
     DOMAIN,
     FAST_TOGGLE_POLL_HOLD_S,
     GREEN_BATTERY_SETTING,
+    MIN_FAST_POLL_INTERVAL,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
 )
 from .log_redaction import redact_identifier, redact_text
+from .runtime_helpers import coerce_int, normalize_poll_intervals
 from .session_history import MIN_SESSION_HISTORY_CACHE_TTL
 
 if TYPE_CHECKING:
@@ -482,11 +484,9 @@ class EvseRuntime:
             fast_opt = coord.config_entry.options.get(OPT_FAST_POLL_INTERVAL)
         fast_configured = fast_opt is not None
         try:
-            fast = int(fast_opt) if fast_opt is not None else DEFAULT_FAST_POLL_INTERVAL
+            int(fast_opt) if fast_opt is not None else DEFAULT_FAST_POLL_INTERVAL
         except Exception:
-            fast = DEFAULT_FAST_POLL_INTERVAL
             fast_configured = False
-        fast = max(1, fast)
         slow_default = getattr(
             coord,
             "_configured_slow_poll_interval",
@@ -495,11 +495,25 @@ class EvseRuntime:
         slow_opt = None
         if coord.config_entry is not None:
             slow_opt = coord.config_entry.options.get(OPT_SLOW_POLL_INTERVAL)
-        try:
-            slow = int(slow_opt) if slow_opt is not None else int(slow_default)
-        except Exception:
-            slow = int(slow_default)
-        slow = max(1, slow)
+        fast = max(
+            MIN_FAST_POLL_INTERVAL,
+            coerce_int(fast_opt, default=DEFAULT_FAST_POLL_INTERVAL),
+        )
+        slow_default_value = coerce_int(
+            slow_default,
+            default=DEFAULT_SLOW_POLL_INTERVAL,
+        )
+        if slow_opt is not None:
+            _fast, slow = normalize_poll_intervals(
+                fast,
+                slow_opt,
+                fast_default=fast,
+                slow_default=slow_default_value,
+            )
+        elif fast_opt is not None:
+            slow = max(slow_default_value, fast)
+        else:
+            slow = max(1, slow_default_value)
         target = fast if want_fast else slow
         return {
             "charging_now": charging_now,
@@ -934,22 +948,26 @@ class EvseRuntime:
 
     def slow_interval_floor(self) -> int:
         coord = self.coordinator
+        fast_floor = DEFAULT_FAST_POLL_INTERVAL
         slow_floor = DEFAULT_SLOW_POLL_INTERVAL
         if coord.config_entry is not None:
-            try:
-                slow_opt = coord.config_entry.options.get(
+            fast_floor, slow_floor = normalize_poll_intervals(
+                coord.config_entry.options.get(
+                    OPT_FAST_POLL_INTERVAL,
+                    DEFAULT_FAST_POLL_INTERVAL,
+                ),
+                coord.config_entry.options.get(
                     OPT_SLOW_POLL_INTERVAL,
                     DEFAULT_SLOW_POLL_INTERVAL,
-                )
-                slow_floor = max(slow_floor, int(slow_opt))
-            except Exception:
-                slow_floor = max(slow_floor, DEFAULT_SLOW_POLL_INTERVAL)
+                ),
+            )
         if coord.update_interval:
             try:
                 slow_floor = max(slow_floor, int(coord.update_interval.total_seconds()))
             except Exception:
                 pass
-        return max(1, slow_floor)
+        _, slow_floor = normalize_poll_intervals(fast_floor, slow_floor)
+        return slow_floor
 
     def set_last_set_amps(self, sn: str, amps: int) -> None:
         safe = self.apply_amp_limits(str(sn), amps)

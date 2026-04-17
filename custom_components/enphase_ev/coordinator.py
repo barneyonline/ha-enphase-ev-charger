@@ -59,11 +59,14 @@ from .const import (
     CONF_SITE_NAME,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_API_TIMEOUT,
+    DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    MIN_FAST_POLL_INTERVAL,
     DRY_CONTACT_SETTINGS_STALE_AFTER_S,
     DOMAIN,
     GRID_CONTROL_CHECK_STALE_AFTER_S,
     OPT_API_TIMEOUT,
+    OPT_FAST_POLL_INTERVAL,
     OPT_NOMINAL_VOLTAGE,
     OPT_SLOW_POLL_INTERVAL,
     OPT_SESSION_HISTORY_INTERVAL,
@@ -114,6 +117,7 @@ from .runtime_helpers import (
     coerce_int as helper_coerce_int,
     coerce_optional_int as helper_coerce_optional_int,
     copy_diagnostics_value,
+    normalize_poll_intervals,
     normalize_iso_date,
     redact_battery_payload,
     resolve_inverter_start_date,
@@ -365,16 +369,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if configured_nominal is not None:
                 self._nominal_v = configured_nominal
         # Options: allow dynamic fast/slow polling
-        slow = None
+        interval = helper_coerce_int(
+            config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+            default=DEFAULT_SCAN_INTERVAL,
+        )
+        interval = max(1, interval)
         if config_entry is not None:
-            slow = int(
-                config_entry.options.get(
-                    OPT_SLOW_POLL_INTERVAL,
-                    config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                )
+            fast_opt = config_entry.options.get(OPT_FAST_POLL_INTERVAL)
+            fast_interval = max(
+                MIN_FAST_POLL_INTERVAL,
+                helper_coerce_int(fast_opt, default=DEFAULT_FAST_POLL_INTERVAL),
             )
-        interval = slow or config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-        self._configured_slow_poll_interval = max(1, int(interval))
+            slow_opt = config_entry.options.get(OPT_SLOW_POLL_INTERVAL)
+            if slow_opt is not None:
+                _fast, interval = normalize_poll_intervals(
+                    fast_interval,
+                    slow_opt,
+                    fast_default=fast_interval,
+                    slow_default=interval,
+                )
+            elif fast_opt is not None:
+                interval = max(interval, fast_interval)
+        self._configured_slow_poll_interval = interval
         self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
         self.energy = EnergyManager(
             client_provider=lambda: self.client,
@@ -408,7 +424,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_day_retention = SESSION_HISTORY_CACHE_DAY_RETENTION
         super_kwargs = {
             "name": DOMAIN,
-            "update_interval": timedelta(seconds=interval),
+            "update_interval": timedelta(seconds=self._configured_slow_poll_interval),
         }
         if config_entry is not None:
             super_kwargs["config_entry"] = config_entry

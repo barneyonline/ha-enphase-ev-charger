@@ -23,6 +23,7 @@ from custom_components.enphase_ev.coordinator import (
 )
 from custom_components.enphase_ev.const import (
     CONF_COOKIE,
+    DEFAULT_SLOW_POLL_INTERVAL,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
@@ -1259,6 +1260,18 @@ def test_determine_polling_state_handles_bad_options(coordinator_factory):
     coord.update_interval = timedelta(seconds=15)
     state = coord._determine_polling_state({})
     assert state["want_fast"] in (True, False)
+
+
+def test_determine_polling_state_handles_invalid_configured_slow_interval(
+    coordinator_factory,
+):
+    coord = coordinator_factory()
+    coord._configured_slow_poll_interval = "invalid"  # noqa: SLF001
+    coord.config_entry = SimpleNamespace(options={})
+
+    state = coord._determine_polling_state({})
+
+    assert state["slow"] == DEFAULT_SLOW_POLL_INTERVAL
 
 
 @pytest.mark.asyncio
