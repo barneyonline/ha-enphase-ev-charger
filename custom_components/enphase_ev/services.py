@@ -188,6 +188,7 @@ def async_setup_services(
             vol.Optional("site_id"): cv.string,
             vol.Optional("schedule_id"): cv.string,
             vol.Optional("schedule_ids"): cv.ensure_list,
+            vol.Optional("schedule_type"): SCHEDULE_TYPE_SCHEMA,
             vol.Required("confirm"): cv.boolean,
         }
     )
@@ -270,6 +271,12 @@ def async_setup_services(
 
     def _known_schedule_ids(coord: EnphaseCoordinator) -> set[str]:
         return {schedule.schedule_id for schedule in battery_schedule_inventory(coord)}
+
+    def _schedule_inventory_by_id(coord: EnphaseCoordinator) -> dict[str, object]:
+        return {
+            schedule.schedule_id: schedule
+            for schedule in battery_schedule_inventory(coord)
+        }
 
     def _validate_cfg_schedule(data: dict) -> dict:
         if not any(k in data for k in ("start_time", "end_time", "limit")):
@@ -514,16 +521,18 @@ def async_setup_services(
         schedule_id = str(call.data["schedule_id"]).strip()
         if not SCHEDULE_ID_PATTERN.match(schedule_id):
             raise ServiceValidationError(f"Invalid schedule ID: {schedule_id}")
-        schedule_inventory = {
-            schedule.schedule_id: schedule
-            for schedule in battery_schedule_inventory(coord)
-        }
+        schedule_inventory = _schedule_inventory_by_id(coord)
         known_ids = set(schedule_inventory)
         if known_ids and schedule_id not in known_ids:
             raise ServiceValidationError(
                 f"Schedule ID not found in current data: {schedule_id}"
             )
-        schedule_type = str(call.data["schedule_type"]).lower()
+        existing_schedule = schedule_inventory.get(schedule_id)
+        schedule_type = (
+            existing_schedule.schedule_type
+            if existing_schedule is not None
+            else str(call.data["schedule_type"]).lower()
+        )
         days = sorted({int(day) for day in call.data["days"]})
         limit = int(call.data["limit"])
         start_str, end_str = _validate_schedule_fields(
@@ -537,7 +546,6 @@ def async_setup_services(
         updater = getattr(coord.client, "update_battery_schedule", None)
         if not callable(updater):
             raise ServiceValidationError("Battery schedule API is unavailable.")
-        existing_schedule = schedule_inventory.get(schedule_id)
         try:
             await updater(
                 schedule_id,
@@ -600,18 +608,23 @@ def async_setup_services(
         deleter = getattr(coord.client, "delete_battery_schedule", None)
         if not callable(deleter):
             raise ServiceValidationError("Battery schedule API is unavailable.")
-        schedule_inventory = {
-            schedule.schedule_id: schedule
-            for schedule in battery_schedule_inventory(coord)
-        }
+        schedule_inventory = _schedule_inventory_by_id(coord)
+        requested_schedule_type = call.data.get("schedule_type")
         for schedule_id in schedule_ids:
             schedule = schedule_inventory.get(schedule_id)
+            schedule_type = (
+                schedule.schedule_type
+                if schedule is not None
+                else (
+                    str(requested_schedule_type).lower()
+                    if requested_schedule_type is not None
+                    else "cfg"
+                )
+            )
             try:
                 await deleter(
                     schedule_id,
-                    schedule_type=(
-                        schedule.schedule_type if schedule is not None else "cfg"
-                    ),
+                    schedule_type=schedule_type,
                 )
             except aiohttp.ClientResponseError as err:
                 coord.battery_runtime.raise_schedule_update_validation_error(err)

@@ -25,7 +25,11 @@ from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
 from .api import SchedulerUnavailable
-from .const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
+from .const import (
+    DEFAULT_SCHEDULE_SYNC_ENABLED,
+    DOMAIN,
+    OPT_SCHEDULE_SYNC_ENABLED,
+)
 from .log_redaction import redact_identifier, redact_text
 from .schedule import normalize_slot_payload
 
@@ -806,7 +810,12 @@ class ScheduleSync:
     def _sync_enabled(self) -> bool:
         if not self._config_entry:
             return True
-        return bool(self._config_entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, False))
+        return bool(
+            self._config_entry.options.get(
+                OPT_SCHEDULE_SYNC_ENABLED,
+                DEFAULT_SCHEDULE_SYNC_ENABLED,
+            )
+        )
 
     def _has_scheduler_bearer(self) -> bool:
         client = getattr(self._coordinator, "client", None)

@@ -2312,6 +2312,9 @@ async def test_options_flow_show_form_with_defaults(hass) -> None:
         isinstance(key, VolOptional) and key.schema == CONF_SITE_ONLY
         for key in schema_keys
     )
+    validated = result["data_schema"]({})
+    assert validated[OPT_SCHEDULE_SYNC_ENABLED] is True
+    assert validated[OPT_BATTERY_SCHEDULES_ENABLED] is True
 
 
 @pytest.mark.asyncio

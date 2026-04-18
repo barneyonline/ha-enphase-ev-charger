@@ -48,8 +48,10 @@ from .const import (
     CONF_SITE_NAME,
     CONF_SITE_ONLY,
     CONF_TOKEN_EXPIRES_AT,
+    DEFAULT_BATTERY_SCHEDULES_ENABLED,
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SCHEDULE_SYNC_ENABLED,
     DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
     MIN_FAST_POLL_INTERVAL,
@@ -1207,12 +1209,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ): int,
                 vol.Optional(
                     OPT_SCHEDULE_SYNC_ENABLED,
-                    default=self._entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, False),
+                    default=self._entry.options.get(
+                        OPT_SCHEDULE_SYNC_ENABLED,
+                        DEFAULT_SCHEDULE_SYNC_ENABLED,
+                    ),
                 ): bool,
                 vol.Optional(
                     OPT_BATTERY_SCHEDULES_ENABLED,
                     default=self._entry.options.get(
-                        OPT_BATTERY_SCHEDULES_ENABLED, False
+                        OPT_BATTERY_SCHEDULES_ENABLED,
+                        DEFAULT_BATTERY_SCHEDULES_ENABLED,
                     ),
                 ): bool,
                 vol.Optional("reauth", default=False): bool,

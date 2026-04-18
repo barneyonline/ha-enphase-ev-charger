@@ -3709,18 +3709,24 @@ class BatteryRuntime:
                 if value is not None:
                     payload[target_key] = value
 
+        if (
+            normalized in {"dtg", "rbd"}
+            and current_start is not None
+            and current_end is not None
+        ):
+            if current_start == current_end:
+                raise ServiceValidationError(
+                    f"{self._battery_schedule_label(schedule_type)} start and end times must be different."
+                )
+            payload["scheduleSupported"] = True
+            payload["startTime"] = current_start
+            payload["endTime"] = current_end
+
         if normalized == "dtg" and enabled:
             if current_start is None or current_end is None:
                 raise ServiceValidationError(
                     "Discharge to grid schedule time is invalid."
                 )
-            if current_start == current_end:
-                raise ServiceValidationError(
-                    "Discharge to grid schedule start and end times must be different."
-                )
-            payload["scheduleSupported"] = True
-            payload["startTime"] = current_start
-            payload["endTime"] = current_end
 
         return payload
 
@@ -3881,19 +3887,10 @@ class BatteryRuntime:
                 async with state._battery_settings_write_lock:
                     state._battery_settings_last_write_mono = time.monotonic()
                     try:
-                        if normalized_schedule_type == "rbd" and not enabled:
-                            await coord.client.set_battery_settings_compat(
-                                payload,
-                                schedule_type=normalized_schedule_type,
-                                include_source=False,
-                                merged_payload=True,
-                                strip_devices=True,
-                            )
-                        else:
-                            await coord.client.set_battery_settings(
-                                payload,
-                                schedule_type=normalized_schedule_type,
-                            )
+                        await coord.client.set_battery_settings(
+                            payload,
+                            schedule_type=normalized_schedule_type,
+                        )
                     except aiohttp.ClientResponseError as err:
                         if (
                             normalized_schedule_type in {"dtg", "rbd"}
