@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -16,6 +17,12 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 from .entity_cleanup import prune_managed_entities
+from .evse_schedule_editor import (
+    EvseScheduleEditorEntity,
+    NEW_SCHEDULE_OPTION as EVSE_NEW_SCHEDULE_OPTION,
+    days_list_from_editor as evse_days_list_from_editor,
+    evse_schedule_editor_active,
+)
 from .runtime_helpers import (
     inventory_type_available as _type_available,
     inventory_type_device_info as _type_device_info,
@@ -153,6 +160,10 @@ async def async_setup_entry(
             for sn in serials:
                 serial_entities.append(StartChargeButton(coord, sn))
                 serial_entities.append(StopChargeButton(coord, sn))
+                if evse_schedule_editor_active(coord, entry):
+                    serial_entities.append(EvseScheduleRefreshButton(coord, entry, sn))
+                    serial_entities.append(EvseScheduleSaveButton(coord, entry, sn))
+                    serial_entities.append(EvseScheduleDeleteButton(coord, entry, sn))
         if serial_entities:
             async_add_entities(serial_entities, update_before_add=False)
         known_serials.intersection_update(current_serials)
@@ -162,20 +173,29 @@ async def async_setup_entry(
         if not inventory_ready:
             return
 
+        active_charger_unique_ids = set()
+        for sn in current_serials:
+            active_charger_unique_ids.update(
+                {
+                    _charger_button_unique_id(sn, "start_charging"),
+                    _charger_button_unique_id(sn, "stop_charging"),
+                }
+            )
+            if evse_schedule_editor_active(coord, entry):
+                active_charger_unique_ids.update(
+                    {
+                        _charger_button_unique_id(sn, "schedule_refresh"),
+                        _charger_button_unique_id(sn, "schedule_save"),
+                        _charger_button_unique_id(sn, "schedule_delete"),
+                    }
+                )
         prune_managed_entities(
             ent_reg,
             entry.entry_id,
             domain="button",
             active_unique_ids={
                 *(_site_button_unique_id(key) for key in retain_site_entity_keys),
-                *(
-                    unique_id
-                    for sn in current_serials
-                    for unique_id in (
-                        _charger_button_unique_id(sn, "start_charging"),
-                        _charger_button_unique_id(sn, "stop_charging"),
-                    )
-                ),
+                *active_charger_unique_ids,
             },
             is_managed=lambda unique_id: (
                 unique_id
@@ -188,7 +208,15 @@ async def async_setup_entry(
                     _site_button_unique_id("battery_schedule_delete"),
                     _site_button_unique_id("battery_schedule_add"),
                 }
-                or unique_id.endswith(("_start_charging", "_stop_charging"))
+                or unique_id.endswith(
+                    (
+                        "_start_charging",
+                        "_stop_charging",
+                        "_schedule_refresh",
+                        "_schedule_save",
+                        "_schedule_delete",
+                    )
+                )
             ),
         )
 
@@ -468,3 +496,127 @@ class StopChargeButton(_BaseButton):
 
     async def async_press(self) -> None:
         await self._coord.async_stop_charging(self._sn)
+
+
+class _EvseScheduleButton(EvseScheduleEditorEntity, ButtonEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        entry: EnphaseConfigEntry,
+        sn: str,
+        *,
+        unique_suffix: str,
+        translation_key: str,
+        icon: str,
+    ) -> None:
+        super().__init__(coord, entry, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_{unique_suffix}"
+        self._attr_translation_key = translation_key
+        self._attr_icon = icon
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return (
+            super().available
+            and evse_schedule_editor_active(self._coord, self._entry)
+            and self._editor is not None
+        )
+
+
+class EvseScheduleRefreshButton(_EvseScheduleButton):
+    def __init__(
+        self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry, sn: str
+    ) -> None:
+        super().__init__(
+            coord,
+            entry,
+            sn,
+            unique_suffix="schedule_refresh",
+            translation_key="evse_schedule_refresh",
+            icon="mdi:refresh",
+        )
+
+    async def async_press(self) -> None:
+        schedule_sync = getattr(self._coord, "schedule_sync", None)
+        if schedule_sync is not None:
+            await schedule_sync.async_refresh(
+                reason="editor_refresh", serials=[self._sn]
+            )
+
+
+class EvseScheduleSaveButton(_EvseScheduleButton):
+    def __init__(
+        self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry, sn: str
+    ) -> None:
+        super().__init__(
+            coord,
+            entry,
+            sn,
+            unique_suffix="schedule_save",
+            translation_key="evse_schedule_save",
+            icon="mdi:content-save",
+        )
+
+    async def async_press(self) -> None:
+        if self._editor is None:
+            return
+        form = self._editor.form_state(self._sn)
+        if not any(form.days.values()):
+            raise ServiceValidationError(
+                "Select at least one weekday for the schedule.",
+                translation_domain=DOMAIN,
+                translation_key="exceptions.evse_schedule_day_required",
+            )
+        if form.start_time == form.end_time:
+            raise ServiceValidationError(
+                "Schedule start and end times must be different.",
+                translation_domain=DOMAIN,
+                translation_key="exceptions.evse_schedule_times_different",
+            )
+        schedule_sync = getattr(self._coord, "schedule_sync", None)
+        if schedule_sync is None:
+            return
+        slot = self._editor.build_slot_payload(self._sn)
+        slot["days"] = evse_days_list_from_editor(form.days)
+        if not await schedule_sync.async_upsert_slot(self._sn, slot):
+            raise ServiceValidationError(
+                "Enphase rejected the schedule change.",
+                translation_domain=DOMAIN,
+                translation_key="exceptions.evse_schedule_change_rejected",
+            )
+
+
+class EvseScheduleDeleteButton(_EvseScheduleButton):
+    def __init__(
+        self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry, sn: str
+    ) -> None:
+        super().__init__(
+            coord,
+            entry,
+            sn,
+            unique_suffix="schedule_delete",
+            translation_key="evse_schedule_delete",
+            icon="mdi:calendar-remove",
+        )
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return super().available and bool(
+            self._editor
+            and not self._editor.is_creating(self._sn)
+            and self._editor.current_selection(self._sn)
+        )
+
+    async def async_press(self) -> None:
+        if self._editor is None:
+            return
+        slot_id = self._editor.current_selection(self._sn)
+        if slot_id in {None, EVSE_NEW_SCHEDULE_OPTION}:
+            return
+        schedule_sync = getattr(self._coord, "schedule_sync", None)
+        if schedule_sync is None:
+            return
+        await schedule_sync.async_delete_slot(self._sn, slot_id)

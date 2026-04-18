@@ -3024,6 +3024,37 @@ async def test_patch_schedule_builds_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_schedule_builds_payload() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"ok": True})
+    slot = {"id": "slot-2", "startTime": "03:15"}
+
+    data = await client.create_schedule("SN123", slot)
+
+    assert data == {"ok": True}
+
+    method, url = client._json.call_args.args[:2]
+    payload = client._json.call_args.kwargs["json"]
+    assert method == "POST"
+    assert url.endswith("/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedule")
+    assert payload == slot
+
+
+@pytest.mark.asyncio
+async def test_delete_schedule_uses_single_slot_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"ok": True})
+
+    data = await client.delete_schedule("SN123", "slot-2")
+
+    assert data == {"ok": True}
+
+    method, url = client._json.call_args.args[:2]
+    assert method == "DELETE"
+    assert url.endswith("/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedule/slot-2")
+
+
+@pytest.mark.asyncio
 async def test_status_does_not_call_legacy_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"evChargerData": []})

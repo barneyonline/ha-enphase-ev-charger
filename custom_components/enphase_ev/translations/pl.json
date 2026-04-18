@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Wybrany tryb ładowania jest niedostępny."
+    },
+    "evse_schedule_day_required": {
+      "message": "Wybierz co najmniej jeden dzień tygodnia dla harmonogramu."
+    },
+    "evse_schedule_times_different": {
+      "message": "Godzina rozpoczęcia i zakończenia harmonogramu muszą się różnić."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase odrzucił zmianę harmonogramu."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Tryb uśpienia baterii AC"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Harmonogram na poniedziałek"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Harmonogram na wtorek"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Harmonogram na środę"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Harmonogram na czwartek"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Harmonogram na piątek"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Harmonogram na sobotę"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Harmonogram na niedzielę"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Docelowy stan naładowania baterii AC"
+      },
+      "evse_schedule_selected": {
+        "name": "Harmonogram"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Zrezygnuj z alertu burzowego"
+      },
+      "evse_schedule_refresh": {
+        "name": "Odśwież harmonogram"
+      },
+      "evse_schedule_save": {
+        "name": "Zapisz harmonogram"
+      },
+      "evse_schedule_delete": {
+        "name": "Usuń harmonogram"
+      },
+      "evse_schedule_add": {
+        "name": "Utwórz nowy harmonogram"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Godzina zakończenia ograniczenia rozładowania baterii"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Godzina rozpoczęcia harmonogramu"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Godzina zakończenia harmonogramu"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Synchronizuj harmonogramy",
-      "description": "Odśwież harmonogramy Enphase i zaktualizuj pomocniki harmonogramu.",
+      "description": "Odśwież harmonogramy Enphase z chmury.",
       "fields": {
         "device_id": {
           "name": "Ładowarki",

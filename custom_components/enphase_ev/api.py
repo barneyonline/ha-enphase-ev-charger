@@ -5343,6 +5343,42 @@ class EnphaseEVClient:
                 raise SchedulerUnavailable(str(err)) from err
             raise
 
+    async def create_schedule(self, sn: str, slot: dict) -> dict:
+        """Create a single schedule slot for the charger.
+
+        POST /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site>/<sn>/schedule
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"SCHEDULED_CHARGING/{self._site}/{sn}/schedule"
+        )
+        headers = self._today_json_headers()
+        headers.update(self._control_headers())
+        try:
+            return await self._json("POST", url, json=slot, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
+
+    async def delete_schedule(self, sn: str, slot_id: str) -> dict:
+        """Delete a single schedule slot for the charger.
+
+        DELETE /service/evse_scheduler/api/v1/iqevc/charging-mode/SCHEDULED_CHARGING/<site>/<sn>/schedule/<slot_id>
+        """
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/"
+            f"SCHEDULED_CHARGING/{self._site}/{sn}/schedule/{slot_id}"
+        )
+        headers = self._today_json_headers()
+        headers.update(self._control_headers())
+        try:
+            return await self._json("DELETE", url, headers=headers)
+        except aiohttp.ClientResponseError as err:
+            if is_scheduler_unavailable_error(err.message, err.status, url):
+                raise SchedulerUnavailable(str(err)) from err
+            raise
+
     async def lifetime_energy(self) -> dict | None:
         """Return lifetime energy buckets for the configured site.
 

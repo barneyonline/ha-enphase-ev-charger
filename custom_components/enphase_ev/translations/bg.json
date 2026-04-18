@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Избраният режим на зареждане не е наличен."
+    },
+    "evse_schedule_day_required": {
+      "message": "Изберете поне един ден от седмицата за графика."
+    },
+    "evse_schedule_times_different": {
+      "message": "Началният и крайният час на графика трябва да са различни."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase отхвърли промяната на графика."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Режим на заспиване на AC батерията"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "График за понеделник"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "График за вторник"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "График за сряда"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "График за четвъртък"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "График за петък"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "График за събота"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "График за неделя"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Целево ниво на заряд на AC батерията"
+      },
+      "evse_schedule_selected": {
+        "name": "График"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Отказ от предупреждение за буря"
+      },
+      "evse_schedule_refresh": {
+        "name": "Обновяване на графика"
+      },
+      "evse_schedule_save": {
+        "name": "Запазване на графика"
+      },
+      "evse_schedule_delete": {
+        "name": "Изтриване на графика"
+      },
+      "evse_schedule_add": {
+        "name": "Създаване на нов график"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Краен час за ограничаване на разреждането на батерията"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Начален час на графика"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Краен час на графика"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Синхронизиране на графиците",
-      "description": "Обновете графиците на Enphase и актуализирайте помощниците за график.",
+      "description": "Обновете графиците на Enphase от облака.",
       "fields": {
         "device_id": {
           "name": "Зарядни",

@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Η επιλεγμένη λειτουργία φόρτισης δεν είναι διαθέσιμη."
+    },
+    "evse_schedule_day_required": {
+      "message": "Επιλέξτε τουλάχιστον μία ημέρα της εβδομάδας για το πρόγραμμα."
+    },
+    "evse_schedule_times_different": {
+      "message": "Η ώρα έναρξης και λήξης του προγράμματος πρέπει να διαφέρουν."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Το Enphase απέρριψε την αλλαγή του προγράμματος."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Λειτουργία ύπνου μπαταρίας AC"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Πρόγραμμα Δευτέρας"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Πρόγραμμα Τρίτης"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Πρόγραμμα Τετάρτης"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Πρόγραμμα Πέμπτης"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Πρόγραμμα Παρασκευής"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Πρόγραμμα Σαββάτου"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Πρόγραμμα Κυριακής"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Στόχος κατάστασης φόρτισης μπαταρίας AC"
+      },
+      "evse_schedule_selected": {
+        "name": "Πρόγραμμα"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Εξαίρεση από ειδοποίηση καταιγίδας"
+      },
+      "evse_schedule_refresh": {
+        "name": "Ανανέωση προγράμματος"
+      },
+      "evse_schedule_save": {
+        "name": "Αποθήκευση προγράμματος"
+      },
+      "evse_schedule_delete": {
+        "name": "Διαγραφή προγράμματος"
+      },
+      "evse_schedule_add": {
+        "name": "Δημιουργία νέου προγράμματος"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Ώρα λήξης περιορισμού εκφόρτισης μπαταρίας"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Ώρα έναρξης προγράμματος"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Ώρα λήξης προγράμματος"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Συγχρονισμός προγραμμάτων",
-      "description": "Ανανέωση προγραμμάτων Enphase και ενημέρωση βοηθών προγράμματος.",
+      "description": "Ανανέωση προγραμμάτων Enphase από το cloud.",
       "fields": {
         "device_id": {
           "name": "Φορτιστές",

@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Der ausgewählte Lademodus ist nicht verfügbar."
+    },
+    "evse_schedule_day_required": {
+      "message": "Wählen Sie mindestens einen Wochentag für den Zeitplan aus."
+    },
+    "evse_schedule_times_different": {
+      "message": "Start- und Endzeit des Zeitplans müssen unterschiedlich sein."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase hat die Zeitplanänderung abgelehnt."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Schlafmodus der AC-Batterie"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Zeitplan Montag"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Zeitplan Dienstag"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Zeitplan Mittwoch"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Zeitplan Donnerstag"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Zeitplan Freitag"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Zeitplan Samstag"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Zeitplan Sonntag"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Ziel-Ladezustand der AC-Batterie"
+      },
+      "evse_schedule_selected": {
+        "name": "Zeitplan"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Sturmwarnung abwählen"
+      },
+      "evse_schedule_refresh": {
+        "name": "Zeitplan aktualisieren"
+      },
+      "evse_schedule_save": {
+        "name": "Zeitplan speichern"
+      },
+      "evse_schedule_delete": {
+        "name": "Zeitplan löschen"
+      },
+      "evse_schedule_add": {
+        "name": "Neuen Zeitplan erstellen"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Endzeit für eingeschränkte Batterieentladung"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Startzeit des Zeitplans"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Endzeit des Zeitplans"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Zeitpläne synchronisieren",
-      "description": "Enphase-Zeitpläne abrufen und Zeitplan-Helfer aktualisieren.",
+      "description": "Enphase-Zeitpläne aus der Cloud abrufen.",
       "fields": {
         "device_id": {
           "name": "Ladegeräte",

@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Valittu lataustila ei ole käytettävissä."
+    },
+    "evse_schedule_day_required": {
+      "message": "Valitse aikataululle vähintään yksi viikonpäivä."
+    },
+    "evse_schedule_times_different": {
+      "message": "Aikataulun alku- ja loppuajan on oltava eriävät."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase hylkäsi aikataulumuutoksen."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "AC-akun lepotila"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Maanantain aikataulu"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Tiistain aikataulu"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Keskiviikon aikataulu"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Torstain aikataulu"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Perjantain aikataulu"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Lauantain aikataulu"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Sunnuntain aikataulu"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "AC-akun tavoitevaraustaso"
+      },
+      "evse_schedule_selected": {
+        "name": "Aikataulu"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Poista myrskyhälytys käytöstä"
+      },
+      "evse_schedule_refresh": {
+        "name": "Aikataulun päivitys"
+      },
+      "evse_schedule_save": {
+        "name": "Aikataulun tallennus"
+      },
+      "evse_schedule_delete": {
+        "name": "Aikataulun poisto"
+      },
+      "evse_schedule_add": {
+        "name": "Luo uusi aikataulu"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Akun purkauksen rajoituksen päättymisaika"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Aikataulun alkamisaika"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Aikataulun päättymisaika"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Synkronoi aikataulut",
-      "description": "Päivitä Enphase-aikataulut ja päivitä aikatauluapulaiset.",
+      "description": "Päivitä Enphase-aikataulut pilvestä.",
       "fields": {
         "device_id": {
           "name": "Laturit",
