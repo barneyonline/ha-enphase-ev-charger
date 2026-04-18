@@ -968,7 +968,7 @@ async def test_battery_schedule_save_button_shows_success_notification(
     kwargs = notification_spy.call_args.kwargs
     assert args[0] is hass
     assert args[1] == "Discharge To Grid Schedule 18:00-23:59"
-    assert kwargs["title"] == "Save Battery Schedule"
+    assert kwargs["title"] == button._button_label("save")  # noqa: SLF001
     assert kwargs["notification_id"] == "enphase_ev_battery_schedule_result_site"
 
 
@@ -1044,7 +1044,7 @@ async def test_battery_schedule_delete_button_shows_success_notification(
     args = notification_spy.call_args.args
     kwargs = notification_spy.call_args.kwargs
     assert args[1] == "Restrict Battery Discharge Schedule 06:30-11:00"
-    assert kwargs["title"] == "Delete Battery Schedule"
+    assert kwargs["title"] == button._button_label("delete")  # noqa: SLF001
     assert kwargs["notification_id"] == "enphase_ev_battery_schedule_result_site"
 
 
