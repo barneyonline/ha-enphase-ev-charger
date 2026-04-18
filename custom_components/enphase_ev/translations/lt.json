@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Pasirinktas įkrovimo režimas nepasiekiamas."
+    },
+    "evse_schedule_day_required": {
+      "message": "Pasirinkite bent vieną savaitės dieną tvarkaraščiui."
+    },
+    "evse_schedule_times_different": {
+      "message": "Tvarkaraščio pradžios ir pabaigos laikas turi skirtis."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase atmetė tvarkaraščio pakeitimą."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "AC baterijos miego režimas"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Pirmadienio tvarkaraštis"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Antradienio tvarkaraštis"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Trečiadienio tvarkaraštis"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Ketvirtadienio tvarkaraštis"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Penktadienio tvarkaraštis"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Šeštadienio tvarkaraštis"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Sekmadienio tvarkaraštis"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Tikslinis AC baterijos įkrovos lygis"
+      },
+      "evse_schedule_selected": {
+        "name": "Tvarkaraštis"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Atsisakyti audros įspėjimo"
+      },
+      "evse_schedule_refresh": {
+        "name": "Tvarkaraščio atnaujinimas"
+      },
+      "evse_schedule_save": {
+        "name": "Tvarkaraščio išsaugojimas"
+      },
+      "evse_schedule_delete": {
+        "name": "Tvarkaraščio ištrynimas"
+      },
+      "evse_schedule_add": {
+        "name": "Sukurti naują tvarkaraštį"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Baterijos iškrovimo ribojimo pabaigos laikas"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Tvarkaraščio pradžios laikas"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Tvarkaraščio pabaigos laikas"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Sinchronizuoti tvarkaraščius",
-      "description": "Atnaujinti Enphase tvarkaraščius ir tvarkaraščio pagalbininkus.",
+      "description": "Atnaujinti Enphase tvarkaraščius iš debesijos.",
       "fields": {
         "device_id": {
           "name": "Įkrovikliai",

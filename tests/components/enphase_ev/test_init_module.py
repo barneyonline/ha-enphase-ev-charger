@@ -367,6 +367,61 @@ async def test_async_setup_entry_uses_background_task_for_schedule_sync_start(
 
 
 @pytest.mark.asyncio
+async def test_async_setup_entry_registers_evse_schedule_editor_runtime(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    battery_editor = SimpleNamespace(sync_from_coordinator=Mock())
+    evse_editor = SimpleNamespace(sync_from_coordinator=Mock())
+    schedule_sync = SimpleNamespace(
+        async_start=AsyncMock(), async_add_listener=Mock(return_value=lambda: None)
+    )
+
+    class DummyCoordinator:
+        def __init__(self) -> None:
+            self.site_id = site_id
+            self.schedule_sync = schedule_sync
+
+        async def async_config_entry_first_refresh(self) -> None:
+            return None
+
+        def iter_serials(self) -> list[str]:
+            return []
+
+        def iter_type_keys(self) -> list[str]:
+            return []
+
+        def async_add_listener(self, _callback):
+            return lambda: None
+
+    dummy_coord = _with_inventory_view(DummyCoordinator())
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
+        lambda hass_, entry_data, config_entry=None: dummy_coord,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_schedule_editor.BatteryScheduleEditorManager",
+        lambda _coord: battery_editor,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.evse_schedule_editor.EvseScheduleEditorManager",
+        lambda _coord: evse_editor,
+    )
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_setups", AsyncMock())
+
+    assert await async_setup_entry(hass, config_entry)
+
+    runtime_data = config_entry.runtime_data
+    assert runtime_data.battery_schedule_editor is battery_editor
+    assert runtime_data.evse_schedule_editor is evse_editor
+    battery_editor.sync_from_coordinator.assert_called_once_with()
+    evse_editor.sync_from_coordinator.assert_called_once_with()
+    schedule_sync.async_add_listener.assert_called_once_with(
+        evse_editor.sync_from_coordinator
+    )
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_uses_background_task_for_startup_warmup(
     hass: HomeAssistant, config_entry, monkeypatch
 ) -> None:

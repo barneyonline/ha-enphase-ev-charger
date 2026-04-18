@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Modul de încărcare selectat nu este disponibil."
+    },
+    "evse_schedule_day_required": {
+      "message": "Selectați cel puțin o zi a săptămânii pentru programare."
+    },
+    "evse_schedule_times_different": {
+      "message": "Orele de început și de sfârșit ale programării trebuie să fie diferite."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase a respins modificarea programării."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Modul de repaus al bateriei AC"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Programare luni"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Programare marți"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Programare miercuri"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Programare joi"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Programare vineri"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Programare sâmbătă"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Programare duminică"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Starea de încărcare țintă a bateriei AC"
+      },
+      "evse_schedule_selected": {
+        "name": "Programare"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Renunță la alerta de furtună"
+      },
+      "evse_schedule_refresh": {
+        "name": "Actualizare programare"
+      },
+      "evse_schedule_save": {
+        "name": "Salvare programare"
+      },
+      "evse_schedule_delete": {
+        "name": "Ștergere programare"
+      },
+      "evse_schedule_add": {
+        "name": "Creare programare nouă"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Ora de sfârșit a restricționării descărcării bateriei"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Ora de început a programării"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Ora de sfârșit a programării"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Sincronizează programele",
-      "description": "Reîmprospătează programele Enphase și actualizează helperii de program.",
+      "description": "Reîmprospătează programele Enphase din cloud.",
       "fields": {
         "device_id": {
           "name": "Încărcătoare",

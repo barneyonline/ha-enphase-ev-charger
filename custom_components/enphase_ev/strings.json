@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Selected charging mode is not available."
+    },
+    "evse_schedule_day_required": {
+      "message": "Select at least one weekday for the schedule."
+    },
+    "evse_schedule_times_different": {
+      "message": "Schedule start and end times must be different."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase rejected the schedule change."
     }
   },
   "options": {
@@ -1393,6 +1402,27 @@
       },
       "battery_new_schedule_sun": {
         "name": "Battery New Schedule Sunday"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Schedule Monday"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Schedule Tuesday"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Schedule Wednesday"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Schedule Thursday"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Schedule Friday"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Schedule Saturday"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Schedule Sunday"
       }
     },
     "time": {
@@ -1425,6 +1455,12 @@
       },
       "battery_new_schedule_end_time": {
         "name": "Battery New Schedule End Time"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Schedule Start Time"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Schedule End Time"
       }
     },
     "calendar": {
@@ -1447,6 +1483,9 @@
       },
       "battery_new_schedule_type": {
         "name": "Battery Schedule Type"
+      },
+      "evse_schedule_selected": {
+        "name": "Schedule"
       }
     },
     "button": {
@@ -1476,6 +1515,18 @@
       },
       "battery_schedule_add": {
         "name": "Battery Schedule Add"
+      },
+      "evse_schedule_refresh": {
+        "name": "Schedule Refresh"
+      },
+      "evse_schedule_save": {
+        "name": "Schedule Save"
+      },
+      "evse_schedule_delete": {
+        "name": "Schedule Delete"
+      },
+      "evse_schedule_add": {
+        "name": "Create new schedule"
       }
     },
     "update": {
@@ -1683,7 +1734,7 @@
     },
     "sync_schedules": {
       "name": "Sync Schedules",
-      "description": "Refresh Enphase schedules and update schedule helpers.",
+      "description": "Refresh Enphase schedules from the cloud.",
       "fields": {
         "device_id": {
           "name": "Chargers",

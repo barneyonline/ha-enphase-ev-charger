@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import MappingProxyType
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,8 +11,10 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from custom_components.enphase_ev.api import AuthSettingsUnavailable
+from custom_components.enphase_ev.const import OPT_SCHEDULE_SYNC_ENABLED
 from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
+from custom_components.enphase_ev.evse_schedule_editor import EvseScheduleEditorManager
 from custom_components.enphase_ev.evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
@@ -23,15 +26,62 @@ from custom_components.enphase_ev.switch import (
     ChargeFromGridSwitch,
     ChargingSwitch,
     DischargeToGridScheduleSwitch,
+    EvseScheduleEditorDaySwitch,
     GreenBatterySwitch,
     RestrictBatteryDischargeScheduleSwitch,
     SavingsUseBatteryAfterPeakSwitch,
-    ScheduleSlotSwitch,
     StormGuardEvseSwitch,
     StormGuardSwitch,
     async_setup_entry,
 )
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+
+def _attach_evse_editor_runtime(config_entry, coord) -> EvseScheduleEditorManager:
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.client.get_schedules = AsyncMock()
+    coord.client.patch_schedule = AsyncMock()
+    coord.client.create_schedule = AsyncMock()
+    coord.client.delete_schedule = AsyncMock()
+    slot_id = f"site:{RANDOM_SERIAL}:slot-editor"
+    coord.schedule_sync._slot_cache = {
+        RANDOM_SERIAL: {
+            slot_id: {
+                "id": slot_id,
+                "startTime": "08:00",
+                "endTime": "09:00",
+                "scheduleType": "CUSTOM",
+                "days": [1, 3],
+                "enabled": True,
+                "chargingLevelAmp": 32,
+            }
+        }
+    }
+    coord.schedule_sync.get_slot = lambda sn, slot: coord.schedule_sync._slot_cache.get(
+        sn, {}
+    ).get(slot)
+    config_entry.__dict__["options"] = MappingProxyType(
+        {**config_entry.options, OPT_SCHEDULE_SYNC_ENABLED: True}
+    )
+    editor = EvseScheduleEditorManager(coord)
+    editor.sync_from_coordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(
+        coordinator=coord,
+        evse_schedule_editor=editor,
+    )
+    return editor
+
+
+def test_evse_schedule_editor_day_switch_enabled_by_default(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    _attach_evse_editor_runtime(config_entry, coord)
+
+    sw = EvseScheduleEditorDaySwitch(coord, config_entry, RANDOM_SERIAL, "mon")
+    sw.hass = hass
+
+    assert sw.entity_registry_enabled_default is True
 
 
 def test_migrated_switch_entity_id_handles_canonical_and_suffixes() -> None:
@@ -566,53 +616,23 @@ async def test_async_setup_entry_ignores_stale_schedule_slot_remove_failure(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory()
-    slot_id = f"site:{RANDOM_SERIAL}:slot-stale-error"
-    coord.schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": True,
-            }
-        }
-    }
-    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    _attach_evse_editor_runtime(config_entry, coord)
 
-    fake_registry = MagicMock()
-    callback_holder: dict[str, object] = {}
-
-    def _capture_listener(callback):
-        callback_holder["callback"] = callback
-        return MagicMock()
-
-    coord.schedule_sync.async_add_listener = MagicMock(side_effect=_capture_listener)
-    fake_registry.async_get_entity_id.return_value = "switch.slot_enabled"
-    fake_registry.async_remove.side_effect = RuntimeError("boom")
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.switch.er.async_get",
-        lambda _hass: fake_registry,
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "switch",
+        "enphase_ev",
+        "enphase_ev_other_schedule_edit_mon",
+        config_entry=config_entry,
     )
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.switch.er.async_entries_for_config_entry",
-        lambda _registry, _entry_id: [],
-    )
+    remove_spy = MagicMock(side_effect=RuntimeError("boom"))
+    monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
 
-    added: list = []
+    coord.iter_serials = lambda: [RANDOM_SERIAL]
 
-    def _capture(entities, update_before_add=False):
-        added.extend(entities)
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
-    await async_setup_entry(hass, config_entry, _capture)
-    assert any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
-
-    coord.schedule_sync._slot_cache = {}
-    callback_holder["callback"]()
-    fake_registry.async_remove.assert_not_called()
-
-    callback_holder["callback"]()
-    fake_registry.async_remove.assert_called_once_with("switch.slot_enabled")
+    remove_spy.assert_called_once_with(stale.entity_id)
 
 
 @pytest.mark.asyncio
@@ -742,7 +762,7 @@ async def test_async_setup_entry_skips_schedule_when_sync_missing(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert not any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+    assert not any(isinstance(entity, EvseScheduleEditorDaySwitch) for entity in added)
     assert any(isinstance(entity, ChargingSwitch) for entity in added)
 
 
@@ -894,21 +914,7 @@ async def test_async_setup_entry_adds_schedule_switches(
     hass, config_entry, coordinator_factory
 ) -> None:
     coord = coordinator_factory()
-    slot_id = f"site:{RANDOM_SERIAL}:slot-1"
-    helper_entity_id = "schedule.enphase_slot_1"
-    coord.schedule_sync._mapping = {RANDOM_SERIAL: {slot_id: helper_entity_id}}
-    coord.schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": False,
-            }
-        }
-    }
-    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    _attach_evse_editor_runtime(config_entry, coord)
 
     added: list = []
 
@@ -917,7 +923,35 @@ async def test_async_setup_entry_adds_schedule_switches(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+    assert sum(isinstance(entity, EvseScheduleEditorDaySwitch) for entity in added) == 7
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_reenables_integration_disabled_evse_day_switches(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    _attach_evse_editor_runtime(config_entry, coord)
+
+    ent_reg = er.async_get(hass)
+    reg_entry = ent_reg.async_get_or_create(
+        "switch",
+        "enphase_ev",
+        f"enphase_ev_{RANDOM_SERIAL}_schedule_edit_mon",
+        config_entry=config_entry,
+    )
+    disabler = getattr(er, "RegistryEntryDisabler", None)
+    if disabler is not None:
+        ent_reg.async_update_entity(
+            reg_entry.entity_id,
+            disabled_by=disabler.INTEGRATION,
+        )
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    updated = ent_reg.async_get(reg_entry.entity_id)
+    assert updated is not None
+    assert updated.disabled_by is None
 
 
 @pytest.mark.asyncio
@@ -925,19 +959,7 @@ async def test_async_setup_entry_skips_duplicate_schedule_switches(
     hass, config_entry, coordinator_factory
 ) -> None:
     coord = coordinator_factory()
-    slot_id = f"site:{RANDOM_SERIAL}:slot-1"
-    coord.schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": False,
-            }
-        }
-    }
-    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    _attach_evse_editor_runtime(config_entry, coord)
 
     added: list = []
     callback_holder = {}
@@ -949,15 +971,15 @@ async def test_async_setup_entry_skips_duplicate_schedule_switches(
         callback_holder["callback"] = callback
         return MagicMock()
 
-    coord.schedule_sync.async_add_listener = MagicMock(side_effect=_capture_listener)
+    coord.async_add_listener = MagicMock(side_effect=_capture_listener)
 
     await async_setup_entry(hass, config_entry, _capture)
     callback_holder["callback"]()
 
     schedule_switches = [
-        entity for entity in added if isinstance(entity, ScheduleSlotSwitch)
+        entity for entity in added if isinstance(entity, EvseScheduleEditorDaySwitch)
     ]
-    assert len(schedule_switches) == 1
+    assert len(schedule_switches) == 7
 
 
 @pytest.mark.asyncio
@@ -965,49 +987,21 @@ async def test_async_setup_entry_prunes_stale_schedule_slot_switches(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory()
-    slot_id = f"site:{RANDOM_SERIAL}:slot-stale"
-    coord.schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": True,
-            }
-        }
-    }
-    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    _attach_evse_editor_runtime(config_entry, coord)
 
-    added: list = []
-    callback_holder: dict[str, object] = {}
-
-    def _capture(entities, update_before_add=False):
-        added.extend(entities)
-
-    def _capture_listener(callback):
-        callback_holder["callback"] = callback
-        return MagicMock()
-
-    coord.schedule_sync.async_add_listener = MagicMock(side_effect=_capture_listener)
     ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "switch",
+        "enphase_ev",
+        "enphase_ev_other_schedule_edit_tue",
+        config_entry=config_entry,
+    )
     remove_spy = MagicMock(wraps=ent_reg.async_remove)
     monkeypatch.setattr(ent_reg, "async_remove", remove_spy)
-    monkeypatch.setattr(
-        ent_reg,
-        "async_get_entity_id",
-        MagicMock(return_value="switch.enphase_ev_stale_slot"),
-    )
 
-    await async_setup_entry(hass, config_entry, _capture)
-    assert any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
 
-    coord.schedule_sync._slot_cache = {}
-    callback_holder["callback"]()
-    remove_spy.assert_not_called()
-
-    callback_holder["callback"]()
-    remove_spy.assert_called_once_with("switch.enphase_ev_stale_slot")
+    remove_spy.assert_called_with(stale.entity_id)
 
 
 @pytest.mark.asyncio
@@ -1016,11 +1010,6 @@ async def test_async_setup_entry_skips_read_only_slots(
 ) -> None:
     coord = coordinator_factory()
     missing_time_id = f"site:{RANDOM_SERIAL}:slot-missing-time"
-    coord.schedule_sync._mapping = {
-        RANDOM_SERIAL: {
-            missing_time_id: "schedule.missing_time",
-        }
-    }
     coord.schedule_sync._slot_cache = {
         RANDOM_SERIAL: {
             missing_time_id: {
@@ -1041,7 +1030,7 @@ async def test_async_setup_entry_skips_read_only_slots(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert not any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+    assert not any(isinstance(entity, EvseScheduleEditorDaySwitch) for entity in added)
 
 
 @pytest.mark.asyncio
@@ -1049,19 +1038,18 @@ async def test_async_setup_entry_adds_off_peak_schedule_switch(
     hass, config_entry, coordinator_factory
 ) -> None:
     coord = coordinator_factory()
-    off_peak_id = f"site:{RANDOM_SERIAL}:slot-off-peak"
-    coord.schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            off_peak_id: {
-                "id": off_peak_id,
-                "startTime": None,
-                "endTime": None,
-                "scheduleType": "OFF_PEAK",
-                "enabled": False,
-            }
+    _attach_evse_editor_runtime(config_entry, coord)
+    coord.schedule_sync._slot_cache[RANDOM_SERIAL] = {
+        f"site:{RANDOM_SERIAL}:slot-off-peak": {
+            "id": f"site:{RANDOM_SERIAL}:slot-off-peak",
+            "startTime": None,
+            "endTime": None,
+            "scheduleType": "OFF_PEAK",
+            "days": [1],
+            "enabled": False,
+            "chargingLevelAmp": 32,
         }
     }
-    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     added: list = []
 
@@ -1070,7 +1058,7 @@ async def test_async_setup_entry_adds_off_peak_schedule_switch(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+    assert any(isinstance(entity, EvseScheduleEditorDaySwitch) for entity in added)
 
 
 @pytest.mark.asyncio
@@ -1100,7 +1088,7 @@ async def test_async_setup_entry_skips_off_peak_when_ineligible(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert not any(isinstance(entity, ScheduleSlotSwitch) for entity in added)
+    assert not any(isinstance(entity, EvseScheduleEditorDaySwitch) for entity in added)
 
 
 @pytest.mark.asyncio
@@ -1421,213 +1409,6 @@ async def test_app_auth_switch_turn_off_handles_auth_settings_unavailable(
         HomeAssistantError, match="Authentication settings are unavailable"
     ):
         await sw.async_turn_off()
-
-
-@pytest.mark.asyncio
-async def test_schedule_slot_switch_name_and_toggle(hass, coordinator_factory) -> None:
-    coord = coordinator_factory()
-    schedule_sync = coord.schedule_sync
-    slot_id = f"site:{RANDOM_SERIAL}:slot-2"
-    helper_entity_id = "schedule.enphase_slot_2"
-    schedule_sync._mapping = {RANDOM_SERIAL: {slot_id: helper_entity_id}}
-    schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": False,
-            }
-        }
-    }
-    schedule_sync.async_set_slot_enabled = AsyncMock()
-
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    sw.hass = hass
-    hass.states.async_set(helper_entity_id, "off", {"friendly_name": "Garage Schedule"})
-
-    assert sw.name == "Garage Schedule"
-    assert sw.is_on is False
-
-    await sw.async_turn_on()
-    schedule_sync.async_set_slot_enabled.assert_awaited_once_with(
-        RANDOM_SERIAL, slot_id, True
-    )
-    await sw.async_turn_off()
-    assert schedule_sync.async_set_slot_enabled.await_args_list[1].args == (
-        RANDOM_SERIAL,
-        slot_id,
-        False,
-    )
-
-
-@pytest.mark.asyncio
-async def test_schedule_slot_switch_registers_listener(
-    hass, coordinator_factory
-) -> None:
-    coord = coordinator_factory()
-    schedule_sync = coord.schedule_sync
-    slot_id = f"site:{RANDOM_SERIAL}:slot-3"
-    schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": True,
-            }
-        }
-    }
-    schedule_sync.async_add_listener = MagicMock()
-    unsub = MagicMock()
-    schedule_sync.async_add_listener.return_value = unsub
-
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    sw.hass = hass
-    await sw.async_added_to_hass()
-    schedule_sync.async_add_listener.assert_called_once()
-    sw.async_write_ha_state = MagicMock()
-    sw._handle_schedule_sync_update()
-    sw.async_write_ha_state.assert_called_once()
-    await sw.async_will_remove_from_hass()
-    unsub.assert_called_once()
-
-
-def test_schedule_slot_switch_name_uses_registry(hass, coordinator_factory) -> None:
-    coord = coordinator_factory()
-    schedule_sync = coord.schedule_sync
-    slot_id = f"site:{RANDOM_SERIAL}:slot-4"
-    helper_entity_id = "schedule.enphase_slot_4"
-    schedule_sync._mapping = {RANDOM_SERIAL: {slot_id: helper_entity_id}}
-    schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": True,
-            }
-        }
-    }
-    ent_reg = er.async_get(hass)
-    ent_reg.async_get_or_create(
-        "schedule",
-        "schedule",
-        "helper-4",
-        suggested_object_id="enphase_slot_4",
-        original_name="Registry Schedule",
-    )
-
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    sw.hass = hass
-    assert sw.name == "Registry Schedule"
-
-
-def test_schedule_slot_switch_is_on_without_slot(hass, coordinator_factory) -> None:
-    coord = coordinator_factory()
-    schedule_sync = SimpleNamespace(get_slot=lambda *_args: None)
-    slot_id = f"site:{RANDOM_SERIAL}:slot-missing"
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-
-    assert sw.is_on is False
-
-
-def test_schedule_slot_switch_name_without_helper_entity(
-    hass, coordinator_factory
-) -> None:
-    coord = coordinator_factory()
-    slot_id = f"site:{RANDOM_SERIAL}:slot-5"
-    schedule_sync = SimpleNamespace(
-        get_slot=lambda *_args: {
-            "id": slot_id,
-            "startTime": "08:00",
-            "endTime": "09:00",
-            "scheduleType": "CUSTOM",
-            "enabled": True,
-        },
-        get_helper_entity_id=lambda *_args: None,
-    )
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    sw.hass = hass
-
-    assert sw.name == f"Schedule {slot_id}"
-
-
-def test_schedule_slot_switch_unavailable_without_slot(
-    hass, coordinator_factory
-) -> None:
-    coord = coordinator_factory()
-    schedule_sync = coord.schedule_sync
-    slot_id = f"site:{RANDOM_SERIAL}:slot-missing"
-    schedule_sync._mapping = {RANDOM_SERIAL: {slot_id: "schedule.missing"}}
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    sw.hass = hass
-    assert sw.available is False
-
-
-def test_schedule_slot_switch_name_fallback(hass, coordinator_factory) -> None:
-    coord = coordinator_factory()
-    schedule_sync = coord.schedule_sync
-    slot_id = f"site:{RANDOM_SERIAL}:slot-5"
-    schedule_sync._mapping = {RANDOM_SERIAL: {slot_id: "schedule.missing"}}
-    schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": True,
-            }
-        }
-    }
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    sw.hass = hass
-    assert sw.name == f"Schedule {slot_id}"
-
-
-def test_schedule_slot_switch_name_off_peak(hass, coordinator_factory) -> None:
-    coord = coordinator_factory()
-    schedule_sync = coord.schedule_sync
-    slot_id = f"site:{RANDOM_SERIAL}:slot-off-peak-name"
-    schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": None,
-                "endTime": None,
-                "scheduleType": "OFF_PEAK",
-                "enabled": False,
-            }
-        }
-    }
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    sw.hass = hass
-    assert sw.name == "Off Peak Schedule"
-    assert sw.is_on is False
-
-
-def test_schedule_slot_switch_name_without_hass(coordinator_factory) -> None:
-    coord = coordinator_factory()
-    schedule_sync = coord.schedule_sync
-    slot_id = f"site:{RANDOM_SERIAL}:slot-6"
-    schedule_sync._mapping = {RANDOM_SERIAL: {slot_id: "schedule.missing"}}
-    schedule_sync._slot_cache = {
-        RANDOM_SERIAL: {
-            slot_id: {
-                "id": slot_id,
-                "startTime": "08:00",
-                "endTime": "09:00",
-                "scheduleType": "CUSTOM",
-                "enabled": True,
-            }
-        }
-    }
-    sw = ScheduleSlotSwitch(coord, schedule_sync, RANDOM_SERIAL, slot_id)
-    assert sw.name == f"Schedule {slot_id}"
 
 
 def test_storm_guard_switch_availability(coordinator_factory) -> None:

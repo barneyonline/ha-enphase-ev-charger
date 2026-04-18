@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Vybraný režim nabíjení není k dispozici."
+    },
+    "evse_schedule_day_required": {
+      "message": "Vyberte pro harmonogram alespoň jeden den v týdnu."
+    },
+    "evse_schedule_times_different": {
+      "message": "Začátek a konec harmonogramu se musí lišit."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase zamítl změnu harmonogramu."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Režim spánku AC baterie"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Harmonogram pondělí"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Harmonogram úterý"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Harmonogram středy"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Harmonogram čtvrtka"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Harmonogram pátku"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Harmonogram soboty"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Harmonogram neděle"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Cílový stav nabití AC baterie"
+      },
+      "evse_schedule_selected": {
+        "name": "Harmonogram"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Odhlásit upozornění na bouři"
+      },
+      "evse_schedule_refresh": {
+        "name": "Obnovit harmonogram"
+      },
+      "evse_schedule_save": {
+        "name": "Uložit harmonogram"
+      },
+      "evse_schedule_delete": {
+        "name": "Smazat harmonogram"
+      },
+      "evse_schedule_add": {
+        "name": "Vytvořit nový harmonogram"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Čas ukončení omezení vybíjení baterie"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Čas začátku harmonogramu"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Čas konce harmonogramu"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Synchronizovat rozvrhy",
-      "description": "Obnovit rozvrhy Enphase a aktualizovat pomocníky rozvrhu.",
+      "description": "Obnovit rozvrhy Enphase z cloudu.",
       "fields": {
         "device_id": {
           "name": "Nabíječky",
