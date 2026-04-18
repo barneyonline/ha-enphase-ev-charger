@@ -113,10 +113,9 @@ def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
     )
     coord = MagicMock(inventory_view=inventory_view)
     assert runtime_helpers.inventory_type_available(coord, "envoy") is True
-    assert (
-        runtime_helpers.inventory_type_device_info(coord, "envoy")
-        == {"device": "envoy"}
-    )
+    assert runtime_helpers.inventory_type_device_info(coord, "envoy") == {
+        "device": "envoy"
+    }
     assert (
         runtime_helpers.inventory_type_device_info(
             MagicMock(inventory_view=MagicMock(type_device_info=None)),

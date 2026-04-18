@@ -512,4 +512,3 @@ def _as_int(value: Any) -> int | None:
         return int(str(value))
     except Exception:  # noqa: BLE001
         return None
-

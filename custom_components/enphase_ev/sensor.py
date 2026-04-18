@@ -4076,6 +4076,8 @@ _GATEWAY_LAST_REPORT_KEYS: tuple[str, ...] = (
     "last_reported",
     "lastReportedAt",
 )
+
+
 def _gateway_optional_bool(value: object) -> bool | None:
     if value is None:
         return None

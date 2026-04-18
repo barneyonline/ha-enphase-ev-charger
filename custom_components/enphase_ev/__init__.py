@@ -97,6 +97,8 @@ _find_entity_id_by_unique_id = find_entity_id_by_unique_id
 _is_owned_entity = is_owned_entity
 _iter_device_registry_entries = iter_device_registry_entries
 _iter_entity_registry_entries = iter_entity_registry_entries
+
+
 def _site_entry_title(site_id: str) -> str:
     return f"Site: {site_id}"
 

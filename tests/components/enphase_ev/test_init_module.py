@@ -3360,7 +3360,9 @@ def test_migrate_cloud_entities_to_cloud_device_skips_updates_when_no_changes_ne
             AssertionError("should not update")
         ),
     )
-    monkeypatch.setattr("custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg
+    )
 
     _migrate_cloud_entities_to_cloud_device(
         hass,
@@ -3393,7 +3395,9 @@ def test_migrate_cloud_entities_to_cloud_device_logs_update_failures(
             RuntimeError("boom")
         ),
     )
-    monkeypatch.setattr("custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg
+    )
 
     _migrate_cloud_entities_to_cloud_device(
         hass,
