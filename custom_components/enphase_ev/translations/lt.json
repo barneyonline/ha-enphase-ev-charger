@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Paskutinis sėkmingas atnaujinimas",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Paskutinė sėkmė (UTC)"
-          },
           "last_failure_utc": {
             "name": "Paskutinis gedimas (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Debesies delsa",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Paskutinis gedimas (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Paskutinė gedimo būsena"
-          },
-          "code_description": {
-            "name": "Kodo aprašymas"
-          },
-          "last_failure_response": {
-            "name": "Paskutinė gedimo reakcija"
-          },
-          "last_failure_source": {
-            "name": "Paskutinis gedimo šaltinis"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff pabaiga (UTC)"
-          }
-        }
+        "name": "Debesies delsa"
       },
       "current_production_power": {
         "name": "Dabartinė gamybos galia",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Debesies klaidos kodas",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Paskutinis gedimas (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Paskutinė gedimo būsena"
-          },
-          "code_description": {
-            "name": "Kodo aprašymas"
-          },
-          "last_failure_response": {
-            "name": "Paskutinė gedimo reakcija"
-          },
-          "last_failure_source": {
-            "name": "Paskutinis gedimo šaltinis"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff pabaiga (UTC)"
-          }
-        },
         "state": {
           "none": "Nėra",
           "dns_error": "DNS klaida",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Debesies backoff pabaiga",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Paskutinis gedimas (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Paskutinė gedimo būsena"
-          },
-          "code_description": {
-            "name": "Kodo aprašymas"
-          },
-          "last_failure_response": {
-            "name": "Paskutinė gedimo reakcija"
-          },
-          "last_failure_source": {
-            "name": "Paskutinis gedimo šaltinis"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff pabaiga (UTC)"
-          }
-        },
         "state": {
           "none": "Nėra"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Vietos saulės gamyba",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
       "site_consumption": {
         "name": "Vietos suvartojimas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
       "site_grid_import": {
         "name": "Vietos tinklo importas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Paskutinis langas (s)"
           },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Vietos tinklo eksportas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
       "site_battery_charge": {
         "name": "Vietos baterijos įkrovimas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Vietos baterijos iškrovimas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Paskutinis langas (s)"
           },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Objekto EVSE įkrovimas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Objekto šilumos siurblio sunaudojimas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Objekto vandens šildytuvo sunaudojimas",
         "state_attributes": {
-          "start_date": {
-            "name": "Pradžios data"
-          },
-          "last_report_date": {
-            "name": "Paskutinė ataskaitos data"
-          },
-          "bucket_count": {
-            "name": "Kibirų skaičius"
-          },
-          "source_fields": {
-            "name": "Šaltinio laukai"
-          },
-          "source_unit": {
-            "name": "Šaltinio vienetas"
-          },
-          "interval_minutes": {
-            "name": "Intervalas (min)"
+          "sampled_at_utc": {
+            "name": "Matuota (UTC)"
           },
           "last_reset_at": {
             "name": "Paskutinis atstatymas"
-          },
-          "update_pending": {
-            "name": "Laukiamas atnaujinimas"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "Šilumos siurblio SG-Ready aktyvus"
       },
       "cloud_reachable": {
-        "name": "Debesis pasiekiamas",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Paskutinis gedimas (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Paskutinė gedimo būsena"
-          },
-          "code_description": {
-            "name": "Kodo aprašymas"
-          },
-          "last_failure_response": {
-            "name": "Paskutinė gedimo reakcija"
-          },
-          "last_failure_source": {
-            "name": "Paskutinis gedimo šaltinis"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff pabaiga (UTC)"
-          }
-        }
+        "name": "Debesis pasiekiamas"
       },
       "connected": {
         "name": "Ryšys",

@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Dernière mise à jour réussie",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Dernier succès (UTC)"
-          },
           "last_failure_utc": {
             "name": "Dernier échec (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Latence cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Dernier échec (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Statut du dernier échec"
-          },
-          "code_description": {
-            "name": "Description du code"
-          },
-          "last_failure_response": {
-            "name": "Réponse du dernier échec"
-          },
-          "last_failure_source": {
-            "name": "Source du dernier échec"
-          },
-          "backoff_ends_utc": {
-            "name": "Fin du backoff (UTC)"
-          }
-        }
+        "name": "Latence cloud"
       },
       "current_production_power": {
         "name": "Puissance actuelle de production",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Code d'erreur cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Dernier échec (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Statut du dernier échec"
-          },
-          "code_description": {
-            "name": "Description du code"
-          },
-          "last_failure_response": {
-            "name": "Réponse du dernier échec"
-          },
-          "last_failure_source": {
-            "name": "Source du dernier échec"
-          },
-          "backoff_ends_utc": {
-            "name": "Fin du backoff (UTC)"
-          }
-        },
         "state": {
           "none": "Aucune",
           "dns_error": "Erreur DNS",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Fin du backoff cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Dernier échec (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Statut du dernier échec"
-          },
-          "code_description": {
-            "name": "Description du code"
-          },
-          "last_failure_response": {
-            "name": "Réponse du dernier échec"
-          },
-          "last_failure_source": {
-            "name": "Source du dernier échec"
-          },
-          "backoff_ends_utc": {
-            "name": "Fin du backoff (UTC)"
-          }
-        },
         "state": {
           "none": "Aucune"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Production solaire du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
       "site_consumption": {
         "name": "Consommation du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
       "site_grid_import": {
         "name": "Import réseau du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Dernière fenêtre (s)"
           },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Export réseau du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
       "site_battery_charge": {
         "name": "Charge batterie du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Décharge batterie du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Dernière fenêtre (s)"
           },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Recharge EVSE du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Consommation de pompe à chaleur du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Consommation de chauffe-eau du site",
         "state_attributes": {
-          "start_date": {
-            "name": "Date de début"
-          },
-          "last_report_date": {
-            "name": "Dernière date de rapport"
-          },
-          "bucket_count": {
-            "name": "Nombre de buckets"
-          },
-          "source_fields": {
-            "name": "Champs source"
-          },
-          "source_unit": {
-            "name": "Unité source"
-          },
-          "interval_minutes": {
-            "name": "Intervalle (min)"
+          "sampled_at_utc": {
+            "name": "Mesuré à (UTC)"
           },
           "last_reset_at": {
             "name": "Dernière réinitialisation"
-          },
-          "update_pending": {
-            "name": "Mise à jour en attente"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "SG-Ready actif de la pompe à chaleur"
       },
       "cloud_reachable": {
-        "name": "Cloud accessible",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Dernier échec (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Statut du dernier échec"
-          },
-          "code_description": {
-            "name": "Description du code"
-          },
-          "last_failure_response": {
-            "name": "Réponse du dernier échec"
-          },
-          "last_failure_source": {
-            "name": "Source du dernier échec"
-          },
-          "backoff_ends_utc": {
-            "name": "Fin du backoff (UTC)"
-          }
-        }
+        "name": "Cloud accessible"
       },
       "connected": {
         "name": "Connectivité",

@@ -590,15 +590,7 @@ class ChargeFromGridSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:
-        return battery_schedule_extra_state_attributes(
-            self._coord,
-            start_time=self._coord.battery_charge_from_grid_start_time,
-            end_time=self._coord.battery_charge_from_grid_end_time,
-            schedule_status=self._coord.battery_cfg_schedule_status,
-            schedule_pending=self._coord.battery_cfg_schedule_pending,
-            schedule_enabled=self._coord.battery_charge_from_grid_schedule_enabled,
-            schedule_limit=self._coord.battery_cfg_schedule_limit,
-        )
+        return battery_schedule_extra_state_attributes(self._coord)
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._coord.async_set_charge_from_grid(True)
@@ -815,13 +807,9 @@ class AcBatterySleepModeSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, object]:
-        summary = self._coord.ac_battery_status_summary
         return {
             "sleep_state": self._coord.ac_battery_sleep_state,
             "pending": self._coord.ac_battery_control_pending,
-            "selected_sleep_min_soc": self._coord.ac_battery_selected_sleep_min_soc,
-            "sleep_state_raw": summary.get("sleep_state_raw"),
-            "sleep_state_map": summary.get("sleep_state_map"),
             "last_command": getattr(self._coord, "_ac_battery_last_command", None),
         }
 

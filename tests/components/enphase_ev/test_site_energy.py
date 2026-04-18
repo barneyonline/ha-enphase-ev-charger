@@ -315,8 +315,8 @@ def test_site_energy_sampled_at_utc_requires_parseable_timestamp(
     )
     attrs = sensor.extra_state_attributes
 
-    assert attrs["last_report_date"] == "soon"
-    assert attrs["sampled_at_utc"] is None
+    assert "last_report_date" not in attrs
+    assert "sampled_at_utc" not in attrs
 
 
 def test_diff_energy_fields_when_neg_exceeds(coordinator_factory) -> None:
@@ -999,14 +999,9 @@ async def test_site_energy_sensor_attributes(hass, coordinator_factory):
     assert sensor.available is True
     assert sensor.native_value == pytest.approx(1.23)
     attrs = sensor.extra_state_attributes
-    assert attrs["bucket_count"] == 3
-    assert attrs["source_fields"] == ["production"]
-    assert attrs["start_date"] == "2024-01-01"
-    assert attrs["last_report_date"].startswith("2024-01-02")
     assert attrs["last_reset_at"] == "2024-01-03T00:00:00+00:00"
-    assert attrs["source_unit"] == "Wh"
-    assert attrs["interval_minutes"] == 60
-    assert attrs["evse_charging_kwh"] == pytest.approx(0.46)
+    assert attrs["sampled_at_utc"].startswith("2024-01-02")
+    assert "evse_charging_kwh" not in attrs
     assert sensor.entity_registry_enabled_default is True
 
 
@@ -2816,15 +2811,15 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
     sensor._restored_value = 1.0
     coord.energy.site_energy = {}
     attrs = sensor.extra_state_attributes
-    assert attrs["last_report_date"] is None
-    assert attrs["sampled_at_utc"] is None
+    assert "last_report_date" not in attrs
+    assert "sampled_at_utc" not in attrs
     assert sensor.native_value == 1.0
 
     coord.energy.site_energy = {
         "grid_import": {"value_kwh": 3.0, "last_report_date": "soon"}
     }
-    assert sensor.extra_state_attributes["last_report_date"] == "soon"
-    assert sensor.extra_state_attributes["sampled_at_utc"] is None
+    assert "last_report_date" not in sensor.extra_state_attributes
+    assert "sampled_at_utc" not in sensor.extra_state_attributes
 
     sensor2 = EnphaseSiteEnergySensor(
         coord, "grid_export", "site_grid_export", "Grid Export"
@@ -2878,7 +2873,7 @@ async def test_site_energy_sensor_restoration(monkeypatch, hass, coordinator_fac
         "battery_charge": {"value_kwh": 1.0, "last_report_date": BadStr()}
     }
     attrs = sensor3.extra_state_attributes
-    assert attrs["last_report_date"] is None
+    assert "last_report_date" not in attrs
 
 
 @pytest.mark.asyncio
@@ -2998,7 +2993,7 @@ async def test_site_energy_sensor_evse_attribute_edge_cases(hass, coordinator_fa
     )
     sensor.hass = hass
     attrs = sensor.extra_state_attributes
-    assert attrs["evse_charging_kwh"] is None
+    assert "evse_charging_kwh" not in attrs
 
     class BadEnergy:
         @property

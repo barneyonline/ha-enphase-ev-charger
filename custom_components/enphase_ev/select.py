@@ -718,8 +718,6 @@ class AcBatteryTargetStateOfChargeSelect(CoordinatorEntity, SelectEntity):
     def extra_state_attributes(self) -> dict[str, object]:
         return {
             "selected_sleep_min_soc": self._coord.ac_battery_selected_sleep_min_soc,
-            "sleep_state": self._coord.ac_battery_sleep_state,
-            "control_pending": self._coord.ac_battery_control_pending,
         }
 
     async def async_select_option(self, option: str) -> None:

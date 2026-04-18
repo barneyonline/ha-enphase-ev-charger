@@ -702,9 +702,10 @@ def test_site_power_state_attribute_strings_exist_for_all_locales() -> None:
     paths = [
         "entity.sensor.site_grid_power.state_attributes.last_flow_kwh.name",
         "entity.sensor.site_grid_power.state_attributes.source_flows.name",
-        "entity.sensor.site_grid_power.state_attributes.last_report_date.name",
+        "entity.sensor.site_grid_power.state_attributes.sampled_at_utc.name",
         "entity.sensor.site_battery_power.state_attributes.last_flow_kwh.name",
         "entity.sensor.site_battery_power.state_attributes.source_flows.name",
+        "entity.sensor.site_battery_power.state_attributes.sampled_at_utc.name",
     ]
     for locale in translations_dir.glob("*.json"):
         name = locale.name

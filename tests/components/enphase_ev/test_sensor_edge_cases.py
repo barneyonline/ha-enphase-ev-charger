@@ -878,6 +878,8 @@ def test_site_base_entity_diagnostics(monkeypatch, coordinator_factory):
 
     coord.backoff_ends_utc = dt_util.utcnow() + timedelta(seconds=0.4)
     assert site_sensor._backoff_remaining_seconds() == 1
+    attrs = site_sensor._cloud_diag_attrs(include_last_success=False)
+    assert attrs["backoff_ends_utc"] == coord.backoff_ends_utc.isoformat()
     assert site_sensor.device_info["identifiers"]
 
     coord.last_success_utc = None

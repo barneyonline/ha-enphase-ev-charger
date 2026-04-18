@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Utolsó sikeres frissítés",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Utolsó siker (UTC)"
-          },
           "last_failure_utc": {
             "name": "Utolsó hiba (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Cloud késleltetés",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Utolsó hiba (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Utolsó hibastátusz"
-          },
-          "code_description": {
-            "name": "Kódleírás"
-          },
-          "last_failure_response": {
-            "name": "Utolsó hibaválasz"
-          },
-          "last_failure_source": {
-            "name": "Utolsó hibaforrás"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff vége (UTC)"
-          }
-        }
+        "name": "Cloud késleltetés"
       },
       "current_production_power": {
         "name": "Aktuális termelési teljesítmény",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Cloud hibakód",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Utolsó hiba (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Utolsó hibastátusz"
-          },
-          "code_description": {
-            "name": "Kódleírás"
-          },
-          "last_failure_response": {
-            "name": "Utolsó hibaválasz"
-          },
-          "last_failure_source": {
-            "name": "Utolsó hibaforrás"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff vége (UTC)"
-          }
-        },
         "state": {
           "none": "Nincs",
           "dns_error": "DNS-hiba",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Cloud backoff vége",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Utolsó hiba (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Utolsó hibastátusz"
-          },
-          "code_description": {
-            "name": "Kódleírás"
-          },
-          "last_failure_response": {
-            "name": "Utolsó hibaválasz"
-          },
-          "last_failure_source": {
-            "name": "Utolsó hibaforrás"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff vége (UTC)"
-          }
-        },
         "state": {
           "none": "Nincs"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Helyszín napenergia-termelés",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
       "site_consumption": {
         "name": "Helyszín fogyasztás",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
       "site_grid_import": {
         "name": "Helyszín hálózati import",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Utolsó ablak (s)"
           },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Helyszín hálózati export",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
       "site_battery_charge": {
         "name": "Helyszín akkumulátor töltés",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Helyszín akkumulátor kisütés",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Utolsó ablak (s)"
           },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Helyszíni EVSE-töltés",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Helyszíni hőszivattyú-fogyasztás",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Helyszíni vízmelegítő-fogyasztás",
         "state_attributes": {
-          "start_date": {
-            "name": "Kezdési dátum"
-          },
-          "last_report_date": {
-            "name": "Utolsó jelentés dátuma"
-          },
-          "bucket_count": {
-            "name": "Bucketek száma"
-          },
-          "source_fields": {
-            "name": "Forrásmezők"
-          },
-          "source_unit": {
-            "name": "Forrásegység"
-          },
-          "interval_minutes": {
-            "name": "Intervallum (min)"
+          "sampled_at_utc": {
+            "name": "Mintavételezve ekkor (UTC)"
           },
           "last_reset_at": {
             "name": "Utolsó visszaállítás"
-          },
-          "update_pending": {
-            "name": "Frissítés függőben"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "A hőszivattyú SG-Ready aktív"
       },
       "cloud_reachable": {
-        "name": "Cloud elérhető",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Utolsó hiba (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Utolsó hibastátusz"
-          },
-          "code_description": {
-            "name": "Kódleírás"
-          },
-          "last_failure_response": {
-            "name": "Utolsó hibaválasz"
-          },
-          "last_failure_source": {
-            "name": "Utolsó hibaforrás"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff vége (UTC)"
-          }
-        }
+        "name": "Cloud elérhető"
       },
       "connected": {
         "name": "Kapcsolat",

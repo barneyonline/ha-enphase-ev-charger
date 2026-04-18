@@ -789,12 +789,7 @@ def test_site_cloud_reachable_binary_sensor_metadata(
 
     attrs = sensor.extra_state_attributes
     assert "last_success_utc" not in attrs
-    assert attrs["last_failure_utc"] == failure_time.isoformat()
-    assert attrs["last_failure_status"] == 503
-    assert attrs["code_description"] == "Gateway error"
-    assert attrs["last_failure_response"] == {"retry": True}
-    assert attrs["last_failure_source"] == "http"
-    assert attrs["backoff_ends_utc"] == coord.backoff_ends_utc.isoformat()
+    assert attrs == {}
 
     info = sensor.device_info
     assert info["identifiers"] == {(DOMAIN, f"type:{coord.site_id}:cloud")}
@@ -819,9 +814,7 @@ def test_site_cloud_reachable_binary_sensor_metadata_includes_optional_failure_f
     coord.payload_using_stale = True
 
     attrs = sensor.extra_state_attributes
-    assert attrs["last_failure_endpoint"] == "/ivp/meters"
-    assert attrs["payload_failure_kind"] == "schema"
-    assert attrs["payload_using_stale"] is True
+    assert attrs == {}
 
 
 def test_binary_sensor_helper_type_available_uses_inventory_view() -> None:
@@ -880,19 +873,7 @@ def test_heatpump_sg_ready_active_binary_sensor_metadata(
     assert sensor.available is True
     assert sensor.is_on is True
 
-    attrs = sensor.extra_state_attributes
-    assert attrs["device_uid"] == "HP-1"
-    assert attrs["heatpump_status_raw"] == "RUNNING"
-    assert attrs["sg_ready_mode_raw"] == "MODE_3"
-    assert attrs["sg_ready_mode_label"] == "Recommended"
-    assert attrs["sg_ready_active"] is True
-    assert attrs["sg_ready_mode"] == 3
-    assert attrs["sg_ready_contact_state"] == "closed"
-    assert attrs["status_explanation"] == (
-        "Recommended means the SG Ready contact is closed."
-    )
-    assert attrs["last_report_at"] == "2026-03-03T07:30:00Z"
-    assert attrs["source"] == "hems_heatpump_state:HP-1"
+    assert sensor.extra_state_attributes == {}
 
     info = sensor.device_info
     assert info["name"] == "Heat Pump"
@@ -968,7 +949,7 @@ def test_heatpump_sg_ready_active_binary_sensor_uses_dedicated_hems_inventory(
     assert (
         sensor.unique_id == f"{DOMAIN}_site_{coord.site_id}_heat_pump_sg_ready_active"
     )
-    assert sensor.extra_state_attributes["last_report_at"] == "2026-03-03T07:30:00Z"
+    assert sensor.extra_state_attributes == {}
 
 
 def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_statuses(
@@ -1018,9 +999,7 @@ def test_heatpump_sg_ready_active_binary_sensor_stays_on_for_mixed_member_status
     sensor = HeatPumpSgReadyActiveBinarySensor(coord)
     assert sensor.available is True
     assert sensor.is_on is True
-    attrs = sensor.extra_state_attributes
-    assert attrs["sg_ready_mode_label"] == "Recommended"
-    assert attrs["sg_ready_active"] is True
+    assert sensor.extra_state_attributes == {}
 
 
 def test_heatpump_sg_ready_active_binary_sensor_helper_edge_cases(

@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Viimane edukas värskendus",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Viimane õnnestumine (UTC)"
-          },
           "last_failure_utc": {
             "name": "Viimane tõrge (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Pilve latentsus",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimane tõrke olek"
-          },
-          "code_description": {
-            "name": "Koodi kirjeldus"
-          },
-          "last_failure_response": {
-            "name": "Viimane tõrke vastus"
-          },
-          "last_failure_source": {
-            "name": "Viimane tõrke allikas"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
-          }
-        }
+        "name": "Pilve latentsus"
       },
       "current_production_power": {
         "name": "Praegune tootmisvõimsus",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Pilve veakood",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimane tõrke olek"
-          },
-          "code_description": {
-            "name": "Koodi kirjeldus"
-          },
-          "last_failure_response": {
-            "name": "Viimane tõrke vastus"
-          },
-          "last_failure_source": {
-            "name": "Viimane tõrke allikas"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
-          }
-        },
         "state": {
           "none": "Puudub",
           "dns_error": "DNS viga",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Pilve backoff lõpeb",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimane tõrke olek"
-          },
-          "code_description": {
-            "name": "Koodi kirjeldus"
-          },
-          "last_failure_response": {
-            "name": "Viimane tõrke vastus"
-          },
-          "last_failure_source": {
-            "name": "Viimane tõrke allikas"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
-          }
-        },
         "state": {
           "none": "Puudub"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Koha päikeseenergia tootmine",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
       "site_consumption": {
         "name": "Koha tarbimine",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
       "site_grid_import": {
         "name": "Koha võrgu import",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Viimane aken (s)"
           },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Koha võrgu eksport",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
       "site_battery_charge": {
         "name": "Koha aku laadimine",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Koha aku tühjendamine",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Viimane aken (s)"
           },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Objekti EVSE laadimine",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Objekti soojuspumba tarbimine",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Objekti veesoojendi tarbimine",
         "state_attributes": {
-          "start_date": {
-            "name": "Alguskuupäev"
-          },
-          "last_report_date": {
-            "name": "Viimane aruande kuupäev"
-          },
-          "bucket_count": {
-            "name": "Bucketite arv"
-          },
-          "source_fields": {
-            "name": "Allikaväljad"
-          },
-          "source_unit": {
-            "name": "Allika ühik"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Mõõdetud kell (UTC)"
           },
           "last_reset_at": {
             "name": "Viimane lähtestus"
-          },
-          "update_pending": {
-            "name": "Värskendus ootel"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "Soojuspumba SG-Ready aktiivne"
       },
       "cloud_reachable": {
-        "name": "Pilv kättesaadav",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimane tõrge (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimane tõrke olek"
-          },
-          "code_description": {
-            "name": "Koodi kirjeldus"
-          },
-          "last_failure_response": {
-            "name": "Viimane tõrke vastus"
-          },
-          "last_failure_source": {
-            "name": "Viimane tõrke allikas"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff lõpeb (UTC)"
-          }
-        }
+        "name": "Pilv kättesaadav"
       },
       "connected": {
         "name": "Ühenduvus",
