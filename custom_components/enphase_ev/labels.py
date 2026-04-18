@@ -214,6 +214,21 @@ def evse_schedule_create_label(*, hass: Any | None = None) -> str:
     return "Create new schedule"
 
 
+def battery_schedule_button_label(action: str, *, hass: Any | None = None) -> str:
+    key = _normalize_state_key(action)
+    path_map = {
+        "save": ("button", "battery_schedule_save", "Save Battery Schedule"),
+        "delete": ("button", "battery_schedule_delete", "Delete Battery Schedule"),
+    }
+    path = path_map.get(key)
+    if path is None:
+        return _friendly_label_text(action) or str(action)
+    translated = _entity_translation_value(hass, path[0], path[1])
+    if translated is not None:
+        return translated
+    return path[2]
+
+
 def battery_schedule_type_label(
     value: object, *, hass: Any | None = None
 ) -> str | None:

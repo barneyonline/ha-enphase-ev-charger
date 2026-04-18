@@ -399,6 +399,7 @@ class BatteryState:
     _battery_dtg_schedule_timezone: str | None = None
     _battery_dtg_schedule_status: str | None = None
     _battery_dtg_schedule_enabled: bool | None = None
+    _battery_dtg_toggle_target_enabled: bool | None = None
     _battery_rbd_begin_time: int | None = None
     _battery_rbd_end_time: int | None = None
     _battery_rbd_control_begin_time: int | None = None
@@ -409,6 +410,7 @@ class BatteryState:
     _battery_rbd_schedule_timezone: str | None = None
     _battery_rbd_schedule_status: str | None = None
     _battery_rbd_schedule_enabled: bool | None = None
+    _battery_rbd_toggle_target_enabled: bool | None = None
     _battery_schedules_payload: dict[str, object] | None = None
     _battery_accepted_itc_disclaimer: str | None = None
     _battery_very_low_soc: int | None = None

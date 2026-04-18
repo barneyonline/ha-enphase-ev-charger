@@ -16,7 +16,6 @@ from .battery_schedule_editor import (
 )
 from .const import DOMAIN, SAFE_LIMIT_AMPS
 from .coordinator import EnphaseCoordinator
-from .entity import battery_schedule_extra_state_attributes
 from .entity import EnphaseBaseEntity, evse_amp_control_applicable
 from .entity_cleanup import prune_managed_entities
 from .runtime_helpers import (
@@ -44,60 +43,6 @@ def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
     return False
 
 
-def _cfg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
-    if getattr(coord, "charge_from_grid_schedule_available", False):
-        return True
-    if not getattr(coord, "charge_from_grid_control_available", False):
-        return False
-    if not getattr(coord, "charge_from_grid_schedule_supported", False):
-        return False
-    if getattr(coord, "_battery_cfg_schedule_id", None) is not None:
-        start_time = getattr(coord, "battery_charge_from_grid_start_time", None)
-        end_time = getattr(coord, "battery_charge_from_grid_end_time", None)
-        if start_time is not None and end_time is not None:
-            return True
-        begin = getattr(coord, "_battery_charge_begin_time", None)
-        end = getattr(coord, "_battery_charge_end_time", None)
-        return begin is not None and end is not None
-    return False
-
-
-def _dtg_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
-    if getattr(coord, "discharge_to_grid_schedule_available", False):
-        return True
-    if not getattr(coord, "discharge_to_grid_schedule_supported", False):
-        return False
-    start_time = getattr(coord, "battery_discharge_to_grid_start_time", None)
-    end_time = getattr(coord, "battery_discharge_to_grid_end_time", None)
-    if start_time is not None and end_time is not None:
-        return True
-    begin = getattr(coord, "_battery_dtg_begin_time", None)
-    end = getattr(coord, "_battery_dtg_end_time", None)
-    if begin is None:
-        begin = getattr(coord, "_battery_dtg_control_begin_time", None)
-    if end is None:
-        end = getattr(coord, "_battery_dtg_control_end_time", None)
-    return begin is not None and end is not None
-
-
-def _rbd_schedule_edit_available(coord: EnphaseCoordinator) -> bool:
-    if getattr(coord, "restrict_battery_discharge_schedule_available", False):
-        return True
-    if not getattr(coord, "restrict_battery_discharge_schedule_supported", False):
-        return False
-    start_time = getattr(coord, "battery_restrict_battery_discharge_start_time", None)
-    end_time = getattr(coord, "battery_restrict_battery_discharge_end_time", None)
-    if start_time is not None and end_time is not None:
-        return True
-    begin = getattr(coord, "_battery_rbd_begin_time", None)
-    end = getattr(coord, "_battery_rbd_end_time", None)
-    if begin is None:
-        begin = getattr(coord, "_battery_rbd_control_begin_time", None)
-    if end is None:
-        end = getattr(coord, "_battery_rbd_control_end_time", None)
-    return begin is not None and end is not None
-
-
 def _battery_schedule_editor_active(
     coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None
 ) -> bool:
@@ -115,24 +60,19 @@ def _retained_site_number_unique_ids(
     coord: EnphaseCoordinator, entry: EnphaseConfigEntry | None = None
 ) -> set[str]:
     unique_ids: set[str] = set()
-    editor_active = _battery_schedule_editor_active(coord, entry)
     if not _type_available(coord, "encharge"):
         return unique_ids
+    if not battery_scheduler_enabled(entry):
+        if _battery_write_access_confirmed(coord):
+            if getattr(coord, "battery_reserve_editable", False):
+                unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_reserve")
+            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level")
+        return unique_ids
+    editor_active = _battery_schedule_editor_active(coord, entry)
     if _battery_write_access_confirmed(coord):
         if getattr(coord, "battery_reserve_editable", False):
             unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_reserve")
         unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level")
-        if not editor_active and _cfg_schedule_edit_available(coord):
-            unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit")
-        if not editor_active:
-            if _dtg_schedule_edit_available(coord):
-                unique_ids.add(
-                    f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit"
-                )
-            if _rbd_schedule_edit_available(coord):
-                unique_ids.add(
-                    f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit"
-                )
     if editor_active:
         unique_ids.add(f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit")
     return unique_ids
@@ -181,15 +121,6 @@ async def async_setup_entry(
             f"{DOMAIN}_site_{coord.site_id}_battery_shutdown_level": lambda: BatteryShutdownLevelNumber(
                 coord
             ),
-            f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit": lambda: BatteryCfgScheduleLimitNumber(
-                coord
-            ),
-            f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit": lambda: BatteryDischargeToGridScheduleLimitNumber(
-                coord
-            ),
-            f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit": lambda: BatteryRestrictBatteryDischargeScheduleLimitNumber(
-                coord
-            ),
         }
 
         if battery_scheduler_enabled(entry):
@@ -199,14 +130,7 @@ async def async_setup_entry(
 
         active_site_number_unique_ids: set[str] = set()
         if write_access_confirmed:
-            active_site_number_unique_ids |= _core_site_number_unique_ids() | (
-                retained_site_number_unique_ids
-                & {
-                    f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit",
-                    f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit",
-                    f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit",
-                }
-            )
+            active_site_number_unique_ids |= _core_site_number_unique_ids()
         if battery_scheduler_enabled(entry):
             active_site_number_unique_ids |= retained_site_number_unique_ids & {
                 f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
@@ -227,14 +151,7 @@ async def async_setup_entry(
         site_entities: list[NumberEntity] = []
         if _site_has_battery(coord) and _type_available(coord, "encharge"):
             if _battery_write_access_confirmed(coord):
-                active_site_number_unique_ids = _core_site_number_unique_ids() | (
-                    retained_site_number_unique_ids
-                    & {
-                        f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit",
-                        f"{DOMAIN}_site_{coord.site_id}_battery_dtg_schedule_limit",
-                        f"{DOMAIN}_site_{coord.site_id}_battery_rbd_schedule_limit",
-                    }
-                )
+                active_site_number_unique_ids = _core_site_number_unique_ids()
             if battery_scheduler_enabled(entry):
                 active_site_number_unique_ids |= retained_site_number_unique_ids & {
                     f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
@@ -482,146 +399,6 @@ class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
         )
 
 
-class BatteryCfgScheduleLimitNumber(CoordinatorEntity, NumberEntity):
-    """CFG schedule charge limit (max SoC %) from the /schedules endpoint."""
-
-    _attr_has_entity_name = True
-    _attr_translation_key = "battery_cfg_schedule_limit"
-    _attr_native_min_value = 0.0
-    _attr_native_max_value = 100.0
-    _attr_native_step = 1.0
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_mode = NumberMode.SLIDER
-
-    def __init__(self, coord: EnphaseCoordinator) -> None:
-        super().__init__(coord)
-        self._coord = coord
-        self._attr_unique_id = (
-            f"{DOMAIN}_site_{coord.site_id}_battery_cfg_schedule_limit"
-        )
-
-    @property
-    def available(self) -> bool:  # type: ignore[override]
-        if not super().available:
-            return False
-        return (
-            _type_available(self._coord, "encharge")
-            and _battery_write_access_confirmed(self._coord)
-            and _cfg_schedule_edit_available(self._coord)
-            and self._coord.battery_cfg_schedule_limit is not None
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        value = self._coord.battery_cfg_schedule_limit
-        if value is None:
-            return None
-        return float(value)
-
-    @property
-    def native_min_value(self) -> float:
-        level = self._coord.battery_shutdown_level
-        return float(level) if level is not None else 0.0
-
-    @property
-    def extra_state_attributes(self) -> dict[str, object]:
-        return battery_schedule_extra_state_attributes(
-            self._coord,
-            start_time=self._coord.battery_charge_from_grid_start_time,
-            end_time=self._coord.battery_charge_from_grid_end_time,
-            schedule_status=self._coord.battery_cfg_schedule_status,
-            schedule_pending=self._coord.battery_cfg_schedule_pending,
-            schedule_enabled=self._coord.battery_charge_from_grid_schedule_enabled,
-        )
-
-    async def async_set_native_value(self, value: float) -> None:
-        limit = int(value)
-        if self._coord.charge_from_grid_force_schedule_available:
-            await self._coord.async_set_cfg_schedule_limit(limit)
-            return
-        await self._coord.async_update_cfg_schedule(limit=limit)
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        info = _type_device_info(self._coord, "encharge")
-        if info is not None:
-            return info
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
-            manufacturer="Enphase",
-        )
-
-
-class _BaseBatteryScheduleLimitNumber(CoordinatorEntity, NumberEntity):
-    _attr_has_entity_name = True
-    _attr_native_min_value = 0.0
-    _attr_native_max_value = 100.0
-    _attr_native_step = 1.0
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_mode = NumberMode.SLIDER
-
-    def __init__(
-        self,
-        coord: EnphaseCoordinator,
-        *,
-        unique_suffix: str,
-        limit_attr: str,
-        availability_check,
-        setter_name: str,
-    ) -> None:
-        super().__init__(coord)
-        self._coord = coord
-        self._limit_attr = limit_attr
-        self._availability_check = availability_check
-        self._setter_name = setter_name
-        self._attr_unique_id = f"{DOMAIN}_site_{coord.site_id}_{unique_suffix}"
-
-    @property
-    def available(self) -> bool:  # type: ignore[override]
-        if not super().available:
-            return False
-        return (
-            _type_available(self._coord, "encharge")
-            and _battery_write_access_confirmed(self._coord)
-            and self._availability_check(self._coord)
-            and getattr(self._coord, self._limit_attr, None) is not None
-        )
-
-    @property
-    def native_value(self) -> float | None:
-        value = getattr(self._coord, self._limit_attr, None)
-        if value is None:
-            return None
-        return float(value)
-
-    @property
-    def native_min_value(self) -> float:
-        level = self._coord.battery_shutdown_level
-        return float(level) if level is not None else 0.0
-
-    def _extra_schedule_state_attributes(self) -> dict[str, object]:
-        return {}
-
-    @property
-    def extra_state_attributes(self) -> dict[str, object]:
-        return battery_schedule_extra_state_attributes(
-            self._coord, **self._extra_schedule_state_attributes()
-        )
-
-    async def async_set_native_value(self, value: float) -> None:
-        await getattr(self._coord, self._setter_name)(int(value))
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        info = _type_device_info(self._coord, "encharge")
-        if info is not None:
-            return info
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
-            manufacturer="Enphase",
-        )
-
-
 class _BatteryScheduleEditorLimitNumber(BatteryScheduleEditorEntity, NumberEntity):
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
@@ -687,49 +464,3 @@ class BatteryScheduleEditLimitNumber(_BatteryScheduleEditorLimitNumber):
     async def async_set_native_value(self, value: float) -> None:
         if self._editor is not None:
             self._editor.set_edit_limit(int(value))
-
-
-class BatteryDischargeToGridScheduleLimitNumber(_BaseBatteryScheduleLimitNumber):
-    _attr_translation_key = "battery_dtg_schedule_limit"
-
-    def __init__(self, coord: EnphaseCoordinator) -> None:
-        super().__init__(
-            coord,
-            unique_suffix="battery_dtg_schedule_limit",
-            limit_attr="battery_dtg_schedule_limit",
-            availability_check=_dtg_schedule_edit_available,
-            setter_name="async_set_discharge_to_grid_schedule_limit",
-        )
-
-    def _extra_schedule_state_attributes(self) -> dict[str, object]:
-        return {
-            "start_time": self._coord.battery_discharge_to_grid_start_time,
-            "end_time": self._coord.battery_discharge_to_grid_end_time,
-            "schedule_status": self._coord.battery_dtg_schedule_status,
-            "schedule_pending": self._coord.battery_dtg_schedule_pending,
-            "schedule_enabled": self._coord.battery_discharge_to_grid_schedule_enabled,
-        }
-
-
-class BatteryRestrictBatteryDischargeScheduleLimitNumber(
-    _BaseBatteryScheduleLimitNumber
-):
-    _attr_translation_key = "battery_rbd_schedule_limit"
-
-    def __init__(self, coord: EnphaseCoordinator) -> None:
-        super().__init__(
-            coord,
-            unique_suffix="battery_rbd_schedule_limit",
-            limit_attr="battery_rbd_schedule_limit",
-            availability_check=_rbd_schedule_edit_available,
-            setter_name="async_set_restrict_battery_discharge_schedule_limit",
-        )
-
-    def _extra_schedule_state_attributes(self) -> dict[str, object]:
-        return {
-            "start_time": self._coord.battery_restrict_battery_discharge_start_time,
-            "end_time": self._coord.battery_restrict_battery_discharge_end_time,
-            "schedule_status": self._coord.battery_rbd_schedule_status,
-            "schedule_pending": self._coord.battery_rbd_schedule_pending,
-            "schedule_enabled": self._coord.battery_restrict_battery_discharge_schedule_enabled,
-        }

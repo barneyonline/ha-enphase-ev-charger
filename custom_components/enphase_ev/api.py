@@ -4919,6 +4919,37 @@ class EnphaseEVClient:
             supports_mqtt=self._battery_config_supports_mqtt,
         )
 
+    async def set_battery_settings_compat(
+        self,
+        payload: dict[str, Any],
+        *,
+        schedule_type: str = "cfg",
+        include_source: bool = True,
+        merged_payload: bool = False,
+        strip_devices: bool = False,
+    ) -> dict:
+        """Update battery settings using an explicit compatibility payload shape."""
+
+        url = f"{BASE_URL}/service/batteryConfig/api/v1/batterySettings/{self._site}"
+        params = self._battery_config_params(include_source=include_source)
+        body: dict[str, Any] | list[Any] | None = (
+            copy.deepcopy(payload) if isinstance(payload, dict) else {}
+        )
+        if merged_payload:
+            body = self._battery_config_merged_write_payload("battery_settings", body)
+        if isinstance(body, dict) and strip_devices:
+            body.pop("devices", None)
+        return await self._battery_config_write_request(
+            "PUT",
+            url,
+            json_body=body,
+            params=params,
+            schedule_type=schedule_type,
+            endpoint_family="battery_settings",
+            write_intent="battery_settings_update",
+            supports_mqtt=self._battery_config_supports_mqtt,
+        )
+
     async def set_battery_profile(
         self,
         *,
