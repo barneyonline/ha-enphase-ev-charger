@@ -19,8 +19,10 @@ from custom_components.enphase_ev.evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
     AcBatterySleepModeSwitch,
+    _is_disabled_by_integration,
     _migrated_switch_entity_id,
     _migrate_storm_guard_evse_entity_id,
+    _reenable_integration_disabled_entity,
     AppAuthenticationSwitch,
     ChargeFromGridScheduleSwitch,
     ChargeFromGridSwitch,
@@ -82,6 +84,34 @@ def test_evse_schedule_editor_day_switch_enabled_by_default(
     sw.hass = hass
 
     assert sw.entity_registry_enabled_default is True
+
+
+def test_switch_is_disabled_by_integration_handles_none() -> None:
+    assert _is_disabled_by_integration(None) is False
+
+
+def test_reenable_integration_disabled_entity_skips_missing_registry_entry() -> None:
+    ent_reg = MagicMock()
+    ent_reg.async_get_entity_id.return_value = "switch.test_entity"
+    ent_reg.async_get.return_value = None
+
+    _reenable_integration_disabled_entity(
+        ent_reg, domain="switch", unique_id="test-unique-id"
+    )
+
+    ent_reg.async_update_entity.assert_not_called()
+
+
+def test_reenable_integration_disabled_entity_skips_non_integration_disable() -> None:
+    ent_reg = MagicMock()
+    ent_reg.async_get_entity_id.return_value = "switch.test_entity"
+    ent_reg.async_get.return_value = SimpleNamespace(disabled_by="user")
+
+    _reenable_integration_disabled_entity(
+        ent_reg, domain="switch", unique_id="test-unique-id"
+    )
+
+    ent_reg.async_update_entity.assert_not_called()
 
 
 def test_migrated_switch_entity_id_handles_canonical_and_suffixes() -> None:

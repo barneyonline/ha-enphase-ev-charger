@@ -3041,6 +3041,17 @@ async def test_create_schedule_builds_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_schedule_wraps_scheduler_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client, "_json", AsyncMock(side_effect=_make_cre(503, "Service Unavailable"))
+    )
+
+    with pytest.raises(api.SchedulerUnavailable):
+        await client.create_schedule("SN123", {"id": "slot-2", "startTime": "03:15"})
+
+
+@pytest.mark.asyncio
 async def test_delete_schedule_uses_single_slot_endpoint() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"ok": True})
@@ -3052,6 +3063,17 @@ async def test_delete_schedule_uses_single_slot_endpoint() -> None:
     method, url = client._json.call_args.args[:2]
     assert method == "DELETE"
     assert url.endswith("/charging-mode/SCHEDULED_CHARGING/SITE/SN123/schedule/slot-2")
+
+
+@pytest.mark.asyncio
+async def test_delete_schedule_wraps_scheduler_unavailable(monkeypatch) -> None:
+    client = _make_client()
+    monkeypatch.setattr(
+        client, "_json", AsyncMock(side_effect=_make_cre(503, "Service Unavailable"))
+    )
+
+    with pytest.raises(api.SchedulerUnavailable):
+        await client.delete_schedule("SN123", "slot-2")
 
 
 @pytest.mark.asyncio
@@ -7903,6 +7925,8 @@ async def test_session_history_filter_criteria_uses_default_username() -> None:
         ("patch_schedules", ("SN",), {"server_timestamp": "ts", "slots": []}),
         ("patch_schedule_states", ("SN",), {"slot_states": {"1": True}}),
         ("patch_schedule", ("SN", "1", {}), {}),
+        ("create_schedule", ("SN", {"id": "1"}), {}),
+        ("delete_schedule", ("SN", "1"), {}),
     ],
 )
 async def test_scheduler_endpoints_wrap_unavailable(
@@ -7927,6 +7951,8 @@ async def test_scheduler_endpoints_wrap_unavailable(
         ("patch_schedules", ("SN",), {"server_timestamp": "ts", "slots": []}),
         ("patch_schedule_states", ("SN",), {"slot_states": {"1": True}}),
         ("patch_schedule", ("SN", "1", {}), {}),
+        ("create_schedule", ("SN", {"id": "1"}), {}),
+        ("delete_schedule", ("SN", "1"), {}),
     ],
 )
 async def test_scheduler_endpoints_reraise_non_scheduler_error(

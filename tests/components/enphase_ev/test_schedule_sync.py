@@ -1022,6 +1022,93 @@ async def test_schedule_sync_upsert_delete_and_default_timestamp(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_delete_slot_skips_when_scheduler_backoff(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-delete-backoff"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    coord._scheduler_backoff_active = lambda: True  # noqa: SLF001
+    coord.scheduler_last_error = "scheduler down"
+    client.delete_schedule = AsyncMock()
+
+    await sync.async_delete_slot(RANDOM_SERIAL, slot_id)
+
+    assert sync._last_status == "scheduler_unavailable"
+    assert sync._last_error == "scheduler down"
+    client.delete_schedule.assert_not_awaited()
+    assert slot_id in sync._slot_cache[RANDOM_SERIAL]
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_delete_slot_handles_scheduler_unavailable(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-delete-unavailable"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    coord._note_scheduler_unavailable = MagicMock()  # noqa: SLF001
+    client.delete_schedule = AsyncMock(side_effect=SchedulerUnavailable("down"))
+
+    await sync.async_delete_slot(RANDOM_SERIAL, slot_id)
+
+    assert sync._last_status == "scheduler_unavailable"
+    assert sync._last_error == "down"
+    assert slot_id in sync._slot_cache[RANDOM_SERIAL]
+    coord._note_scheduler_unavailable.assert_called_once()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_delete_slot_ignores_generic_delete_error(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-delete-error"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    client.delete_schedule = AsyncMock(side_effect=RuntimeError("boom"))
+
+    await sync.async_delete_slot(RANDOM_SERIAL, slot_id)
+
+    assert slot_id in sync._slot_cache[RANDOM_SERIAL]
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_delete_slot_uses_nested_response_metadata(hass) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-delete-meta"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    coord._mark_scheduler_available = MagicMock()  # noqa: SLF001
+    client.delete_schedule = AsyncMock(
+        return_value={
+            "data": {"meta": {"serverTimeStamp": "2025-01-06T00:00:00.000+00:00"}}
+        }
+    )
+
+    await sync.async_delete_slot(RANDOM_SERIAL, slot_id)
+
+    assert sync._meta_cache[RANDOM_SERIAL] == "2025-01-06T00:00:00.000+00:00"
+    assert slot_id not in sync._slot_cache[RANDOM_SERIAL]
+    coord._mark_scheduler_available.assert_called_once()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_upsert_returns_false_when_create_rejected(hass) -> None:
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
@@ -1039,6 +1126,71 @@ async def test_schedule_sync_upsert_returns_false_when_create_rejected(hass) -> 
     assert await sync.async_upsert_slot(RANDOM_SERIAL, _slot("new-slot")) is False
     assert sync._last_status == "create_failed"
     assert sync._last_error == "boom"
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_create_slot_skips_when_scheduler_backoff(hass) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    coord._scheduler_backoff_active = lambda: True  # noqa: SLF001
+    coord.scheduler_last_error = "scheduler down"
+    client.create_schedule = AsyncMock()
+
+    assert await sync._create_slot(RANDOM_SERIAL, _slot("new-slot")) is False
+    assert sync._last_status == "scheduler_unavailable"
+    assert sync._last_error == "scheduler down"
+    client.create_schedule.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_create_slot_handles_scheduler_unavailable(hass) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    coord._note_scheduler_unavailable = MagicMock()  # noqa: SLF001
+    client.create_schedule = AsyncMock(side_effect=SchedulerUnavailable("down"))
+
+    assert await sync._create_slot(RANDOM_SERIAL, _slot("new-slot")) is False
+    assert sync._last_status == "scheduler_unavailable"
+    assert sync._last_error == "down"
+    coord._note_scheduler_unavailable.assert_called_once()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_create_slot_uses_nested_response_metadata(hass) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    coord._mark_scheduler_available = MagicMock()  # noqa: SLF001
+    client.create_schedule = AsyncMock(
+        return_value={
+            "data": {
+                "id": "nested-slot",
+                "meta": {"serverTimeStamp": "2025-01-05T00:00:00.000+00:00"},
+            }
+        }
+    )
+
+    assert await sync._create_slot(RANDOM_SERIAL, _slot("ignored-slot")) is True
+    assert sync._meta_cache[RANDOM_SERIAL] == "2025-01-05T00:00:00.000+00:00"
+    assert "nested-slot" in sync._slot_cache[RANDOM_SERIAL]
+    coord._mark_scheduler_available.assert_called_once()  # noqa: SLF001
 
 
 def test_schedule_sync_parse_slot_id_invalid() -> None:
