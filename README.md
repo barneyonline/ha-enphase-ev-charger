@@ -109,57 +109,6 @@ Manual install steps: see the wiki Installation page.
 
 Sign in with your Enlighten credentials; MFA is supported. See the wiki for details.
 
-## Local Docker workflows
-
-The repository now ships two separate Docker workflows:
-
-- `ha-dev` is the pinned Python toolchain used for linting, formatting, tests, coverage, and other contributor checks.
-- `ha-runtime` is a manual verification Home Assistant instance based on the official `ghcr.io/home-assistant/home-assistant:stable` image.
-
-Build the contributor container:
-
-```bash
-docker compose -f devtools/docker/docker-compose.yml build ha-dev
-```
-
-Run the standard checks inside `ha-dev`:
-
-```bash
-docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."
-docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "black custom_components/enphase_ev tests/components/enphase_ev"
-docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest -q tests/components/enphase_ev"
-```
-
-Start a real Home Assistant instance for UI verification:
-
-```bash
-mkdir -p .ha-config
-docker compose -f devtools/docker/docker-compose.yml up -d ha-runtime
-```
-
-Then open [http://localhost:8123](http://localhost:8123). The runtime container mounts:
-
-- `.ha-config/` to `/config` for local Home Assistant state
-- `custom_components/enphase_ev` to `/config/custom_components/enphase_ev` so the running instance uses this checkout
-
-Notes:
-
-- `.ha-config/` is gitignored and intended only for local verification data.
-- `ha-runtime` inherits the `TZ` environment variable from your shell and defaults to `UTC` if it is unset.
-- `ha-runtime` now pins container DNS to public resolvers by default to avoid intermittent Docker Desktop resolver timeouts. Override with `HA_RUNTIME_DNS_1` and `HA_RUNTIME_DNS_2` if your network requires different upstream DNS servers.
-- The runtime service uses port mapping instead of `network_mode: host` so it works reliably on Docker Desktop for macOS and Windows.
-- If you need Linux-only host networking or hardware access for local discovery testing, adjust the runtime service locally with the options from the official Home Assistant Container docs.
-
 ## Documentation
 
 Refer to the [Wiki](https://github.com/barneyonline/ha-enphase-energy/wiki), including [Envoy History Migration](https://github.com/barneyonline/ha-enphase-energy/wiki/Envoy-History-Migration) for preserving Energy dashboard history when migrating from Enphase Envoy.
-
-## Battery Scheduling Notes
-
-- Battery schedule toggles and limits are exposed as `switch` and `number` entities.
-- Battery schedule start and end values are exposed as separate `time` entities.
-- Battery schedule inventory is also exposed through diagnostic `sensor` entities, including a combined summary plus per-mode CFG, DTG, and RBD schedule lists with schedule IDs in the attributes.
-- Battery schedule CRUD is available through dedicated `select`, `time`, `number`, `switch`, and `button` editor entities on the battery device, plus `force_refresh`, `add_schedule`, `update_schedule`, `delete_schedule`, and `validate_schedule` services for automations.
-- Use the integration Options page to enable `EV Charger Scheduler` and `Battery Scheduler` independently. The battery scheduler editor now uses a single shared form with a `New schedule` option instead of exposing separate edit and create entity sets.
-- In Home Assistant, those `time` entities may need to be added to dashboards manually if you want the schedule window visible on a card.
-- Related battery schedule entities also expose the current schedule window and write-pending status as state attributes to make delayed Enphase cloud updates easier to diagnose.
