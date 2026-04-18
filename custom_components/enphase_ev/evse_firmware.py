@@ -109,4 +109,3 @@ def _normalize_details(payload: Any) -> dict[str, dict[str, Any]]:
             continue
         details[serial] = dict(item)
     return details
-

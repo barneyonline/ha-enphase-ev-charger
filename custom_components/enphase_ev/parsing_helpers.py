@@ -45,6 +45,8 @@ def coerce_optional_bool(value: object) -> bool | None:
         if normalized in ("false", "0", "no", "n", "disabled", "disable", "off"):
             return False
     return None
+
+
 def type_member_text(member: dict[str, object] | None, *keys: str) -> str | None:
     if not isinstance(member, dict):
         return None
