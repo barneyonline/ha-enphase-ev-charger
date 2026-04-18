@@ -6,18 +6,7 @@ from pathlib import Path
 import re
 
 from .const import DOMAIN
-
-
-def _clean_text(value: object) -> str | None:
-    if value is None:
-        return None
-    try:
-        text = str(value).strip()
-    except Exception:
-        return None
-    if not text:
-        return None
-    return text
+from .runtime_helpers import coerce_optional_text as _clean_text
 
 
 def _is_redundant_model_id(model: object, model_id: object) -> bool:

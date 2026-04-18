@@ -26,8 +26,16 @@ from .device_types import (
     normalize_type_key,
     parse_type_identifier,
 )
+from .entity_cleanup import (
+    entries_for_device,
+    find_entity_id_by_unique_id,
+    is_owned_entity,
+    iter_device_registry_entries,
+    iter_entity_registry_entries,
+)
 from .log_redaction import redact_identifier, redact_site_id, redact_text
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
+from .runtime_helpers import coerce_optional_text as _clean_optional_text
 from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -84,17 +92,11 @@ _STARTUP_MIGRATION_VERSION_KEY = "startup_migration_version"
 
 _TYPE_DEVICE_KEYS_WITH_DIRECT_CHILD_DEVICES: tuple[str, ...] = ("iqevse",)
 
-
-def _clean_optional_text(value: object) -> str | None:
-    if value is None:
-        return None
-    try:
-        text = str(value).strip()
-    except Exception:
-        return None
-    if not text:
-        return None
-    return text
+_entries_for_device = entries_for_device
+_find_entity_id_by_unique_id = find_entity_id_by_unique_id
+_is_owned_entity = is_owned_entity
+_iter_device_registry_entries = iter_device_registry_entries
+_iter_entity_registry_entries = iter_entity_registry_entries
 
 
 def _site_entry_title(site_id: str) -> str:
@@ -435,64 +437,6 @@ def _registry_metadata_signature(coord) -> tuple[tuple[object, ...], ...]:
     )
 
 
-def _iter_entity_registry_entries(ent_reg) -> list[object]:
-    entities = getattr(ent_reg, "entities", None)
-    if entities is None:
-        return []
-    values = getattr(entities, "values", None)
-    if callable(values):
-        try:
-            return list(values())
-        except Exception:  # noqa: BLE001
-            return []
-    if isinstance(entities, dict):
-        return list(dict.values(entities))
-    return []
-
-
-def _iter_device_registry_entries(dev_reg) -> list[object]:
-    devices = getattr(dev_reg, "devices", None)
-    if devices is None:
-        return []
-    values = getattr(devices, "values", None)
-    if callable(values):
-        try:
-            return list(values())
-        except Exception:  # noqa: BLE001
-            return []
-    if isinstance(devices, dict):
-        return list(dict.values(devices))
-    return []
-
-
-def _entries_for_device(ent_reg, device_id: str) -> list[object]:
-    entries_for_device = getattr(er, "async_entries_for_device", None)
-    if callable(entries_for_device):
-        try:
-            return list(entries_for_device(ent_reg, device_id))
-        except Exception:  # noqa: BLE001
-            pass
-    return [
-        entry
-        for entry in _iter_entity_registry_entries(ent_reg)
-        if getattr(entry, "device_id", None) == device_id
-    ]
-
-
-def _is_owned_entity(reg_entry: object, entry_id: str | None) -> bool:
-    platform = getattr(reg_entry, "platform", None)
-    if platform is not None and platform != DOMAIN:
-        return False
-    config_entry_id = getattr(reg_entry, "config_entry_id", None)
-    if (
-        entry_id is not None
-        and config_entry_id is not None
-        and config_entry_id != entry_id
-    ):
-        return False
-    return True
-
-
 def _remove_legacy_inventory_entities(
     ent_reg, site_id: str, *, entry_id: str | None
 ) -> int:
@@ -502,8 +446,8 @@ def _remove_legacy_inventory_entities(
         f"{DOMAIN}_site_{site_id}_type_microinverter_inventory",
     }
     removed = 0
-    for entry in _iter_entity_registry_entries(ent_reg):
-        if not _is_owned_entity(entry, entry_id):
+    for entry in iter_entity_registry_entries(ent_reg):
+        if not is_owned_entity(entry, entry_id):
             continue
         if getattr(entry, "unique_id", None) not in unique_ids:
             continue
@@ -520,42 +464,6 @@ def _remove_legacy_inventory_entities(
                 redact_text(err, site_ids=(site_id,)),
             )
     return removed
-
-
-def _find_entity_id_by_unique_id(
-    ent_reg, domain: str, unique_id: str, *, entry_id: str | None
-) -> str | None:
-    get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
-    get_entry = getattr(ent_reg, "async_get", None)
-    if callable(get_entity_id):
-        try:
-            entity_id = get_entity_id(domain, DOMAIN, unique_id)
-        except Exception:  # noqa: BLE001
-            entity_id = None
-        if entity_id:
-            if callable(get_entry):
-                reg_entry = get_entry(entity_id)
-                if reg_entry is not None and not _is_owned_entity(reg_entry, entry_id):
-                    return None
-            return entity_id
-
-    for reg_entry in _iter_entity_registry_entries(ent_reg):
-        if getattr(reg_entry, "unique_id", None) != unique_id:
-            continue
-        entry_domain = getattr(reg_entry, "domain", None)
-        if entry_domain is None:
-            entity_id = getattr(reg_entry, "entity_id", "")
-            entry_domain = (
-                entity_id.partition(".")[0] if isinstance(entity_id, str) else None
-            )
-        if entry_domain != domain:
-            continue
-        if not _is_owned_entity(reg_entry, entry_id):
-            continue
-        entity_id = getattr(reg_entry, "entity_id", None)
-        if entity_id:
-            return entity_id
-    return None
 
 
 def _migrate_cloud_entity_unique_ids(
@@ -613,7 +521,7 @@ def _migrate_cloud_entity_unique_ids(
 
     for domain, new_suffix, source_specs in rename_specs:
         new_unique_id = f"{DOMAIN}_site_{site_id_text}_{new_suffix}"
-        target_entity_id = _find_entity_id_by_unique_id(
+        target_entity_id = find_entity_id_by_unique_id(
             ent_reg, domain, new_unique_id, entry_id=entry_id
         )
         source_entity_ids: list[tuple[str, str]] = []
@@ -623,7 +531,7 @@ def _migrate_cloud_entity_unique_ids(
                 old_suffix,
                 include_legacy_prefix=include_legacy_prefix,
             ):
-                old_entity_id = _find_entity_id_by_unique_id(
+                old_entity_id = find_entity_id_by_unique_id(
                     ent_reg, domain, old_unique_id, entry_id=entry_id
                 )
                 if not old_entity_id or old_entity_id in seen_entity_ids:
@@ -792,7 +700,7 @@ def _migrate_cloud_entities_to_cloud_device(
     for domain, unique_suffixes in _CLOUD_ENTITY_UNIQUE_ID_SUFFIXES_BY_DOMAIN.items():
         for suffix in unique_suffixes:
             unique_id = f"{DOMAIN}_site_{site_id_text}_{suffix}"
-            entity_id = _find_entity_id_by_unique_id(
+            entity_id = find_entity_id_by_unique_id(
                 ent_reg, domain, unique_id, entry_id=entry_id
             )
             if not entity_id:
@@ -803,8 +711,8 @@ def _migrate_cloud_entities_to_cloud_device(
     # Older releases used different unique_id prefixes for some cloud diagnostics.
     # Sweep owned entities and match by known cloud suffixes to catch those variants.
     site_marker = f"_site_{site_id_text}_"
-    for reg_entry in _iter_entity_registry_entries(ent_reg):
-        if not _is_owned_entity(reg_entry, entry_id):
+    for reg_entry in iter_entity_registry_entries(ent_reg):
+        if not is_owned_entity(reg_entry, entry_id):
             continue
         entity_id = getattr(reg_entry, "entity_id", None)
         if not entity_id:
@@ -898,8 +806,8 @@ def _migrate_legacy_gateway_type_devices(
             return
 
         moved = 0
-        for reg_entry in _entries_for_device(ent_reg, legacy_device_id):
-            if not _is_owned_entity(reg_entry, entry_id):
+        for reg_entry in entries_for_device(ent_reg, legacy_device_id):
+            if not is_owned_entity(reg_entry, entry_id):
                 continue
             entity_id = getattr(reg_entry, "entity_id", None)
             if not entity_id:
@@ -915,7 +823,7 @@ def _migrate_legacy_gateway_type_devices(
                     redact_text(err, site_ids=(site_id_text,)),
                 )
 
-        remaining = _entries_for_device(ent_reg, legacy_device_id)
+        remaining = entries_for_device(ent_reg, legacy_device_id)
         if remaining:
             _LOGGER.debug(
                 "Keeping legacy %s type device for site %s; %s entities remain",
@@ -950,7 +858,7 @@ def _migrate_legacy_gateway_type_devices(
             continue
         _move_device_to_gateway(legacy_device, type_key)
 
-    for legacy_device in _iter_device_registry_entries(dev_reg):
+    for legacy_device in iter_device_registry_entries(dev_reg):
         config_entries = getattr(legacy_device, "config_entries", None)
         if config_entries is not None and entry_id not in config_entries:
             continue
@@ -982,8 +890,8 @@ def _migrate_legacy_gateway_type_devices(
         return
 
     moved_site_entities = 0
-    for reg_entry in _entries_for_device(ent_reg, legacy_site_device_id):
-        if not _is_owned_entity(reg_entry, entry_id):
+    for reg_entry in entries_for_device(ent_reg, legacy_site_device_id):
+        if not is_owned_entity(reg_entry, entry_id):
             continue
         entity_id = getattr(reg_entry, "entity_id", None)
         if not entity_id:
@@ -998,7 +906,7 @@ def _migrate_legacy_gateway_type_devices(
                 redact_text(err, site_ids=(site_id_text,)),
             )
 
-    remaining_site_entries = _entries_for_device(ent_reg, legacy_site_device_id)
+    remaining_site_entries = entries_for_device(ent_reg, legacy_site_device_id)
     if remaining_site_entries:
         _LOGGER.debug(
             "Keeping legacy site device for site %s; %s entities remain",
@@ -1059,8 +967,8 @@ def _remove_evse_type_device_and_entities(
 
     entry_id = getattr(entry, "entry_id", None)
     removed_entities = 0
-    for reg_entry in _entries_for_device(ent_reg, evse_device_id):
-        if not _is_owned_entity(reg_entry, entry_id):
+    for reg_entry in entries_for_device(ent_reg, evse_device_id):
+        if not is_owned_entity(reg_entry, entry_id):
             continue
         entity_id = getattr(reg_entry, "entity_id", None)
         if not entity_id:
@@ -1076,7 +984,7 @@ def _remove_evse_type_device_and_entities(
                 redact_text(err, site_ids=(site_id_text,)),
             )
 
-    remaining_entries = _entries_for_device(ent_reg, evse_device_id)
+    remaining_entries = entries_for_device(ent_reg, evse_device_id)
     if remaining_entries:
         _LOGGER.debug(
             "Keeping EV charger type device for site %s; %s entities remain",

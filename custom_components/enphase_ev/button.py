@@ -16,6 +16,10 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 from .entity_cleanup import prune_managed_entities
+from .runtime_helpers import (
+    inventory_type_available as _type_available,
+    inventory_type_device_info as _type_device_info,
+)
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -29,14 +33,6 @@ def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     if has_encharge is False and has_enpower is False:
         return False
     return _type_available(coord, "encharge")
-
-
-def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    return bool(coord.inventory_view.has_type_for_entities(type_key))
-
-
-def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | None:
-    return coord.inventory_view.type_device_info(type_key)
 
 
 def _storm_guard_visible(coord: EnphaseCoordinator) -> bool:

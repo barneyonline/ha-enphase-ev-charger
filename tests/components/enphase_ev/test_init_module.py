@@ -3340,6 +3340,76 @@ def test_migrate_cloud_entities_to_cloud_device_fallback_sweep_branch_coverage(
     assert updates == []
 
 
+def test_migrate_cloud_entities_to_cloud_device_skips_updates_when_no_changes_needed(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    ent_reg = SimpleNamespace(
+        async_get_entity_id=lambda domain, _platform, unique_id: (
+            "sensor.cloud_last_update"
+            if domain == "sensor" and unique_id.endswith("_last_update")
+            else None
+        ),
+        async_get=lambda entity_id: SimpleNamespace(
+            entity_id=entity_id,
+            device_id="cloud-device",
+            disabled_by=None,
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+        ),
+        async_update_entity=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("should not update")
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg
+    )
+
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id="site-noop"),
+        SimpleNamespace(
+            async_get_or_create=lambda **_kwargs: SimpleNamespace(id="cloud-device")
+        ),
+        "site-noop",
+    )
+
+
+def test_migrate_cloud_entities_to_cloud_device_logs_update_failures(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    ent_reg = SimpleNamespace(
+        async_get_entity_id=lambda domain, _platform, unique_id: (
+            "sensor.cloud_last_update"
+            if domain == "sensor" and unique_id.endswith("_last_update")
+            else None
+        ),
+        async_get=lambda entity_id: SimpleNamespace(
+            entity_id=entity_id,
+            device_id="legacy-device",
+            disabled_by=None,
+            platform=DOMAIN,
+            config_entry_id=config_entry.entry_id,
+        ),
+        async_update_entity=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("boom")
+        ),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er.async_get", lambda _hass: ent_reg
+    )
+
+    _migrate_cloud_entities_to_cloud_device(
+        hass,
+        config_entry,
+        SimpleNamespace(site_id="site-fail"),
+        SimpleNamespace(
+            async_get_or_create=lambda **_kwargs: SimpleNamespace(id="cloud-device")
+        ),
+        "site-fail",
+    )
+
+
 @pytest.mark.asyncio
 async def test_migrate_legacy_gateway_type_devices_skips_without_gateway(
     hass: HomeAssistant, config_entry
