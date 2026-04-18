@@ -30,6 +30,12 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 from .entity_cleanup import prune_managed_entities
+from .evse_schedule_editor import (
+    EvseScheduleEditorEntity,
+    NEW_SCHEDULE_OPTION as EVSE_NEW_SCHEDULE_OPTION,
+    evse_schedule_create_label,
+    evse_schedule_editor_active,
+)
 from .labels import (
     CHARGE_MODE_LABELS,
     battery_profile_label,
@@ -191,6 +197,9 @@ async def async_setup_entry(
     def _charge_mode_unique_id(sn: str) -> str:
         return f"{DOMAIN}_{sn}_charge_mode_select"
 
+    def _evse_schedule_select_unique_id(sn: str) -> str:
+        return f"{DOMAIN}_{sn}_schedule_selected"
+
     @callback
     def _async_sync_site_entities() -> None:
         nonlocal site_entity_added
@@ -270,19 +279,30 @@ async def async_setup_entry(
         if not serials:
             entities: list[SelectEntity] = []
         else:
-            entities = [ChargeModeSelect(coord, sn) for sn in serials]
+            entities = []
+            for sn in serials:
+                entities.append(ChargeModeSelect(coord, sn))
+                if evse_schedule_editor_active(coord, entry):
+                    entities.append(EvseScheduleSelect(coord, entry, sn))
         if entities:
             async_add_entities(entities, update_before_add=False)
         known_serials.intersection_update(current_serials)
         known_serials.update(serials)
         if not inventory_ready:
             return
+        active_unique_ids = {_charge_mode_unique_id(sn) for sn in current_serials}
+        if evse_schedule_editor_active(coord, entry):
+            active_unique_ids.update(
+                _evse_schedule_select_unique_id(sn) for sn in current_serials
+            )
         prune_managed_entities(
             ent_reg,
             entry.entry_id,
             domain="select",
-            active_unique_ids={_charge_mode_unique_id(sn) for sn in current_serials},
-            is_managed=lambda unique_id: unique_id.endswith("_charge_mode_select"),
+            active_unique_ids=active_unique_ids,
+            is_managed=lambda unique_id: unique_id.endswith(
+                ("_charge_mode_select", "_schedule_selected")
+            ),
         )
 
     topology_listener = getattr(coord, "async_add_topology_listener", None)
@@ -498,6 +518,64 @@ class BatteryNewScheduleTypeSelect(_BatteryScheduleEditorSelect):
             if label == option:
                 self._editor.set_new_schedule_type(schedule_type)
                 return
+
+
+class EvseScheduleSelect(EvseScheduleEditorEntity, SelectEntity):
+    _attr_has_entity_name = True
+    _attr_translation_key = "evse_schedule_selected"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:calendar-edit"
+
+    def __init__(
+        self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry, sn: str
+    ) -> None:
+        super().__init__(coord, entry, sn)
+        self._attr_unique_id = f"{DOMAIN}_{sn}_schedule_selected"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return (
+            super().available
+            and evse_schedule_editor_active(self._coord, self._entry)
+            and self._editor is not None
+        )
+
+    @property
+    def options(self) -> list[str]:
+        if self._editor is None:
+            return []
+        hass = getattr(self, "hass", None) or self._coord.hass
+        return [
+            *self._editor.option_label_by_slot_id(self._sn).values(),
+            evse_schedule_create_label(hass=hass),
+        ]
+
+    @property
+    def current_option(self) -> str | None:
+        if self._editor is None:
+            return None
+        hass = getattr(self, "hass", None) or self._coord.hass
+        if self._editor.current_selection(self._sn) == EVSE_NEW_SCHEDULE_OPTION:
+            return evse_schedule_create_label(hass=hass)
+        selected_schedule = self._editor.get_schedule(
+            self._sn, self._editor.current_selection(self._sn)
+        )
+        if selected_schedule is None:
+            return None
+        return self._editor.option_label_by_slot_id(self._sn).get(
+            selected_schedule.slot_id
+        )
+
+    async def async_select_option(self, option: str) -> None:
+        if self._editor is None:
+            return
+        hass = getattr(self, "hass", None) or self._coord.hass
+        selected = (
+            EVSE_NEW_SCHEDULE_OPTION
+            if option == evse_schedule_create_label(hass=hass)
+            else self._editor.slot_id_for_option_label(self._sn, option) or option
+        )
+        self._editor.select_schedule(self._sn, selected)
 
 
 class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):

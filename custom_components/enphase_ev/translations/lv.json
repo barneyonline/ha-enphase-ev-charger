@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Izvēlētais uzlādes režīms nav pieejams."
+    },
+    "evse_schedule_day_required": {
+      "message": "Grafikam izvēlieties vismaz vienu nedēļas dienu."
+    },
+    "evse_schedule_times_different": {
+      "message": "Grafika sākuma un beigu laikam jāatšķiras."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase noraidīja grafika izmaiņas."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "AC baterijas miega režīms"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Pirmdienas grafiks"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Otrdienas grafiks"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Trešdienas grafiks"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Ceturtdienas grafiks"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Piektdienas grafiks"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Sestdienas grafiks"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Svētdienas grafiks"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "AC baterijas mērķa uzlādes līmenis"
+      },
+      "evse_schedule_selected": {
+        "name": "Grafiks"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Atteikties no vētras brīdinājuma"
+      },
+      "evse_schedule_refresh": {
+        "name": "Grafika atsvaidzināšana"
+      },
+      "evse_schedule_save": {
+        "name": "Grafika saglabāšana"
+      },
+      "evse_schedule_delete": {
+        "name": "Grafika dzēšana"
+      },
+      "evse_schedule_add": {
+        "name": "Izveidot jaunu grafiku"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Akumulatora izlādes ierobežošanas beigu laiks"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Grafika sākuma laiks"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Grafika beigu laiks"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Sinhronizēt grafikus",
-      "description": "Atjaunot Enphase grafikus un atjaunināt grafika palīgus.",
+      "description": "Atjaunot Enphase grafikus no mākoņa.",
       "fields": {
         "device_id": {
           "name": "Lādētāji",

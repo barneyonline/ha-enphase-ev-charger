@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Le mode de charge sélectionné n’est pas disponible."
+    },
+    "evse_schedule_day_required": {
+      "message": "Sélectionnez au moins un jour de la semaine pour la programmation."
+    },
+    "evse_schedule_times_different": {
+      "message": "Les heures de début et de fin de la programmation doivent être différentes."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase a rejeté la modification de la programmation."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Mode veille de la batterie AC"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Programmation du lundi"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Programmation du mardi"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Programmation du mercredi"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Programmation du jeudi"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Programmation du vendredi"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Programmation du samedi"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Programmation du dimanche"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "État de charge cible de la batterie AC"
+      },
+      "evse_schedule_selected": {
+        "name": "Programmation"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Se désinscrire de l'alerte de tempête"
+      },
+      "evse_schedule_refresh": {
+        "name": "Actualiser la programmation"
+      },
+      "evse_schedule_save": {
+        "name": "Enregistrer la programmation"
+      },
+      "evse_schedule_delete": {
+        "name": "Supprimer la programmation"
+      },
+      "evse_schedule_add": {
+        "name": "Créer une nouvelle programmation"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Heure de fin de restriction de décharge de la batterie"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Heure de début de la programmation"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Heure de fin de la programmation"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Synchroniser les horaires",
-      "description": "Rafraîchit les horaires Enphase et met à jour les assistants.",
+      "description": "Rafraîchit les horaires Enphase depuis le cloud.",
       "fields": {
         "device_id": {
           "name": "Bornes de recharge",

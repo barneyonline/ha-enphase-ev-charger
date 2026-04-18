@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Den valgte opladningstilstand er ikke tilgængelig."
+    },
+    "evse_schedule_day_required": {
+      "message": "Vælg mindst én ugedag for tidsplanen."
+    },
+    "evse_schedule_times_different": {
+      "message": "Tidsplanens start- og sluttid skal være forskellige."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase afviste ændringen af tidsplanen."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "AC-batteriets dvaletilstand"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Tidsplan mandag"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Tidsplan tirsdag"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Tidsplan onsdag"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Tidsplan torsdag"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Tidsplan fredag"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Tidsplan lørdag"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Tidsplan søndag"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "AC-batteriets mål for ladeniveau"
+      },
+      "evse_schedule_selected": {
+        "name": "Tidsplan"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Fravælg stormadvarsel"
+      },
+      "evse_schedule_refresh": {
+        "name": "Opdater tidsplan"
+      },
+      "evse_schedule_save": {
+        "name": "Gem tidsplan"
+      },
+      "evse_schedule_delete": {
+        "name": "Slet tidsplan"
+      },
+      "evse_schedule_add": {
+        "name": "Opret ny tidsplan"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Sluttid for begrænset batteriafladning"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Starttid for tidsplan"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Sluttid for tidsplan"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Synkroniser tidsplaner",
-      "description": "Opdater Enphase-tidsplaner og opdater tidsplanhjælpere.",
+      "description": "Opdater Enphase-tidsplaner fra skyen.",
       "fields": {
         "device_id": {
           "name": "Ladere",

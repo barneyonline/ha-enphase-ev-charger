@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "El modo de carga seleccionado no está disponible."
+    },
+    "evse_schedule_day_required": {
+      "message": "Seleccione al menos un día de la semana para el horario."
+    },
+    "evse_schedule_times_different": {
+      "message": "La hora de inicio y fin del horario deben ser diferentes."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase rechazó el cambio del horario."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Modo de reposo de la batería CA"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Horario del lunes"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Horario del martes"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Horario del miércoles"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Horario del jueves"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Horario del viernes"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Horario del sábado"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Horario del domingo"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Estado de carga objetivo de la batería CA"
+      },
+      "evse_schedule_selected": {
+        "name": "Horario"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Excluir alerta de tormenta"
+      },
+      "evse_schedule_refresh": {
+        "name": "Actualizar horario"
+      },
+      "evse_schedule_save": {
+        "name": "Guardar horario"
+      },
+      "evse_schedule_delete": {
+        "name": "Eliminar horario"
+      },
+      "evse_schedule_add": {
+        "name": "Crear nuevo horario"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Hora de fin de restricción de descarga de la batería"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Hora de inicio del horario"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Hora de fin del horario"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Sincronizar horarios",
-      "description": "Actualiza los horarios de Enphase y los ayudantes de horario.",
+      "description": "Actualiza los horarios de Enphase desde la nube.",
       "fields": {
         "device_id": {
           "name": "Cargadores",
