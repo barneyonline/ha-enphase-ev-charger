@@ -14,11 +14,29 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- Defaulted both `Enable EV Charger Scheduler` and `Enable Battery Scheduler` integration options to on for entries that have not explicitly chosen a scheduler setting yet.
-- Removed duplicated diagnostic and schedule metadata from Enphase entities so Home Assistant exposes a smaller, less repetitive attribute surface across cloud, site energy, battery, AC battery, heat pump, and update entities.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v2.8.4 - 2026-04-18
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Restored the EV charger and IQ Battery scheduler editors for entries that had not explicitly chosen scheduler options yet by defaulting both `Enable EV Charger Scheduler` and `Enable Battery Scheduler` to on until those settings are set manually.
+
+### 🔧 Improvements
+- Reduced refresh-path overhead for EV charger lookups by capping concurrent per-serial scheduler/config/auth fetches and by refreshing session-history filter criteria once per site cache window instead of repeating that call for every charger.
+- Removed duplicated diagnostic and schedule metadata from Enphase entities so Home Assistant exposes a smaller, less repetitive attribute surface across cloud, site energy, battery, AC battery, heat pump, and update entities.
+
+### 🔄 Other changes
+- Updated `AGENTS.md` contributor workflow guidance for the repository.
+- Bumped the integration manifest version to `2.8.4`.
 
 ## v2.8.3 - 2026-04-18
 
