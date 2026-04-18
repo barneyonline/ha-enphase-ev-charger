@@ -62,7 +62,8 @@ class SessionHistoryManager:
         self._cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
         self._block_until: dict[str, float] = {}
         self._refresh_in_progress: set[str] = set()
-        self._criteria_cache: dict[str, float] = {}
+        self._criteria_checked_mono: float | None = None
+        self._criteria_lock = asyncio.Lock()
         self._enrichment_tasks: set[asyncio.Task[None]] = set()
         self._data_supplier = data_supplier
         self._publish_callback = publish_callback
@@ -313,14 +314,37 @@ class SessionHistoryManager:
         current = self._data_supplier()
         if not isinstance(current, dict):
             return
-        merged: dict[str, dict] = {}
-        for sn, payload in current.items():
-            merged[sn] = dict(payload)
+        merged = dict(current)
         for sn, sessions in updates.items():
-            entry = merged.setdefault(sn, {})
+            existing = current.get(sn)
+            entry = dict(existing) if isinstance(existing, dict) else {}
             entry["energy_today_sessions"] = sessions
             entry["energy_today_sessions_kwh"] = self._sum_session_energy(sessions)
+            merged[sn] = entry
         self._publish_callback(merged)
+
+    async def _async_refresh_filter_criteria(
+        self,
+        criteria_fetcher: Callable[..., Awaitable[dict]],
+    ) -> None:
+        """Fetch site-scoped filter criteria once per cache window."""
+
+        checked_mono = self._criteria_checked_mono
+        if (
+            checked_mono is not None
+            and (time.monotonic() - checked_mono) < self._cache_ttl
+        ):
+            return
+
+        async with self._criteria_lock:
+            checked_mono = self._criteria_checked_mono
+            if (
+                checked_mono is not None
+                and (time.monotonic() - checked_mono) < self._cache_ttl
+            ):
+                return
+            await criteria_fetcher(request_id=str(uuid.uuid4()))
+            self._criteria_checked_mono = time.monotonic()
 
     async def _async_fetch_sessions_today(
         self,
@@ -367,47 +391,44 @@ class SessionHistoryManager:
 
         criteria_fetcher = getattr(client, "session_history_filter_criteria", None)
         if callable(criteria_fetcher):
-            last_checked = self._criteria_cache.get(sn)
-            if last_checked is None or (now_mono - last_checked) >= self._cache_ttl:
-                try:
-                    await criteria_fetcher(request_id=str(uuid.uuid4()))
-                    self._criteria_cache[sn] = now_mono
-                except SessionHistoryUnavailable as err:
-                    self._logger.debug(
-                        "Session history criteria unavailable for %s: %s", sn, err
-                    )
-                    if cached:
-                        self._note_service_unavailable(err, using_stale=True)
-                        return cached[1]
-                    self._note_service_unavailable(err)
-                    self._set_cache_entry(sn, day_key, now_mono, [])
-                    return []
-                except Unauthorized as err:
-                    self._logger.debug(
-                        "Session history criteria unauthorized for %s: %s", sn, err
-                    )
-                    self._set_cache_entry(sn, day_key, now_mono, [])
-                    return []
-                except aiohttp.ClientResponseError as err:
-                    self._logger.debug(
-                        "Session history criteria error for %s: %s (%s)",
-                        sn,
-                        err.status,
-                        err.message,
-                    )
-                    if err.status in (500, 502, 503, 504, 550):
-                        self._block_until[sn] = now_mono + self._failure_backoff
-                    self._set_cache_entry(sn, day_key, now_mono, [])
-                    return []
-                except Exception as err:  # noqa: BLE001
-                    self._logger.debug(
-                        "Session history criteria failed for %s: %s", sn, err
-                    )
-                    if cached:
-                        self._note_service_unavailable(err, using_stale=True)
-                        return cached[1]
-                    self._set_cache_entry(sn, day_key, now_mono, [])
-                    return []
+            try:
+                await self._async_refresh_filter_criteria(criteria_fetcher)
+            except SessionHistoryUnavailable as err:
+                self._logger.debug(
+                    "Session history criteria unavailable for %s: %s", sn, err
+                )
+                if cached:
+                    self._note_service_unavailable(err, using_stale=True)
+                    return cached[1]
+                self._note_service_unavailable(err)
+                self._set_cache_entry(sn, day_key, now_mono, [])
+                return []
+            except Unauthorized as err:
+                self._logger.debug(
+                    "Session history criteria unauthorized for %s: %s", sn, err
+                )
+                self._set_cache_entry(sn, day_key, now_mono, [])
+                return []
+            except aiohttp.ClientResponseError as err:
+                self._logger.debug(
+                    "Session history criteria error for %s: %s (%s)",
+                    sn,
+                    err.status,
+                    err.message,
+                )
+                if err.status in (500, 502, 503, 504, 550):
+                    self._block_until[sn] = now_mono + self._failure_backoff
+                self._set_cache_entry(sn, day_key, now_mono, [])
+                return []
+            except Exception as err:  # noqa: BLE001
+                self._logger.debug(
+                    "Session history criteria failed for %s: %s", sn, err
+                )
+                if cached:
+                    self._note_service_unavailable(err, using_stale=True)
+                    return cached[1]
+                self._set_cache_entry(sn, day_key, now_mono, [])
+                return []
 
         async def _fetch_page(offset: int, limit: int) -> tuple[list[dict], bool]:
             payload = await client.session_history(
@@ -564,9 +585,6 @@ class SessionHistoryManager:
                 self._block_until.pop(sn, None)
 
         if active_set is not None:
-            for sn in list(self._criteria_cache):
-                if sn not in active_set:
-                    self._criteria_cache.pop(sn, None)
             self._refresh_in_progress.intersection_update(active_set)
 
     def clear(self) -> None:
@@ -576,7 +594,7 @@ class SessionHistoryManager:
         self._enrichment_tasks.clear()
         self._cache.clear()
         self._block_until.clear()
-        self._criteria_cache.clear()
+        self._criteria_checked_mono = None
         self._refresh_in_progress.clear()
 
     def set_fetch_override(
