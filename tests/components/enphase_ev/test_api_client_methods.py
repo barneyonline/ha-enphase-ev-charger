@@ -3824,6 +3824,11 @@ async def test_set_battery_settings_uses_requested_schedule_type_for_xsrf() -> N
 async def test_set_battery_settings_retries_403_with_lean_official_web_variant(
     caplog,
 ) -> None:
+    def _get_bootstrap() -> _FakeResponse:
+        response = _FakeResponse(status=500, json_body={})
+        response.headers = CIMultiDict()
+        return response
+
     validate_primary = _FakeResponse(status=200, json_body={"isValid": True})
     validate_primary.headers = CIMultiDict(
         [("Set-Cookie", "BP-XSRF-Token=cfg-token; Path=/; Secure")]
@@ -3860,14 +3865,21 @@ async def test_set_battery_settings_retries_403_with_lean_official_web_variant(
         json_body={},
         text_body='{"timestamp":"2026-04-11T06:16:00.687+00:00","status":403}',
     )
+    # Each _acquire_xsrf_token attempt now issues a GET siteSettings bootstrap
+    # first, falling back to the legacy POST isValid when the response lacks
+    # an ``x-csrf-token`` header. Feed a failing GET ahead of every validate.
     session = _FakeSession(
         [
+            _get_bootstrap(),
             validate_primary,
             initial_write,
+            _get_bootstrap(),
             validate_fallback,
             fallback_write,
+            _get_bootstrap(),
             validate_cookie,
             cookie_write,
+            _get_bootstrap(),
             validate_mixed,
             mixed_write,
         ]
@@ -3890,19 +3902,26 @@ async def test_set_battery_settings_retries_403_with_lean_official_web_variant(
             await client.set_battery_settings({"veryLowSoc": 15})
 
     assert err.value.status == 403
-    assert len(session.calls) == 8
-    assert session.calls[0][0] == "POST"
-    assert session.calls[1][0] == "PUT"
-    assert session.calls[2][0] == "POST"
-    assert session.calls[3][0] == "PUT"
-    assert session.calls[4][0] == "POST"
-    assert session.calls[5][0] == "PUT"
-    assert session.calls[6][0] == "POST"
-    assert session.calls[7][0] == "PUT"
-    primary_headers = session.calls[1][2]["headers"]
-    fallback_headers = session.calls[3][2]["headers"]
-    cookie_headers = session.calls[5][2]["headers"]
-    mixed_headers = session.calls[7][2]["headers"]
+    assert len(session.calls) == 12
+    # Each attempt: GET siteSettings (bootstrap) + POST isValid + PUT write.
+    assert [call[0] for call in session.calls] == [
+        "GET",
+        "POST",
+        "PUT",
+        "GET",
+        "POST",
+        "PUT",
+        "GET",
+        "POST",
+        "PUT",
+        "GET",
+        "POST",
+        "PUT",
+    ]
+    primary_headers = session.calls[2][2]["headers"]
+    fallback_headers = session.calls[5][2]["headers"]
+    cookie_headers = session.calls[8][2]["headers"]
+    mixed_headers = session.calls[11][2]["headers"]
     assert "Authorization" not in primary_headers
     assert primary_headers["e-auth-token"] == primary_token
     assert "requestid" in primary_headers
@@ -4635,11 +4654,13 @@ async def test_request_session_cookie_header_only_uses_ephemeral_client_session(
 @pytest.mark.asyncio
 async def test_acquire_xsrf_token_uses_requested_validation_payload() -> None:
     token = _make_token({"user_id": "88"})
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict(
         [("Set-Cookie", "BP-XSRF-Token=fresh-token; Path=/; Secure")]
     )
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
     client.update_credentials(
         eauth=token,
@@ -4649,7 +4670,7 @@ async def test_acquire_xsrf_token_uses_requested_validation_payload() -> None:
     out = await client._acquire_xsrf_token("dtg")  # noqa: SLF001
 
     assert out == "fresh-token"
-    method, url, kwargs = session.calls[0]
+    method, url, kwargs = session.calls[1]
     assert method == "POST"
     assert url.endswith(
         "/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
@@ -4704,17 +4725,19 @@ async def test_validate_battery_schedule_cfg_payload_keeps_force_schedule_opted(
 @pytest.mark.asyncio
 async def test_acquire_xsrf_token_uses_official_web_headers() -> None:
     token = _make_token({"user_id": "88"})
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict(
         [("Set-Cookie", "BP-XSRF-Token=fresh-token; Path=/; Secure")]
     )
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
     client.update_credentials(eauth=token, cookie="session=1")
 
     await client._acquire_xsrf_token()  # noqa: SLF001
 
-    headers = session.calls[0][2]["headers"]
+    headers = session.calls[1][2]["headers"]
     assert "Authorization" not in headers
     assert headers["e-auth-token"] == token
     assert headers["Username"] == "88"
@@ -4735,6 +4758,8 @@ async def test_acquire_xsrf_token_uses_getall_fallback_and_handles_bad_cookie() 
         def __str__(self) -> str:
             raise RuntimeError("boom")
 
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict(
         [
@@ -4742,7 +4767,7 @@ async def test_acquire_xsrf_token_uses_getall_fallback_and_handles_bad_cookie() 
             ("Set-Cookie", "BP-XSRF-Token=fallback-token; Path=/; Secure"),
         ]
     )
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
     client.update_credentials(eauth=token, cookie="session=1")
     client._cookie = _BadStringCookie()  # noqa: SLF001
@@ -4750,14 +4775,16 @@ async def test_acquire_xsrf_token_uses_getall_fallback_and_handles_bad_cookie() 
     out = await client._acquire_xsrf_token()  # noqa: SLF001
 
     assert out == "fallback-token"
-    assert "Cookie" not in session.calls[0][2]["headers"]
+    assert "Cookie" not in session.calls[1][2]["headers"]
 
 
 @pytest.mark.asyncio
 async def test_acquire_xsrf_token_uses_plain_header_get_fallback() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = {}
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = {"Set-Cookie": "BP-XSRF-Token=plain-header-token; Path=/;"}
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
 
     out = await client._acquire_xsrf_token()  # noqa: SLF001
@@ -4767,9 +4794,11 @@ async def test_acquire_xsrf_token_uses_plain_header_get_fallback() -> None:
 
 @pytest.mark.asyncio
 async def test_acquire_xsrf_token_returns_none_when_cookie_missing() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict()
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
 
     assert await client._acquire_xsrf_token() is None  # noqa: SLF001
@@ -4791,11 +4820,13 @@ async def test_acquire_xsrf_token_returns_none_when_request_raises(caplog) -> No
 
 @pytest.mark.asyncio
 async def test_acquire_xsrf_token_returns_none_for_empty_decoded_cookie() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict(
         [("Set-Cookie", "BP-XSRF-Token=fresh-token; Path=/; Secure")]
     )
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
 
     with pytest.MonkeyPatch.context() as monkeypatch:
@@ -4805,10 +4836,12 @@ async def test_acquire_xsrf_token_returns_none_for_empty_decoded_cookie() -> Non
 
 @pytest.mark.asyncio
 async def test_acquire_xsrf_token_uses_response_cookies_when_header_missing() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict()
     response.cookies = {"bp-xsrf-token": SimpleNamespace(value="fresh-token")}
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
 
     assert await client._acquire_xsrf_token() == "fresh-token"  # noqa: SLF001
@@ -4816,9 +4849,11 @@ async def test_acquire_xsrf_token_uses_response_cookies_when_header_missing() ->
 
 @pytest.mark.asyncio
 async def test_acquire_xsrf_token_falls_back_to_session_cookie_jar() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=200, json_body={"isValid": True})
     response.headers = CIMultiDict()
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     request_url = URL(
         f"{api.BASE_URL}/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
     )
@@ -4840,10 +4875,201 @@ async def test_acquire_xsrf_token_falls_back_to_session_cookie_jar() -> None:
 
 
 @pytest.mark.asyncio
+async def test_acquire_xsrf_token_uses_get_bootstrap_response_header() -> None:
+    """GET siteSettings returns x-csrf-token header — the EMEA web UI flow.
+
+    Regression coverage for BatteryConfig 403 loops on sites where the
+    legacy POST ``schedules/isValid`` bootstrap is rejected without ever
+    issuing a Set-Cookie. See GitHub issue #460.
+    """
+
+    token = _make_token({"user_id": "88"})
+    bootstrap = _FakeResponse(status=200, json_body={"settings": {}})
+    bootstrap.headers = CIMultiDict([("x-csrf-token", "header-token")])
+    session = _FakeSession([bootstrap])
+    client = _make_client(session)
+    client.update_credentials(eauth=token, cookie="session=1")
+
+    out = await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert out == "header-token"
+    assert len(session.calls) == 1
+    method, url, kwargs = session.calls[0]
+    assert method == "GET"
+    assert url.endswith("/service/batteryConfig/api/v1/siteSettings/SITE")
+    assert kwargs.get("params") == {"userId": "88"}
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_get_bootstrap_trims_header_whitespace() -> None:
+    token = _make_token({"user_id": "88"})
+    bootstrap = _FakeResponse(status=200, json_body={})
+    bootstrap.headers = CIMultiDict([("X-CSRF-Token", "  padded-token  ")])
+    session = _FakeSession([bootstrap])
+    client = _make_client(session)
+    client.update_credentials(eauth=token, cookie="session=1")
+
+    assert await client._acquire_xsrf_token() == "padded-token"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_get_bootstrap_falls_back_to_post_on_failure() -> None:
+    """When the GET bootstrap errors, the legacy POST path still runs."""
+
+    token = _make_token({"user_id": "88"})
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    isvalid = _FakeResponse(status=200, json_body={"isValid": True})
+    isvalid.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=post-token; Path=/; Secure")]
+    )
+    session = _FakeSession([bootstrap, isvalid])
+    client = _make_client(session)
+    client.update_credentials(eauth=token, cookie="session=1")
+
+    out = await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert out == "post-token"
+    assert len(session.calls) == 2
+    assert session.calls[0][0] == "GET"
+    assert session.calls[1][0] == "POST"
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_get_bootstrap_ignores_set_cookie_fallthrough() -> (
+    None
+):
+    """GET bootstrap only honors x-csrf-token header; Set-Cookie is for the POST path.
+
+    This preserves the existing retry semantics in ``_battery_config_write_request``
+    which counts each ``_acquire_xsrf_token`` call as one POST validate attempt
+    when the GET does not return the header.
+    """
+
+    token = _make_token({"user_id": "88"})
+    bootstrap = _FakeResponse(status=200, json_body={})
+    bootstrap.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=get-cookie-token; Path=/; Secure")]
+    )
+    isvalid = _FakeResponse(status=200, json_body={"isValid": True})
+    isvalid.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=post-cookie-token; Path=/; Secure")]
+    )
+    session = _FakeSession([bootstrap, isvalid])
+    client = _make_client(session)
+    client.update_credentials(eauth=token, cookie="session=1")
+
+    out = await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert out == "post-cookie-token"
+    assert len(session.calls) == 2
+    assert session.calls[0][0] == "GET"
+    assert session.calls[1][0] == "POST"
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_get_bootstrap_no_user_id_skips_params() -> None:
+    bootstrap = _FakeResponse(status=200, json_body={})
+    bootstrap.headers = CIMultiDict([("x-csrf-token", "header-token")])
+    session = _FakeSession([bootstrap])
+    client = _make_client(session)
+
+    assert await client._acquire_xsrf_token() == "header-token"  # noqa: SLF001
+    assert session.calls[0][2].get("params") is None
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_post_fallback_reads_response_header() -> None:
+    """POST isValid path also accepts x-csrf-token in the response header."""
+
+    token = _make_token({"user_id": "88"})
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    isvalid = _FakeResponse(status=200, json_body={"isValid": True})
+    isvalid.headers = CIMultiDict([("x-csrf-token", "post-header-token")])
+    session = _FakeSession([bootstrap, isvalid])
+    client = _make_client(session)
+    client.update_credentials(eauth=token, cookie="session=1")
+
+    out = await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert out == "post-header-token"
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_get_bootstrap_without_headers_attr() -> None:
+    """Defensive: response objects missing a mapping-style ``headers`` attribute."""
+
+    class _HeaderlessResponse:
+        def __init__(self) -> None:
+            self.status = 200
+            self.headers = None
+            self.cookies = None
+
+        async def __aenter__(self) -> "_HeaderlessResponse":
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> bool:
+            return False
+
+        async def json(self):
+            return {}
+
+    isvalid = _FakeResponse(status=200, json_body={"isValid": True})
+    isvalid.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=post-token; Path=/; Secure")]
+    )
+
+    class _MixedSession:
+        def __init__(self) -> None:
+            self._responses: list[object] = [_HeaderlessResponse(), isvalid]
+            self.calls: list[tuple[str, str, dict]] = []
+            self.cookie_jar = aiohttp.CookieJar()
+
+        def request(self, method: str, url: str, **kwargs):
+            resp = self._responses.pop(0)
+            self.calls.append((method, url, kwargs))
+            return resp
+
+    session = _MixedSession()
+    client = _make_client(session)
+
+    out = await client._acquire_xsrf_token()  # noqa: SLF001
+
+    assert out == "post-token"
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_post_fallback_tolerates_unquote_errors(
+    monkeypatch,
+) -> None:
+    """The POST Set-Cookie parser tolerates ``unquote`` raising."""
+
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    isvalid = _FakeResponse(status=200, json_body={"isValid": True})
+    isvalid.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=raw-token; Path=/; Secure")]
+    )
+    session = _FakeSession([bootstrap, isvalid])
+    client = _make_client(session)
+
+    def _boom(_value: str) -> str:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(api, "unquote", _boom)
+
+    assert await client._acquire_xsrf_token() == "raw-token"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_acquire_xsrf_token_keeps_existing_token_on_bootstrap_403() -> None:
+    bootstrap = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=403, json_body={"error": "Forbidden"})
     response.headers = CIMultiDict()
-    session = _FakeSession([response])
+    session = _FakeSession([bootstrap, response])
     request_url = URL(
         f"{api.BASE_URL}/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
     )
