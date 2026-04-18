@@ -1436,7 +1436,6 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         "session_cost_state",
         "manual_override",
         "charge_profile_stack_level",
-        "session_id",
         "start",
         "end",
         "active_charge_time_s",
@@ -1444,7 +1443,6 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
         "session_charge_level",
         "session_auth_status",
         "session_auth_type",
-        "session_auth_identifier",
         "session_auth_token_present",
     )
 
@@ -1998,14 +1996,6 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             round(converted_range, 3) if converted_range is not None else None
         )
         result["session_duration_min"] = duration_min
-        session_id = session_data.get("session_id")
-        if session_id is not None:
-            try:
-                result["session_id"] = str(session_id)
-            except Exception:  # noqa: BLE001
-                result["session_id"] = session_id
-        else:
-            result["session_id"] = None
 
         start_at = _localize(session_data.get("start") or data.get("session_start"))
         end_at = _localize(session_data.get("end") or data.get("session_end"))
@@ -2032,11 +2022,6 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             session_data.get("session_auth_type")
             if session_data.get("session_auth_type") is not None
             else data.get("session_auth_type")
-        )
-        result["session_auth_identifier"] = (
-            session_data.get("session_auth_identifier")
-            if session_data.get("session_auth_identifier") is not None
-            else data.get("session_auth_identifier")
         )
         auth_token_flag = session_data.get(
             "session_auth_token_present", data.get("session_auth_token_present")

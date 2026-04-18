@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Callable
 
+import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
@@ -279,6 +280,12 @@ class EVSETimeseriesManager:
                         err,
                         using_stale=self._lifetime_cache is not None,
                     )
+                except aiohttp.ClientResponseError as err:
+                    self._note_service_unavailable(
+                        "lifetime",
+                        err,
+                        using_stale=self._lifetime_cache is not None,
+                    )
                 except Exception as err:  # noqa: BLE001
                     self._logger.debug(
                         "Failed to refresh EVSE lifetime timeseries: %s", err
@@ -300,6 +307,12 @@ class EVSETimeseriesManager:
                         using_stale=day_key in self._daily_cache,
                     )
                 except InvalidPayloadError as err:
+                    self._note_service_unavailable(
+                        "daily",
+                        err,
+                        using_stale=day_key in self._daily_cache,
+                    )
+                except aiohttp.ClientResponseError as err:
                     self._note_service_unavailable(
                         "daily",
                         err,
