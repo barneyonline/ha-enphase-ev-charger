@@ -300,8 +300,12 @@ async def async_setup_entry(
             entry.entry_id,
             domain="select",
             active_unique_ids=active_unique_ids,
-            is_managed=lambda unique_id: unique_id.endswith(
-                ("_charge_mode_select", "_schedule_selected")
+            is_managed=lambda unique_id: (
+                unique_id.endswith("_charge_mode_select")
+                or (
+                    unique_id.endswith("_schedule_selected")
+                    and not unique_id.startswith(f"{DOMAIN}_site_")
+                )
             ),
         )
 

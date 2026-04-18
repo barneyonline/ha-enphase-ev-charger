@@ -9,7 +9,10 @@ import pytest
 from custom_components.enphase_ev.battery_schedule_editor import (
     BatteryScheduleEditorManager,
 )
-from custom_components.enphase_ev.const import OPT_BATTERY_SCHEDULES_ENABLED
+from custom_components.enphase_ev.const import (
+    OPT_BATTERY_SCHEDULES_ENABLED,
+    OPT_SCHEDULE_SYNC_ENABLED,
+)
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.time import (
     BatteryScheduleEditEndTimeEntity,
@@ -60,7 +63,10 @@ def _attach_runtime(
     object.__setattr__(
         config_entry,
         "options",
-        {OPT_BATTERY_SCHEDULES_ENABLED: editor is not None},
+        {
+            OPT_BATTERY_SCHEDULES_ENABLED: editor is not None,
+            OPT_SCHEDULE_SYNC_ENABLED: False,
+        },
     )
     config_entry.runtime_data = EnphaseRuntimeData(
         coordinator=coord,

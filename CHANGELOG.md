@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- None
+- Defaulted both `Enable EV Charger Scheduler` and `Enable Battery Scheduler` integration options to on for entries that have not explicitly chosen a scheduler setting yet.
 
 ### 🔄 Other changes
 - None

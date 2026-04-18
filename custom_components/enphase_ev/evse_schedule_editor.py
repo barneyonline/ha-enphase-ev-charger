@@ -7,7 +7,7 @@ import uuid
 
 from homeassistant.core import CALLBACK_TYPE, callback
 
-from .const import OPT_SCHEDULE_SYNC_ENABLED
+from .const import DEFAULT_SCHEDULE_SYNC_ENABLED, OPT_SCHEDULE_SYNC_ENABLED
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity
 from .labels import evse_schedule_create_label as _evse_schedule_create_label
@@ -74,7 +74,12 @@ def days_list_from_editor(flags: dict[str, bool]) -> list[int]:
 def evse_scheduler_enabled(entry: EnphaseConfigEntry | None) -> bool:
     if entry is None:
         return False
-    return bool(getattr(entry, "options", {}).get(OPT_SCHEDULE_SYNC_ENABLED, False))
+    return bool(
+        getattr(entry, "options", {}).get(
+            OPT_SCHEDULE_SYNC_ENABLED,
+            DEFAULT_SCHEDULE_SYNC_ENABLED,
+        )
+    )
 
 
 def evse_schedule_create_label(*, hass: object | None = None) -> str:

@@ -447,6 +447,12 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
 ):
     from custom_components.enphase_ev.button import (
         CancelPendingProfileChangeButton,
+        BatteryForceRefreshButton,
+        BatteryScheduleDeleteButton,
+        BatteryScheduleSaveButton,
+        EvseScheduleDeleteButton,
+        EvseScheduleRefreshButton,
+        EvseScheduleSaveButton,
         RequestGridToggleOtpButton,
         StormAlertOptOutButton,
         StartChargeButton,
@@ -477,10 +483,21 @@ async def test_button_platform_async_setup_entry_filters_known_serials(
     assert isinstance(added[0][0], CancelPendingProfileChangeButton)
     assert isinstance(added[0][1], RequestGridToggleOtpButton)
     assert isinstance(added[0][2], StormAlertOptOutButton)
-    start_entity, stop_entity = added[1]
+    assert any(isinstance(entity, BatteryForceRefreshButton) for entity in added[0])
+    assert any(isinstance(entity, BatteryScheduleSaveButton) for entity in added[0])
+    assert any(isinstance(entity, BatteryScheduleDeleteButton) for entity in added[0])
+    start_entity = next(
+        entity for entity in added[1] if isinstance(entity, StartChargeButton)
+    )
+    stop_entity = next(
+        entity for entity in added[1] if isinstance(entity, StopChargeButton)
+    )
     assert isinstance(start_entity, StartChargeButton)
     assert isinstance(stop_entity, StopChargeButton)
     assert start_entity._sn == stop_entity._sn == "5555"
+    assert any(isinstance(entity, EvseScheduleRefreshButton) for entity in added[1])
+    assert any(isinstance(entity, EvseScheduleSaveButton) for entity in added[1])
+    assert any(isinstance(entity, EvseScheduleDeleteButton) for entity in added[1])
     assert len(listeners) == 1
 
     added.clear()

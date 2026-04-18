@@ -409,6 +409,8 @@ async def test_dtg_schedule_enabled_allows_toggle_while_schedule_pending(
                 "show": True,
                 "showDaySchedule": True,
                 "scheduleSupported": True,
+                "startTime": 1080,
+                "endTime": 1380,
             }
         },
         schedule_type="dtg",
@@ -2701,6 +2703,8 @@ async def test_dtg_schedule_enabled_uses_in_place_put(
                 "show": True,
                 "showDaySchedule": True,
                 "scheduleSupported": True,
+                "startTime": 1080,
+                "endTime": 1380,
             }
         },
         schedule_type="dtg",
@@ -2796,7 +2800,7 @@ async def test_rbd_schedule_enabled_uses_battery_settings(
 ) -> None:
     coord = coordinator_factory()
     _seed_schedule_family(coord, "rbd")
-    coord.client.set_battery_settings_compat = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={})
     coord.battery_runtime._async_verify_schedule_family_toggle_applied = (
         AsyncMock()
     )  # noqa: SLF001
@@ -2804,19 +2808,18 @@ async def test_rbd_schedule_enabled_uses_battery_settings(
     await coord.async_set_restrict_battery_discharge_schedule_enabled(False)
 
     coord.client.update_battery_schedule.assert_not_awaited()
-    coord.client.set_battery_settings_compat.assert_awaited_once_with(
+    coord.client.set_battery_settings.assert_awaited_once_with(
         {
             "rbdControl": {
                 "enabled": False,
                 "show": True,
                 "showDaySchedule": True,
                 "scheduleSupported": True,
+                "startTime": 60,
+                "endTime": 960,
             }
         },
         schedule_type="rbd",
-        include_source=False,
-        merged_payload=True,
-        strip_devices=True,
     )
     assert coord._battery_rbd_schedule_enabled is False  # noqa: SLF001
 
@@ -2828,26 +2831,25 @@ async def test_rbd_schedule_enabled_allows_toggle_while_schedule_pending(
     coord = coordinator_factory()
     _seed_schedule_family(coord, "rbd")
     coord._battery_rbd_schedule_status = "pending"  # noqa: SLF001
-    coord.client.set_battery_settings_compat = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={})
     coord.battery_runtime._async_verify_schedule_family_toggle_applied = (
         AsyncMock()
     )  # noqa: SLF001
 
     await coord.async_set_restrict_battery_discharge_schedule_enabled(False)
 
-    coord.client.set_battery_settings_compat.assert_awaited_once_with(
+    coord.client.set_battery_settings.assert_awaited_once_with(
         {
             "rbdControl": {
                 "enabled": False,
                 "show": True,
                 "showDaySchedule": True,
                 "scheduleSupported": True,
+                "startTime": 60,
+                "endTime": 960,
             }
         },
         schedule_type="rbd",
-        include_source=False,
-        merged_payload=True,
-        strip_devices=True,
     )
 
 
@@ -2893,7 +2895,7 @@ async def test_rbd_schedule_disabled_without_schedule_uses_battery_settings_togg
 ) -> None:
     coord = coordinator_factory()
     _seed_no_schedule_family(coord, "rbd")
-    coord.client.set_battery_settings_compat = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={})
     coord.battery_runtime._async_verify_schedule_family_toggle_applied = (
         AsyncMock()
     )  # noqa: SLF001
@@ -2901,7 +2903,7 @@ async def test_rbd_schedule_disabled_without_schedule_uses_battery_settings_togg
     await coord.async_set_restrict_battery_discharge_schedule_enabled(False)
 
     coord.client.create_battery_schedule.assert_not_awaited()
-    coord.client.set_battery_settings_compat.assert_awaited_once_with(
+    coord.client.set_battery_settings.assert_awaited_once_with(
         {
             "rbdControl": {
                 "enabled": False,
@@ -2909,12 +2911,11 @@ async def test_rbd_schedule_disabled_without_schedule_uses_battery_settings_togg
                 "locked": False,
                 "showDaySchedule": True,
                 "scheduleSupported": True,
+                "startTime": 60,
+                "endTime": 960,
             }
         },
         schedule_type="rbd",
-        include_source=False,
-        merged_payload=True,
-        strip_devices=True,
     )
     assert coord._battery_rbd_schedule_enabled is False  # noqa: SLF001
 
@@ -3017,7 +3018,7 @@ async def test_rbd_schedule_toggle_unauthorized_uses_schedule_validation_error(
 
     coord = coordinator_factory()
     _seed_schedule_family(coord, "rbd")
-    coord.client.set_battery_settings_compat = AsyncMock(
+    coord.client.set_battery_settings = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
             history=(),
@@ -3633,6 +3634,37 @@ async def test_dtg_toggle_uses_compat_retry_after_service_validation_error(
         == 2
     )
     assert coord._battery_dtg_toggle_target_enabled is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_rbd_toggle_uses_compat_retry_after_service_validation_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "rbd")
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+    coord.client.set_battery_settings_compat = AsyncMock(return_value={})
+    coord.battery_runtime._async_verify_schedule_family_toggle_applied = (
+        AsyncMock(  # noqa: SLF001
+            side_effect=[
+                ServiceValidationError("primary write rejected"),
+                None,
+            ]
+        )
+    )
+
+    await coord.battery_runtime._async_set_schedule_family_enabled(  # noqa: SLF001
+        "rbd",
+        False,
+    )
+
+    coord.client.set_battery_settings.assert_awaited_once()
+    coord.client.set_battery_settings_compat.assert_awaited_once()
+    assert (
+        coord.battery_runtime._async_verify_schedule_family_toggle_applied.await_count  # noqa: SLF001
+        == 2
+    )
+    assert coord._battery_rbd_toggle_target_enabled is None  # noqa: SLF001
 
 
 def test_coordinator_schedule_support_and_effective_enabled_branches(

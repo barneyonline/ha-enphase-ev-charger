@@ -14,6 +14,7 @@ from custom_components.enphase_ev.battery_schedule_editor import (
     BatteryScheduleEditorManager,
     BatteryScheduleRecord,
     NEW_SCHEDULE_OPTION,
+    battery_scheduler_enabled,
     editor_days_from_list,
     _normalize_days,
     _time_to_text,
@@ -164,6 +165,13 @@ def test_battery_schedule_inventory_normalizes_payload_and_fallbacks() -> None:
     assert [record.schedule_id for record in fallback_records] == ["789abc", "fedcba"]
     assert fallback_records[1].start_time == "18:00"
     assert fallback_records[1].end_time == "22:00"
+
+
+def test_battery_scheduler_enabled_defaults_true_when_option_missing() -> None:
+    config_entry = SimpleNamespace(options={})
+
+    assert battery_scheduler_enabled(config_entry) is True
+    assert battery_scheduler_enabled(None) is False
 
 
 def test_battery_schedule_editor_manager_syncs_and_resets_selection() -> None:
@@ -644,6 +652,137 @@ async def test_battery_schedule_platform_setup_skips_editor_when_option_disabled
 
 
 @pytest.mark.asyncio
+async def test_battery_schedule_select_setup_does_not_prune_site_selector(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.select import async_setup_entry
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    monkeypatch.setattr(
+        coord, "async_add_listener", lambda callback: (lambda: None), raising=False
+    )
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: (lambda: None),
+        raising=False,
+    )
+    _attach_editor_runtime(config_entry, coord)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "select",
+        DOMAIN,
+        f"{DOMAIN}_site_{coord.site_id}_battery_schedule_selected",
+        config_entry=config_entry,
+    )
+    assert stale is not None
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert (
+        ent_reg.async_get_entity_id(
+            "select",
+            DOMAIN,
+            f"{DOMAIN}_site_{coord.site_id}_battery_schedule_selected",
+        )
+        is not None
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_switch_setup_does_not_prune_site_day_switch(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.enphase_ev.switch import async_setup_entry
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    monkeypatch.setattr(
+        coord, "async_add_listener", lambda callback: (lambda: None), raising=False
+    )
+    _attach_editor_runtime(config_entry, coord)
+
+    ent_reg = er.async_get(hass)
+    stale = ent_reg.async_get_or_create(
+        "switch",
+        DOMAIN,
+        f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_mon",
+        config_entry=config_entry,
+    )
+    assert stale is not None
+
+    await async_setup_entry(hass, config_entry, lambda *_args, **_kwargs: None)
+
+    assert (
+        ent_reg.async_get_entity_id(
+            "switch",
+            DOMAIN,
+            f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_mon",
+        )
+        is not None
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_switch_setup_adds_day_switches_after_topology_ready(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.switch import BatteryScheduleEditorDaySwitch
+    from custom_components.enphase_ev.switch import async_setup_entry
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    coord._devices_inventory_ready = False  # noqa: SLF001
+
+    generic_callbacks: list[object] = []
+    topology_callbacks: list[object] = []
+
+    monkeypatch.setattr(
+        coord,
+        "async_add_listener",
+        lambda callback: generic_callbacks.append(callback) or (lambda: None),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: topology_callbacks.append(callback) or (lambda: None),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        coord.inventory_view,
+        "has_type_for_entities",
+        lambda type_key: coord._devices_inventory_ready and type_key == "encharge",
+        raising=False,
+    )
+    _attach_editor_runtime(config_entry, coord)
+
+    added: list[object] = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert not any(
+        isinstance(entity, BatteryScheduleEditorDaySwitch) for entity in added
+    )
+    assert topology_callbacks
+
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    for callback in topology_callbacks:
+        callback()
+
+    assert any(isinstance(entity, BatteryScheduleEditorDaySwitch) for entity in added)
+
+
+@pytest.mark.asyncio
 async def test_battery_schedule_platform_setup_keeps_entities_when_write_access_unconfirmed(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -877,6 +1016,53 @@ async def test_battery_schedule_save_button_updates_selected_schedule_by_default
     await save_button.async_press()
 
     assert service_calls == [(DOMAIN, "update_schedule")]
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_buttons_use_selected_schedule_family(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.button import (
+        BatteryScheduleDeleteButton,
+        BatteryScheduleSaveButton,
+    )
+    from custom_components.enphase_ev.select import BatteryScheduleSelect
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    editor = _attach_editor_runtime(config_entry, coord)
+
+    service_calls: list[tuple[str, str, dict[str, object]]] = []
+
+    async def fake_async_call(
+        self, domain, service, service_data=None, blocking=False, **kwargs
+    ):
+        service_calls.append((domain, service, service_data or {}))
+
+    monkeypatch.setattr(hass.services.__class__, "async_call", fake_async_call)
+
+    schedule_select = BatteryScheduleSelect(coord, config_entry)
+    schedule_select.hass = hass
+    await schedule_select.async_select_option(
+        battery_schedule_option_label(editor.schedules[1])
+    )
+
+    editor.edit.schedule_type = "cfg"
+
+    save_button = BatteryScheduleSaveButton(coord, config_entry)
+    delete_button = BatteryScheduleDeleteButton(coord, config_entry)
+    save_button.hass = hass
+    delete_button.hass = hass
+
+    await save_button.async_press()
+    await delete_button.async_press()
+
+    assert service_calls[0][0:2] == (DOMAIN, "update_schedule")
+    assert service_calls[0][2]["schedule_id"] == "def456"
+    assert service_calls[0][2]["schedule_type"] == "dtg"
+    assert service_calls[1][0:2] == (DOMAIN, "delete_schedule")
+    assert service_calls[1][2]["schedule_id"] == "def456"
+    assert service_calls[1][2]["schedule_type"] == "dtg"
 
 
 @pytest.mark.asyncio
@@ -1237,6 +1423,57 @@ async def test_battery_schedule_services_support_crud_and_validation(
                 }
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_services_update_uses_inventory_schedule_family(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    update_schedule = registered[(DOMAIN, "update_schedule")]["handler"]
+
+    await update_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_id": "def456",
+                "schedule_type": "cfg",
+                "start_time": dt_time(19, 0),
+                "end_time": dt_time(22, 0),
+                "limit": 41,
+                "days": [2, 4],
+                "confirm": True,
+            }
+        )
+    )
+
+    coord.client.update_battery_schedule.assert_awaited_once_with(
+        "def456",
+        schedule_type="DTG",
+        start_time="19:00",
+        end_time="22:00",
+        limit=41,
+        days=[2, 4],
+        timezone="UTC",
+        is_enabled=False,
+    )
 
 
 @pytest.mark.asyncio

@@ -7,7 +7,10 @@ from typing import Callable
 from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import OPT_BATTERY_SCHEDULES_ENABLED
+from .const import (
+    DEFAULT_BATTERY_SCHEDULES_ENABLED,
+    OPT_BATTERY_SCHEDULES_ENABLED,
+)
 from .coordinator import EnphaseCoordinator
 from .labels import battery_schedule_type_label
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
@@ -74,7 +77,12 @@ def days_list_from_editor(flags: dict[str, bool]) -> list[int]:
 def battery_scheduler_enabled(entry: EnphaseConfigEntry | None) -> bool:
     if entry is None:
         return False
-    return bool(getattr(entry, "options", {}).get(OPT_BATTERY_SCHEDULES_ENABLED, False))
+    return bool(
+        getattr(entry, "options", {}).get(
+            OPT_BATTERY_SCHEDULES_ENABLED,
+            DEFAULT_BATTERY_SCHEDULES_ENABLED,
+        )
+    )
 
 
 def battery_schedule_type_options(

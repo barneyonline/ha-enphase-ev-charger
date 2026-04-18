@@ -1989,6 +1989,12 @@ def test_schedule_sync_defaults_without_config_entry(hass) -> None:
     assert sync._sync_enabled() is True
 
 
+def test_schedule_sync_defaults_to_enabled_when_option_missing(hass) -> None:
+    sync = ScheduleSync(hass, SimpleNamespace(), SimpleNamespace(options={}))
+
+    assert sync._sync_enabled() is True
+
+
 def test_schedule_sync_scheduler_backoff_active_requires_callable(hass) -> None:
     sync = ScheduleSync(hass, SimpleNamespace(scheduler_backoff_active=None), None)
     assert sync._scheduler_backoff_active() is False

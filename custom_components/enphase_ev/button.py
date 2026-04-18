@@ -462,9 +462,16 @@ class BatteryScheduleSaveButton(_BatteryScheduleButton):
             return
         success_label = self._schedule_result_label()
         service = "add_schedule" if self._editor.is_creating else "update_schedule"
+        selected_schedule = self._editor.get_schedule(
+            self._editor.edit.selected_schedule_id
+        )
         service_data: dict[str, object] = {
             "config_entry_id": self._entry.entry_id,
-            "schedule_type": self._editor.edit.schedule_type,
+            "schedule_type": (
+                selected_schedule.schedule_type
+                if selected_schedule is not None
+                else self._editor.edit.schedule_type
+            ),
             "start_time": self._editor.edit.start_time,
             "end_time": self._editor.edit.end_time,
             "limit": int(self._editor.edit.limit),
@@ -511,15 +518,21 @@ class BatteryScheduleDeleteButton(_BatteryScheduleButton):
     async def async_press(self) -> None:
         if self._editor is None or self._editor.edit.selected_schedule_id is None:
             return
+        selected_schedule = self._editor.get_schedule(
+            self._editor.edit.selected_schedule_id
+        )
         success_label = self._schedule_result_label()
+        service_data: dict[str, object] = {
+            "config_entry_id": self._entry.entry_id,
+            "schedule_id": self._editor.edit.selected_schedule_id,
+            "confirm": True,
+        }
+        if selected_schedule is not None:
+            service_data["schedule_type"] = selected_schedule.schedule_type
         await self.hass.services.async_call(
             DOMAIN,
             "delete_schedule",
-            {
-                "config_entry_id": self._entry.entry_id,
-                "schedule_id": self._editor.edit.selected_schedule_id,
-                "confirm": True,
-            },
+            service_data,
             blocking=True,
         )
         self._show_success_notification(action="delete", body=success_label)
