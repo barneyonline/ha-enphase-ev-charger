@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone as _tz
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Awaitable, Iterable
 
 import aiohttp
 
@@ -43,6 +43,7 @@ AUTH_SETTINGS_CACHE_TTL = 300.0
 CHARGE_MODE_CACHE_TTL = 300.0
 CHARGER_CONFIG_CACHE_TTL = 3600.0
 CHARGER_CONFIG_FAILURE_BACKOFF_S = 900.0
+EVSE_LOOKUP_CONCURRENCY = 5
 CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
     "MANUAL": "MANUAL_CHARGING",
     "MANUAL_CHARGING": "MANUAL_CHARGING",
@@ -118,9 +119,30 @@ def evse_power_is_actively_charging(
 class EvseRuntime:
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
+        self._lookup_semaphore = asyncio.Semaphore(EVSE_LOOKUP_CONCURRENCY)
 
     def _instance_override(self, name: str) -> object | None:
         return self.coordinator.__dict__.get(name)
+
+    async def _run_lookup_tasks(
+        self,
+        pending: dict[str, Awaitable[object]],
+    ) -> dict[str, object]:
+        """Execute per-serial lookups with a shared concurrency limit."""
+
+        if not pending:
+            return {}
+
+        async def _run(awaitable: Awaitable[object]) -> object:
+            async with self._lookup_semaphore:
+                return await awaitable
+
+        wrapped = {
+            sn: asyncio.create_task(_run(awaitable))
+            for sn, awaitable in pending.items()
+        }
+        responses = await asyncio.gather(*wrapped.values(), return_exceptions=True)
+        return dict(zip(wrapped.keys(), responses, strict=False))
 
     def schedule_session_enrichment(
         self,
@@ -545,10 +567,9 @@ class EvseRuntime:
             if cached is not None:
                 results[sn] = ChargeModeResolution(cached, "cache")
                 continue
-            pending[sn] = asyncio.create_task(self.async_get_charge_mode(sn))
+            pending[sn] = self.async_get_charge_mode(sn)
         if pending:
-            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
-            for sn, response in zip(pending.keys(), responses, strict=False):
+            for sn, response in (await self._run_lookup_tasks(pending)).items():
                 if isinstance(response, Exception):
                     _LOGGER.debug(
                         "Charge mode lookup failed for %s: %s",
@@ -1360,10 +1381,9 @@ class EvseRuntime:
             if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
                 results[sn] = (cached[0], cached[1])
                 continue
-            pending[sn] = asyncio.create_task(self.async_get_green_battery_setting(sn))
+            pending[sn] = self.async_get_green_battery_setting(sn)
         if pending:
-            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
-            for sn, response in zip(pending.keys(), responses, strict=False):
+            for sn, response in (await self._run_lookup_tasks(pending)).items():
                 if isinstance(response, Exception):
                     _LOGGER.debug(
                         "Green battery setting lookup failed for %s: %s",
@@ -1411,10 +1431,9 @@ class EvseRuntime:
             if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
                 results[sn] = cached[0], cached[1], cached[2], cached[3]
                 continue
-            pending[sn] = asyncio.create_task(self.async_get_auth_settings(sn))
+            pending[sn] = self.async_get_auth_settings(sn)
         if pending:
-            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
-            for sn, response in zip(pending.keys(), responses, strict=False):
+            for sn, response in (await self._run_lookup_tasks(pending)).items():
                 if isinstance(response, Exception):
                     _LOGGER.debug(
                         "Auth settings lookup failed for %s: %s",
@@ -1474,12 +1493,9 @@ class EvseRuntime:
                         if key in cached_values
                     }
                     continue
-            pending[sn] = asyncio.create_task(
-                self.async_get_charger_config(sn, keys=requested)
-            )
+            pending[sn] = self.async_get_charger_config(sn, keys=requested)
         if pending:
-            responses = await asyncio.gather(*pending.values(), return_exceptions=True)
-            for sn, response in zip(pending.keys(), responses, strict=False):
+            for sn, response in (await self._run_lookup_tasks(pending)).items():
                 if isinstance(response, Exception):
                     _LOGGER.debug(
                         "Charger config lookup failed for %s: %s",

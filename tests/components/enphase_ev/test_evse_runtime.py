@@ -12,6 +12,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from custom_components.enphase_ev.evse_runtime import (
+    EVSE_LOOKUP_CONCURRENCY,
     FAST_TOGGLE_POLL_HOLD_S,
     ChargeModeResolution,
     ChargeModeStartPreferences,
@@ -207,6 +208,83 @@ async def test_evse_runtime_resolvers_use_runtime_methods(
     runtime.async_get_charge_mode.assert_awaited_once_with("EV1")
     runtime.async_get_green_battery_setting.assert_awaited_once_with("EV1")
     runtime.async_get_auth_settings.assert_awaited_once_with("EV1")
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_run_lookup_tasks_handles_empty_input(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory().evse_runtime
+
+    assert await runtime._run_lookup_tasks({}) == {}  # noqa: SLF001
+
+
+@pytest.mark.parametrize(
+    ("resolver_name", "getter_name", "kwargs", "expected"),
+    [
+        (
+            "async_resolve_charge_modes",
+            "async_get_charge_mode",
+            {},
+            lambda _sn: "GREEN_CHARGING",
+        ),
+        (
+            "async_resolve_green_battery_settings",
+            "async_get_green_battery_setting",
+            {},
+            lambda _sn: (True, True),
+        ),
+        (
+            "async_resolve_auth_settings",
+            "async_get_auth_settings",
+            {},
+            lambda _sn: (True, False, True, True),
+        ),
+        (
+            "async_resolve_charger_config",
+            "async_get_charger_config",
+            {"keys": ["DefaultChargeLevel"]},
+            lambda _sn: {"DefaultChargeLevel": 80},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_evse_runtime_resolvers_limit_lookup_concurrency(
+    coordinator_factory,
+    resolver_name,
+    getter_name,
+    kwargs,
+    expected,
+) -> None:
+    coord = coordinator_factory(serials=[f"EV{i:02d}" for i in range(12)])
+    runtime = coord.evse_runtime
+    current = 0
+    peak = 0
+
+    async def _fake_get(sn: str, **_kwargs):
+        nonlocal current, peak
+        current += 1
+        peak = max(peak, current)
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        current -= 1
+        return expected(sn)
+
+    setattr(runtime, getter_name, _fake_get)
+
+    resolver = getattr(runtime, resolver_name)
+    serials = [f"EV{i:02d}" for i in range(12)]
+    result = await resolver(serials, **kwargs)
+
+    assert peak == EVSE_LOOKUP_CONCURRENCY
+    expected_value = expected(serials[0])
+    if resolver_name == "async_resolve_charge_modes":
+        assert result[serials[0]] == ChargeModeResolution(
+            expected_value,
+            "scheduler_endpoint",
+        )
+    else:
+        assert result[serials[0]] == expected_value
 
 
 @pytest.mark.asyncio
