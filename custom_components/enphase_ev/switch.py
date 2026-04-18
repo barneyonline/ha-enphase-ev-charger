@@ -35,7 +35,6 @@ from .evse_schedule_editor import (
 )
 from .evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from .log_redaction import redact_identifier
-from .log_redaction import redact_text
 from .runtime_helpers import (
     inventory_type_available as _type_available,
     inventory_type_device_info as _type_device_info,
