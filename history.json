@@ -1,19 +1,8 @@
 {
-  "current_status": "Down",
-  "generated_at": "2026-04-18T22:34:13.273824Z",
+  "current_status": "Fully Operational",
+  "generated_at": "2026-04-18T23:33:53.345599Z",
   "retention_days": 30,
   "samples": [
-    {
-      "checked_at": "2026-03-19T23:21:29.050665Z",
-      "checks_failed": 4,
-      "failed_check_names": [
-        "charger_status",
-        "scheduler_charge_mode",
-        "scheduler_green_settings",
-        "scheduler_schedules"
-      ],
-      "status": "Down"
-    },
     {
       "checked_at": "2026-03-20T01:15:11.996437Z",
       "checks_failed": 0,
@@ -4111,6 +4100,14 @@
         "evse_scheduler"
       ],
       "status": "Down"
+    },
+    {
+      "checked_at": "2026-04-18T23:33:53.345599Z",
+      "checks_failed": 1,
+      "failed_check_names": [
+        "battery_config"
+      ],
+      "status": "Fully Operational"
     }
   ]
 }
