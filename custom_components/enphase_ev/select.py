@@ -36,6 +36,10 @@ from .labels import (
     battery_schedule_create_label,
     charge_mode_label,
 )
+from .runtime_helpers import (
+    inventory_type_available as _type_available,
+    inventory_type_device_info as _type_device_info,
+)
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -99,14 +103,6 @@ def _english_charge_mode_label(mode: str) -> str | None:
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
     return has_encharge is not False
-
-
-def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    return bool(coord.inventory_view.has_type_for_entities(type_key))
-
-
-def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | None:
-    return coord.inventory_view.type_device_info(type_key)
 
 
 def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:

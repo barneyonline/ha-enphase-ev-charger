@@ -3,12 +3,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from homeassistant.util import dt as dt_util
 
 from .log_redaction import redact_text
+from .parsing_helpers import coerce_optional_text as _text
+from .runtime_helpers import (
+    iso_or_none as _iso_or_none,
+    monotonic_deadline_to_utc_iso as _mono_to_utc_iso,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,33 +110,3 @@ def _normalize_details(payload: Any) -> dict[str, dict[str, Any]]:
         details[serial] = dict(item)
     return details
 
-
-def _iso_or_none(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    try:
-        return value.isoformat()
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _mono_to_utc_iso(target_mono: float) -> str | None:
-    now_mono = time.monotonic()
-    try:
-        target_value = float(target_mono)
-    except Exception:  # noqa: BLE001
-        return None
-    if target_value <= 0 or target_value <= now_mono:
-        return None
-    delta_seconds = target_value - now_mono
-    return _iso_or_none(dt_util.utcnow() + timedelta(seconds=delta_seconds))
-
-
-def _text(value: Any) -> str | None:
-    if value is None:
-        return None
-    try:
-        text = str(value).strip()
-    except Exception:  # noqa: BLE001
-        return None
-    return text or None

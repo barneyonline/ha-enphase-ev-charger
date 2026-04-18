@@ -31,6 +31,10 @@ from .entity import EnphaseBaseEntity, battery_schedule_extra_state_attributes
 from .entity_cleanup import prune_managed_entities
 from .evse_runtime import FAST_TOGGLE_POLL_HOLD_S
 from .log_redaction import redact_identifier, redact_text
+from .runtime_helpers import (
+    inventory_type_available as _type_available,
+    inventory_type_device_info as _type_device_info,
+)
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -84,14 +88,6 @@ def _migrated_switch_entity_id(
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
     return has_encharge is not False
-
-
-def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    return bool(coord.inventory_view.has_type_for_entities(type_key))
-
-
-def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | None:
-    return coord.inventory_view.type_device_info(type_key)
 
 
 def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:

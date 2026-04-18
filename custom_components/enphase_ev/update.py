@@ -23,15 +23,13 @@ from .firmware_catalog import (
     select_catalog_entry,
 )
 from .log_redaction import redact_identifier, redact_text
+from .parsing_helpers import coerce_optional_text as _text
+from .runtime_helpers import inventory_type_available as _type_available
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    return bool(coord.inventory_view.has_type_for_entities(type_key))
 
 
 async def async_setup_entry(
@@ -515,12 +513,3 @@ def _as_int(value: Any) -> int | None:
     except Exception:  # noqa: BLE001
         return None
 
-
-def _text(value: Any) -> str | None:
-    if value is None:
-        return None
-    try:
-        text = str(value).strip()
-    except Exception:  # noqa: BLE001
-        return None
-    return text or None
