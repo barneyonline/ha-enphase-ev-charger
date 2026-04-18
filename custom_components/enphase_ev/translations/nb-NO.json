@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Siste vellykkede oppdatering",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Siste suksess (UTC)"
-          },
           "last_failure_utc": {
             "name": "Siste feil (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Sky-latens",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Siste feil (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Siste feilstatus"
-          },
-          "code_description": {
-            "name": "Kodebeskrivelse"
-          },
-          "last_failure_response": {
-            "name": "Siste feilrespons"
-          },
-          "last_failure_source": {
-            "name": "Siste feilkilde"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutter (UTC)"
-          }
-        }
+        "name": "Sky-latens"
       },
       "current_production_power": {
         "name": "Nåværende produksjonseffekt",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Sky-feilkode",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Siste feil (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Siste feilstatus"
-          },
-          "code_description": {
-            "name": "Kodebeskrivelse"
-          },
-          "last_failure_response": {
-            "name": "Siste feilrespons"
-          },
-          "last_failure_source": {
-            "name": "Siste feilkilde"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutter (UTC)"
-          }
-        },
         "state": {
           "none": "Ingen",
           "dns_error": "DNS-feil",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Sky-backoff slutter",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Siste feil (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Siste feilstatus"
-          },
-          "code_description": {
-            "name": "Kodebeskrivelse"
-          },
-          "last_failure_response": {
-            "name": "Siste feilrespons"
-          },
-          "last_failure_source": {
-            "name": "Siste feilkilde"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutter (UTC)"
-          }
-        },
         "state": {
           "none": "Ingen"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Anleggssolproduksjon",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
       "site_consumption": {
         "name": "Anleggsforbruk",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
       "site_grid_import": {
         "name": "Anleggsnettimport",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Siste vindu (s)"
           },
-          "last_report_date": {
-            "name": "Siste rapportdato"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Anleggsnettexport",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
       "site_battery_charge": {
         "name": "Anleggsbatterilading",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Anleggsbatteriutlading",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Siste vindu (s)"
           },
-          "last_report_date": {
-            "name": "Siste rapportdato"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "EVSE-lading for anlegg",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Varmepumpeforbruk for anlegg",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Varmtvannsberederforbruk for anlegg",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdato"
-          },
-          "last_report_date": {
-            "name": "Siste rapportdato"
-          },
-          "bucket_count": {
-            "name": "Antall bøtter"
-          },
-          "source_fields": {
-            "name": "Kildefelt"
-          },
-          "source_unit": {
-            "name": "Kildeenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Målt kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Sist tilbakestilt"
-          },
-          "update_pending": {
-            "name": "Oppdatering venter"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "Varmepumpens SG-Ready aktiv"
       },
       "cloud_reachable": {
-        "name": "Sky tilgjengelig",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Siste feil (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Siste feilstatus"
-          },
-          "code_description": {
-            "name": "Kodebeskrivelse"
-          },
-          "last_failure_response": {
-            "name": "Siste feilrespons"
-          },
-          "last_failure_source": {
-            "name": "Siste feilkilde"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutter (UTC)"
-          }
-        }
+        "name": "Sky tilgjengelig"
       },
       "connected": {
         "name": "Tilkobling",

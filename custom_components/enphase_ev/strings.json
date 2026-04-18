@@ -490,9 +490,6 @@
       "last_successful_update": {
         "name": "Last Successful Update",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Last Success (UTC)"
-          },
           "last_failure_utc": {
             "name": "Last Failure (UTC)"
           },
@@ -514,27 +511,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Cloud Latency",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Last Failure (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Last Failure Status"
-          },
-          "code_description": {
-            "name": "Code Description"
-          },
-          "last_failure_response": {
-            "name": "Last Failure Response"
-          },
-          "last_failure_source": {
-            "name": "Last Failure Source"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
-          }
-        }
+        "name": "Cloud Latency"
       },
       "current_production_power": {
         "name": "Current Production Power",
@@ -555,26 +532,6 @@
       },
       "cloud_error_code": {
         "name": "Cloud Error Code",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Last Failure (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Last Failure Status"
-          },
-          "code_description": {
-            "name": "Code Description"
-          },
-          "last_failure_response": {
-            "name": "Last Failure Response"
-          },
-          "last_failure_source": {
-            "name": "Last Failure Source"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
-          }
-        },
         "state": {
           "none": "None",
           "dns_error": "DNS error",
@@ -583,26 +540,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Cloud Backoff Ends",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Last Failure (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Last Failure Status"
-          },
-          "code_description": {
-            "name": "Code Description"
-          },
-          "last_failure_response": {
-            "name": "Last Failure Response"
-          },
-          "last_failure_source": {
-            "name": "Last Failure Source"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
-          }
-        },
         "state": {
           "none": "None"
         }
@@ -760,87 +697,33 @@
       "site_solar_production": {
         "name": "Site Solar Production",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
       "site_consumption": {
         "name": "Site Consumption",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
       "site_grid_import": {
         "name": "Site Grid Import",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
@@ -862,8 +745,8 @@
           "last_window_seconds": {
             "name": "Last Window (s)"
           },
-          "last_report_date": {
-            "name": "Last Report Date"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
@@ -879,87 +762,33 @@
       "site_grid_export": {
         "name": "Site Grid Export",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
       "site_battery_charge": {
         "name": "Site Battery Charge",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Site Battery Discharge",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
@@ -981,8 +810,8 @@
           "last_window_seconds": {
             "name": "Last Window (s)"
           },
-          "last_report_date": {
-            "name": "Last Report Date"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
@@ -1129,87 +958,33 @@
       "site_evse_charging": {
         "name": "Site EVSE Charging",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Site Heat Pump Consumption",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Site Water Heater Consumption",
         "state_attributes": {
-          "start_date": {
-            "name": "Start Date"
-          },
-          "last_report_date": {
-            "name": "Last Report Date"
-          },
-          "bucket_count": {
-            "name": "Bucket Count"
-          },
-          "source_fields": {
-            "name": "Source Fields"
-          },
-          "source_unit": {
-            "name": "Source Unit"
-          },
-          "interval_minutes": {
-            "name": "Interval (min)"
+          "sampled_at_utc": {
+            "name": "Sampled At (UTC)"
           },
           "last_reset_at": {
             "name": "Last Reset At"
-          },
-          "update_pending": {
-            "name": "Update Pending"
           }
         }
       },
@@ -1293,27 +1068,7 @@
         "name": "Heat Pump SG-Ready Active"
       },
       "cloud_reachable": {
-        "name": "Cloud Reachable",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Last Failure (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Last Failure Status"
-          },
-          "code_description": {
-            "name": "Code Description"
-          },
-          "last_failure_response": {
-            "name": "Last Failure Response"
-          },
-          "last_failure_source": {
-            "name": "Last Failure Source"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff Ends (UTC)"
-          }
-        }
+        "name": "Cloud Reachable"
       },
       "connected": {
         "name": "Connectivity",

@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Ultima actualizare reușită",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Ultimul succes (UTC)"
-          },
           "last_failure_utc": {
             "name": "Ultima eroare (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Latență cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultima eroare (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimul status al erorii"
-          },
-          "code_description": {
-            "name": "Descriere cod"
-          },
-          "last_failure_response": {
-            "name": "Ultimul răspuns de eroare"
-          },
-          "last_failure_source": {
-            "name": "Ultima sursă a erorii"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff se încheie (UTC)"
-          }
-        }
+        "name": "Latență cloud"
       },
       "current_production_power": {
         "name": "Puterea instantanee de producție",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Cod de eroare cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultima eroare (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimul status al erorii"
-          },
-          "code_description": {
-            "name": "Descriere cod"
-          },
-          "last_failure_response": {
-            "name": "Ultimul răspuns de eroare"
-          },
-          "last_failure_source": {
-            "name": "Ultima sursă a erorii"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff se încheie (UTC)"
-          }
-        },
         "state": {
           "none": "Niciunul",
           "dns_error": "Eroare DNS",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Backoff cloud se încheie",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultima eroare (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimul status al erorii"
-          },
-          "code_description": {
-            "name": "Descriere cod"
-          },
-          "last_failure_response": {
-            "name": "Ultimul răspuns de eroare"
-          },
-          "last_failure_source": {
-            "name": "Ultima sursă a erorii"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff se încheie (UTC)"
-          }
-        },
         "state": {
           "none": "Niciunul"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Producție solară locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_consumption": {
         "name": "Consum locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_grid_import": {
         "name": "Import rețea locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Ultima fereastră (s)"
           },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Export rețea locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_battery_charge": {
         "name": "Încărcare baterie locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Descărcare baterie locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Ultima fereastră (s)"
           },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Încărcare EVSE la locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Consum pompă de căldură la locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Consum încălzitor apă la locație",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de început"
-          },
-          "last_report_date": {
-            "name": "Ultima dată de raportare"
-          },
-          "bucket_count": {
-            "name": "Număr de bucketuri"
-          },
-          "source_fields": {
-            "name": "Câmpuri sursă"
-          },
-          "source_unit": {
-            "name": "Unitate sursă"
-          },
-          "interval_minutes": {
-            "name": "Interval (minute)"
+          "sampled_at_utc": {
+            "name": "Eșantionat la (UTC)"
           },
           "last_reset_at": {
             "name": "Ultima resetare"
-          },
-          "update_pending": {
-            "name": "Actualizare în așteptare"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "SG-Ready activ al pompei de căldură"
       },
       "cloud_reachable": {
-        "name": "Cloud accesibil",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultima eroare (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimul status al erorii"
-          },
-          "code_description": {
-            "name": "Descriere cod"
-          },
-          "last_failure_response": {
-            "name": "Ultimul răspuns de eroare"
-          },
-          "last_failure_source": {
-            "name": "Ultima sursă a erorii"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff se încheie (UTC)"
-          }
-        }
+        "name": "Cloud accesibil"
       },
       "connected": {
         "name": "Conectivitate",

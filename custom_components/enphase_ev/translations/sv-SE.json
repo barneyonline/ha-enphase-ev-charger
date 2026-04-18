@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Senaste lyckade uppdatering",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Senaste lyckade (UTC)"
-          },
           "last_failure_utc": {
             "name": "Senaste fel (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Molnlatens",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Senaste fel (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Senaste felstatus"
-          },
-          "code_description": {
-            "name": "Kodbeskrivning"
-          },
-          "last_failure_response": {
-            "name": "Senaste felrespons"
-          },
-          "last_failure_source": {
-            "name": "Senaste felkälla"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutar (UTC)"
-          }
-        }
+        "name": "Molnlatens"
       },
       "current_production_power": {
         "name": "Aktuell produktionskraft",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Molnfelkod",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Senaste fel (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Senaste felstatus"
-          },
-          "code_description": {
-            "name": "Kodbeskrivning"
-          },
-          "last_failure_response": {
-            "name": "Senaste felrespons"
-          },
-          "last_failure_source": {
-            "name": "Senaste felkälla"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutar (UTC)"
-          }
-        },
         "state": {
           "none": "Ingen",
           "dns_error": "DNS-fel",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Cloud-backoff slutar",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Senaste fel (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Senaste felstatus"
-          },
-          "code_description": {
-            "name": "Kodbeskrivning"
-          },
-          "last_failure_response": {
-            "name": "Senaste felrespons"
-          },
-          "last_failure_source": {
-            "name": "Senaste felkälla"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutar (UTC)"
-          }
-        },
         "state": {
           "none": "Ingen"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Plats solproduktion",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
       "site_consumption": {
         "name": "Platsförbrukning",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
       "site_grid_import": {
         "name": "Platsnät-import",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Senaste fönster (s)"
           },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Platsnät-export",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
       "site_battery_charge": {
         "name": "Platsbatteriladdning",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Platsbatteriurladdning",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Senaste fönster (s)"
           },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Anläggningens EVSE-laddning",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Anläggningens värmepumpsförbrukning",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Anläggningens varmvattenberedarförbrukning",
         "state_attributes": {
-          "start_date": {
-            "name": "Startdatum"
-          },
-          "last_report_date": {
-            "name": "Senaste rapportdatum"
-          },
-          "bucket_count": {
-            "name": "Antal bucketar"
-          },
-          "source_fields": {
-            "name": "Källfält"
-          },
-          "source_unit": {
-            "name": "Källenhet"
-          },
-          "interval_minutes": {
-            "name": "Intervall (min)"
+          "sampled_at_utc": {
+            "name": "Samplad kl. (UTC)"
           },
           "last_reset_at": {
             "name": "Senaste återställning"
-          },
-          "update_pending": {
-            "name": "Uppdatering väntar"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "Värmepumpens SG-Ready aktiv"
       },
       "cloud_reachable": {
-        "name": "Moln nåbart",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Senaste fel (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Senaste felstatus"
-          },
-          "code_description": {
-            "name": "Kodbeskrivning"
-          },
-          "last_failure_response": {
-            "name": "Senaste felrespons"
-          },
-          "last_failure_source": {
-            "name": "Senaste felkälla"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff slutar (UTC)"
-          }
-        }
+        "name": "Moln nåbart"
       },
       "connected": {
         "name": "Anslutning",

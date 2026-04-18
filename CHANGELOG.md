@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🔧 Improvements
 - Defaulted both `Enable EV Charger Scheduler` and `Enable Battery Scheduler` integration options to on for entries that have not explicitly chosen a scheduler setting yet.
+- Removed duplicated diagnostic and schedule metadata from Enphase entities so Home Assistant exposes a smaller, less repetitive attribute surface across cloud, site energy, battery, AC battery, heat pump, and update entities.
 
 ### 🔄 Other changes
 - None

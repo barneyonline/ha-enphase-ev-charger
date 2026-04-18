@@ -453,11 +453,7 @@ def test_battery_overall_charge_sensor_states():
     provided = {"identifiers": {("enphase_ev", "type:site:encharge")}}
     coord.inventory_view.type_device_info = lambda _key: provided
     assert sensor.device_info is provided
-    attrs = sensor.extra_state_attributes
-    assert attrs["aggregate_status"] == "normal"
-    assert attrs["aggregate_charge_source"] == "computed"
-    assert attrs["included_count"] == 2
-    assert attrs["contributing_count"] == 2
+    assert sensor.extra_state_attributes == {}
 
     coord.battery_aggregate_charge_pct = None
     assert sensor.available is False
@@ -502,7 +498,6 @@ def test_battery_overall_status_sensor_states():
     assert sensor.available is True
     assert sensor.native_value == "warning"
     attrs = sensor.extra_state_attributes
-    assert attrs["aggregate_charge_source"] == "computed"
     assert attrs["worst_storage_key"] == "BAT-2"
     assert attrs["per_battery_status"]["BAT-2"] == "warning"
 
@@ -838,14 +833,12 @@ def test_battery_site_summary_sensors_state_and_attributes():
     assert energy.state_class is None
     assert energy.available is True
     assert energy.native_value == 4.75
-    assert energy.extra_state_attributes["site_max_capacity_kwh"] == 10.0
     assert (
         energy.extra_state_attributes["sampled_at_utc"] == "2026-03-11T05:40:00+00:00"
     )
 
     assert power.available is True
     assert power.native_value == 7.68
-    assert power.extra_state_attributes["site_max_power_kw"] == 7.68
     assert power.extra_state_attributes["sampled_at_utc"] == "2026-03-11T05:40:00+00:00"
 
     coord.battery_status_summary = {}
@@ -1115,7 +1108,7 @@ def test_ac_battery_site_summary_sensors_state_and_attributes():
 
     assert overall.available is True
     assert overall.native_value == "warning"
-    assert overall.extra_state_attributes["control_pending"] is True
+    assert overall.extra_state_attributes["battery_count"] == 1
     assert power.available is True
     assert power.native_value == 260.0
     assert power.extra_state_attributes["sampled_at_utc"] == "2026-04-09T03:16:00+00:00"
@@ -1124,7 +1117,6 @@ def test_ac_battery_site_summary_sensors_state_and_attributes():
         2026, 4, 9, 3, 15, tzinfo=timezone.utc
     )
     attrs = last_reported.extra_state_attributes
-    assert attrs["latest_reported_utc"] == "2026-04-09T03:15:00+00:00"
     assert attrs["total_batteries"] == 1
 
 
@@ -1420,7 +1412,6 @@ def test_battery_mode_sensor_states():
     assert attrs["mode_raw"] == "ImportExport"
     assert attrs["charge_from_grid_allowed"] is True
     assert attrs["discharge_to_grid_allowed"] is True
-    assert attrs["charge_from_grid_start_time"] == "02:00:00"
     assert attrs["shutdown_level"] == 15
     assert attrs["use_battery_for_self_consumption"] is True
 
@@ -2588,7 +2579,6 @@ def test_connector_status_reports_reason_attribute():
     assert sensor.extra_state_attributes == {
         "status_reason": "INSUFFICIENT_SOLAR",
         "connector_status_info": "see manual",
-        "suspended_by_evse": None,
     }
 
 
@@ -2608,7 +2598,6 @@ def test_connector_status_reason_absent_returns_empty_attributes():
     assert sensor.extra_state_attributes == {
         "status_reason": None,
         "connector_status_info": None,
-        "suspended_by_evse": None,
     }
 
 
@@ -2629,7 +2618,6 @@ def test_connector_status_reason_numeric_gets_stringified():
     assert sensor.extra_state_attributes == {
         "status_reason": "123",
         "connector_status_info": None,
-        "suspended_by_evse": None,
     }
 
 
@@ -2655,7 +2643,6 @@ def test_connector_status_reason_handles_non_string_value():
     assert sensor.extra_state_attributes == {
         "status_reason": sentinel,
         "connector_status_info": None,
-        "suspended_by_evse": None,
     }
 
 
@@ -2673,14 +2660,14 @@ def test_connector_status_reports_suspended_by_evse():
         },
     )
     sensor = EnphaseConnectorStatusSensor(coord, sn)
-    assert sensor.extra_state_attributes["suspended_by_evse"] is True
+    assert "suspended_by_evse" not in sensor.extra_state_attributes
 
     class BadBool:
         def __bool__(self):
             raise ValueError("boom")
 
     coord.data[sn]["suspended_by_evse"] = BadBool()
-    assert sensor.extra_state_attributes["suspended_by_evse"] is None
+    assert "suspended_by_evse" not in sensor.extra_state_attributes
 
 
 def test_charge_mode_sensor_attributes():

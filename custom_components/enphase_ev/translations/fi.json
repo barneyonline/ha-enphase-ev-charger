@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Viimeinen onnistunut päivitys",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Viimeinen menestys (UTC)"
-          },
           "last_failure_utc": {
             "name": "Viimeinen epäonnistuminen (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Pilviviive",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimeinen epäonnistuminen (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimeisen epäonnistumisen tila"
-          },
-          "code_description": {
-            "name": "Koodi Kuvaus"
-          },
-          "last_failure_response": {
-            "name": "Viimeinen epäonnistumisvastaus"
-          },
-          "last_failure_source": {
-            "name": "Viimeisen epäonnistumisen lähde"
-          },
-          "backoff_ends_utc": {
-            "name": "Peruutus päättyy (UTC)"
-          }
-        }
+        "name": "Pilviviive"
       },
       "current_production_power": {
         "name": "Nykyinen tuotantoteho",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Pilvivirhekoodi",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimeinen epäonnistuminen (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimeisen epäonnistumisen tila"
-          },
-          "code_description": {
-            "name": "Koodi Kuvaus"
-          },
-          "last_failure_response": {
-            "name": "Viimeinen epäonnistumisvastaus"
-          },
-          "last_failure_source": {
-            "name": "Viimeisen epäonnistumisen lähde"
-          },
-          "backoff_ends_utc": {
-            "name": "Peruutus päättyy (UTC)"
-          }
-        },
         "state": {
           "none": "Ei mitään",
           "dns_error": "DNS-virhe",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Cloud Backoff päättyy",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimeinen epäonnistuminen (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimeisen epäonnistumisen tila"
-          },
-          "code_description": {
-            "name": "Koodi Kuvaus"
-          },
-          "last_failure_response": {
-            "name": "Viimeinen epäonnistumisvastaus"
-          },
-          "last_failure_source": {
-            "name": "Viimeisen epäonnistumisen lähde"
-          },
-          "backoff_ends_utc": {
-            "name": "Peruutus päättyy (UTC)"
-          }
-        },
         "state": {
           "none": "Ei mitään"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Aurinkoenergian tuotantosivusto",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
       "site_consumption": {
         "name": "Sivuston kulutus",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
       "site_grid_import": {
         "name": "Sivustoruudukon tuonti",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Viimeiset ikkunat"
           },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Sivustoruudukon vienti",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
       "site_battery_charge": {
         "name": "Sivuston akun lataus",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Sivuston akun purkautuminen",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Viimeiset ikkunat"
           },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Kohteen EVSE-lataus",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Kohteen lämpöpumpun kulutus",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Kohteen vedenlämmittimen kulutus",
         "state_attributes": {
-          "start_date": {
-            "name": "Aloituspäivämäärä"
-          },
-          "last_report_date": {
-            "name": "Viimeisen raportin päivämäärä"
-          },
-          "bucket_count": {
-            "name": "Kauhan määrä"
-          },
-          "source_fields": {
-            "name": "Lähdekentät"
-          },
-          "source_unit": {
-            "name": "Lähdeyksikkö"
-          },
-          "interval_minutes": {
-            "name": "Väli (min)"
+          "sampled_at_utc": {
+            "name": "Näyte otettu (UTC)"
           },
           "last_reset_at": {
             "name": "Viimeinen nollaus klo"
-          },
-          "update_pending": {
-            "name": "Päivitys odottaa"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "Lämpöpumpun SG-Ready aktiivinen"
       },
       "cloud_reachable": {
-        "name": "Pilvi tavoitettavissa",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Viimeinen epäonnistuminen (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Viimeisen epäonnistumisen tila"
-          },
-          "code_description": {
-            "name": "Koodi Kuvaus"
-          },
-          "last_failure_response": {
-            "name": "Viimeinen epäonnistumisvastaus"
-          },
-          "last_failure_source": {
-            "name": "Viimeisen epäonnistumisen lähde"
-          },
-          "backoff_ends_utc": {
-            "name": "Peruutus päättyy (UTC)"
-          }
-        }
+        "name": "Pilvi tavoitettavissa"
       },
       "connected": {
         "name": "Yhteydet",

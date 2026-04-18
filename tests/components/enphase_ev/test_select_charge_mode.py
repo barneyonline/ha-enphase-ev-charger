@@ -270,7 +270,7 @@ def test_ac_battery_target_state_of_charge_select_state_and_options(
     assert sel.available is True
     assert "25-30%" in sel.options
     assert sel.current_option == "25-30%"
-    assert sel.extra_state_attributes["control_pending"] is True
+    assert sel.extra_state_attributes["selected_sleep_min_soc"] == 25
 
 
 @pytest.mark.asyncio

@@ -407,4 +407,4 @@ def test_cloud_site_sensor_last_success_attrs_not_type_gated() -> None:
     sensor = EnphaseSiteLastUpdateSensor(coord)
     assert sensor.available is True
     attrs = sensor.extra_state_attributes
-    assert "last_success_utc" in attrs
+    assert "last_success_utc" not in attrs

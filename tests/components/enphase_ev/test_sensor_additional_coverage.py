@@ -2032,7 +2032,6 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     sg_sensor = EnphaseHeatPumpSgReadyModeSensor(coord)
     assert sg_sensor.native_value == "Recommended"
     sg_attrs = sg_sensor.extra_state_attributes
-    assert sg_attrs["device_uid"] == "HP-1"
     assert sg_attrs["heatpump_status_raw"] == "RUNNING"
     assert sg_attrs["sg_ready_mode_raw"] == "MODE_3"
     assert sg_attrs["sg_ready_mode"] == 3
@@ -2053,11 +2052,7 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     assert last_reported_sensor.native_value == datetime(
         2026, 2, 27, 9, 15, 59, tzinfo=timezone.utc
     )
-    assert last_reported_sensor.extra_state_attributes["device_uid"] == "HP-1"
-    assert (
-        last_reported_sensor.extra_state_attributes["source"]
-        == "hems_heatpump_state:HP-1"
-    )
+    assert last_reported_sensor.extra_state_attributes == {}
 
     power_sensor = EnphaseHeatPumpPowerSensor(coord)
     assert power_sensor.available is True
@@ -2277,6 +2272,36 @@ def test_heatpump_sensor_availability_edge_paths(
         "Site Heat Pump Consumption",
     )
     assert site_sensor.extra_state_attributes["heat_pump_power_w"] is None
+
+
+def test_site_heat_pump_energy_attributes_without_daily_snapshot(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteEnergySensor
+
+    coord = coordinator_factory(serials=[])
+    coord.energy.site_energy = {
+        "heat_pump": {
+            "value_kwh": 0.75,
+            "last_report_date": "2026-02-27T09:15:00Z",
+        }
+    }
+    monkeypatch.setattr(
+        type(coord),
+        "heatpump_daily_consumption",
+        property(lambda _self: None),
+    )
+
+    sensor = EnphaseSiteEnergySensor(
+        coord,
+        "heat_pump",
+        "site_heat_pump_consumption",
+        "Site Heat Pump Consumption",
+    )
+
+    assert sensor.extra_state_attributes == {
+        "sampled_at_utc": "2026-02-27T09:15:00+00:00"
+    }
 
 
 def test_heatpump_runtime_sensor_uid_fallback_and_error_paths(

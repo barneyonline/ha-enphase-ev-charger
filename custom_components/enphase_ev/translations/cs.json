@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Poslední úspěšná aktualizace",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Poslední úspěch (UTC)"
-          },
           "last_failure_utc": {
             "name": "Poslední selhání (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Latence cloudu",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Poslední selhání (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Poslední stav selhání"
-          },
-          "code_description": {
-            "name": "Popis kódu"
-          },
-          "last_failure_response": {
-            "name": "Poslední odpověď selhání"
-          },
-          "last_failure_source": {
-            "name": "Poslední zdroj selhání"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff končí (UTC)"
-          }
-        }
+        "name": "Latence cloudu"
       },
       "current_production_power": {
         "name": "Aktuální výrobní výkon",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Kód chyby cloudu",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Poslední selhání (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Poslední stav selhání"
-          },
-          "code_description": {
-            "name": "Popis kódu"
-          },
-          "last_failure_response": {
-            "name": "Poslední odpověď selhání"
-          },
-          "last_failure_source": {
-            "name": "Poslední zdroj selhání"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff končí (UTC)"
-          }
-        },
         "state": {
           "none": "Žádné",
           "dns_error": "Chyba DNS",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Cloud backoff končí",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Poslední selhání (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Poslední stav selhání"
-          },
-          "code_description": {
-            "name": "Popis kódu"
-          },
-          "last_failure_response": {
-            "name": "Poslední odpověď selhání"
-          },
-          "last_failure_source": {
-            "name": "Poslední zdroj selhání"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff končí (UTC)"
-          }
-        },
         "state": {
           "none": "Žádné"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Solární výroba lokality",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
       "site_consumption": {
         "name": "Spotřeba lokality",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
       "site_grid_import": {
         "name": "Import ze sítě lokality",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Poslední okno (s)"
           },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Export do sítě lokality",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
       "site_battery_charge": {
         "name": "Nabíjení baterie lokality",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Vybíjení baterie lokality",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Poslední okno (s)"
           },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Nabíjení EVSE objektu",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Spotřeba tepelného čerpadla objektu",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Spotřeba ohřívače vody objektu",
         "state_attributes": {
-          "start_date": {
-            "name": "Datum začátku"
-          },
-          "last_report_date": {
-            "name": "Datum poslední zprávy"
-          },
-          "bucket_count": {
-            "name": "Počet bucketů"
-          },
-          "source_fields": {
-            "name": "Zdrojová pole"
-          },
-          "source_unit": {
-            "name": "Zdrojová jednotka"
-          },
-          "interval_minutes": {
-            "name": "Interval (minuty)"
+          "sampled_at_utc": {
+            "name": "Čas vzorku (UTC)"
           },
           "last_reset_at": {
             "name": "Poslední reset"
-          },
-          "update_pending": {
-            "name": "Aktualizace čeká"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "SG-Ready tepelného čerpadla aktivní"
       },
       "cloud_reachable": {
-        "name": "Cloud dostupný",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Poslední selhání (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Poslední stav selhání"
-          },
-          "code_description": {
-            "name": "Popis kódu"
-          },
-          "last_failure_response": {
-            "name": "Poslední odpověď selhání"
-          },
-          "last_failure_source": {
-            "name": "Poslední zdroj selhání"
-          },
-          "backoff_ends_utc": {
-            "name": "Backoff končí (UTC)"
-          }
-        }
+        "name": "Cloud dostupný"
       },
       "connected": {
         "name": "Konektivita",
