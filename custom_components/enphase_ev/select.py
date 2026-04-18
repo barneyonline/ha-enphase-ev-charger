@@ -494,14 +494,20 @@ class BatteryNewScheduleTypeSelect(_BatteryScheduleEditorSelect):
 
     @property
     def options(self) -> list[str]:
+        if self._editor is None:
+            return []
         hass = getattr(self, "hass", None) or self._coord.hass
+        if not self._editor.is_creating:
+            current = battery_schedule_type_label(
+                self._editor.edit.schedule_type,
+                hass=hass,
+            )
+            return [current] if current else []
         return [label for _key, label in battery_schedule_type_options(hass=hass)]
 
     @property
     def available(self) -> bool:  # type: ignore[override]
-        return (
-            super().available and self._editor is not None and self._editor.is_creating
-        )
+        return super().available and self._editor is not None
 
     @property
     def current_option(self) -> str | None:
@@ -511,7 +517,7 @@ class BatteryNewScheduleTypeSelect(_BatteryScheduleEditorSelect):
         return battery_schedule_type_label(self._editor.edit.schedule_type, hass=hass)
 
     async def async_select_option(self, option: str) -> None:
-        if self._editor is None:
+        if self._editor is None or not self._editor.is_creating:
             return
         hass = getattr(self, "hass", None) or self._coord.hass
         for schedule_type, label in battery_schedule_type_options(hass=hass):

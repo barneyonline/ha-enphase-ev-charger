@@ -576,6 +576,7 @@ def test_battery_storage_charge_sensor_snapshot():
     assert sensor.name == "IQ Battery 5P"
     assert sensor.native_value == 48.0
     assert sensor.extra_state_attributes["serial_number"] == "BAT-1"
+    assert sensor.device_info["identifiers"] == {("enphase_ev", "type:site:encharge")}
 
 
 def test_battery_storage_charge_sensor_edge_paths():
@@ -619,6 +620,7 @@ def test_battery_storage_charge_sensor_edge_paths():
     coord.inventory_view.has_type_for_entities = lambda _key: False
     assert sensor.available is False
 
+    coord.inventory_view.has_type_for_entities = lambda _key: True
     expected_info = {"identifiers": {("enphase_ev", "type:site:encharge")}}
     coord.inventory_view.type_device_info = lambda _key: expected_info
     assert sensor.device_info == expected_info

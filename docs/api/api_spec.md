@@ -4438,6 +4438,72 @@ Example payloads observed:
 { "veryLowSoc": 15 }
 ```
 
+```json
+{ "rbdControl": { "enabled": false } }
+```
+
+```json
+{
+  "rbdControl": {
+    "show": true,
+    "showDaySchedule": true,
+    "enabled": true,
+    "locked": false,
+    "scheduleSupported": true
+  }
+}
+```
+
+```json
+{
+  "profile": "self-consumption",
+  "batteryBackupPercentage": 21,
+  "requestedConfig": {},
+  "requestedConfigMqtt": {},
+  "stormGuardState": "disabled",
+  "showStormGuardAlert": false,
+  "acceptedItcDisclaimer": "2026-04-17T10:41:56.440Z",
+  "hideChargeFromGrid": true,
+  "envoySupportsVls": true,
+  "chargeBeginTime": 120,
+  "chargeEndTime": 300,
+  "batteryGridMode": "ImportExport",
+  "veryLowSoc": 10,
+  "veryLowSocMin": 10,
+  "veryLowSocMax": 25,
+  "chargeFromGrid": true,
+  "chargeFromGridScheduleEnabled": false,
+  "batteryBackupPercentageMax": 100,
+  "batteryBackupPercentageMin": 10,
+  "systemTask": false,
+  "dtgControl": {
+    "show": true,
+    "showDaySchedule": true,
+    "enabled": false,
+    "locked": false,
+    "scheduleSupported": true,
+    "startTime": 0,
+    "endTime": 1439
+  },
+  "cfgControl": {
+    "show": true,
+    "showDaySchedule": true,
+    "enabled": true,
+    "locked": false,
+    "scheduleSupported": true,
+    "forceScheduleSupported": true,
+    "forceScheduleOpted": false
+  },
+  "rbdControl": {
+    "show": true,
+    "showDaySchedule": true,
+    "enabled": false,
+    "locked": false,
+    "scheduleSupported": true
+  }
+}
+```
+
 Response:
 ```json
 { "message": "success" }
@@ -4485,6 +4551,23 @@ Notes:
   - `{"rbdControl":{"enabled":true}}`
   - `{"rbdControl":{"enabled":false}}`
 - Live local verification on 2026-04-17 confirmed that `rbdControl.enabled=true` can coexist with `rbd.count=0`, so RBD on/off writes must not assume an RBD schedule record already exists.
+- Live local verification on 2026-04-18 showed the RBD control path is asymmetric on the affected `supportsMqtt=true` site:
+  - RBD enable worked with the richer control payload that echoed the current capability fields:
+    - `{"rbdControl":{"show":true,"showDaySchedule":true,"enabled":true,"locked":false,"scheduleSupported":true}}`
+  - RBD disable did **not** apply when sent as the partial payload `{"rbdControl":{"enabled":false}}`, even though the endpoint returned `200 OK`.
+  - RBD disable did apply when the request used the merged battery-settings payload, omitted `source`, and stripped `devices` from the body.
+- Later live local verification on 2026-04-18 also showed a stricter read-side edge case on the same site state:
+  - `GET /batterySettings/<site_id>` returned `rbdControl: null`
+  - `GET /battery/sites/<site_id>/schedules` returned `rbd.count=0` and `rbd.scheduleStatus="active"`
+  - in that state the backend should be treated as effectively **off**, not as an unknown or partially-on RBD state
+- Because of that read shape, clients should not rely on stale local `rbdControl.enabled` values once a fresh `batterySettings` read omits `rbdControl`. A safe reconciliation rule is:
+  - if `rbdControl` is absent/null and there is no RBD schedule record (`rbd.count=0`, no `details[]` entry), treat RBD as off
+  - if a user tries to enable RBD in that state, require them to create an RBD schedule first rather than issuing a blind toggle write
+- Because of that live result, clients should not assume the minimal partial `rbdControl.enabled=false` payload is authoritative on every site. On affected sites, the safe non-MQTT fallback is:
+  - `PUT /batterySettings/<site_id>?userId=<user_id>`
+  - body = merged current battery-settings payload
+  - remove `devices`
+  - set `rbdControl.enabled=false`
 - External client source and the current integration use a richer DTG enable payload when no DTG schedule record exists yet:
   - `{"dtgControl":{"enabled":true,"scheduleSupported":true,"startTime":<minutes>,"endTime":<minutes>}}`
   - `startTime` / `endTime` are minute-of-day integers derived from the current DTG control window
@@ -4832,11 +4915,19 @@ Observed behavior:
 - `startTime` and `endTime` use `HH:MM` format (24-hour, no seconds).
 - `limit` is the maximum SoC percentage (5-100).
 - `days` is a 1-indexed day-of-week array (1=Monday through 7=Sunday).
+- For RBD specifically, `count=0` with `scheduleStatus="active"` is a meaningful observed state. It indicates that the schedule family is available, but there is no saved RBD schedule entry yet.
+- In that `count=0` RBD state, `PUT /batterySettings/<site_id>` enable/disable toggles should not be treated as fully symmetric:
+  - disable/off reconciliation may need to treat the family as already off when `rbdControl` is also absent on the paired `batterySettings` read
+  - enable/on should be blocked by the client until a real RBD schedule is created
 - This replaces the delete+create pattern previously used for schedule modifications.
 - Captured DTG/RBD enablement toggles were also observed as partial `PUT /batterySettings/<site_id>` payloads (`dtgControl.enabled` / `rbdControl.enabled`), so clients should not assume all schedule-family toggles go through `PUT /battery/sites/<site_id>/schedules/<schedule_id>`.
 - The current DTG runtime now follows that split explicitly:
   - toggle enable/disable uses `PUT /batterySettings/<site_id>`
   - schedule time/limit creation and edits use `/battery/sites/<site_id>/schedules`
+- The current RBD runtime follows the same split, with one extra guard derived from live verification:
+  - toggle disable uses `PUT /batterySettings/<site_id>` and may reconcile to off when the backend exposes no `rbdControl` and no saved RBD schedule
+  - toggle enable should require an existing RBD schedule entry
+  - schedule creation, time edits, and deletes use `/battery/sites/<site_id>/schedules`
 
 ### 5.11 ITC Disclaimer Acknowledgement
 ```

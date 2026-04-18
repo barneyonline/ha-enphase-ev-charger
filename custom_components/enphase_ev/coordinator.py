@@ -5068,15 +5068,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         schedule_id: object,
         start_minutes: object,
         end_minutes: object,
+        schedule_status: object = None,
     ) -> bool:
-        if not self._battery_schedule_control_available(control):
+        if self._battery_schedule_control_available(control):
+            show_day_schedule = self._battery_control_field(
+                control, "show_day_schedule"
+            )
+            if show_day_schedule is False:
+                return False
+            schedule_supported = self._battery_control_field(
+                control, "schedule_supported"
+            )
+            if schedule_supported is not None:
+                return schedule_supported
+        elif isinstance(schedule_status, str) and schedule_status.strip():
+            return True
+        else:
             return False
-        show_day_schedule = self._battery_control_field(control, "show_day_schedule")
-        if show_day_schedule is False:
-            return False
-        schedule_supported = self._battery_control_field(control, "schedule_supported")
-        if schedule_supported is not None:
-            return schedule_supported
+        if isinstance(schedule_status, str) and schedule_status.strip():
+            return True
         return (
             schedule_id is not None
             and start_minutes is not None
@@ -5154,6 +5164,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             schedule_id=getattr(self, "_battery_dtg_schedule_id", None),
             start_minutes=getattr(self, "_battery_dtg_begin_time", None),
             end_minutes=getattr(self, "_battery_dtg_end_time", None),
+            schedule_status=getattr(self, "_battery_dtg_schedule_status", None),
         )
 
     @property
@@ -5165,9 +5176,47 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             end_minutes=getattr(self, "_battery_dtg_end_time", None),
         )
 
+    def _battery_schedule_effective_enabled(self, schedule_type: str) -> bool | None:
+        normalized = str(schedule_type).lower()
+        schedule_enabled = getattr(
+            self, f"_battery_{normalized}_schedule_enabled", None
+        )
+        schedule_id = getattr(self, f"_battery_{normalized}_schedule_id", None)
+        schedule_status = getattr(self, f"_battery_{normalized}_schedule_status", None)
+
+        if normalized == "dtg":
+            control_enabled = self.battery_dtg_control_enabled
+        elif normalized == "rbd":
+            control_enabled = self.battery_rbd_control_enabled
+        elif normalized == "cfg":
+            control_enabled = self.battery_cfg_control_force_schedule_opted
+        else:
+            control_enabled = None
+
+        if control_enabled is False or schedule_enabled is False:
+            return False
+        if control_enabled is not None:
+            return control_enabled
+        if schedule_enabled is not None:
+            return schedule_enabled
+        toggle_target = getattr(
+            self, f"_battery_{normalized}_toggle_target_enabled", None
+        )
+        if normalized in {"dtg", "rbd"} and toggle_target is not None:
+            return toggle_target
+        if schedule_id is not None:
+            return None
+        if (
+            normalized in {"dtg", "rbd"}
+            and isinstance(schedule_status, str)
+            and schedule_status.strip()
+        ):
+            return False
+        return None
+
     @property
     def battery_discharge_to_grid_schedule_enabled(self) -> bool | None:
-        return getattr(self, "_battery_dtg_schedule_enabled", None)
+        return self._battery_schedule_effective_enabled("dtg")
 
     @property
     def battery_discharge_to_grid_start_time(self) -> dt_time | None:
@@ -5202,6 +5251,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             schedule_id=getattr(self, "_battery_rbd_schedule_id", None),
             start_minutes=getattr(self, "_battery_rbd_begin_time", None),
             end_minutes=getattr(self, "_battery_rbd_end_time", None),
+            schedule_status=getattr(self, "_battery_rbd_schedule_status", None),
         )
 
     @property
@@ -5215,7 +5265,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_restrict_battery_discharge_schedule_enabled(self) -> bool | None:
-        return getattr(self, "_battery_rbd_schedule_enabled", None)
+        return self._battery_schedule_effective_enabled("rbd")
 
     @property
     def battery_restrict_battery_discharge_start_time(self) -> dt_time | None:
