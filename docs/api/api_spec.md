@@ -136,7 +136,7 @@ Example response:
 | BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
 | BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | official-web BatteryConfig read shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
 | BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | BatteryConfig write shape plus `X-XSRF-Token`; on affected sites the verified working shape is the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) sent from a stateless client session so aiohttp does not merge cookie-jar state; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No |
-| BatteryConfig schedule validation | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | official-web BatteryConfig write shape plus `X-XSRF-Token`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
+| BatteryConfig schedule validation / XSRF bootstrap | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | explicit validation uses the official-web BatteryConfig write shape without `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`, or `X-XSRF-Token`; the internal XSRF-bootstrap helper hits the same route and may include the currently held `X-XSRF-Token` while harvesting a fresh `BP-XSRF-Token` from `Set-Cookie`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI and live verification) |
 | BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | BatteryConfig write shape plus `X-XSRF-Token`; verified working update uses the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) from a stateless client session; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No (documented from live verification) |
 | BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | same BatteryConfig write planner as schedule create/update; cookie-backed browser request is the verified working compatibility shape on affected sites | No |
 | BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | documented write pattern only; when used, current client will try the same cookie-backed, primary, lean, and mixed-auth BatteryConfig write variants | No (not currently used by runtime) |
@@ -4773,6 +4773,7 @@ Observed behavior:
 - `limit` is included for charge-oriented schedules and omitted for pure RBD recreate flows.
 - `isEnabled` is optional on create; some clients rely on the backend default when omitted.
 - `startTime` and `endTime` are `HH:MM` strings, while `days` uses the same numeric weekday array returned by `GET /schedules`.
+- The current integration treats the create response body as opaque JSON and reconciles authoritative state from the subsequent `GET /schedules` refresh.
 
 ### 5.8.2 Delete / Soft-Delete Variants
 Two delete patterns were observed:
@@ -4801,6 +4802,7 @@ Observed behavior:
 - Soft-delete is supported through the canonical `PUT /schedules/<schedule_id>` resource, sometimes with the full schedule echoed back and sometimes with only `{ "isDeleted": true }`.
 - A `/delete` alias also exists. This path is useful as a compatibility note, but it was not present in the newer browser traces captured for this repository.
 - The current client implements the legacy `/delete` alias and sends it through the same compatibility write planner used by schedule create/update, including the raw-cookie browser request on affected sites.
+- The current integration treats the `/delete` alias response as opaque JSON and confirms the deletion via the follow-up `GET /schedules` refresh.
 
 ### 5.9 Battery Schedule Validation
 ```
@@ -4808,6 +4810,10 @@ POST /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid
 Body: { "scheduleType": "cfg", "forceScheduleOpted": true }
 ```
 Performs server-side validation before enabling a battery schedule.
+
+The current codebase uses this endpoint in two distinct ways:
+- Explicit validation requests (`validate_battery_schedule`) send the lowercase family payload below using the official-web primary request shape first, then retry with the lean variant on `403`. These requests do not require `X-XSRF-Token`.
+- Internal XSRF bootstrap requests (`_acquire_xsrf_token`) hit the same route immediately before BatteryConfig writes. That helper sends the same JSON payload, includes the currently held `X-XSRF-Token` when present, and harvests a fresh `BP-XSRF-Token` from `Set-Cookie` or the session cookie jar.
 
 Additional request shapes observed:
 
@@ -4826,12 +4832,23 @@ Example response (anonymized):
 }
 ```
 
+Observed `403` response shape from the live affected site:
+```json
+{
+  "timestamp": "2026-04-18T08:45:45.931+00:00",
+  "status": 403,
+  "error": "Forbidden",
+  "path": "/api/v1/battery/sites/<site_id>/schedules/isValid"
+}
+```
+
 Observed behavior:
 - The validation call appeared immediately before enabling charge-from-grid scheduling.
 - The request used lowercase schedule-family values (`cfg`, `dtg`, `rbd`) even though stored schedule objects used uppercase `scheduleType` values.
 - `forceScheduleOpted: true` was only observed for CFG validation; DTG/RBD validation calls omitted that field.
-- In the current client, this validation route also serves as the XSRF bootstrap mechanism for later BatteryConfig writes.
-- The official homeowner web capture sent `X-XSRF-Token` on the validation request as well; the current implementation mirrors that behavior while still learning fresh `BP-XSRF-Token` from `Set-Cookie` / the updated cookie jar.
+- In the current client, this route serves both as an explicit validation endpoint and as the XSRF bootstrap mechanism for later BatteryConfig writes. Those two call sites do not use exactly the same header shape.
+- The explicit validation helper currently uses the primary `e-auth-token` + `requestid` header shape first and then the lean variant; live verification showed those preflight calls returning `403` without blocking later schedule create/update/delete operations.
+- The internal XSRF bootstrap helper reuses the same route, includes `X-XSRF-Token` when an existing token is available, and still learns fresh `BP-XSRF-Token` values from `Set-Cookie` / the updated cookie jar.
 - If this bootstrap route returns `4xx`, the current client keeps the existing `BP-XSRF-Token` instead of promoting a new token from the session cookie jar.
 - External client source matches the CFG-only `forceScheduleOpted` rule: it documents `forceScheduleOpted` only for CFG validation and omits it for DTG validation.
 - Compatibility note: the current integration should not treat `forceScheduleOpted` as a universal BatteryConfig validation field.
@@ -4868,6 +4885,7 @@ Implementation auth notes:
   - `X-Requested-With: XMLHttpRequest`
 - That cookie-backed write must be sent from a stateless request session so aiohttp does not merge cookie-jar state into the raw `Cookie` header.
 - The current client now tries the cookie-backed compatibility write first when that raw cookie/XSRF pair is available, then falls back through official-web primary, official-web lean, and mixed-auth variants.
+- The current integration treats the update response body as opaque JSON for control flow and refreshes `GET /schedules` to confirm the persisted schedule state.
 
 Example response (anonymized):
 ```json
