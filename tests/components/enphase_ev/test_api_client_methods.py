@@ -5256,6 +5256,36 @@ async def test_set_battery_profile_reraises_403_without_devices() -> None:
 
 
 @pytest.mark.asyncio
+async def test_set_battery_settings_compat_builds_merged_payload_without_devices() -> (
+    None
+):
+    client = _make_client()
+    client._battery_config_merged_write_payload = MagicMock(  # noqa: SLF001
+        return_value={"chargeFromGrid": True, "devices": {"iqEvse": {}}}
+    )
+    client._battery_config_write_request = AsyncMock(  # noqa: SLF001
+        return_value={"message": "ok"}
+    )
+
+    out = await client.set_battery_settings_compat(
+        {"chargeFromGrid": True},
+        schedule_type="rbd",
+        include_source=False,
+        merged_payload=True,
+        strip_devices=True,
+    )
+
+    assert out == {"message": "ok"}
+    client._battery_config_merged_write_payload.assert_called_once_with(
+        "battery_settings", {"chargeFromGrid": True}
+    )
+    assert client._battery_config_write_request.await_args.kwargs["json_body"] == {
+        "chargeFromGrid": True
+    }
+    assert client._battery_config_write_request.await_args.kwargs["params"] == {}
+
+
+@pytest.mark.asyncio
 async def test_cancel_battery_profile_update_uses_empty_body() -> None:
     token = _make_token({"user_id": "44"})
     client = _make_client()

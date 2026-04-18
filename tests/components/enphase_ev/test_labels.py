@@ -114,3 +114,21 @@ def test_entity_translation_value_and_schedule_type_label_fallbacks(
         == "Charge Battery From Grid"
     )
     assert labels.battery_schedule_type_label("custom_mode", hass=hass) == "Custom Mode"
+
+
+def test_battery_schedule_button_label_fallbacks(monkeypatch) -> None:
+    monkeypatch.setattr(
+        labels,
+        "async_get_cached_translations",
+        lambda *_args, **_kwargs: {},
+    )
+    hass = SimpleNamespace(config=SimpleNamespace(language="fr"))
+
+    assert (
+        labels.battery_schedule_button_label("save", hass=hass)
+        == "Save Battery Schedule"
+    )
+    assert (
+        labels.battery_schedule_button_label("custom_action", hass=hass)
+        == "Custom Action"
+    )

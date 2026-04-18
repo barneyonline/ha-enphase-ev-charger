@@ -9,6 +9,9 @@ from custom_components.enphase_ev.button import (
     RequestGridToggleOtpButton,
 )
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
+from custom_components.enphase_ev.battery_schedule_editor import (
+    BatteryScheduleEditorManager,
+)
 from custom_components.enphase_ev.number import (
     BatteryReserveNumber,
     BatteryShutdownLevelNumber,
@@ -22,13 +25,14 @@ from custom_components.enphase_ev.sensor import (
     EnphaseSystemProfileStatusSensor,
     EnphaseTypeInventorySensor,
 )
+from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.switch import (
     ChargeFromGridScheduleSwitch,
     ChargeFromGridSwitch,
     SavingsUseBatteryAfterPeakSwitch,
     StormGuardSwitch,
 )
-from custom_components.enphase_ev.time import ChargeFromGridStartTimeEntity
+from custom_components.enphase_ev.time import BatteryScheduleEditStartTimeEntity
 
 
 def test_site_binary_sensor_not_gated_by_envoy_type() -> None:
@@ -120,9 +124,17 @@ def test_site_device_info_fallbacks_without_type_device_info_provider() -> None:
     assert StormGuardSwitch(coord).device_info["identifiers"] == {
         ("enphase_ev", "type:site-1:envoy")
     }
-    assert ChargeFromGridStartTimeEntity(coord).device_info["identifiers"] == {
-        ("enphase_ev", "type:site-1:encharge")
-    }
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        options={"battery_schedules_enabled": True},
+        runtime_data=EnphaseRuntimeData(
+            coordinator=coord,
+            battery_schedule_editor=BatteryScheduleEditorManager(coord),
+        ),
+    )
+    assert BatteryScheduleEditStartTimeEntity(coord, entry).device_info[
+        "identifiers"
+    ] == {("enphase_ev", "type:site-1:encharge")}
     assert EnphaseGridControlStatusSensor(coord).device_info["identifiers"] == {
         ("enphase_ev", "type:site-1:envoy")
     }
@@ -258,7 +270,15 @@ def test_type_device_entities_use_provided_type_device_info() -> None:
     assert ChargeFromGridSwitch(coord).device_info is provided
     assert ChargeFromGridScheduleSwitch(coord).device_info is provided
     assert StormGuardSwitch(coord).device_info is provided
-    assert ChargeFromGridStartTimeEntity(coord).device_info is provided
+    entry = SimpleNamespace(
+        entry_id="entry-2",
+        options={"battery_schedules_enabled": True},
+        runtime_data=EnphaseRuntimeData(
+            coordinator=coord,
+            battery_schedule_editor=BatteryScheduleEditorManager(coord),
+        ),
+    )
+    assert BatteryScheduleEditStartTimeEntity(coord, entry).device_info is provided
     assert EnphaseGridControlStatusSensor(coord).device_info is provided
     assert EnphaseGridModeSensor(coord).device_info is provided
     assert EnphaseTypeInventorySensor(coord, "envoy").device_info is provided
