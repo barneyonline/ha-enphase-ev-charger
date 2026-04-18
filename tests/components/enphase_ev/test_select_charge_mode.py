@@ -671,10 +671,22 @@ async def test_select_platform_async_setup_entry_filters_known_serials(
 async def test_select_platform_skips_system_profile_without_battery(
     hass, config_entry, coordinator_factory
 ):
+    from custom_components.enphase_ev.const import (
+        OPT_BATTERY_SCHEDULES_ENABLED,
+        OPT_SCHEDULE_SYNC_ENABLED,
+    )
     from custom_components.enphase_ev.select import ChargeModeSelect, async_setup_entry
 
     coord = coordinator_factory(serials=["1111"])
     coord._battery_has_encharge = False  # noqa: SLF001
+    object.__setattr__(
+        config_entry,
+        "options",
+        {
+            OPT_SCHEDULE_SYNC_ENABLED: False,
+            OPT_BATTERY_SCHEDULES_ENABLED: False,
+        },
+    )
     added: list[list[ChargeModeSelect]] = []
     listeners: list[object] = []
 
@@ -699,6 +711,10 @@ async def test_select_platform_skips_system_profile_without_battery(
 async def test_select_platform_adds_system_profile_after_permission_refresh(
     hass, config_entry, coordinator_factory
 ) -> None:
+    from custom_components.enphase_ev.const import (
+        OPT_BATTERY_SCHEDULES_ENABLED,
+        OPT_SCHEDULE_SYNC_ENABLED,
+    )
     from custom_components.enphase_ev.select import (
         ChargeModeSelect,
         SystemProfileSelect,
@@ -710,6 +726,14 @@ async def test_select_platform_adds_system_profile_after_permission_refresh(
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     coord._battery_user_is_owner = None  # noqa: SLF001
     coord._battery_user_is_installer = None  # noqa: SLF001
+    object.__setattr__(
+        config_entry,
+        "options",
+        {
+            OPT_SCHEDULE_SYNC_ENABLED: False,
+            OPT_BATTERY_SCHEDULES_ENABLED: False,
+        },
+    )
     added: list[list[object]] = []
     topology_callbacks: list[object] = []
     update_callbacks: list[object] = []

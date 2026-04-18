@@ -439,25 +439,38 @@ async def async_setup_entry(
             entry.entry_id,
             domain="switch",
             active_unique_ids=active_unique_ids,
-            is_managed=lambda unique_id: unique_id.endswith(
-                (
-                    "_charging_switch",
-                    "_storm_guard_evse_charge",
-                    "_green_battery",
-                    "_app_authentication",
-                    "_schedule_edit_mon",
-                    "_schedule_edit_tue",
-                    "_schedule_edit_wed",
-                    "_schedule_edit_thu",
-                    "_schedule_edit_fri",
-                    "_schedule_edit_sat",
-                    "_schedule_edit_sun",
+            is_managed=lambda unique_id: (
+                unique_id.endswith(
+                    (
+                        "_charging_switch",
+                        "_storm_guard_evse_charge",
+                        "_green_battery",
+                        "_app_authentication",
+                    )
+                )
+                or (
+                    unique_id.endswith(
+                        (
+                            "_schedule_edit_mon",
+                            "_schedule_edit_tue",
+                            "_schedule_edit_wed",
+                            "_schedule_edit_thu",
+                            "_schedule_edit_fri",
+                            "_schedule_edit_sat",
+                            "_schedule_edit_sun",
+                        )
+                    )
+                    and not unique_id.startswith(f"{DOMAIN}_site_")
                 )
             ),
         )
 
-    unsubscribe = coord.async_add_listener(_async_sync_chargers)
-    entry.async_on_unload(unsubscribe)
+    add_topology_listener = getattr(coord, "async_add_topology_listener", None)
+    if callable(add_topology_listener):
+        entry.async_on_unload(add_topology_listener(_async_sync_chargers))
+    add_listener = getattr(coord, "async_add_listener", None)
+    if callable(add_listener):
+        entry.async_on_unload(add_listener(_async_sync_chargers))
     _async_sync_chargers()
 
 

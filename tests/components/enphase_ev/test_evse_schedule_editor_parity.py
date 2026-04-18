@@ -187,6 +187,8 @@ def test_evse_schedule_inventory_normalizes_payload_and_helpers(config_entry) ->
     assert records[1].limit == 18
     assert evse_schedule_option_label(records[0]) == "08:00-09:30 (24 A)"
 
+    config_entry.__dict__["options"] = MappingProxyType({})
+    assert evse_scheduler_enabled(config_entry) is True
     config_entry.__dict__["options"] = MappingProxyType(
         {OPT_SCHEDULE_SYNC_ENABLED: True}
     )
