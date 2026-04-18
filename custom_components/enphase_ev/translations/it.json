@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Ultimo aggiornamento riuscito",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Ultimo successo (UTC)"
-          },
           "last_failure_utc": {
             "name": "Ultimo fallimento (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Latenza cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultimo fallimento (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimo stato errore"
-          },
-          "code_description": {
-            "name": "Descrizione codice"
-          },
-          "last_failure_response": {
-            "name": "Ultima risposta di errore"
-          },
-          "last_failure_source": {
-            "name": "Ultima origine errore"
-          },
-          "backoff_ends_utc": {
-            "name": "Fine backoff (UTC)"
-          }
-        }
+        "name": "Latenza cloud"
       },
       "current_production_power": {
         "name": "Potenza attuale di produzione",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Codice errore cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultimo fallimento (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimo stato errore"
-          },
-          "code_description": {
-            "name": "Descrizione codice"
-          },
-          "last_failure_response": {
-            "name": "Ultima risposta di errore"
-          },
-          "last_failure_source": {
-            "name": "Ultima origine errore"
-          },
-          "backoff_ends_utc": {
-            "name": "Fine backoff (UTC)"
-          }
-        },
         "state": {
           "none": "Nessuno",
           "dns_error": "Errore DNS",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Fine backoff cloud",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultimo fallimento (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimo stato errore"
-          },
-          "code_description": {
-            "name": "Descrizione codice"
-          },
-          "last_failure_response": {
-            "name": "Ultima risposta di errore"
-          },
-          "last_failure_source": {
-            "name": "Ultima origine errore"
-          },
-          "backoff_ends_utc": {
-            "name": "Fine backoff (UTC)"
-          }
-        },
         "state": {
           "none": "Nessuno"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Produzione solare sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
       "site_consumption": {
         "name": "Consumo sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
       "site_grid_import": {
         "name": "Importazione rete sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Ultima finestra (s)"
           },
-          "last_report_date": {
-            "name": "Data ultimo report"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Esportazione rete sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
       "site_battery_charge": {
         "name": "Carica batteria sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Scarica batteria sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Ultima finestra (s)"
           },
-          "last_report_date": {
-            "name": "Data ultimo report"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Ricarica EVSE del sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Consumo pompa di calore del sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Consumo scaldacqua del sito",
         "state_attributes": {
-          "start_date": {
-            "name": "Data inizio"
-          },
-          "last_report_date": {
-            "name": "Data ultimo report"
-          },
-          "bucket_count": {
-            "name": "Numero di bucket"
-          },
-          "source_fields": {
-            "name": "Campi sorgente"
-          },
-          "source_unit": {
-            "name": "Unità sorgente"
-          },
-          "interval_minutes": {
-            "name": "Intervallo (min)"
+          "sampled_at_utc": {
+            "name": "Campionato alle (UTC)"
           },
           "last_reset_at": {
             "name": "Ultimo reset"
-          },
-          "update_pending": {
-            "name": "Aggiornamento in sospeso"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "SG-Ready attivo della pompa di calore"
       },
       "cloud_reachable": {
-        "name": "Cloud raggiungibile",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Ultimo fallimento (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Ultimo stato errore"
-          },
-          "code_description": {
-            "name": "Descrizione codice"
-          },
-          "last_failure_response": {
-            "name": "Ultima risposta di errore"
-          },
-          "last_failure_source": {
-            "name": "Ultima origine errore"
-          },
-          "backoff_ends_utc": {
-            "name": "Fine backoff (UTC)"
-          }
-        }
+        "name": "Cloud raggiungibile"
       },
       "connected": {
         "name": "Connettività",

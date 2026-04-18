@@ -84,9 +84,13 @@ def test_cloud_site_sensors_are_not_gated_by_envoy_type():
     assert EnphaseCloudLatencySensor(coord).available is True
     assert EnphaseCurrentPowerConsumptionSensor(coord).available is True
     assert SiteCloudReachableBinarySensor(coord).available is True
-    assert _SiteBaseEntity(
-        coord, "cloud_base", "Cloud Base", type_key=None
-    ).device_info["identifiers"] == {("enphase_ev", f"type:{coord.site_id}:cloud")}
+    base_entity = _SiteBaseEntity(coord, "cloud_base", "Cloud Base", type_key=None)
+    assert base_entity.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:cloud")
+    }
+    assert base_entity.extra_state_attributes == {
+        "last_success_utc": "2026-03-11T05:41:00+00:00"
+    }
 
 
 def test_current_power_consumption_sensor_edge_paths():
@@ -245,14 +249,7 @@ def test_site_cloud_reachable_binary_sensor_states():
     coord.last_failure_utc = now
 
     attrs = bs.extra_state_attributes
-    assert attrs["last_failure_status"] == 500
-    assert attrs["code_description"] == "Server error"
-    assert attrs["last_failure_response"] == payload
-    assert attrs["last_failure_source"] == "http"
-    assert attrs["last_failure_endpoint"].endswith("/ev_chargers/status")
-    assert attrs["payload_failure_kind"] == "json_decode"
-    assert attrs["payload_using_stale"] is True
-    assert "last_failure_utc" in attrs
+    assert attrs == {}
 
 
 def test_site_error_code_sensor_state_and_attributes():
@@ -280,14 +277,7 @@ def test_site_error_code_sensor_state_and_attributes():
     coord.payload_failure_kind = "json_decode"
 
     assert sensor.native_value == "429"
-    attrs = sensor.extra_state_attributes
-    assert attrs["last_failure_status"] == 429
-    assert attrs["code_description"] == "Rate limited"
-    assert attrs["last_failure_response"] == payload
-    assert attrs["last_failure_source"] == "http"
-    assert attrs["payload_using_stale"] is True
-    assert attrs["payload_failure_kind"] == "json_decode"
-    assert attrs["last_failure_utc"] == failure_time.isoformat()
+    assert sensor.extra_state_attributes == {}
 
     coord.last_success_utc = failure_time + timedelta(seconds=1)
     assert sensor.native_value == "none"
@@ -331,9 +321,7 @@ def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):
 
     value = sensor.native_value
     assert value == backoff_until
-    attrs = sensor.extra_state_attributes
-    assert attrs["backoff_ends_utc"] == backoff_until.isoformat()
-    assert "backoff_seconds" not in attrs
+    assert sensor.extra_state_attributes == {}
 
     # Once the backoff window has elapsed the sensor should reset to none
     monkeypatch.setattr(dt_util, "utcnow", lambda: backoff_until + timedelta(seconds=1))

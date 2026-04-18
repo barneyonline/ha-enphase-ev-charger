@@ -23,7 +23,6 @@ from .runtime_data import EnphaseConfigEntry, get_runtime_data
 from .sensor import (
     _heatpump_runtime_device_uid,
     _heatpump_runtime_snapshot,
-    _heatpump_sg_ready_semantics,
 )
 
 PARALLEL_UPDATES = 0
@@ -210,29 +209,7 @@ class SiteCloudReachableBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self):
-        attrs: dict[str, object] = {}
-        if self._coord.last_failure_utc:
-            attrs["last_failure_utc"] = self._coord.last_failure_utc.isoformat()
-        if self._coord.last_failure_status is not None:
-            attrs["last_failure_status"] = self._coord.last_failure_status
-        if self._coord.last_failure_description:
-            attrs["code_description"] = self._coord.last_failure_description
-        if self._coord.last_failure_response:
-            attrs["last_failure_response"] = self._coord.last_failure_response
-        if self._coord.last_failure_source:
-            attrs["last_failure_source"] = self._coord.last_failure_source
-        last_failure_endpoint = getattr(self._coord, "last_failure_endpoint", None)
-        if last_failure_endpoint:
-            attrs["last_failure_endpoint"] = last_failure_endpoint
-        payload_failure_kind = getattr(self._coord, "payload_failure_kind", None)
-        if payload_failure_kind:
-            attrs["payload_failure_kind"] = payload_failure_kind
-        payload_using_stale = bool(getattr(self._coord, "payload_using_stale", False))
-        if payload_using_stale:
-            attrs["payload_using_stale"] = True
-        if self._coord.backoff_ends_utc:
-            attrs["backoff_ends_utc"] = self._coord.backoff_ends_utc.isoformat()
-        return attrs
+        return {}
 
     @property
     def device_info(self):
@@ -280,31 +257,7 @@ class HeatPumpSgReadyActiveBinarySensor(CoordinatorEntity, BinarySensorEntity):
 
     @property
     def extra_state_attributes(self):
-        snapshot = self._snapshot()
-        details = _heatpump_sg_ready_semantics(
-            snapshot.get("sg_ready_mode_label") or snapshot.get("sg_ready_mode_raw")
-        )
-        return {
-            "device_uid": snapshot.get("device_uid"),
-            "member_name": snapshot.get("member_name"),
-            "member_device_type": snapshot.get("member_device_type"),
-            "pairing_status": snapshot.get("pairing_status"),
-            "device_state": snapshot.get("device_state"),
-            "heatpump_status_raw": snapshot.get("heatpump_status"),
-            "sg_ready_mode_raw": snapshot.get("sg_ready_mode_raw"),
-            "sg_ready_mode_label": snapshot.get("sg_ready_mode_label"),
-            "sg_ready_active": snapshot.get("sg_ready_active"),
-            "sg_ready_contact_state": snapshot.get("sg_ready_contact_state"),
-            "vpp_sgready_mode_override": snapshot.get("vpp_sgready_mode_override"),
-            "last_report_at": snapshot.get("last_report_at"),
-            "runtime_endpoint_type": snapshot.get("endpoint_type"),
-            "runtime_endpoint_timestamp": snapshot.get("endpoint_timestamp"),
-            "source": snapshot.get("source"),
-            "last_error": getattr(
-                self._coord, "heatpump_runtime_state_last_error", None
-            ),
-            **details,
-        }
+        return {}
 
     @property
     def device_info(self):

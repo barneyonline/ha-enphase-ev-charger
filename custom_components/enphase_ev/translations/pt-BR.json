@@ -475,9 +475,6 @@
       "last_successful_update": {
         "name": "Última atualização bem-sucedida",
         "state_attributes": {
-          "last_success_utc": {
-            "name": "Último sucesso (UTC)"
-          },
           "last_failure_utc": {
             "name": "Última falha (UTC)"
           },
@@ -499,27 +496,7 @@
         }
       },
       "cloud_latency": {
-        "name": "Latência da nuvem",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Última falha (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Status da última falha"
-          },
-          "code_description": {
-            "name": "Descrição do código"
-          },
-          "last_failure_response": {
-            "name": "Resposta da última falha"
-          },
-          "last_failure_source": {
-            "name": "Fonte da última falha"
-          },
-          "backoff_ends_utc": {
-            "name": "Fim do backoff (UTC)"
-          }
-        }
+        "name": "Latência da nuvem"
       },
       "current_production_power": {
         "name": "Potência atual de produção",
@@ -540,26 +517,6 @@
       },
       "cloud_error_code": {
         "name": "Código de erro da nuvem",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Última falha (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Status da última falha"
-          },
-          "code_description": {
-            "name": "Descrição do código"
-          },
-          "last_failure_response": {
-            "name": "Resposta da última falha"
-          },
-          "last_failure_source": {
-            "name": "Fonte da última falha"
-          },
-          "backoff_ends_utc": {
-            "name": "Fim do backoff (UTC)"
-          }
-        },
         "state": {
           "none": "Nenhum",
           "dns_error": "Erro de DNS",
@@ -568,26 +525,6 @@
       },
       "cloud_backoff_ends": {
         "name": "Fim do tempo de espera da nuvem",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Última falha (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Status da última falha"
-          },
-          "code_description": {
-            "name": "Descrição do código"
-          },
-          "last_failure_response": {
-            "name": "Resposta da última falha"
-          },
-          "last_failure_source": {
-            "name": "Fonte da última falha"
-          },
-          "backoff_ends_utc": {
-            "name": "Fim do backoff (UTC)"
-          }
-        },
         "state": {
           "none": "Nenhum"
         }
@@ -632,87 +569,33 @@
       "site_solar_production": {
         "name": "Produção solar do site",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
       "site_consumption": {
         "name": "Consumo do site",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
       "site_grid_import": {
         "name": "Importação da rede do site",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
@@ -734,8 +617,8 @@
           "last_window_seconds": {
             "name": "Última janela (s)"
           },
-          "last_report_date": {
-            "name": "Última data de relatório"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
@@ -751,87 +634,33 @@
       "site_grid_export": {
         "name": "Exportação para a rede do site",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
       "site_battery_charge": {
         "name": "Carga da bateria do site",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
       "site_battery_discharge": {
         "name": "Descarga da bateria do site",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
@@ -853,8 +682,8 @@
           "last_window_seconds": {
             "name": "Última janela (s)"
           },
-          "last_report_date": {
-            "name": "Última data de relatório"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
@@ -1045,87 +874,33 @@
       "site_evse_charging": {
         "name": "Carregamento EVSE do local",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
       "site_heat_pump_consumption": {
         "name": "Consumo da bomba de calor do local",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
       "site_water_heater_consumption": {
         "name": "Consumo do aquecedor de água do local",
         "state_attributes": {
-          "start_date": {
-            "name": "Data de início"
-          },
-          "last_report_date": {
-            "name": "Última data de relatório"
-          },
-          "bucket_count": {
-            "name": "Quantidade de buckets"
-          },
-          "source_fields": {
-            "name": "Campos de origem"
-          },
-          "source_unit": {
-            "name": "Unidade de origem"
-          },
-          "interval_minutes": {
-            "name": "Intervalo (min)"
+          "sampled_at_utc": {
+            "name": "Amostrado em (UTC)"
           },
           "last_reset_at": {
             "name": "Última redefinição"
-          },
-          "update_pending": {
-            "name": "Atualização pendente"
           }
         }
       },
@@ -1263,27 +1038,7 @@
         "name": "SG-Ready ativo da bomba de calor"
       },
       "cloud_reachable": {
-        "name": "Nuvem acessível",
-        "state_attributes": {
-          "last_failure_utc": {
-            "name": "Última falha (UTC)"
-          },
-          "last_failure_status": {
-            "name": "Status da última falha"
-          },
-          "code_description": {
-            "name": "Descrição do código"
-          },
-          "last_failure_response": {
-            "name": "Resposta da última falha"
-          },
-          "last_failure_source": {
-            "name": "Fonte da última falha"
-          },
-          "backoff_ends_utc": {
-            "name": "Fim do backoff (UTC)"
-          }
-        }
+        "name": "Nuvem acessível"
       },
       "connected": {
         "name": "Conectividade",

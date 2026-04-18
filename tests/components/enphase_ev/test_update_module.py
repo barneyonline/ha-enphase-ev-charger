@@ -410,7 +410,6 @@ async def test_microinverter_update_entity_uses_normalized_versions(hass) -> Non
     assert attrs["locale_used"] == "fr-fr"
     assert attrs["catalog_source_scope"] == "locale"
     assert attrs["catalog_generated_at"] == "2026-03-01T00:00:00Z"
-    assert attrs["raw_installed_version"] == "v04.30.31"
 
 
 @pytest.mark.asyncio

@@ -176,8 +176,6 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
             "locale_used": self._locale_used,
             "catalog_source_scope": self._source_scope,
             "catalog_generated_at": self._catalog_generated_at,
-            "raw_installed_version": self._raw_installed_version,
-            "raw_latest_version": self._raw_latest_version,
             "catalog_last_fetch_utc": status.get("last_fetch_utc"),
             "catalog_last_error": status.get("last_error"),
         }
@@ -323,8 +321,6 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
     def extra_state_attributes(self) -> dict[str, Any]:
         status = self._manager.status_snapshot()
         return {
-            "raw_installed_version": self._raw_installed_version,
-            "raw_latest_version": self._raw_latest_version,
             "upgrade_status": self._upgrade_status,
             "status_detail": self._status_detail,
             "last_successful_upgrade_date": self._last_successful_upgrade_date,

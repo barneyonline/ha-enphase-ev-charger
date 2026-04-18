@@ -240,7 +240,6 @@ def test_ac_battery_sleep_mode_switch_state_and_attributes(coordinator_factory) 
 
     assert sw.available is True
     assert sw.is_on is True
-    assert sw.extra_state_attributes["selected_sleep_min_soc"] == 25
     assert sw.extra_state_attributes["pending"] is True
 
 
@@ -1565,12 +1564,7 @@ def test_charge_from_grid_switch_exposes_schedule_attributes(
 
     attrs = ChargeFromGridSwitch(coord).extra_state_attributes
 
-    assert attrs["start_time"] == "02:00"
-    assert attrs["end_time"] == "05:00"
-    assert attrs["schedule_limit"] == 95
-    assert attrs["schedule_status"] == "pending"
-    assert attrs["schedule_pending"] is True
-    assert attrs["schedule_enabled"] is True
+    assert attrs == {"write_pending": False, "write_age_seconds": None}
 
 
 @pytest.mark.asyncio
