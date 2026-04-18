@@ -3509,6 +3509,8 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
         CONF_SCAN_INTERVAL,
         CONF_SERIALS,
         CONF_SITE_ID,
+        MIN_FAST_POLL_INTERVAL,
+        MIN_SLOW_POLL_INTERVAL,
         OPT_FAST_POLL_INTERVAL,
         OPT_SLOW_POLL_INTERVAL,
     )
@@ -3560,7 +3562,7 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     }
     coord.client = StubClient(payload_charging)
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 5
+    assert int(coord.update_interval.total_seconds()) == MIN_FAST_POLL_INTERVAL
 
     # Idle -> temporarily stay fast due to recent toggle
     payload_idle = {
@@ -3575,12 +3577,12 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     }
     coord.client = StubClient(payload_idle)
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 5
+    assert int(coord.update_interval.total_seconds()) == MIN_FAST_POLL_INTERVAL
 
     # Once the boost expires, fall back to the configured slow interval
     coord._fast_until = None
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 20
+    assert int(coord.update_interval.total_seconds()) == MIN_SLOW_POLL_INTERVAL
 
     # Connector status indicates charging even if flag remains false -> treat as active
     payload_conn_only = {
@@ -3596,7 +3598,7 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     }
     coord.client = StubClient(payload_conn_only)
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 5
+    assert int(coord.update_interval.total_seconds()) == MIN_FAST_POLL_INTERVAL
     assert coord.data[RANDOM_SERIAL]["charging"] is True
 
     # EVSE-side suspension should be treated as paused (not charging)
@@ -3613,13 +3615,13 @@ async def test_dynamic_poll_switch(hass, monkeypatch):
     }
     coord.client = StubClient(payload_conn_suspended)
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 5
+    assert int(coord.update_interval.total_seconds()) == MIN_FAST_POLL_INTERVAL
     assert coord.data[RANDOM_SERIAL]["charging"] is False
     assert coord.data[RANDOM_SERIAL]["suspended_by_evse"] is True
 
     coord._fast_until = None
     coord.data = await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 20
+    assert int(coord.update_interval.total_seconds()) == MIN_SLOW_POLL_INTERVAL
 
 
 @pytest.mark.asyncio
@@ -3965,6 +3967,7 @@ async def test_streaming_prefers_fast(hass, monkeypatch):
         CONF_SCAN_INTERVAL,
         CONF_SERIALS,
         CONF_SITE_ID,
+        MIN_FAST_POLL_INTERVAL,
         OPT_FAST_POLL_INTERVAL,
         OPT_FAST_WHILE_STREAMING,
         OPT_SLOW_POLL_INTERVAL,
@@ -4022,7 +4025,7 @@ async def test_streaming_prefers_fast(hass, monkeypatch):
     coord._streaming = True
     coord._streaming_until = time.monotonic() + 60
     await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 6
+    assert int(coord.update_interval.total_seconds()) == MIN_FAST_POLL_INTERVAL
 
 
 @pytest.mark.asyncio
@@ -4033,6 +4036,7 @@ async def test_streaming_reverts_to_configured_scan_interval(hass, monkeypatch):
         CONF_SCAN_INTERVAL,
         CONF_SERIALS,
         CONF_SITE_ID,
+        MIN_FAST_POLL_INTERVAL,
         OPT_FAST_POLL_INTERVAL,
         OPT_FAST_WHILE_STREAMING,
     )
@@ -4087,7 +4091,7 @@ async def test_streaming_reverts_to_configured_scan_interval(hass, monkeypatch):
     coord._streaming = True
     coord._streaming_until = time.monotonic() + 60
     await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 6
+    assert int(coord.update_interval.total_seconds()) == MIN_FAST_POLL_INTERVAL
 
     coord._streaming = False
     coord._streaming_until = None

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import aiohttp
 import pytest
 
 from custom_components.enphase_ev import evse_timeseries as ts_mod
@@ -173,3 +174,68 @@ async def test_evse_timeseries_endpoint_backoff_is_independent(hass) -> None:
     assert manager.daily_available is False
     assert manager.lifetime_available is True
     assert manager.service_available is True
+
+
+def _request_info() -> aiohttp.RequestInfo:
+    return aiohttp.RequestInfo(
+        url=aiohttp.client.URL("https://example.com/evse"),
+        method="GET",
+        headers={},
+        real_url=aiohttp.client.URL("https://example.com/evse"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_client_response_error_triggers_backoff(hass) -> None:
+    response_error = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=429,
+        message="rate limited",
+        headers={"Retry-After": "60"},
+    )
+    client = SimpleNamespace(
+        evse_timeseries_daily_energy=AsyncMock(side_effect=response_error),
+        evse_timeseries_lifetime_energy=AsyncMock(
+            return_value={"EV-1": {"energy_kwh": 4.0}}
+        ),
+    )
+    manager = EVSETimeseriesManager(hass, lambda: client)
+    day_local = datetime(2026, 3, 11, 12, 0, 0, tzinfo=timezone.utc)
+
+    await manager.async_refresh(day_local=day_local, force=True)
+
+    diagnostics = manager.diagnostics()
+    assert manager.daily_available is False
+    assert manager.daily_backoff_active is True
+    assert diagnostics["daily"]["using_stale"] is False
+    assert "429" in diagnostics["daily"]["last_error"]
+    assert "rate limited" in diagnostics["daily"]["last_error"]
+
+
+@pytest.mark.asyncio
+async def test_evse_timeseries_lifetime_client_response_error_triggers_backoff(
+    hass,
+) -> None:
+    response_error = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=503,
+        message="unavailable",
+    )
+    client = SimpleNamespace(
+        evse_timeseries_daily_energy=AsyncMock(
+            return_value={"EV-1": {"energy_kwh": 2.0}}
+        ),
+        evse_timeseries_lifetime_energy=AsyncMock(side_effect=response_error),
+    )
+    manager = EVSETimeseriesManager(hass, lambda: client)
+    day_local = datetime(2026, 3, 11, 12, 0, 0, tzinfo=timezone.utc)
+
+    await manager.async_refresh(day_local=day_local, force=True)
+
+    diagnostics = manager.diagnostics()
+    assert manager.lifetime_available is False
+    assert manager.lifetime_backoff_active is True
+    assert diagnostics["lifetime"]["using_stale"] is False
+    assert "503" in diagnostics["lifetime"]["last_error"]

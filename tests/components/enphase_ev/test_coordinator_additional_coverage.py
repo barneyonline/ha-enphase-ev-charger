@@ -47,6 +47,8 @@ from custom_components.enphase_ev.const import (
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
+    MIN_FAST_POLL_INTERVAL,
+    MIN_SLOW_POLL_INTERVAL,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     PHASE_SWITCH_CONFIG_SETTING,
@@ -2239,6 +2241,21 @@ def test_determine_polling_state_handles_options(hass):
     assert state["want_fast"] is True
     assert state["fast"] == DEFAULT_FAST_POLL_INTERVAL
     assert state["slow"] == 75
+
+
+def test_determine_polling_state_clamps_low_intervals(coordinator_factory):
+    coord = coordinator_factory()
+    coord.config_entry = SimpleNamespace(
+        options={
+            OPT_FAST_POLL_INTERVAL: 1,
+            coord_mod.OPT_SLOW_POLL_INTERVAL: 1,
+        }
+    )
+
+    state = coord._determine_polling_state({})
+
+    assert state["fast"] == MIN_FAST_POLL_INTERVAL
+    assert state["slow"] == MIN_SLOW_POLL_INTERVAL
 
 
 @pytest.mark.asyncio

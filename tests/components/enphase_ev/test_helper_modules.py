@@ -15,6 +15,7 @@ from yarl import URL
 
 from custom_components.enphase_ev import session_history as sh_mod
 from custom_components.enphase_ev import runtime_helpers, system_dashboard_helpers
+from custom_components.enphase_ev import summary as summary_mod
 from custom_components.enphase_ev.api import (
     InvalidPayloadError,
     SessionHistoryUnavailable,
@@ -31,6 +32,7 @@ from custom_components.enphase_ev.summary import (
     SUMMARY_ACTIVE_MIN_TTL,
     SUMMARY_IDLE_TTL,
 )
+from custom_components.enphase_ev.runtime_helpers import normalize_poll_intervals
 
 
 def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
@@ -43,6 +45,8 @@ def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
     assert runtime_helpers.coerce_int("bad", default=9) == 9
     assert runtime_helpers.coerce_optional_int(" 5 ") == 5
     assert runtime_helpers.coerce_optional_int(BadStr()) is None
+    assert normalize_poll_intervals("1", "2") == (15, 30)
+    assert normalize_poll_intervals("45", "30") == (45, 45)
     assert runtime_helpers.normalize_iso_date("2026-03-29") == "2026-03-29"
     assert runtime_helpers.normalize_iso_date("   ") is None
     assert runtime_helpers.normalize_iso_date(BadStr()) is None
@@ -452,6 +456,7 @@ async def test_summary_store_caches_and_handles_errors() -> None:
     store.invalidate()
     empty = await store.async_fetch(force=True)
     assert empty == []
+    assert client.calls == 2
     assert store.diagnostics()["using_stale"] is False
 
     # Missing client should behave the same.
@@ -486,8 +491,126 @@ async def test_summary_store_records_invalid_payload_stale_diagnostics() -> None
     assert diag["available"] is False
     assert diag["using_stale"] is True
     assert diag["failures"] == 1
+    assert diag["backoff_active"] is True
     assert diag["last_payload_signature"]["endpoint"] == "/ivp/summary"
     assert diag["last_payload_signature"]["failure_kind"] == "json_decode"
+
+
+@pytest.mark.asyncio
+async def test_summary_store_respects_backoff_without_cache() -> None:
+    client = _DummySummaryClient()
+    err = aiohttp.ClientResponseError(
+        _make_request_info(),
+        (),
+        status=429,
+        message="rate limited",
+        headers={"Retry-After": "120"},
+    )
+    client.summary_v2 = AsyncMock(side_effect=err)
+    store = SummaryStore(lambda: client)
+
+    first = await store.async_fetch(force=True)
+    second = await store.async_fetch(force=True)
+    diag = store.diagnostics()
+
+    assert first == []
+    assert second == []
+    assert client.summary_v2.await_count == 1
+    assert diag["available"] is False
+    assert diag["backoff_active"] is True
+    assert diag["backoff_until"] is not None
+    assert diag["backoff_ends_utc"] is not None
+
+
+@pytest.mark.asyncio
+async def test_summary_store_parses_retry_after_date_header(monkeypatch) -> None:
+    now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    client = _DummySummaryClient()
+    err = aiohttp.ClientResponseError(
+        _make_request_info(),
+        (),
+        status=429,
+        message="rate limited",
+        headers={"Retry-After": "Wed, 21 Oct 2099 07:28:00 GMT"},
+    )
+    client.summary_v2 = AsyncMock(side_effect=err)
+    store = SummaryStore(lambda: client)
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.summary.dt_util.utcnow", lambda: now
+    )
+
+    await store.async_fetch(force=True)
+    diag = store.diagnostics()
+
+    assert diag["backoff_active"] is True
+    assert diag["backoff_ends_utc"] is not None
+
+
+@pytest.mark.asyncio
+async def test_summary_store_handles_backoff_utc_failure(monkeypatch) -> None:
+    now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    utcnow_calls = iter([now, RuntimeError("boom")])
+    client = _DummySummaryClient()
+    client.summary_v2 = AsyncMock(side_effect=RuntimeError("boom"))
+    store = SummaryStore(lambda: client)
+
+    def _fake_utcnow():
+        value = next(utcnow_calls)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.summary.dt_util.utcnow", _fake_utcnow
+    )
+
+    await store.async_fetch(force=True)
+    diag = store.diagnostics()
+
+    assert diag["last_failure_utc"] == now.isoformat()
+    assert diag["backoff_ends_utc"] is None
+
+
+def test_summary_store_retry_after_helper_handles_naive_dates(monkeypatch) -> None:
+    now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    err = aiohttp.ClientResponseError(
+        _make_request_info(),
+        (),
+        status=429,
+        message="rate limited",
+        headers={"Retry-After": "ignored"},
+    )
+    store = SummaryStore(lambda: _DummySummaryClient())
+
+    monkeypatch.setattr(
+        summary_mod, "parsedate_to_datetime", lambda _: datetime(2025, 1, 2)
+    )
+    monkeypatch.setattr(summary_mod.dt_util, "utcnow", lambda: now)
+
+    delay = store._failure_backoff_delay(err, 1)  # noqa: SLF001
+
+    assert delay > 0
+
+
+def test_summary_store_retry_after_helper_handles_bad_dates(monkeypatch) -> None:
+    err = aiohttp.ClientResponseError(
+        _make_request_info(),
+        (),
+        status=429,
+        message="rate limited",
+        headers={"Retry-After": "ignored"},
+    )
+    store = SummaryStore(lambda: _DummySummaryClient())
+
+    def _raise(_value: str) -> datetime:
+        raise ValueError("bad date")
+
+    monkeypatch.setattr(summary_mod, "parsedate_to_datetime", _raise)
+
+    delay = store._failure_backoff_delay(err, 1)  # noqa: SLF001
+
+    assert delay == SUMMARY_IDLE_TTL
 
 
 def test_summary_store_cache_helpers() -> None:

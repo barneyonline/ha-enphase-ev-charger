@@ -384,6 +384,7 @@ async def test_kick_fast_window(hass, monkeypatch):
         CONF_SCAN_INTERVAL,
         CONF_SERIALS,
         CONF_SITE_ID,
+        MIN_FAST_POLL_INTERVAL,
         OPT_FAST_POLL_INTERVAL,
         OPT_SLOW_POLL_INTERVAL,
     )
@@ -436,7 +437,7 @@ async def test_kick_fast_window(hass, monkeypatch):
     # Trigger fast window explicitly
     coord.kick_fast(60)
     await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 5
+    assert int(coord.update_interval.total_seconds()) == MIN_FAST_POLL_INTERVAL
 
 
 @pytest.mark.asyncio

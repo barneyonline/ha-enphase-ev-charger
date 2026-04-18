@@ -58,6 +58,8 @@ from custom_components.enphase_ev.const import (
     CONF_SITE_ONLY,
     CONF_ACCESS_TOKEN,
     DOMAIN,
+    MIN_FAST_POLL_INTERVAL,
+    MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
     OPT_FAST_POLL_INTERVAL,
@@ -2345,7 +2347,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[CONF_TYPE_IQEVSE] is False
     assert validated[CONF_TYPE_HEATPUMP] is False
     assert validated[CONF_TYPE_MICROINVERTER] is True
-    assert validated[OPT_FAST_POLL_INTERVAL] == 5
+    assert validated[OPT_FAST_POLL_INTERVAL] == MIN_FAST_POLL_INTERVAL
     assert validated[OPT_SLOW_POLL_INTERVAL] == 120
     assert validated[OPT_FAST_WHILE_STREAMING] is False
     assert validated[OPT_API_TIMEOUT] == 25
@@ -2382,6 +2384,46 @@ async def test_options_flow_legacy_site_only_not_flipped_by_unrelated_save(
     assert entry.data[CONF_SITE_ONLY] is True
     assert entry.data[CONF_SERIALS] == []
     assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
+
+
+@pytest.mark.asyncio
+async def test_options_flow_normalizes_poll_intervals_on_save(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "microinverter"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_settings(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_ENCHARGE: False,
+            CONF_TYPE_AC_BATTERY: False,
+            CONF_TYPE_IQEVSE: False,
+            CONF_TYPE_HEATPUMP: False,
+            CONF_TYPE_MICROINVERTER: True,
+            OPT_FAST_POLL_INTERVAL: 45,
+            OPT_SLOW_POLL_INTERVAL: MIN_SLOW_POLL_INTERVAL,
+            OPT_FAST_WHILE_STREAMING: True,
+            OPT_API_TIMEOUT: 15,
+            OPT_NOMINAL_VOLTAGE: 230,
+            OPT_SESSION_HISTORY_INTERVAL: 10,
+            OPT_SCHEDULE_SYNC_ENABLED: False,
+            OPT_BATTERY_SCHEDULES_ENABLED: False,
+            "reauth": False,
+            "forget_password": False,
+        }
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
+    assert result["data"][OPT_SLOW_POLL_INTERVAL] == 45
 
 
 @pytest.mark.asyncio

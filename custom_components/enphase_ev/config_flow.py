@@ -52,6 +52,8 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
+    MIN_FAST_POLL_INTERVAL,
+    MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
     OPT_FAST_POLL_INTERVAL,
@@ -92,6 +94,7 @@ from .envoy_history import (
     validate_selected_mappings,
 )
 from .log_redaction import redact_text
+from .runtime_helpers import normalize_poll_intervals
 from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
 
 _LOGGER = logging.getLogger(__name__)
@@ -1161,6 +1164,10 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     ) -> vol.Schema:
         default_selected_type_keys = self._default_selected_type_keys()
         nominal_default = self._default_nominal_voltage()
+        fast_default, slow_default = normalize_poll_intervals(
+            self._entry.options.get(OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL),
+            self._entry.options.get(OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL),
+        )
         schema_fields: dict[vol.Marker, object] = {}
         for type_key in visible_type_keys or list(ONBOARDING_SUPPORTED_TYPE_KEYS):
             field_key = _TYPE_FIELD_BY_KEY.get(type_key)
@@ -1173,16 +1180,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             {
                 vol.Optional(
                     OPT_FAST_POLL_INTERVAL,
-                    default=self._entry.options.get(
-                        OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL
-                    ),
-                ): int,
+                    default=fast_default,
+                ): vol.All(vol.Coerce(int), vol.Range(min=MIN_FAST_POLL_INTERVAL)),
                 vol.Optional(
                     OPT_SLOW_POLL_INTERVAL,
-                    default=self._entry.options.get(
-                        OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL
-                    ),
-                ): int,
+                    default=slow_default,
+                ): vol.All(vol.Coerce(int), vol.Range(min=MIN_SLOW_POLL_INTERVAL)),
                 vol.Optional(
                     OPT_FAST_WHILE_STREAMING,
                     default=self._entry.options.get(OPT_FAST_WHILE_STREAMING, True),
@@ -1383,6 +1386,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             option_data = dict(user_input)
             forget_password = bool(option_data.pop("forget_password", False))
             reauth = bool(option_data.pop("reauth", False))
+            fast_poll, slow_poll = normalize_poll_intervals(
+                option_data.get(OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL),
+                option_data.get(OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL),
+            )
+            option_data[OPT_FAST_POLL_INTERVAL] = fast_poll
+            option_data[OPT_SLOW_POLL_INTERVAL] = slow_poll
             selected_type_keys: list[str] = []
             default_selected_type_keys = self._default_selected_type_keys()
             for type_key in visible_type_keys:
