@@ -11,13 +11,34 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Redacted EV charger session auth identifiers and tokens from downloadable diagnostics and removed raw session/auth identifiers from the last-session sensor attributes so Home Assistant history no longer stores those values.
+- None
 
 ### 🔧 Improvements
-- Enforced minimum EV charger polling intervals in the options/runtime paths and added cooldown tracking for `summary_v2` and EVSE timeseries failures so transient cloud issues do not trigger overly aggressive retry loops.
+- None
 
 ### 🔄 Other changes
 - None
+
+## v2.8.3 - 2026-04-18
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Redacted EV charger session auth identifiers and tokens from downloadable diagnostics and removed raw session/auth identifiers from the last-session sensor attributes so Home Assistant history no longer stores those values.
+- Finalized IQ Battery schedule add/update/delete handling so rejected Enphase schedule writes now raise validation errors cleanly instead of failing as generic service errors.
+
+### 🔧 Improvements
+- Enforced minimum EV charger polling intervals in the options/runtime paths and added cooldown tracking for `summary_v2` and EVSE timeseries failures so transient cloud issues do not trigger overly aggressive retry loops.
+- Aligned the IQ EV Charger scheduler editor with the IQ Battery scheduler pattern: the editor now keeps a stable schedule selection, supports explicit create mode, exposes dedicated refresh/save/delete buttons, and uses translated weekday/time labels across the helper entities.
+- Finalized the IQ Battery scheduler editor flow with clearer schedule labels, improved default selection and create/edit state handling, and success notifications after save/delete actions.
+
+### 🔄 Other changes
+- Refactored redundant Enphase helper and runtime utility implementations to reduce duplicated logic across entity setup, cleanup, labels, firmware helpers, and related initialization paths.
+- Updated internal API documentation and test coverage for the EV charger and battery scheduler/editor flows.
 
 ## v2.8.2 - 2026-04-17
 
