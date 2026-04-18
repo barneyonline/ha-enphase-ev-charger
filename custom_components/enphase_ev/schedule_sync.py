@@ -16,32 +16,22 @@ from homeassistant.components.schedule.const import (
     DOMAIN as SCHEDULE_DOMAIN,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers.collection import CHANGE_ADDED, CollectionChange
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import (
     async_call_later,
-    async_track_state_change_event,
     async_track_time_interval,
 )
-from homeassistant.helpers.storage import Store
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
 from .api import SchedulerUnavailable
 from .const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
 from .log_redaction import redact_identifier, redact_text
-from .schedule import (
-    HelperDefinition,
-    helper_to_slot,
-    normalize_slot_payload,
-    slot_to_helper,
-)
+from .schedule import normalize_slot_payload
 
 _LOGGER = logging.getLogger(__name__)
 
-STORE_VERSION = 1
 SYNC_INTERVAL = timedelta(minutes=5)
-SUPPRESS_SECONDS = 2.0
 PATCH_REFRESH_DELAY_S = 1.0
 SYNC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
 
@@ -51,18 +41,13 @@ class ScheduleSync:
         self.hass = hass
         self._coordinator = coordinator
         self._config_entry = config_entry
-        entry_id = getattr(config_entry, "entry_id", "default")
-        self._store = Store(hass, STORE_VERSION, f"{DOMAIN}.schedule_map.{entry_id}")
-        self._mapping: dict[str, dict[str, str]] = {}
         self._slot_cache: dict[str, dict[str, dict[str, Any]]] = {}
         self._meta_cache: dict[str, str | None] = {}
         self._config_cache: dict[str, dict[str, Any]] = {}
         self._lock = asyncio.Lock()
         self._storage_collection = None
         self._unsub_interval = None
-        self._unsub_state = None
         self._unsub_coordinator = None
-        self._suppress_updates: set[str] = set()
         self._listeners: list[Callable[[], None]] = []
         self._disabled_cleanup_done = False
         self._storage_sanitize_done = False
@@ -72,13 +57,11 @@ class ScheduleSync:
         self._pending_patch_refresh: set[str] = set()
 
     async def async_start(self) -> None:
-        await self._load_mapping()
-        await self._ensure_storage_collection()
         self._disabled_cleanup_done = False
         if not self._sync_enabled():
             await self._disable_support()
             return
-        self._update_state_listener()
+        await self._remove_all_helpers()
         self._unsub_interval = async_track_time_interval(
             self.hass, self._handle_interval, SYNC_INTERVAL
         )
@@ -94,9 +77,6 @@ class ScheduleSync:
         if self._unsub_interval is not None:
             self._unsub_interval()
             self._unsub_interval = None
-        if self._unsub_state is not None:
-            self._unsub_state()
-            self._unsub_state = None
         if self._unsub_coordinator is not None:
             self._unsub_coordinator()
             self._unsub_coordinator = None
@@ -108,9 +88,6 @@ class ScheduleSync:
             "last_status": self._last_status,
             "last_error": self._last_error,
             "cached_serials": sorted(self._slot_cache.keys()),
-            "mapping_counts": {
-                serial: len(slots) for serial, slots in self._mapping.items()
-            },
         }
 
     @callback
@@ -134,18 +111,10 @@ class ScheduleSync:
     def get_slot(self, sn: str, slot_id: str) -> dict[str, Any] | None:
         return self._slot_cache.get(sn, {}).get(slot_id)
 
-    def get_helper_entity_id(self, sn: str, slot_id: str) -> str | None:
-        return self._mapping.get(sn, {}).get(slot_id)
-
     def iter_slots(self) -> Iterable[tuple[str, str, dict[str, Any]]]:
         for serial, slots in self._slot_cache.items():
             for slot_id, slot in slots.items():
                 yield serial, slot_id, slot
-
-    def iter_helper_mappings(self) -> Iterable[tuple[str, str, str]]:
-        for serial, slots in self._mapping.items():
-            for slot_id, entity_id in slots.items():
-                yield serial, slot_id, entity_id
 
     def is_off_peak_eligible(self, sn: str) -> bool:
         config = self._config_cache.get(sn)
@@ -207,26 +176,33 @@ class ScheduleSync:
     async def _remove_all_helpers(self) -> None:
         collection = await self._ensure_storage_collection()
         ent_reg = er.async_get(self.hass)
-        slot_keys: set[tuple[str, str]] = set()
+        slot_keys: set[tuple[str, str]] = {
+            (serial, slot_id)
+            for serial, slots in self._slot_cache.items()
+            for slot_id in slots
+            if serial and slot_id
+        }
 
-        for serial, slots in self._slot_cache.items():
-            for slot_id in slots:
-                if serial and slot_id:
-                    slot_keys.add((serial, slot_id))
-
-        for serial, slots in list(self._mapping.items()):
-            for slot_id, entity_id in list(slots.items()):
-                if serial and slot_id:
-                    slot_keys.add((serial, slot_id))
-                schedule_entity_id = entity_id
-                if not schedule_entity_id:
-                    unique_id = self._unique_id(serial, slot_id)
-                    schedule_entity_id = ent_reg.async_get_entity_id(
-                        SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id
-                    )
-                if schedule_entity_id:
-                    self._suppress_entity(schedule_entity_id)
-                    ent_reg.async_remove(schedule_entity_id)
+        for entry in list(ent_reg.entities.values()):
+            entry_domain = getattr(entry, "domain", None)
+            if entry_domain is None:
+                entry_domain = entry.entity_id.partition(".")[0]
+            if entry_domain != SCHEDULE_DOMAIN:
+                continue
+            unique_id = getattr(entry, "unique_id", "") or ""
+            if not unique_id.startswith(f"{DOMAIN}:"):
+                continue
+            entry_config_id = getattr(entry, "config_entry_id", None)
+            if (
+                self._config_entry is not None
+                and entry_config_id is not None
+                and entry_config_id != self._config_entry.entry_id
+            ):
+                continue
+            serial, slot_id = self._parse_slot_id(unique_id)
+            if serial and slot_id:
+                slot_keys.add((serial, slot_id))
+            ent_reg.async_remove(entry.entity_id)
 
         if collection is not None:
             for item_id in list(collection.data):
@@ -290,9 +266,6 @@ class ScheduleSync:
             if known_serials and serial not in known_serials:
                 continue
             ent_reg.async_remove(entry.entity_id)
-
-        self._mapping = {}
-        await self._save_mapping()
 
     @staticmethod
     def _parse_slot_id(unique_id: str) -> tuple[str | None, str | None]:
@@ -433,7 +406,6 @@ class ScheduleSync:
         if self._lock.locked():
             return
         async with self._lock:
-            await self._ensure_storage_collection()
             serial_list = (
                 list(serials)
                 if serials is not None
@@ -444,61 +416,6 @@ class ScheduleSync:
             self._last_sync = dt_util.utcnow()
             self._last_status = f"ok:{reason}"
 
-    @callback
-    def _handle_state_change(self, event) -> None:
-        entity_id = event.data.get("entity_id")
-        if not entity_id or entity_id in self._suppress_updates:
-            return
-        self.hass.async_create_task(self.async_handle_helper_change(entity_id))
-
-    async def async_handle_helper_change(self, entity_id: str) -> None:
-        if not self._sync_enabled():
-            return
-        if entity_id in self._suppress_updates:
-            return
-        slot_info = await self._slot_for_entity(entity_id)
-        if not slot_info:
-            return
-        sn, slot_id = slot_info
-        slot_cache = self._slot_cache.get(sn, {}).get(slot_id)
-        if not slot_cache:
-            return
-        schedule_type = slot_cache.get("scheduleType")
-        if schedule_type == "OFF_PEAK":
-            return
-        if slot_cache.get("startTime") is None or slot_cache.get("endTime") is None:
-            return
-        schedule_def = await self._get_schedule(entity_id)
-        if schedule_def is None:
-            return
-        tz = dt_util.get_time_zone(self.hass.config.time_zone)
-        slot_patch = helper_to_slot(schedule_def, slot_cache, tz)
-        if slot_patch is None:
-            return
-        if not self._slot_payload_changed(slot_cache, slot_patch):
-            return
-        if not slot_cache.get("enabled", True):
-            slot_patch["enabled"] = True
-        await self._patch_slot(sn, slot_id, slot_patch)
-
-    async def _get_schedule(self, entity_id: str) -> dict[str, Any] | None:
-        collection = await self._ensure_storage_collection()
-        if collection is None:
-            return None
-        ent_reg = er.async_get(self.hass)
-        entry = ent_reg.async_get(entity_id)
-        unique_id = str(entry.unique_id) if entry and entry.unique_id else None
-        if not unique_id:
-            slot_info = await self._slot_for_entity(entity_id)
-            if slot_info:
-                unique_id = self._unique_id(*slot_info)
-        if not unique_id:
-            return None
-        item = collection.data.get(unique_id)
-        if not isinstance(item, dict):
-            return None
-        return self._normalize_schedule_item(item)
-
     async def _patch_slot(
         self, sn: str, slot_id: str, slot_patch: dict[str, Any]
     ) -> None:
@@ -507,7 +424,6 @@ class ScheduleSync:
         if self._scheduler_backoff_active():
             self._last_status = "scheduler_unavailable"
             self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
-            await self._revert_helper(sn, slot_id)
             return
         try:
             slot_patch = normalize_slot_payload(slot_patch)
@@ -524,7 +440,6 @@ class ScheduleSync:
             )
             self._last_status = "scheduler_unavailable"
             self._note_scheduler_unavailable(err)
-            await self._revert_helper(sn, slot_id)
             return
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
@@ -536,7 +451,6 @@ class ScheduleSync:
                     identifiers=(sn,),
                 ),
             )
-            await self._revert_helper(sn, slot_id)
             return
         new_timestamp = None
         if isinstance(response, dict):
@@ -554,21 +468,66 @@ class ScheduleSync:
         self._schedule_post_patch_refresh(sn)
         self._notify_listeners()
 
-    async def _revert_helper(self, sn: str, slot_id: str) -> None:
-        slot = self._slot_cache.get(sn, {}).get(slot_id)
-        if not slot:
-            return
-        helper_def = slot_to_helper(
-            slot, dt_util.get_time_zone(self.hass.config.time_zone)
-        )
-        name = self._default_name(sn, slot, helper_def)
-        await self._apply_helper(
-            sn,
-            slot_id,
-            helper_def,
-            name,
-            previous_default_name=name,
-        )
+    async def _create_slot(self, sn: str, slot: dict[str, Any]) -> bool:
+        if self._scheduler_backoff_active():
+            self._last_status = "scheduler_unavailable"
+            self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
+            return False
+        slot_payload = normalize_slot_payload(slot)
+        try:
+            response = await self._coordinator.client.create_schedule(sn, slot_payload)
+            self._mark_scheduler_available()
+        except SchedulerUnavailable as err:
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
+            self._last_status = "scheduler_unavailable"
+            self._note_scheduler_unavailable(err)
+            return False
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Schedule create failed for %s: %s",
+                redact_identifier(sn),
+                redact_text(
+                    err,
+                    site_ids=(getattr(self._coordinator, "site_id", None),),
+                    identifiers=(sn,),
+                ),
+            )
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
+            self._last_status = "create_failed"
+            return False
+
+        new_timestamp = None
+        created_slot_id = str(slot_payload.get("id") or "")
+        if isinstance(response, dict):
+            meta = response.get("meta")
+            if isinstance(meta, dict):
+                new_timestamp = meta.get("serverTimeStamp")
+            data = response.get("data")
+            if isinstance(data, str) and data.strip():
+                created_slot_id = data.strip()
+            elif isinstance(data, dict):
+                inner_meta = data.get("meta")
+                if isinstance(inner_meta, dict) and not new_timestamp:
+                    new_timestamp = inner_meta.get("serverTimeStamp")
+                candidate_id = data.get("id")
+                if candidate_id is not None and str(candidate_id).strip():
+                    created_slot_id = str(candidate_id).strip()
+        if new_timestamp:
+            self._meta_cache[sn] = new_timestamp
+        if created_slot_id:
+            slot_payload["id"] = created_slot_id
+            self._slot_cache.setdefault(sn, {})[created_slot_id] = slot_payload
+        self._schedule_post_patch_refresh(sn)
+        self._notify_listeners()
+        return True
 
     async def _sync_serial(self, sn: str) -> None:
         try:
@@ -609,14 +568,6 @@ class ScheduleSync:
             self._config_cache[sn] = config
         else:
             self._config_cache.pop(sn, None)
-        prev_slots = self._slot_cache.get(sn)
-        if not isinstance(prev_slots, dict):
-            prev_slots = {}
-        else:
-            prev_slots = dict(prev_slots)
-        tz = dt_util.get_time_zone(self.hass.config.time_zone)
-        prev_indexes = self._custom_slot_indexes(prev_slots, tz)
-
         slots = response.get("slots") if isinstance(response, dict) else None
         if not isinstance(slots, list):
             slots = []
@@ -629,108 +580,141 @@ class ScheduleSync:
                 continue
             slot_map[slot_id] = slot
         self._slot_cache[sn] = slot_map
-
-        existing = dict(self._mapping.get(sn, {}))
-        custom_index = 0
-        for slot_id, slot in slot_map.items():
-            helper_def = slot_to_helper(slot, tz)
-            if helper_def.schedule_type == "OFF_PEAK" and not self._show_off_peak():
-                await self._remove_helper(sn, slot_id)
-                continue
-            if helper_def.schedule_type != "OFF_PEAK":
-                custom_index += 1
-            name = self._default_name(sn, slot, helper_def, custom_index)
-            previous_default_name = None
-            prev_slot = prev_slots.get(slot_id)
-            if prev_slot:
-                prev_helper_def = slot_to_helper(prev_slot, tz)
-                prev_index = prev_indexes.get(slot_id)
-                previous_default_name = self._default_name(
-                    sn, prev_slot, prev_helper_def, prev_index
-                )
-            await self._apply_helper(
-                sn,
-                slot_id,
-                helper_def,
-                name,
-                previous_default_name=previous_default_name,
-            )
-
-        for slot_id in set(existing) - set(slot_map):
-            await self._remove_helper(sn, slot_id)
-
-        if self._mapping.get(sn) != existing:
-            await self._save_mapping()
-        self._update_state_listener()
         self._notify_listeners()
 
-    async def _apply_helper(
-        self,
-        sn: str,
-        slot_id: str,
-        helper_def: HelperDefinition,
-        name: str,
-        previous_default_name: str | None = None,
-    ) -> None:
-        collection = await self._ensure_storage_collection()
-        if collection is None:
-            return
-        item_id = self._unique_id(sn, slot_id)
-        entity_id = self._resolve_entity_id(item_id)
-        if entity_id:
-            self._suppress_entity(entity_id)
-        existing = collection.data.get(item_id)
-        payload = dict(helper_def.schedule)
-        existing_name = None
-        if existing and isinstance(existing, dict):
-            existing_name = existing.get("name")
-        if existing_name:
-            if previous_default_name and existing_name == previous_default_name:
-                payload["name"] = name
-            else:
-                payload["name"] = existing_name
-        else:
-            payload["name"] = name
-        if existing:
-            await collection.async_update_item(item_id, payload)
-        else:
-            await self._create_item_with_id(collection, item_id, payload)
-        await self.hass.async_block_till_done()
-        entity_id = self._resolve_entity_id(item_id)
-        if entity_id:
-            self._link_entity(sn, entity_id)
-            self._mapping.setdefault(sn, {})[slot_id] = entity_id
+    def _default_server_timestamp(self) -> str:
+        return dt_util.utcnow().isoformat(timespec="milliseconds")
 
-    async def _remove_helper(self, sn: str, slot_id: str) -> None:
-        collection = await self._ensure_storage_collection()
-        if collection is None:
+    async def async_replace_slots(self, sn: str, slots: list[dict[str, Any]]) -> None:
+        if not self._sync_enabled():
             return
-        item_id = self._unique_id(sn, slot_id)
-        if item_id in collection.data:
-            entity_id = self._resolve_entity_id(item_id)
-            if entity_id:
-                self._suppress_entity(entity_id)
-            await collection.async_delete_item(item_id)
-            await self.hass.async_block_till_done()
-        self._mapping.get(sn, {}).pop(slot_id, None)
+        if self._scheduler_backoff_active():
+            self._last_status = "scheduler_unavailable"
+            self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
+            return
+        server_timestamp = self._meta_cache.get(sn)
+        if not server_timestamp:
+            await self.async_refresh(reason="replace_prepare", serials=[sn])
+            server_timestamp = self._meta_cache.get(sn)
+        payload_slots: list[dict[str, Any]] = []
+        for slot in slots:
+            if not isinstance(slot, dict):
+                continue
+            payload_slots.append(normalize_slot_payload(slot))
+        try:
+            response = await self._coordinator.client.patch_schedules(
+                sn,
+                server_timestamp=server_timestamp or self._default_server_timestamp(),
+                slots=payload_slots,
+            )
+            self._mark_scheduler_available()
+        except SchedulerUnavailable as err:
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
+            self._last_status = "scheduler_unavailable"
+            self._note_scheduler_unavailable(err)
+            return
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Schedule collection PATCH failed for %s: %s",
+                redact_identifier(sn),
+                redact_text(
+                    err,
+                    site_ids=(getattr(self._coordinator, "site_id", None),),
+                    identifiers=(sn,),
+                ),
+            )
+            return
 
-    async def _create_item_with_id(
-        self, collection, item_id: str, payload: dict[str, Any]
-    ) -> None:
-        validated = await collection._process_create_data(payload)
-        item = collection._create_item(item_id, validated)
-        collection.data[item_id] = item
-        collection._async_schedule_save()
-        await collection.notify_changes(
-            [
-                CollectionChange(
-                    CHANGE_ADDED,
-                    item_id,
-                    item,
-                    collection._hash_item(collection._serialize_item(item_id, item)),
-                )
-            ]
-        )
+        new_timestamp = None
+        response_slots: list[dict[str, Any]] | None = None
+        if isinstance(response, dict):
+            meta = response.get("meta")
+            if isinstance(meta, dict):
+                new_timestamp = meta.get("serverTimeStamp")
+            data = response.get("data")
+            if isinstance(data, dict):
+                inner_meta = data.get("meta")
+                if isinstance(inner_meta, dict) and not new_timestamp:
+                    new_timestamp = inner_meta.get("serverTimeStamp")
+                config = data.get("config")
+                if isinstance(config, dict):
+                    self._config_cache[sn] = config
+                slots_data = data.get("slots")
+                if isinstance(slots_data, list):
+                    response_slots = [
+                        slot for slot in slots_data if isinstance(slot, dict)
+                    ]
+            elif isinstance(data, list):
+                response_slots = [slot for slot in data if isinstance(slot, dict)]
+        if new_timestamp:
+            self._meta_cache[sn] = new_timestamp
+
+        final_slots = response_slots if response_slots is not None else payload_slots
+        self._slot_cache[sn] = {
+            str(slot.get("id")): slot
+            for slot in final_slots
+            if isinstance(slot, dict) and slot.get("id")
+        }
+        self._schedule_post_patch_refresh(sn)
+        self._notify_listeners()
+
+    async def async_upsert_slot(self, sn: str, slot: dict[str, Any]) -> bool:
+        slot_id = str(slot.get("id") or "")
+        if slot_id and slot_id in self._slot_cache.get(sn, {}):
+            await self._patch_slot(sn, slot_id, slot)
+            return True
+        return await self._create_slot(sn, slot)
+
+    async def async_delete_slot(self, sn: str, slot_id: str) -> None:
+        if slot_id not in self._slot_cache.get(sn, {}):
+            return
+        if self._scheduler_backoff_active():
+            self._last_status = "scheduler_unavailable"
+            self._last_error = getattr(self._coordinator, "scheduler_last_error", None)
+            return
+        try:
+            response = await self._coordinator.client.delete_schedule(sn, slot_id)
+            self._mark_scheduler_available()
+        except SchedulerUnavailable as err:
+            self._last_error = redact_text(
+                err,
+                site_ids=(getattr(self._coordinator, "site_id", None),),
+                identifiers=(sn,),
+            )
+            self._last_status = "scheduler_unavailable"
+            self._note_scheduler_unavailable(err)
+            return
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Schedule delete failed for %s: %s",
+                redact_identifier(sn),
+                redact_text(
+                    err,
+                    site_ids=(getattr(self._coordinator, "site_id", None),),
+                    identifiers=(sn,),
+                ),
+            )
+            return
+
+        new_timestamp = None
+        if isinstance(response, dict):
+            meta = response.get("meta")
+            if isinstance(meta, dict):
+                new_timestamp = meta.get("serverTimeStamp")
+            data = response.get("data")
+            if isinstance(data, dict):
+                inner_meta = data.get("meta")
+                if isinstance(inner_meta, dict) and not new_timestamp:
+                    new_timestamp = inner_meta.get("serverTimeStamp")
+        if new_timestamp:
+            self._meta_cache[sn] = new_timestamp
+        self._slot_cache.get(sn, {}).pop(slot_id, None)
+        self._schedule_post_patch_refresh(sn)
+        self._notify_listeners()
 
     async def _ensure_storage_collection(self):
         if self._storage_collection is not None:
@@ -819,26 +803,10 @@ class ScheduleSync:
             _LOGGER.warning("Sanitized schedule storage times with microseconds")
         return saved
 
-    async def _load_mapping(self) -> None:
-        stored = await self._store.async_load() or {}
-        mapping: dict[str, dict[str, str]] = {}
-        if isinstance(stored, dict):
-            for serial, slots in stored.items():
-                if not isinstance(slots, dict):
-                    continue
-                mapping[str(serial)] = {str(k): str(v) for k, v in slots.items()}
-        self._mapping = mapping
-
-    async def _save_mapping(self) -> None:
-        await self._store.async_save(self._mapping)
-
     def _sync_enabled(self) -> bool:
         if not self._config_entry:
             return True
         return bool(self._config_entry.options.get(OPT_SCHEDULE_SYNC_ENABLED, False))
-
-    def _show_off_peak(self) -> bool:
-        return False
 
     def _has_scheduler_bearer(self) -> bool:
         client = getattr(self._coordinator, "client", None)
@@ -875,157 +843,3 @@ class ScheduleSync:
                 token.close()
             return False
         return bool(token)
-
-    def _charger_name(self, sn: str) -> str:
-        data = (getattr(self._coordinator, "data", {}) or {}).get(sn) or {}
-        display_name = data.get("display_name")
-        if display_name:
-            return str(display_name)
-        fallback_name = data.get("name")
-        if fallback_name:
-            return str(fallback_name)
-        return f"Charger {sn}"
-
-    def _custom_slot_indexes(
-        self, slots: dict[str, dict[str, Any]], tz
-    ) -> dict[str, int]:
-        custom_index = 0
-        indexes: dict[str, int] = {}
-        for slot_id, slot in slots.items():
-            helper_def = slot_to_helper(slot, tz)
-            if helper_def.schedule_type == "OFF_PEAK":
-                continue
-            custom_index += 1
-            indexes[str(slot_id)] = custom_index
-        return indexes
-
-    def _default_name(
-        self,
-        sn: str,
-        slot: dict[str, Any],
-        helper_def: HelperDefinition,
-        index: int | None = None,
-    ) -> str:
-        charger_name = self._charger_name(sn)
-        schedule_type = helper_def.schedule_type or "CUSTOM"
-        start = slot.get("startTime")
-        end = slot.get("endTime")
-        time_window = None
-        if start and end:
-            time_window = f"{start}-{end}"
-
-        if schedule_type == "OFF_PEAK":
-            return f"Enphase {charger_name} Off-Peak (read-only)"
-
-        if time_window:
-            return f"Enphase {charger_name} {time_window}"
-
-        fallback_index = index if index is not None else 1
-        return f"Enphase {charger_name} Schedule {fallback_index}"
-
-    def _unique_id(self, sn: str, slot_id: str) -> str:
-        return f"{DOMAIN}:{sn}:schedule:{slot_id}"
-
-    def _resolve_entity_id(self, unique_id: str) -> str | None:
-        ent_reg = er.async_get(self.hass)
-        return ent_reg.async_get_entity_id(SCHEDULE_DOMAIN, SCHEDULE_DOMAIN, unique_id)
-
-    async def _slot_for_entity(self, entity_id: str) -> tuple[str, str] | None:
-        ent_reg = er.async_get(self.hass)
-        entry = ent_reg.async_get(entity_id)
-        if entry and entry.unique_id:
-            unique_id = str(entry.unique_id)
-            prefix = f"{DOMAIN}:"
-            if unique_id.startswith(prefix):
-                rest = unique_id[len(prefix) :]
-                serial, sep, slot_id = rest.partition(":schedule:")
-                if sep and serial and slot_id:
-                    return serial, slot_id
-        for serial, slots in self._mapping.items():
-            for slot_id, mapped_entity in slots.items():
-                if mapped_entity == entity_id:
-                    return serial, slot_id
-        return None
-
-    def _link_entity(self, sn: str, entity_id: str) -> None:
-        dev_reg = dr.async_get(self.hass)
-        device = dev_reg.async_get_device(identifiers={(DOMAIN, sn)})
-        if not device:
-            return
-        ent_reg = er.async_get(self.hass)
-        entry = ent_reg.async_get(entity_id)
-        if entry and entry.device_id != device.id:
-            ent_reg.async_update_entity(entity_id, device_id=device.id)
-
-    @callback
-    def _suppress_entity(self, entity_id: str) -> None:
-        self._suppress_updates.add(entity_id)
-
-        @callback
-        def _release(_now) -> None:
-            self._suppress_updates.discard(entity_id)
-
-        async_call_later(self.hass, SUPPRESS_SECONDS, _release)
-
-    def _update_state_listener(self) -> None:
-        if self._unsub_state is not None:
-            self._unsub_state()
-            self._unsub_state = None
-        entity_ids = [
-            entity_id
-            for slots in self._mapping.values()
-            for entity_id in slots.values()
-        ]
-        if entity_ids:
-            self._unsub_state = async_track_state_change_event(
-                self.hass, entity_ids, self._handle_state_change
-            )
-
-    @staticmethod
-    def _normalized_slot_payload(slot: dict[str, Any]) -> dict[str, Any]:
-        normalized = normalize_slot_payload(slot)
-        normalized.pop("enabled", None)
-        for key in list(normalized):
-            if normalized[key] is None:
-                normalized.pop(key)
-        return normalized
-
-    def _slot_payload_changed(
-        self, slot_cache: dict[str, Any], slot_patch: dict[str, Any]
-    ) -> bool:
-        return self._normalized_slot_payload(
-            slot_cache
-        ) != self._normalized_slot_payload(slot_patch)
-
-    @staticmethod
-    def _coerce_time(value: Any) -> dt_time | None:
-        if isinstance(value, dt_time):
-            return value
-        if isinstance(value, str):
-            try:
-                return dt_time.fromisoformat(value)
-            except ValueError:
-                return None
-        return None
-
-    @classmethod
-    def _normalize_schedule_item(cls, item: dict[str, Any]) -> dict[str, Any]:
-        normalized = dict(item)
-        for day in CONF_ALL_DAYS:
-            entries = item.get(day) or []
-            if not isinstance(entries, list):
-                continue
-            normalized_entries = []
-            for entry in entries:
-                if not isinstance(entry, dict):
-                    continue
-                start = cls._coerce_time(entry.get(CONF_FROM))
-                end = cls._coerce_time(entry.get(CONF_TO))
-                if start is None or end is None:
-                    continue
-                normalized_entry = dict(entry)
-                normalized_entry[CONF_FROM] = start
-                normalized_entry[CONF_TO] = end
-                normalized_entries.append(normalized_entry)
-            normalized[day] = normalized_entries
-        return normalized

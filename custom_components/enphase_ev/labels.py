@@ -207,6 +207,13 @@ def battery_schedule_create_label(*, hass: Any | None = None) -> str:
     return "Battery Schedule Add"
 
 
+def evse_schedule_create_label(*, hass: Any | None = None) -> str:
+    value = _entity_translation_value(hass, "button", "evse_schedule_add")
+    if value is not None:
+        return value
+    return "Create new schedule"
+
+
 def battery_schedule_type_label(
     value: object, *, hass: Any | None = None
 ) -> str | None:

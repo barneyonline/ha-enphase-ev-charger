@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Det valda laddningsläget är inte tillgängligt."
+    },
+    "evse_schedule_day_required": {
+      "message": "Välj minst en veckodag för schemat."
+    },
+    "evse_schedule_times_different": {
+      "message": "Schemat måste ha olika start- och sluttid."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase avvisade schemaändringen."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Viloläge för AC-batteri"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Schema måndag"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Schema tisdag"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Schema onsdag"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Schema torsdag"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Schema fredag"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Schema lördag"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Schema söndag"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Mål för laddningsnivå för AC-batteri"
+      },
+      "evse_schedule_selected": {
+        "name": "Schema"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Välj bort stormvarning"
+      },
+      "evse_schedule_refresh": {
+        "name": "Uppdatera schema"
+      },
+      "evse_schedule_save": {
+        "name": "Spara schema"
+      },
+      "evse_schedule_delete": {
+        "name": "Ta bort schema"
+      },
+      "evse_schedule_add": {
+        "name": "Skapa nytt schema"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Sluttid för begränsning av batteriurladdning"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Schemas starttid"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Schemas sluttid"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Synka scheman",
-      "description": "Uppdatera Enphase-scheman och uppdatera schemahjälpare.",
+      "description": "Uppdatera Enphase-scheman från molnet.",
       "fields": {
         "device_id": {
           "name": "Laddare",

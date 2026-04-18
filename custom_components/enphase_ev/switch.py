@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import STATE_ON
@@ -29,8 +28,13 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import EnphaseBaseEntity, battery_schedule_extra_state_attributes
 from .entity_cleanup import prune_managed_entities
+from .evse_schedule_editor import (
+    EvseScheduleEditorEntity,
+    DAY_ORDER as EVSE_DAY_ORDER,
+    evse_schedule_editor_active,
+)
 from .evse_runtime import FAST_TOGGLE_POLL_HOLD_S
-from .log_redaction import redact_identifier, redact_text
+from .log_redaction import redact_identifier
 from .runtime_helpers import (
     inventory_type_available as _type_available,
     inventory_type_device_info as _type_device_info,
@@ -40,6 +44,26 @@ from .runtime_data import EnphaseConfigEntry, get_runtime_data
 PARALLEL_UPDATES = 0
 _LOGGER = logging.getLogger(__name__)
 _AUTO_SUFFIX_RE = re.compile(r"^\d+$")
+
+
+def _is_disabled_by_integration(disabled_by: object) -> bool:
+    if disabled_by is None:
+        return False
+    return getattr(disabled_by, "value", disabled_by) == "integration"
+
+
+def _reenable_integration_disabled_entity(
+    ent_reg: er.EntityRegistry, *, domain: str, unique_id: str
+) -> None:
+    entity_id = ent_reg.async_get_entity_id(domain, DOMAIN, unique_id)
+    if entity_id is None:
+        return
+    reg_entry = ent_reg.async_get(entity_id)
+    if reg_entry is None:
+        return
+    if not _is_disabled_by_integration(getattr(reg_entry, "disabled_by", None)):
+        return
+    ent_reg.async_update_entity(entity_id, disabled_by=None)
 
 
 def _switch_entity_id_migrations(coord: EnphaseCoordinator) -> dict[str, str]:
@@ -189,13 +213,11 @@ async def async_setup_entry(
                 redact_identifier(migrated_entity_id),
             )
 
-    schedule_sync = getattr(coord, "schedule_sync", None)
     site_entity_keys: set[str] = set()
     known_serials: set[str] = set()
-    known_slots: set[tuple[str, str]] = set()
-    stale_slot_miss_counts: dict[tuple[str, str], int] = {}
     known_green_battery: set[str] = set()
     known_app_auth: set[str] = set()
+    known_evse_schedule_days: set[tuple[str, str]] = set()
 
     @callback
     def _async_sync_site_entities() -> None:
@@ -255,6 +277,11 @@ async def async_setup_entry(
                     edit_key in retain_site_entity_keys
                     and edit_key not in site_entity_keys
                 ):
+                    _reenable_integration_disabled_entity(
+                        ent_reg,
+                        domain="switch",
+                        unique_id=f"{DOMAIN}_site_{coord.site_id}_{edit_key}",
+                    )
                     site_entities.append(
                         BatteryScheduleEditorDaySwitch(coord, entry, day_key=day_key)
                     )
@@ -317,19 +344,6 @@ async def async_setup_entry(
             },
         )
 
-    def _slot_is_toggleable(sn: str, slot: dict[str, Any]) -> bool:
-        schedule_type = str(slot.get("scheduleType") or "")
-        if schedule_type == "OFF_PEAK":
-            if schedule_sync is not None and hasattr(
-                schedule_sync, "is_off_peak_eligible"
-            ):
-                if not schedule_sync.is_off_peak_eligible(sn):
-                    return False
-            return True
-        if slot.get("startTime") is None or slot.get("endTime") is None:
-            return False
-        return True
-
     @callback
     def _async_sync_chargers() -> None:
         _async_sync_site_entities()
@@ -373,12 +387,34 @@ async def async_setup_entry(
                 if data.get("app_auth_supported") is True:
                     entities.append(AppAuthenticationSwitch(coord, sn))
                     known_app_auth.add(sn)
+        if evse_schedule_editor_active(coord, entry):
+            for sn in current_serials:
+                for day_key, _day in EVSE_DAY_ORDER:
+                    key = (sn, day_key)
+                    if key in known_evse_schedule_days:
+                        continue
+                    _reenable_integration_disabled_entity(
+                        ent_reg,
+                        domain="switch",
+                        unique_id=f"{DOMAIN}_{sn}_schedule_edit_{day_key}",
+                    )
+                    entities.append(
+                        EvseScheduleEditorDaySwitch(coord, entry, sn, day_key)
+                    )
+                    known_evse_schedule_days.add(key)
         if entities:
             async_add_entities(entities, update_before_add=False)
         known_serials.intersection_update(current_serials)
         known_serials.update(serials)
         known_green_battery.intersection_update(retain_green_battery)
         known_app_auth.intersection_update(retain_app_auth)
+        known_evse_schedule_days.intersection_update(
+            {
+                (sn, day_key)
+                for sn in current_serials
+                for day_key, _day in EVSE_DAY_ORDER
+            }
+        )
         if not inventory_ready:
             return
         active_unique_ids = {f"{DOMAIN}_{sn}_charging_switch" for sn in current_serials}
@@ -392,6 +428,12 @@ async def async_setup_entry(
         active_unique_ids.update(
             f"{DOMAIN}_{sn}_app_authentication" for sn in retain_app_auth
         )
+        if evse_schedule_editor_active(coord, entry):
+            active_unique_ids.update(
+                f"{DOMAIN}_{sn}_schedule_edit_{day_key}"
+                for sn in current_serials
+                for day_key, _day in EVSE_DAY_ORDER
+            )
         prune_managed_entities(
             ent_reg,
             entry.entry_id,
@@ -403,57 +445,20 @@ async def async_setup_entry(
                     "_storm_guard_evse_charge",
                     "_green_battery",
                     "_app_authentication",
+                    "_schedule_edit_mon",
+                    "_schedule_edit_tue",
+                    "_schedule_edit_wed",
+                    "_schedule_edit_thu",
+                    "_schedule_edit_fri",
+                    "_schedule_edit_sat",
+                    "_schedule_edit_sun",
                 )
             ),
         )
 
-    @callback
-    def _async_sync_schedule_switches() -> None:
-        if schedule_sync is None:
-            return
-        entities: list[SwitchEntity] = []
-        active_slot_keys: set[tuple[str, str]] = set()
-        for sn, slot_id, slot in schedule_sync.iter_slots():
-            key = (sn, slot_id)
-            if not _slot_is_toggleable(sn, slot):
-                continue
-            active_slot_keys.add(key)
-            stale_slot_miss_counts.pop(key, None)
-            if key in known_slots:
-                continue
-            entities.append(ScheduleSlotSwitch(coord, schedule_sync, sn, slot_id))
-            known_slots.add(key)
-        stale_slot_keys = known_slots - active_slot_keys
-        for sn, slot_id in stale_slot_keys:
-            key = (sn, slot_id)
-            misses = stale_slot_miss_counts.get(key, 0) + 1
-            stale_slot_miss_counts[key] = misses
-            if misses < 2:
-                continue
-            known_slots.discard((sn, slot_id))
-            stale_slot_miss_counts.pop(key, None)
-            unique_id = f"{DOMAIN}:{sn}:schedule:{slot_id}:enabled"
-            entity_id = ent_reg.async_get_entity_id("switch", DOMAIN, unique_id)
-            if entity_id:
-                try:
-                    ent_reg.async_remove(entity_id)
-                except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug(
-                        "Failed removing stale schedule slot switch %s: %s",
-                        redact_identifier(entity_id),
-                        redact_text(err),
-                    )
-        if entities:
-            async_add_entities(entities, update_before_add=False)
-
     unsubscribe = coord.async_add_listener(_async_sync_chargers)
     entry.async_on_unload(unsubscribe)
-    if schedule_sync is not None:
-        entry.async_on_unload(
-            schedule_sync.async_add_listener(_async_sync_schedule_switches)
-        )
     _async_sync_chargers()
-    _async_sync_schedule_switches()
 
 
 class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
@@ -1003,95 +1008,10 @@ class StormGuardEvseSwitch(EnphaseBaseEntity, SwitchEntity):
         await self._coord.async_request_refresh()
 
 
-class ScheduleSlotSwitch(EnphaseBaseEntity, SwitchEntity):
-    _attr_has_entity_name = False
-
-    def __init__(self, coord: EnphaseCoordinator, schedule_sync, sn: str, slot_id: str):
-        super().__init__(coord, sn)
-        self._schedule_sync = schedule_sync
-        self._slot_id = slot_id
-        self._attr_unique_id = f"{DOMAIN}:{sn}:schedule:{slot_id}:enabled"
-        self._unsub_schedule = None
-
-    @property
-    def name(self) -> str | None:  # type: ignore[override]
-        if self._is_off_peak():
-            return "Off Peak Schedule"
-        helper_name = self._helper_name()
-        if helper_name:
-            return helper_name
-        return f"Schedule {self._slot_id}"
-
-    @property
-    def available(self) -> bool:  # type: ignore[override]
-        return (
-            super().available
-            and self._slot() is not None
-            and self._coord.scheduler_available
-        )
-
-    @property
-    def is_on(self) -> bool:
-        slot = self._slot()
-        if not slot:
-            return False
-        return bool(slot.get("enabled", True))
-
-    async def async_turn_on(self, **kwargs) -> None:
-        await self._schedule_sync.async_set_slot_enabled(self._sn, self._slot_id, True)
-
-    async def async_turn_off(self, **kwargs) -> None:
-        await self._schedule_sync.async_set_slot_enabled(self._sn, self._slot_id, False)
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        if hasattr(self._schedule_sync, "async_add_listener"):
-            self._unsub_schedule = self._schedule_sync.async_add_listener(
-                self._handle_schedule_sync_update
-            )
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._unsub_schedule is not None:
-            self._unsub_schedule()
-            self._unsub_schedule = None
-        await super().async_will_remove_from_hass()
-
-    def _slot(self) -> dict[str, Any] | None:
-        return self._schedule_sync.get_slot(self._sn, self._slot_id)
-
-    def _is_off_peak(self) -> bool:
-        slot = self._slot()
-        schedule_type = str(slot.get("scheduleType") or "") if slot else ""
-        return schedule_type == "OFF_PEAK"
-
-    def _helper_name(self) -> str | None:
-        if self.hass is None:
-            return None
-        helper_entity_id = self._schedule_sync.get_helper_entity_id(
-            self._sn, self._slot_id
-        )
-        if not helper_entity_id:
-            return None
-        state = self.hass.states.get(helper_entity_id)
-        if state:
-            friendly = state.attributes.get("friendly_name")
-            if friendly:
-                return str(friendly)
-        ent_reg = er.async_get(self.hass)
-        entry = ent_reg.async_get(helper_entity_id)
-        if entry:
-            return entry.name or entry.original_name
-        return None
-
-    @callback
-    def _handle_schedule_sync_update(self) -> None:
-        self.async_write_ha_state()
-
-
 class BatteryScheduleEditorDaySwitch(BatteryScheduleEditorEntity, SwitchEntity):
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
 
     def __init__(
         self,
@@ -1147,3 +1067,43 @@ class BatteryScheduleEditorDaySwitch(BatteryScheduleEditorEntity, SwitchEntity):
             identifiers={(DOMAIN, f"type:{self._coord.site_id}:encharge")},
             manufacturer="Enphase",
         )
+
+
+class EvseScheduleEditorDaySwitch(EvseScheduleEditorEntity, SwitchEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        entry: EnphaseConfigEntry,
+        sn: str,
+        day_key: str,
+    ) -> None:
+        super().__init__(coord, entry, sn)
+        self._day_key = day_key
+        self._attr_translation_key = f"evse_schedule_edit_{day_key}"
+        self._attr_unique_id = f"{DOMAIN}_{sn}_schedule_edit_{day_key}"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return (
+            super().available
+            and evse_schedule_editor_active(self._coord, self._entry)
+            and self._editor is not None
+        )
+
+    @property
+    def is_on(self) -> bool:
+        if self._editor is None:
+            return False
+        return bool(self._editor.form_state(self._sn).days.get(self._day_key))
+
+    async def async_turn_on(self, **kwargs) -> None:
+        if self._editor is not None:
+            self._editor.set_edit_day(self._sn, self._day_key, True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        if self._editor is not None:
+            self._editor.set_edit_day(self._sn, self._day_key, False)

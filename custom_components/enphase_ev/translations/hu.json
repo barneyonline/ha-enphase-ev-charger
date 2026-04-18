@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "A kiválasztott töltési mód nem érhető el."
+    },
+    "evse_schedule_day_required": {
+      "message": "Válasszon legalább egy napot a hétből az ütemezéshez."
+    },
+    "evse_schedule_times_different": {
+      "message": "Az ütemezés kezdési és befejezési idejének különböznie kell."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Az Enphase elutasította az ütemezés módosítását."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "AC akkumulátor alvó módja"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Hétfői ütemezés"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Keddi ütemezés"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Szerdai ütemezés"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Csütörtöki ütemezés"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Pénteki ütemezés"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Szombati ütemezés"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Vasárnapi ütemezés"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "AC akkumulátor cél töltöttségi szintje"
+      },
+      "evse_schedule_selected": {
+        "name": "Ütemezés"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Viharriasztás letiltása"
+      },
+      "evse_schedule_refresh": {
+        "name": "Ütemezés frissítése"
+      },
+      "evse_schedule_save": {
+        "name": "Ütemezés mentése"
+      },
+      "evse_schedule_delete": {
+        "name": "Ütemezés törlése"
+      },
+      "evse_schedule_add": {
+        "name": "Új ütemezés létrehozása"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Akkumulátorkisütés-korlátozás befejezési ideje"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Ütemezés kezdési ideje"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Ütemezés befejezési ideje"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Ütemezések szinkronizálása",
-      "description": "Enphase ütemezések frissítése és az ütemezési segédek frissítése.",
+      "description": "Enphase ütemezések frissítése a felhőből.",
       "fields": {
         "device_id": {
           "name": "Töltők",

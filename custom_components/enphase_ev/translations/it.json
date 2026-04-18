@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "La modalità di ricarica selezionata non è disponibile."
+    },
+    "evse_schedule_day_required": {
+      "message": "Seleziona almeno un giorno della settimana per la pianificazione."
+    },
+    "evse_schedule_times_different": {
+      "message": "L'ora di inizio e di fine della pianificazione devono essere diverse."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase ha rifiutato la modifica della pianificazione."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "Modalità sospensione della batteria AC"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Pianificazione lunedì"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Pianificazione martedì"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Pianificazione mercoledì"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Pianificazione giovedì"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Pianificazione venerdì"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Pianificazione sabato"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Pianificazione domenica"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "Stato di carica obiettivo della batteria AC"
+      },
+      "evse_schedule_selected": {
+        "name": "Pianificazione"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Disattiva avviso tempesta"
+      },
+      "evse_schedule_refresh": {
+        "name": "Aggiorna pianificazione"
+      },
+      "evse_schedule_save": {
+        "name": "Salva pianificazione"
+      },
+      "evse_schedule_delete": {
+        "name": "Elimina pianificazione"
+      },
+      "evse_schedule_add": {
+        "name": "Crea nuova pianificazione"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Ora di fine restrizione della scarica della batteria"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Ora di inizio pianificazione"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Ora di fine pianificazione"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Sincronizza programmi",
-      "description": "Aggiorna i programmi Enphase e aggiorna gli helper dei programmi.",
+      "description": "Aggiorna i programmi Enphase dal cloud.",
       "fields": {
         "device_id": {
           "name": "Caricatori",

@@ -119,6 +119,15 @@
     },
     "charge_mode_invalid_option": {
       "message": "Valitud laadimisrežiim pole saadaval."
+    },
+    "evse_schedule_day_required": {
+      "message": "Valige ajakava jaoks vähemalt üks nädalapäev."
+    },
+    "evse_schedule_times_different": {
+      "message": "Ajakava algus- ja lõpuaeg peavad erinema."
+    },
+    "evse_schedule_change_rejected": {
+      "message": "Enphase lükkas ajakava muudatuse tagasi."
     }
   },
   "options": {
@@ -1321,6 +1330,27 @@
       },
       "ac_battery_sleep_mode": {
         "name": "AC-aku unerežiim"
+      },
+      "evse_schedule_edit_mon": {
+        "name": "Esmaspäeva ajakava"
+      },
+      "evse_schedule_edit_tue": {
+        "name": "Teisipäeva ajakava"
+      },
+      "evse_schedule_edit_wed": {
+        "name": "Kolmapäeva ajakava"
+      },
+      "evse_schedule_edit_thu": {
+        "name": "Neljapäeva ajakava"
+      },
+      "evse_schedule_edit_fri": {
+        "name": "Reede ajakava"
+      },
+      "evse_schedule_edit_sat": {
+        "name": "Laupäeva ajakava"
+      },
+      "evse_schedule_edit_sun": {
+        "name": "Pühapäeva ajakava"
       }
     },
     "select": {
@@ -1332,6 +1362,9 @@
       },
       "ac_battery_target_state_of_charge": {
         "name": "AC-aku sihtlaetuse tase"
+      },
+      "evse_schedule_selected": {
+        "name": "Ajakava"
       }
     },
     "button": {
@@ -1349,6 +1382,18 @@
       },
       "storm_alert_opt_out": {
         "name": "Loobu tormihoiatusest"
+      },
+      "evse_schedule_refresh": {
+        "name": "Ajakava värskendamine"
+      },
+      "evse_schedule_save": {
+        "name": "Ajakava salvestamine"
+      },
+      "evse_schedule_delete": {
+        "name": "Ajakava kustutamine"
+      },
+      "evse_schedule_add": {
+        "name": "Uue ajakava loomine"
       }
     },
     "time": {
@@ -1369,6 +1414,12 @@
       },
       "restrict_battery_discharge_end_time": {
         "name": "Aku tühjendamise piirangu lõppaeg"
+      },
+      "evse_schedule_edit_start_time": {
+        "name": "Ajakava algusaeg"
+      },
+      "evse_schedule_edit_end_time": {
+        "name": "Ajakava lõppaeg"
       }
     },
     "calendar": {
@@ -1581,7 +1632,7 @@
     },
     "sync_schedules": {
       "name": "Sünkroniseeri ajakavad",
-      "description": "Värskenda Enphase ajakavasid ja ajakava abistajaid.",
+      "description": "Värskenda Enphase ajakavasid pilvest.",
       "fields": {
         "device_id": {
           "name": "Laadijad",

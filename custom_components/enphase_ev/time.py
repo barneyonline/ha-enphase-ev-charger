@@ -20,6 +20,10 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .entity import battery_schedule_extra_state_attributes
 from .entity_cleanup import prune_managed_entities
+from .evse_schedule_editor import (
+    EvseScheduleEditorEntity,
+    evse_schedule_editor_active,
+)
 from .log_redaction import redact_identifier
 from .runtime_helpers import (
     inventory_type_available as _type_available,
@@ -211,6 +215,8 @@ async def async_setup_entry(
 ) -> None:
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     added_site_time_unique_ids: set[str] = set()
+    known_serials: set[str] = set()
+    active_site_time_unique_ids: set[str] = set()
 
     ent_reg = er.async_get(hass)
     rename_by_unique = _time_entity_id_migrations(coord)
@@ -248,6 +254,12 @@ async def async_setup_entry(
             f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_end_time",
             f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_start_time",
             f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_end_time",
+        }
+
+    def _charger_schedule_time_unique_ids(sn: str) -> set[str]:
+        return {
+            f"{DOMAIN}_{sn}_schedule_edit_start_time",
+            f"{DOMAIN}_{sn}_schedule_edit_end_time",
         }
 
     def _site_time_entities_by_unique_id(
@@ -291,9 +303,10 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_site_entities() -> None:
+        nonlocal active_site_time_unique_ids
         inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
         retained_site_time_unique_ids = _retained_site_time_unique_ids(coord, entry)
-        active_site_time_unique_ids: set[str] = set()
+        active_site_time_unique_ids = set()
         if _site_has_battery(coord) and _type_available(coord, "encharge"):
             active_site_time_unique_ids = retained_site_time_unique_ids
             current_site_entities = _site_time_entities_by_unique_id(
@@ -322,13 +335,49 @@ async def async_setup_entry(
             is_managed=lambda unique_id: unique_id in _managed_site_time_unique_ids(),
         )
 
+    @callback
+    def _async_sync_charger_entities() -> None:
+        inventory_ready = bool(getattr(coord, "_devices_inventory_ready", False))
+        current_serials = {sn for sn in coord.iter_serials() if sn}
+        serials = [sn for sn in current_serials if sn not in known_serials]
+        entities: list[TimeEntity] = []
+        if evse_schedule_editor_active(coord, entry):
+            for sn in serials:
+                entities.append(EvseScheduleEditStartTimeEntity(coord, entry, sn))
+                entities.append(EvseScheduleEditEndTimeEntity(coord, entry, sn))
+        if entities:
+            async_add_entities(entities, update_before_add=False)
+        known_serials.intersection_update(current_serials)
+        known_serials.update(serials)
+        if not inventory_ready:
+            return
+        active_unique_ids: set[str] = set()
+        if evse_schedule_editor_active(coord, entry):
+            for sn in current_serials:
+                active_unique_ids.update(_charger_schedule_time_unique_ids(sn))
+        prune_managed_entities(
+            ent_reg,
+            entry.entry_id,
+            domain="time",
+            active_unique_ids=active_unique_ids | active_site_time_unique_ids,
+            is_managed=lambda unique_id: (
+                unique_id in _managed_site_time_unique_ids()
+                or unique_id.endswith(
+                    ("_schedule_edit_start_time", "_schedule_edit_end_time")
+                )
+            ),
+        )
+
     add_topology_listener = getattr(coord, "async_add_topology_listener", None)
     if callable(add_topology_listener):
         entry.async_on_unload(add_topology_listener(_async_sync_site_entities))
+        entry.async_on_unload(add_topology_listener(_async_sync_charger_entities))
     add_listener = getattr(coord, "async_add_listener", None)
     if callable(add_listener):
         entry.async_on_unload(add_listener(_async_sync_site_entities))
+        entry.async_on_unload(add_listener(_async_sync_charger_entities))
     _async_sync_site_entities()
+    _async_sync_charger_entities()
 
 
 class _BaseChargeFromGridTimeEntity(CoordinatorEntity, TimeEntity):
@@ -690,3 +739,74 @@ class BatteryScheduleEditEndTimeEntity(_BatteryScheduleEditorTimeEntity):
     async def async_set_value(self, value: dt_time) -> None:
         if self._editor is not None:
             self._editor.set_edit_time("end_time", value)
+
+
+class _EvseScheduleEditorTimeEntity(EvseScheduleEditorEntity, TimeEntity):
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self,
+        coord: EnphaseCoordinator,
+        entry: EnphaseConfigEntry,
+        sn: str,
+        *,
+        unique_suffix: str,
+        translation_key: str,
+        key: str,
+    ) -> None:
+        super().__init__(coord, entry, sn)
+        self._attr_translation_key = translation_key
+        self._key = key
+        self._attr_unique_id = f"{DOMAIN}_{sn}_{unique_suffix}"
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        return (
+            super().available
+            and evse_schedule_editor_active(self._coord, self._entry)
+            and self._editor is not None
+        )
+
+    @property
+    def native_value(self) -> dt_time | None:
+        if self._editor is None:
+            return None
+        value = getattr(self._editor.form_state(self._sn), self._key)
+        return _parse_editor_time(value)
+
+
+class EvseScheduleEditStartTimeEntity(_EvseScheduleEditorTimeEntity):
+    def __init__(
+        self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry, sn: str
+    ) -> None:
+        super().__init__(
+            coord,
+            entry,
+            sn,
+            unique_suffix="schedule_edit_start_time",
+            translation_key="evse_schedule_edit_start_time",
+            key="start_time",
+        )
+
+    async def async_set_value(self, value: dt_time) -> None:
+        if self._editor is not None:
+            self._editor.set_edit_time(self._sn, "start_time", value)
+
+
+class EvseScheduleEditEndTimeEntity(_EvseScheduleEditorTimeEntity):
+    def __init__(
+        self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry, sn: str
+    ) -> None:
+        super().__init__(
+            coord,
+            entry,
+            sn,
+            unique_suffix="schedule_edit_end_time",
+            translation_key="evse_schedule_edit_end_time",
+            key="end_time",
+        )
+
+    async def async_set_value(self, value: dt_time) -> None:
+        if self._editor is not None:
+            self._editor.set_edit_time(self._sn, "end_time", value)

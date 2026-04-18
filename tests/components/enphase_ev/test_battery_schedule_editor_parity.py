@@ -508,7 +508,7 @@ async def test_battery_schedule_platform_setup_adds_editor_entities(
         for entity in editor_entities
     )
     assert all(
-        entity.entity_registry_enabled_default is False
+        entity.entity_registry_enabled_default is True
         for entity in added
         if isinstance(entity, BatteryScheduleEditorDaySwitch)
     )
@@ -786,7 +786,7 @@ async def test_battery_schedule_editor_entities_update_state_and_call_services(
     day_switch = BatteryScheduleEditorDaySwitch(coord, config_entry, day_key="sun")
     edit_day_switch = BatteryScheduleEditorDaySwitch(coord, config_entry, day_key="mon")
     assert day_switch.entity_category is EntityCategory.CONFIG
-    assert day_switch.entity_registry_enabled_default is False
+    assert day_switch.entity_registry_enabled_default is True
     await day_switch.async_turn_on()
     assert day_switch.is_on is True
     await day_switch.async_turn_off()

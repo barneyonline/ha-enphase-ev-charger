@@ -258,7 +258,9 @@ async def async_setup_entry(
         if not serials:
             entities: list[NumberEntity] = []
         else:
-            entities = [ChargingAmpsNumber(coord, sn) for sn in serials]
+            entities = []
+            for sn in serials:
+                entities.append(ChargingAmpsNumber(coord, sn))
         if entities:
             async_add_entities(entities, update_before_add=False)
         known_serials.intersection_update(current_serials)
@@ -268,17 +270,20 @@ async def async_setup_entry(
         if not inventory_ready:
             return
 
+        active_charger_unique_ids = {
+            _charger_number_unique_id(sn) for sn in current_serials
+        }
         prune_managed_entities(
             ent_reg,
             entry.entry_id,
             domain="number",
             active_unique_ids={
                 *active_site_number_unique_ids,
-                *(_charger_number_unique_id(sn) for sn in current_serials),
+                *active_charger_unique_ids,
             },
             is_managed=lambda unique_id: (
                 unique_id in _managed_site_number_unique_ids()
-                or unique_id.endswith("_amps_number")
+                or unique_id.endswith(("_amps_number", "_schedule_edit_limit"))
             ),
         )
 

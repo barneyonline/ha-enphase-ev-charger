@@ -267,6 +267,71 @@ def test_battery_schedule_editor_strings_exist_for_english_locales() -> None:
             assert value.strip(), f"{locale.name} missing value for {path}"
 
 
+def test_evse_schedule_editor_strings_exist_for_all_locales() -> None:
+    """Ensure EV schedule editor strings are present in every locale catalog."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    paths = [
+        "entity.select.evse_schedule_selected.name",
+        "entity.button.evse_schedule_refresh.name",
+        "entity.button.evse_schedule_save.name",
+        "entity.button.evse_schedule_delete.name",
+        "entity.button.evse_schedule_add.name",
+        "entity.time.evse_schedule_edit_start_time.name",
+        "entity.time.evse_schedule_edit_end_time.name",
+        "entity.switch.evse_schedule_edit_mon.name",
+        "entity.switch.evse_schedule_edit_tue.name",
+        "entity.switch.evse_schedule_edit_wed.name",
+        "entity.switch.evse_schedule_edit_thu.name",
+        "entity.switch.evse_schedule_edit_fri.name",
+        "entity.switch.evse_schedule_edit_sat.name",
+        "entity.switch.evse_schedule_edit_sun.name",
+        "exceptions.evse_schedule_day_required.message",
+        "exceptions.evse_schedule_times_different.message",
+        "exceptions.evse_schedule_change_rejected.message",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{locale.name} missing value for {path}"
+
+
+def test_evse_schedule_editor_strings_localized_for_non_english_locales() -> None:
+    """Guard EV schedule editor strings from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.select.evse_schedule_selected.name",
+        "entity.button.evse_schedule_add.name",
+        "entity.time.evse_schedule_edit_start_time.name",
+        "entity.switch.evse_schedule_edit_mon.name",
+        "exceptions.evse_schedule_change_rejected.message",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        if name == "en.json" or name.startswith("en-"):
+            continue
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
+
+
 def test_update_cfg_schedule_service_strings_localized_for_non_english_locales() -> (
     None
 ):
