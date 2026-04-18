@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, time as dt_time, timezone
 from types import MappingProxyType
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import aiohttp
 import pytest
@@ -14,6 +14,7 @@ from custom_components.enphase_ev.battery_schedule_editor import (
     BatteryScheduleEditorManager,
     BatteryScheduleRecord,
     NEW_SCHEDULE_OPTION,
+    editor_days_from_list,
     _normalize_days,
     _time_to_text,
     battery_schedule_option_label,
@@ -209,7 +210,7 @@ def test_battery_schedule_editor_manager_syncs_and_resets_selection() -> None:
     assert manager.current_selection == NEW_SCHEDULE_OPTION
     assert manager.edit.selected_schedule_id is None
     assert manager.edit.limit == 100
-    assert manager.edit.days["sun"] is False
+    assert manager.edit.days["sun"] is True
 
     manager.set_edit_time("start_time", dt_time(7, 30))
     coord._battery_schedules_payload["cfg"]["details"][0]["startTime"] = "06:00"
@@ -233,7 +234,7 @@ def test_battery_schedule_editor_manager_syncs_and_resets_selection() -> None:
 
     assert manager.edit.selected_schedule_id is None
     assert manager.edit.limit == 100
-    assert manager.edit.days["tue"] is False
+    assert manager.edit.days["tue"] is True
     assert manager.is_creating is True
 
     coord._battery_schedules_payload = _schedule_payload()
@@ -259,8 +260,11 @@ def test_battery_schedule_editor_manager_promotes_created_match_and_duplicate_la
     manager.set_edit_limit(90)
     manager.set_edit_day("sun", False)
     manager.set_edit_day("mon", True)
+    manager.set_edit_day("tue", False)
     manager.set_edit_day("wed", True)
+    manager.set_edit_day("thu", False)
     manager.set_edit_day("fri", True)
+    manager.set_edit_day("sat", False)
 
     manager.sync_from_coordinator()
 
@@ -298,6 +302,18 @@ def test_battery_schedule_editor_manager_promotes_created_match_and_duplicate_la
     assert labels["abc123"].endswith("[abc123]")
     assert labels["dup99999"].endswith("[dup99999]")
     assert manager.schedule_id_for_option_label("missing") is None
+
+
+def test_editor_days_from_list_marks_only_selected_days_true() -> None:
+    assert editor_days_from_list([1, 2, 3, 4, 5]) == {
+        "mon": True,
+        "tue": True,
+        "wed": True,
+        "thu": True,
+        "fri": True,
+        "sat": False,
+        "sun": False,
+    }
 
 
 def test_battery_schedule_editor_manager_handles_missing_selection_without_fallback() -> (
@@ -757,7 +773,12 @@ async def test_battery_schedule_editor_entities_update_state_and_call_services(
     assert delete_button.available is True
 
     new_type_select = BatteryNewScheduleTypeSelect(coord, config_entry)
-    assert new_type_select.available is False
+    cfg_type_label = [
+        label for key, label in battery_schedule_type_options() if key == "cfg"
+    ][0]
+    assert new_type_select.available is True
+    assert new_type_select.options == [cfg_type_label]
+    assert new_type_select.current_option == cfg_type_label
     await schedule_select.async_select_option(create_label)
     assert editor.is_creating is True
     assert schedule_select.current_option == create_label
@@ -767,6 +788,9 @@ async def test_battery_schedule_editor_entities_update_state_and_call_services(
     rbd_label = [
         label for key, label in battery_schedule_type_options() if key == "rbd"
     ][0]
+    assert new_type_select.options == [
+        label for _key, label in battery_schedule_type_options()
+    ]
     await new_type_select.async_select_option(rbd_label)
     assert new_type_select.current_option == rbd_label
     assert editor.edit.schedule_type == "rbd"
@@ -933,9 +957,7 @@ async def test_battery_schedule_editor_guard_paths_cover_missing_editor_and_fall
     assert schedule_select.available is False
     assert schedule_select.options == []
     assert schedule_select.current_option is None
-    assert new_type_select.options == [
-        label for _key, label in battery_schedule_type_options()
-    ]
+    assert new_type_select.options == []
     assert new_type_select.current_option is None
     assert edit_limit.available is False
     assert edit_limit.native_value is None
@@ -1524,6 +1546,79 @@ async def test_battery_schedule_services_cover_failure_paths(
                 data={
                     "config_entry_id": config_entry.entry_id,
                     "schedule_type": "cfg",
+                }
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_service_handlers_reraise_client_errors_when_helper_allows(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    coord.battery_runtime.raise_schedule_update_validation_error = (
+        MagicMock()
+    )  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {"handler": handler}
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    client_error = aiohttp.ClientResponseError(
+        request_info=Mock(real_url="https://example.invalid"),
+        history=(),
+        status=403,
+        message="Forbidden",
+    )
+    coord.client.create_battery_schedule = AsyncMock(side_effect=client_error)
+    coord.client.update_battery_schedule = AsyncMock(side_effect=client_error)
+    coord.client.delete_battery_schedule = AsyncMock(side_effect=client_error)
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await registered[(DOMAIN, "add_schedule")]["handler"](
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_type": "cfg",
+                    "start_time": dt_time(5, 0),
+                    "end_time": dt_time(7, 0),
+                    "limit": 88,
+                    "days": [1, 2, 3],
+                }
+            )
+        )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await registered[(DOMAIN, "update_schedule")]["handler"](
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_id": "abc123",
+                    "schedule_type": "cfg",
+                    "start_time": dt_time(6, 0),
+                    "end_time": dt_time(8, 0),
+                    "limit": 91,
+                    "days": [1, 5],
+                    "confirm": True,
+                }
+            )
+        )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await registered[(DOMAIN, "delete_schedule")]["handler"](
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_ids": ["abc123"],
+                    "confirm": True,
                 }
             )
         )

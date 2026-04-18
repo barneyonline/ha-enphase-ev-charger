@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
+from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -9,7 +10,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .battery_schedule_editor import (
+    BatteryScheduleRecord,
     BatteryScheduleEditorEntity,
+    battery_schedule_option_label,
     battery_scheduler_enabled,
     days_list_from_editor,
 )
@@ -27,6 +30,7 @@ from .runtime_helpers import (
     inventory_type_available as _type_available,
     inventory_type_device_info as _type_device_info,
 )
+from .labels import battery_schedule_button_label
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -366,6 +370,48 @@ class _BatteryScheduleButton(BatteryScheduleEditorEntity, ButtonEntity):
             manufacturer="Enphase",
         )
 
+    def _notification_id(self) -> str:
+        return f"{DOMAIN}_battery_schedule_result_{self._coord.site_id}"
+
+    def _button_label(self, action: str) -> str:
+        hass = getattr(self, "hass", None) or self._coord.hass
+        return battery_schedule_button_label(action, hass=hass)
+
+    def _schedule_result_label(self) -> str | None:
+        if self._editor is None:
+            return None
+        hass = getattr(self, "hass", None) or self._coord.hass
+        if not self._editor.is_creating and self._editor.edit.selected_schedule_id:
+            schedule = self._editor.get_schedule(self._editor.edit.selected_schedule_id)
+            if schedule is not None:
+                return battery_schedule_option_label(schedule, hass=hass)
+        preview = BatteryScheduleRecord(
+            schedule_id="preview",
+            schedule_type=self._editor.edit.schedule_type,
+            start_time=self._editor.edit.start_time,
+            end_time=self._editor.edit.end_time,
+            limit=int(self._editor.edit.limit),
+            days=days_list_from_editor(self._editor.edit.days),
+            timezone=(
+                str(getattr(self._coord, "battery_timezone", None) or "").strip()
+                or None
+            ),
+            enabled=True,
+            schedule_status=None,
+        )
+        return battery_schedule_option_label(preview, hass=hass)
+
+    def _show_success_notification(self, *, action: str, body: str | None) -> None:
+        message = str(body).strip() if isinstance(body, str) else ""
+        if not message:
+            return
+        persistent_notification.async_create(
+            self.hass,
+            message,
+            title=self._button_label(action),
+            notification_id=self._notification_id(),
+        )
+
 
 class BatteryForceRefreshButton(_BatteryScheduleButton):
     def __init__(self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry) -> None:
@@ -414,6 +460,7 @@ class BatteryScheduleSaveButton(_BatteryScheduleButton):
     async def async_press(self) -> None:
         if self._editor is None:
             return
+        success_label = self._schedule_result_label()
         service = "add_schedule" if self._editor.is_creating else "update_schedule"
         service_data: dict[str, object] = {
             "config_entry_id": self._entry.entry_id,
@@ -427,6 +474,7 @@ class BatteryScheduleSaveButton(_BatteryScheduleButton):
             await self.hass.services.async_call(
                 DOMAIN, service, service_data, blocking=True
             )
+            self._show_success_notification(action="save", body=success_label)
             return
         if self._editor.edit.selected_schedule_id is None:
             return
@@ -435,6 +483,7 @@ class BatteryScheduleSaveButton(_BatteryScheduleButton):
         await self.hass.services.async_call(
             DOMAIN, service, service_data, blocking=True
         )
+        self._show_success_notification(action="save", body=success_label)
 
 
 class BatteryScheduleDeleteButton(_BatteryScheduleButton):
@@ -462,6 +511,7 @@ class BatteryScheduleDeleteButton(_BatteryScheduleButton):
     async def async_press(self) -> None:
         if self._editor is None or self._editor.edit.selected_schedule_id is None:
             return
+        success_label = self._schedule_result_label()
         await self.hass.services.async_call(
             DOMAIN,
             "delete_schedule",
@@ -472,6 +522,7 @@ class BatteryScheduleDeleteButton(_BatteryScheduleButton):
             },
             blocking=True,
         )
+        self._show_success_notification(action="delete", body=success_label)
 
 
 class _BaseButton(EnphaseBaseEntity, ButtonEntity):

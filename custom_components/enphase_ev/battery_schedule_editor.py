@@ -23,12 +23,11 @@ DAY_ORDER: list[tuple[str, int]] = [
 ]
 DAY_KEY_BY_INDEX = {index: key for key, index in DAY_ORDER}
 NEW_SCHEDULE_OPTION = "new_schedule"
-NEW_SCHEDULE_OPTION_LABEL = "Create new schedule"
 SCHEDULE_TYPE_KEYS: tuple[str, ...] = ("cfg", "dtg", "rbd")
 
 
 def default_day_flags() -> dict[str, bool]:
-    return {key: False for key, _ in DAY_ORDER}
+    return {key: True for key, _ in DAY_ORDER}
 
 
 def _time_to_text(value: object, *, default: str = "00:00") -> str:
@@ -60,7 +59,7 @@ def _normalize_days(raw: object) -> list[int]:
 
 
 def editor_days_from_list(days: list[int]) -> dict[str, bool]:
-    flags = default_day_flags()
+    flags = {key: False for key, _ in DAY_ORDER}
     for day in days:
         key = DAY_KEY_BY_INDEX.get(day)
         if key is not None:

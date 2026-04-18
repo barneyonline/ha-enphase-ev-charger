@@ -486,19 +486,23 @@ def async_setup_services(
         creator = getattr(coord.client, "create_battery_schedule", None)
         if not callable(creator):
             raise ServiceValidationError("Battery schedule API is unavailable.")
-        await creator(
-            schedule_type=str(schedule_type).upper(),
-            start_time=start_str,
-            end_time=end_str,
-            limit=limit,
-            days=days,
-            timezone=str(
-                getattr(coord, "battery_timezone", None)
-                or hass.config.time_zone
-                or "UTC"
-            ),
-            is_enabled=True,
-        )
+        try:
+            await creator(
+                schedule_type=str(schedule_type).upper(),
+                start_time=start_str,
+                end_time=end_str,
+                limit=limit,
+                days=days,
+                timezone=str(
+                    getattr(coord, "battery_timezone", None)
+                    or hass.config.time_zone
+                    or "UTC"
+                ),
+                is_enabled=True,
+            )
+        except aiohttp.ClientResponseError as err:
+            coord.battery_runtime.raise_schedule_update_validation_error(err)
+            raise
         await coord.async_request_refresh()
 
     async def _svc_update_schedule(call: ServiceCall) -> None:
@@ -534,26 +538,30 @@ def async_setup_services(
         if not callable(updater):
             raise ServiceValidationError("Battery schedule API is unavailable.")
         existing_schedule = schedule_inventory.get(schedule_id)
-        await updater(
-            schedule_id,
-            schedule_type=str(schedule_type).upper(),
-            start_time=start_str,
-            end_time=end_str,
-            limit=limit,
-            days=days,
-            timezone=str(
-                (
-                    existing_schedule.timezone
-                    if existing_schedule is not None
-                    else getattr(coord, "battery_timezone", None)
-                )
-                or hass.config.time_zone
-                or "UTC"
-            ),
-            is_enabled=(
-                existing_schedule.enabled if existing_schedule is not None else True
-            ),
-        )
+        try:
+            await updater(
+                schedule_id,
+                schedule_type=str(schedule_type).upper(),
+                start_time=start_str,
+                end_time=end_str,
+                limit=limit,
+                days=days,
+                timezone=str(
+                    (
+                        existing_schedule.timezone
+                        if existing_schedule is not None
+                        else getattr(coord, "battery_timezone", None)
+                    )
+                    or hass.config.time_zone
+                    or "UTC"
+                ),
+                is_enabled=(
+                    existing_schedule.enabled if existing_schedule is not None else True
+                ),
+            )
+        except aiohttp.ClientResponseError as err:
+            coord.battery_runtime.raise_schedule_update_validation_error(err)
+            raise
         await coord.async_request_refresh()
 
     async def _svc_delete_schedule(call: ServiceCall) -> None:
@@ -598,10 +606,16 @@ def async_setup_services(
         }
         for schedule_id in schedule_ids:
             schedule = schedule_inventory.get(schedule_id)
-            await deleter(
-                schedule_id,
-                schedule_type=schedule.schedule_type if schedule is not None else "cfg",
-            )
+            try:
+                await deleter(
+                    schedule_id,
+                    schedule_type=(
+                        schedule.schedule_type if schedule is not None else "cfg"
+                    ),
+                )
+            except aiohttp.ClientResponseError as err:
+                coord.battery_runtime.raise_schedule_update_validation_error(err)
+                raise
         await coord.async_request_refresh()
 
     async def _svc_validate_schedule(call: ServiceCall) -> dict[str, object]:

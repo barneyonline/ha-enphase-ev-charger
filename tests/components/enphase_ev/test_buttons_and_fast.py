@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import MappingProxyType
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -892,3 +893,219 @@ def test_storm_alert_opt_out_button_device_info_prefers_type_info() -> None:
     button = StormAlertOptOutButton(coord)
 
     assert button.device_info is expected
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_save_button_shows_success_notification(
+    hass, config_entry, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.battery_schedule_editor import (
+        BatteryScheduleEditorManager,
+    )
+    from custom_components.enphase_ev.button import BatteryScheduleSaveButton
+    from custom_components.enphase_ev.const import OPT_BATTERY_SCHEDULES_ENABLED
+
+    coord = SimpleNamespace(
+        site_id="site",
+        hass=hass,
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        battery_write_access_confirmed=True,
+        battery_timezone="Australia/Melbourne",
+        _battery_schedules_payload={
+            "dtg": {
+                "scheduleStatus": "active",
+                "details": [
+                    {
+                        "scheduleId": "sched-1",
+                        "startTime": "18:00:00",
+                        "endTime": "23:59:00",
+                        "limit": 21,
+                        "days": [1, 2, 3, 4, 5],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": True,
+                    }
+                ],
+            }
+        },
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda key: key == "encharge",
+            type_device_info=lambda _key: None,
+        ),
+        client=SimpleNamespace(
+            battery_schedules=object(),
+            create_battery_schedule=object(),
+            update_battery_schedule=object(),
+            delete_battery_schedule=object(),
+        ),
+    )
+    editor = BatteryScheduleEditorManager(coord)
+    editor.sync_from_coordinator()
+    config_entry.__dict__["options"] = MappingProxyType(
+        {**config_entry.options, OPT_BATTERY_SCHEDULES_ENABLED: True}
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(
+        coordinator=coord,
+        battery_schedule_editor=editor,
+    )
+    async_call = AsyncMock()
+    monkeypatch.setattr(type(hass.services), "async_call", async_call)
+    notification_spy = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.button.persistent_notification.async_create",
+        notification_spy,
+    )
+
+    button = BatteryScheduleSaveButton(coord, config_entry)
+    button.hass = hass
+
+    await button.async_press()
+
+    async_call.assert_awaited_once()
+    notification_spy.assert_called_once()
+    args = notification_spy.call_args.args
+    kwargs = notification_spy.call_args.kwargs
+    assert args[0] is hass
+    assert args[1] == "Discharge To Grid Schedule 18:00-23:59"
+    assert kwargs["title"] == "Save Battery Schedule"
+    assert kwargs["notification_id"] == "enphase_ev_battery_schedule_result_site"
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_delete_button_shows_success_notification(
+    hass, config_entry, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.battery_schedule_editor import (
+        BatteryScheduleEditorManager,
+    )
+    from custom_components.enphase_ev.button import BatteryScheduleDeleteButton
+    from custom_components.enphase_ev.const import OPT_BATTERY_SCHEDULES_ENABLED
+
+    coord = SimpleNamespace(
+        site_id="site",
+        hass=hass,
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+        battery_write_access_confirmed=True,
+        battery_timezone="Australia/Melbourne",
+        _battery_schedules_payload={
+            "rbd": {
+                "scheduleStatus": "active",
+                "details": [
+                    {
+                        "scheduleId": "sched-rbd",
+                        "startTime": "06:30:00",
+                        "endTime": "11:00:00",
+                        "limit": 100,
+                        "days": [1, 2, 3, 4, 5],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": True,
+                    }
+                ],
+            }
+        },
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda key: key == "encharge",
+            type_device_info=lambda _key: None,
+        ),
+        client=SimpleNamespace(
+            battery_schedules=object(),
+            create_battery_schedule=object(),
+            update_battery_schedule=object(),
+            delete_battery_schedule=object(),
+        ),
+    )
+    editor = BatteryScheduleEditorManager(coord)
+    editor.sync_from_coordinator()
+    config_entry.__dict__["options"] = MappingProxyType(
+        {**config_entry.options, OPT_BATTERY_SCHEDULES_ENABLED: True}
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(
+        coordinator=coord,
+        battery_schedule_editor=editor,
+    )
+    async_call = AsyncMock()
+    monkeypatch.setattr(type(hass.services), "async_call", async_call)
+    notification_spy = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.button.persistent_notification.async_create",
+        notification_spy,
+    )
+
+    button = BatteryScheduleDeleteButton(coord, config_entry)
+    button.hass = hass
+
+    await button.async_press()
+
+    async_call.assert_awaited_once()
+    notification_spy.assert_called_once()
+    args = notification_spy.call_args.args
+    kwargs = notification_spy.call_args.kwargs
+    assert args[1] == "Restrict Battery Discharge Schedule 06:30-11:00"
+    assert kwargs["title"] == "Delete Battery Schedule"
+    assert kwargs["notification_id"] == "enphase_ev_battery_schedule_result_site"
+
+
+def test_battery_schedule_button_skips_empty_notification_body(monkeypatch) -> None:
+    from custom_components.enphase_ev.button import BatteryScheduleSaveButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        hass=SimpleNamespace(),
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda _key: False,
+            type_device_info=lambda _key: None,
+        ),
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+    )
+    config_entry = SimpleNamespace(
+        entry_id="entry",
+        runtime_data=EnphaseRuntimeData(
+            coordinator=coord,
+            battery_schedule_editor=None,
+        ),
+    )
+    notification_spy = MagicMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.button.persistent_notification.async_create",
+        notification_spy,
+    )
+
+    button = BatteryScheduleSaveButton(coord, config_entry)
+    button.hass = coord.hass
+
+    button._show_success_notification(action="save", body="  ")  # noqa: SLF001
+
+    notification_spy.assert_not_called()
+
+
+def test_battery_schedule_button_result_label_is_none_without_editor() -> None:
+    from custom_components.enphase_ev.button import BatteryScheduleSaveButton
+
+    coord = SimpleNamespace(
+        site_id="site",
+        hass=SimpleNamespace(),
+        inventory_view=SimpleNamespace(
+            has_type_for_entities=lambda _key: False,
+            type_device_info=lambda _key: None,
+        ),
+        last_update_success=True,
+        battery_has_encharge=True,
+        battery_has_enpower=True,
+    )
+    config_entry = SimpleNamespace(
+        entry_id="entry",
+        runtime_data=EnphaseRuntimeData(
+            coordinator=coord,
+            battery_schedule_editor=None,
+        ),
+    )
+
+    button = BatteryScheduleSaveButton(coord, config_entry)
+    button.hass = coord.hass
+
+    assert button._schedule_result_label() is None  # noqa: SLF001
