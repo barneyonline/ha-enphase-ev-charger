@@ -11,9 +11,12 @@
 - Use the pinned Docker environment for all linting, formatting, coverage, and test commands. Do not use a local virtualenv in this repository.
   - `docker compose -f devtools/docker/docker-compose.yml build ha-dev`
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "<command>"`
+- For manual Home Assistant UI verification, start the runtime container against this checkout:
+  - `mkdir -p .ha-config`
+  - `docker compose -f devtools/docker/docker-compose.yml up -d ha-runtime`
 - Run the repository’s standard checks before finalizing changes:
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."`
-  - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "black custom_components/enphase_ev"`
+  - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "black custom_components/enphase_ev tests/components/enphase_ev"`
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest -q tests/components/enphase_ev"`
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "python scripts/validate_quality_scale.py"`
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pre-commit run --all-files"`
