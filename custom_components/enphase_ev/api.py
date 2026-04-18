@@ -32,6 +32,7 @@ from .const import (
     SITE_SEARCH_URL,
 )
 from .log_redaction import redact_identifier, redact_site_id, redact_text
+from .runtime_helpers import coerce_optional_text as helper_coerce_optional_text
 
 _LOGGER = logging.getLogger(__name__)
 _EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
@@ -6081,14 +6082,7 @@ class EnphaseEVClient:
     @staticmethod
     def _clean_optional_text(value: object) -> str | None:
         """Return a trimmed string value when present."""
-
-        if value is None:
-            return None
-        try:
-            text = str(value).strip()
-        except Exception:  # noqa: BLE001
-            return None
-        return text or None
+        return helper_coerce_optional_text(value)
 
     @classmethod
     def _heatpump_sg_ready_mode_details(cls, value: object) -> dict[str, object]:

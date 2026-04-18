@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime
+from datetime import timedelta
 from datetime import timezone as _tz
 from zoneinfo import ZoneInfo
 
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import dt as dt_util
 
 
@@ -28,6 +31,51 @@ def coerce_optional_int(value: object) -> int | None:
         return int(str(value).strip())
     except Exception:  # noqa: BLE001
         return None
+
+
+def coerce_optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:  # noqa: BLE001
+        return None
+    return text or None
+
+
+def iso_or_none(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    try:
+        return value.isoformat()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def monotonic_deadline_to_utc_iso(target_mono: float) -> str | None:
+    now_mono = time.monotonic()
+    try:
+        target_value = float(target_mono)
+    except Exception:  # noqa: BLE001
+        return None
+    if target_value <= 0 or target_value <= now_mono:
+        return None
+    delta_seconds = target_value - now_mono
+    return iso_or_none(dt_util.utcnow() + timedelta(seconds=delta_seconds))
+
+
+def inventory_type_available(coord: object, type_key: str) -> bool:
+    inventory_view = getattr(coord, "inventory_view", None)
+    has_type_for_entities = getattr(inventory_view, "has_type_for_entities", None)
+    return bool(callable(has_type_for_entities) and has_type_for_entities(type_key))
+
+
+def inventory_type_device_info(coord: object, type_key: str) -> DeviceInfo | None:
+    inventory_view = getattr(coord, "inventory_view", None)
+    type_device_info = getattr(inventory_view, "type_device_info", None)
+    if not callable(type_device_info):
+        return None
+    return type_device_info(type_key)
 
 
 def copy_diagnostics_value(value: object) -> object:

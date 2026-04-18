@@ -5,13 +5,17 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
 
 from .log_redaction import redact_text
+from .runtime_helpers import (
+    iso_or_none as _iso_or_none,
+    monotonic_deadline_to_utc_iso as _mono_to_utc_iso,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,23 +154,6 @@ def _source_age_seconds(generated_at: str | None) -> float | None:
     if age < 0:
         return 0.0
     return round(age, 1)
-
-
-def _iso_or_none(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    try:
-        return value.isoformat()
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _mono_to_utc_iso(target_mono: float) -> str | None:
-    now_mono = time.monotonic()
-    if target_mono <= 0 or target_mono <= now_mono:
-        return None
-    delta_seconds = target_mono - now_mono
-    return _iso_or_none(dt_util.utcnow() + timedelta(seconds=delta_seconds))
 
 
 def _parse_iso_datetime(value: str) -> datetime | None:

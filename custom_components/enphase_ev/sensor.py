@@ -55,6 +55,11 @@ from .entity import (
 from .labels import friendly_status_text, status_label
 from .parsing_helpers import heatpump_status_text
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
+from .runtime_helpers import (
+    coerce_optional_text as _gateway_clean_text,
+    inventory_type_available as _type_available,
+    inventory_type_device_info as _type_device_info,
+)
 from .evse_runtime import evse_power_is_actively_charging
 
 PARALLEL_UPDATES = 0
@@ -112,10 +117,6 @@ BATTERY_LED_STATUS_STATE_MAP: dict[int, str] = {
     16: "idle",
     17: "idle",
 }
-
-
-def _type_device_info(coord: EnphaseCoordinator, type_key: str):
-    return coord.inventory_view.type_device_info(type_key)
 
 
 def _type_label(coord: EnphaseCoordinator, type_key: str) -> str | None:
@@ -201,10 +202,6 @@ def _restore_optional_int_value(raw_value: object) -> int | None:
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
     has_encharge = getattr(coord, "battery_has_encharge", None)
     return has_encharge is not False
-
-
-def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    return bool(coord.inventory_view.has_type_for_entities(type_key))
 
 
 def _grid_control_site_applicable(coord: EnphaseCoordinator) -> bool:
@@ -4094,18 +4091,6 @@ _GATEWAY_LAST_REPORT_KEYS: tuple[str, ...] = (
     "last_reported",
     "lastReportedAt",
 )
-
-
-def _gateway_clean_text(value: object) -> str | None:
-    if value is None:
-        return None
-    try:
-        text = str(value).strip()
-    except Exception:  # noqa: BLE001
-        return None
-    return text or None
-
-
 def _gateway_optional_bool(value: object) -> bool | None:
     if value is None:
         return None
