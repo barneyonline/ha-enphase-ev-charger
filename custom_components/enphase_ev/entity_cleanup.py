@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterable
 
+from homeassistant.helpers import entity_registry as er
+
 from .const import DOMAIN
 from .log_redaction import redact_identifier, redact_text
 
@@ -25,13 +27,46 @@ def iter_entity_registry_entries(ent_reg) -> list[object]:
     return []
 
 
-def is_owned_entity(reg_entry: object, entry_id: str | None, domain: str) -> bool:
+def iter_device_registry_entries(dev_reg) -> list[object]:
+    """Best-effort iteration over device registry entries."""
+    devices = getattr(dev_reg, "devices", None)
+    if devices is None:
+        return []
+    values = getattr(devices, "values", None)
+    if callable(values):
+        try:
+            return list(values())
+        except Exception:  # noqa: BLE001
+            return []
+    if isinstance(devices, dict):
+        return list(dict.values(devices))
+    return []
+
+
+def entries_for_device(ent_reg, device_id: str) -> list[object]:
+    """Return entity registry entries attached to the given device."""
+    entries_for_device_func = getattr(er, "async_entries_for_device", None)
+    if callable(entries_for_device_func):
+        try:
+            return list(entries_for_device_func(ent_reg, device_id))
+        except Exception:  # noqa: BLE001
+            pass
+    return [
+        entry
+        for entry in iter_entity_registry_entries(ent_reg)
+        if getattr(entry, "device_id", None) == device_id
+    ]
+
+
+def is_owned_entity(
+    reg_entry: object, entry_id: str | None, domain: str | None = None
+) -> bool:
     """Return True when the registry entry belongs to this integration entry."""
     entry_domain = getattr(reg_entry, "domain", None)
     if entry_domain is None:
         entity_id = getattr(reg_entry, "entity_id", "")
         entry_domain = entity_id.partition(".")[0] if isinstance(entity_id, str) else ""
-    if entry_domain != domain:
+    if domain is not None and entry_domain != domain:
         return False
 
     entry_platform = getattr(reg_entry, "platform", None)
@@ -46,6 +81,49 @@ def is_owned_entity(reg_entry: object, entry_id: str | None, domain: str) -> boo
     ):
         return False
     return True
+
+
+def find_entity_id_by_unique_id(
+    ent_reg,
+    domain: str,
+    unique_id: str,
+    *,
+    entry_id: str | None,
+) -> str | None:
+    """Resolve a managed entity_id from a unique_id."""
+    get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
+    get_entry = getattr(ent_reg, "async_get", None)
+    if callable(get_entity_id):
+        try:
+            entity_id = get_entity_id(domain, DOMAIN, unique_id)
+        except Exception:  # noqa: BLE001
+            entity_id = None
+        if entity_id:
+            if callable(get_entry):
+                reg_entry = get_entry(entity_id)
+                if reg_entry is not None and not is_owned_entity(
+                    reg_entry, entry_id, domain
+                ):
+                    return None
+            return entity_id
+
+    for reg_entry in iter_entity_registry_entries(ent_reg):
+        if getattr(reg_entry, "unique_id", None) != unique_id:
+            continue
+        entry_domain = getattr(reg_entry, "domain", None)
+        if entry_domain is None:
+            entity_id = getattr(reg_entry, "entity_id", "")
+            entry_domain = (
+                entity_id.partition(".")[0] if isinstance(entity_id, str) else None
+            )
+        if entry_domain != domain:
+            continue
+        if not is_owned_entity(reg_entry, entry_id, domain):
+            continue
+        entity_id = getattr(reg_entry, "entity_id", None)
+        if entity_id:
+            return entity_id
+    return None
 
 
 def prune_managed_entities(

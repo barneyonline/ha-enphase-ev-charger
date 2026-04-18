@@ -6,7 +6,7 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
@@ -15,6 +15,10 @@ from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
 from .device_info_helpers import _cloud_device_info
 from .entity import EnphaseBaseEntity
+from .runtime_helpers import (
+    inventory_type_available as _type_available,
+    inventory_type_device_info as _type_device_info,
+)
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 from .sensor import (
     _heatpump_runtime_device_uid,
@@ -27,14 +31,6 @@ HISTORICAL_CHARGER_BINARY_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_commissioned",
     "_charger_problem",
 )
-
-
-def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    return bool(coord.inventory_view.has_type_for_entities(type_key))
-
-
-def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | None:
-    return coord.inventory_view.type_device_info(type_key)
 
 
 async def async_setup_entry(

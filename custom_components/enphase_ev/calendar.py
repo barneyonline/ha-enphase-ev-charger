@@ -11,6 +11,10 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import EnphaseCoordinator
+from .runtime_helpers import (
+    inventory_type_available as _type_available,
+    inventory_type_device_info as _type_device_info,
+)
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -21,14 +25,6 @@ def _site_has_battery(coord: EnphaseCoordinator, *, strict: bool = False) -> boo
     if strict:
         return has_encharge is True
     return has_encharge is not False
-
-
-def _type_available(coord: EnphaseCoordinator, type_key: str) -> bool:
-    return bool(coord.inventory_view.has_type_for_entities(type_key))
-
-
-def _type_device_info(coord: EnphaseCoordinator, type_key: str) -> DeviceInfo | None:
-    return coord.inventory_view.type_device_info(type_key)
 
 
 async def async_setup_entry(

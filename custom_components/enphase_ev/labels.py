@@ -9,6 +9,7 @@ from homeassistant.helpers.translation import (
 )
 
 from .const import DOMAIN
+from .runtime_helpers import coerce_optional_text as _coerce_text
 
 if TYPE_CHECKING:  # pragma: no cover
     from homeassistant.core import HomeAssistant
@@ -56,16 +57,6 @@ async def async_prime_label_translations(hass: HomeAssistant) -> None:
 
     language = getattr(getattr(hass, "config", None), "language", "en")
     await async_get_translations(hass, language, "entity", [DOMAIN])
-
-
-def _coerce_text(value: object) -> str | None:
-    if value is None:
-        return None
-    try:
-        text = str(value).strip()
-    except Exception:  # noqa: BLE001
-        return None
-    return text or None
 
 
 def _translation_value(hass: Any | None, key: str) -> str | None:
