@@ -1,14 +1,8 @@
 {
   "current_status": "Fully Operational",
-  "generated_at": "2026-04-19T21:35:19.690846Z",
+  "generated_at": "2026-04-19T22:35:16.881069Z",
   "retention_days": 30,
   "samples": [
-    {
-      "checked_at": "2026-03-20T22:18:48.648634Z",
-      "checks_failed": 0,
-      "failed_check_names": [],
-      "status": "Fully Operational"
-    },
     {
       "checked_at": "2026-03-20T23:20:14.492797Z",
       "checks_failed": 0,
@@ -4133,6 +4127,14 @@
     },
     {
       "checked_at": "2026-04-19T21:35:19.690846Z",
+      "checks_failed": 1,
+      "failed_check_names": [
+        "battery_config"
+      ],
+      "status": "Fully Operational"
+    },
+    {
+      "checked_at": "2026-04-19T22:35:16.881069Z",
       "checks_failed": 1,
       "failed_check_names": [
         "battery_config"
