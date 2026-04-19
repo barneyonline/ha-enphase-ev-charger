@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Het schema overlapt met het bestaande {schedule_label}. Pas dat schema eerst aan of schakel het uit."
+    },
+    "ac_battery_unavailable": {
+      "message": "Er zijn momenteel geen AC Battery-apparaten beschikbaar."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Authenticatie-instellingen zijn niet beschikbaar zolang de Enphase-service niet beschikbaar is."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Updates van het batterijprofiel zijn niet toegestaan voor dit account."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Updates van batterij-instellingen zijn niet toegestaan voor dit account."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Er wordt al een andere update van het batterijprofiel uitgevoerd."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Er wordt al een andere update van de batterij-instellingen uitgevoerd."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Updates van het batterijprofiel zijn niet beschikbaar."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Updates van batterij-instellingen zijn niet beschikbaar."
+    },
+    "battery_updates_unavailable": {
+      "message": "Batterij-updates zijn niet beschikbaar."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Batterij-updates zijn niet toegestaan voor dit account."
+    },
+    "battery_profile_update_debounced": {
+      "message": "De update van het batterijprofiel is te snel opnieuw aangevraagd. Wacht even en probeer het opnieuw."
+    },
+    "battery_settings_update_debounced": {
+      "message": "De update van de batterij-instellingen is te snel opnieuw aangevraagd. Wacht even en probeer het opnieuw."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Schrijftoegang voor de batterij kon niet worden bevestigd. Vernieuw en probeer het opnieuw."
+    },
+    "schedule_update_forbidden": {
+      "message": "De schema-update is afgewezen door Enphase (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "De schema-update kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Het schema conflicteert met het bestaande ontladen-naar-het-net-schema. Pas dat schema eerst aan of schakel het uit."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Het schema conflicteert met het bestaande beperk-batterijontlading-schema. Pas dat schema eerst aan of schakel het uit."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Het schema conflicteert met het bestaande laden-vanaf-het-net-schema. Pas dat schema eerst aan of schakel het uit."
+    },
+    "schedule_update_conflict": {
+      "message": "Geplande update conflicteert met een bestaand batterijschema."
+    },
+    "battery_profile_unavailable": {
+      "message": "Batterijprofiel is niet beschikbaar."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "De update van het batterijprofiel is afgewezen door Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "De update van het batterijprofiel kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "De payload voor batterij-instellingen is niet beschikbaar."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "De update van de batterij-instellingen is afgewezen door Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "De update van de batterij-instellingen kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "De Full Backup-reserve is vastgesteld op 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Batterijreserve is niet beschikbaar."
+    },
+    "savings_profile_required": {
+      "message": "Spaarprofiel moet actief zijn."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Instellingen voor het spaarprofiel zijn niet beschikbaar."
+    },
+    "battery_profile_unsupported": {
+      "message": "Het geselecteerde batterijprofiel wordt niet ondersteund."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "De instelling Laden vanaf het net is niet beschikbaar."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "De schakelaar Laden vanaf het net is niet toegepast door Enphase."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Het laden-vanaf-het-net-schema is niet beschikbaar."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "De begin- en eindtijd van het laden-vanaf-het-net-schema moeten verschillend zijn."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "De schakelaar van het laden-vanaf-het-net-schema is niet toegepast door Enphase."
+    },
+    "charge_from_grid_required": {
+      "message": "Laden vanaf het net moet eerst worden ingeschakeld."
+    },
+    "schedule_change_pending": {
+      "message": "Een schemawijziging wacht op Envoy-synchronisatie. Even geduld."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "De tijd van het laden-vanaf-het-net-schema is ongeldig."
+    },
+    "schedule_api_unavailable": {
+      "message": "De schema-API is niet beschikbaar in deze clientversie."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Er is geen bestaand laden-vanaf-het-net-schema beschikbaar."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Maak eerst een {schedule_label} in de IQ Battery-planner voordat je die inschakelt."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} wordt momenteel niet door Enphase voor deze site beschikbaar gesteld. Wacht tot de schemasynchronisatie is voltooid, vernieuw dan en probeer het opnieuw."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "De schakelaar voor {schedule_label} is niet toegepast door Enphase."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "primaire schrijfactie afgewezen"
+    },
+    "schedule_family_times_different": {
+      "message": "De begin- en eindtijd van {schedule_label} moeten verschillend zijn."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "De tijd van het ontladen-naar-het-net-schema is ongeldig."
+    },
+    "schedule_missing": {
+      "message": "Er is geen bestaand {schedule_label_lower}-schema beschikbaar."
+    },
+    "schedule_unavailable": {
+      "message": "Het schema {schedule_label} is niet beschikbaar."
+    },
+    "schedule_time_invalid": {
+      "message": "De tijd van het schema {schedule_label} is ongeldig."
+    },
+    "current_schedule_time_invalid": {
+      "message": "De huidige tijd van het {schedule_label_lower}-schema is ongeldig."
+    },
+    "schedule_limit_range": {
+      "message": "De limiet van het schema {schedule_label} moet tussen {minimum} en {maximum} liggen."
+    },
+    "schedule_limit_minimum": {
+      "message": "De limiet van het schema {schedule_label} moet ten minste {minimum}% zijn."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "De huidige schematijden zijn niet beschikbaar."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "De limiet van het laden-vanaf-het-net-schema moet tussen {minimum} en {maximum} liggen."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "De limiet van het laden-vanaf-het-net-schema moet ten minste {minimum}% zijn."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Het uitschakelniveau van de batterij is niet beschikbaar."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Het uitschakelniveau van de batterij is ongeldig."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Het uitschakelniveau van de batterij moet tussen {minimum} en {maximum} liggen."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Afmelden voor Storm Alert is niet beschikbaar."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Afmelden voor Storm Alert is mislukt voor {count} waarschuwing(en)."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Storm Guard-updates zijn niet toegestaan voor dit account."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guard-instellingen zijn niet beschikbaar."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "De Storm Guard-update is afgewezen door Enphase (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "De Storm Guard-update kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Het geselecteerde systeemprofiel is niet beschikbaar."
+    },
+    "system_profile_update_forbidden": {
+      "message": "De update van het systeemprofiel is afgewezen door Enphase (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "De update van het systeemprofiel kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
+    },
+    "system_profile_update_failed": {
+      "message": "De update van het systeemprofiel is mislukt."
+    },
+    "system_profile_update_network": {
+      "message": "De update van het systeemprofiel is mislukt door een netwerkfout. Probeer het opnieuw."
+    },
+    "system_profile_update_timeout": {
+      "message": "De update van het systeemprofiel heeft een time-out bereikt. Probeer het opnieuw."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Selectie van de oplaadmodus is niet beschikbaar terwijl de Enphase-plannerservice niet beschikbaar is."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "De geselecteerde doel-laadtoestand voor AC Battery is niet beschikbaar."
+    },
+    "battery_schedule_day_required": {
+      "message": "Selecteer minimaal één dag voor het schema."
+    },
+    "battery_schedule_times_different": {
+      "message": "De begin- en eindtijden van het schema moeten verschillend zijn."
+    },
+    "battery_schedule_limit_range": {
+      "message": "De schemalimiet van {schedule_type} moet tussen {minimum} en {maximum} liggen."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Schema afgewezen door het Enphase-validatie-eindpunt."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Bewerken van het batterijschema is niet beschikbaar."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "API voor batterijschema is niet beschikbaar."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Bevestiging vereist om een ​​planning bij te werken."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Bevestiging vereist om een ​​schema te verwijderen."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Ongeldige schema-ID: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Schema-ID niet gevonden in huidige gegevens: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Geef ten minste één schema-ID op om te verwijderen."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Ongeldige schema-ID('s): {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Schema-ID('s) niet gevonden in huidige gegevens: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Schema afgewezen door het Enphase-validatie-eindpunt: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Schema-update conflicteert met een bestaand batterijschema: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "API-time-out (s)",
           "nominal_voltage": "Nominale spanning (V)",
           "session_history_interval": "Sessieverleden-interval (min)",
-          "schedule_sync_enabled": "Schakel Scheduler-ondersteuning in",
+          "schedule_sync_enabled": "Schakel EV Charger Scheduler in",
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten",
           "type_heatpump": "Warmtepomp",
-          "type_ac_battery": "AC-batterij"
+          "type_ac_battery": "AC-batterij",
+          "battery_schedules_enabled": "Schakel Batterijplanner in"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -174,11 +436,12 @@
           "api_timeout": "Seconden voordat API-aanvragen een time-out krijgen.",
           "nominal_voltage": "Fallbackspanning voor het schatten van laadvermogen.",
           "session_history_interval": "Minuten om te wachten tussen het ophalen van cloudsessiegeschiedenis.",
-          "schedule_sync_enabled": "Beheer het planningsbeheer van Enphase",
+          "schedule_sync_enabled": "Beheer IQ EV-opladerschema's",
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
           "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
-          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar.",
+          "battery_schedules_enabled": "Beheer IQ-batterijschema's"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Herautenticatie starten",
           "forget_password": "Opgeslagen wachtwoord vergeten",
           "type_heatpump": "Warmtepomp",
-          "type_ac_battery": "AC-batterij"
+          "type_ac_battery": "AC-batterij",
+          "battery_schedules_enabled": "Schakel Batterijplanner in"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -216,7 +480,8 @@
           "reauth": "Start de login-flow om inloggegevens te vernieuwen zonder de integratie te verwijderen.",
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
           "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
-          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar."
+          "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar.",
+          "battery_schedules_enabled": "Beheer IQ-batterijschema's"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Netexport",
           "battery_charge": "Batterijlading",
           "battery_discharge": "Batterijontlading"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Laatst gerapporteerd door {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Batterij CFG-schema's"
+      },
+      "battery_dtg_schedules": {
+        "name": "Batterij DTG-schema's"
+      },
+      "battery_rbd_schedules": {
+        "name": "Batterij RBD-schema's"
+      },
+      "battery_schedule_summary": {
+        "name": "Samenvatting van het batterijschema"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Limiet voor beperkte batterijontlading"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Batterij Nieuwe schemalimiet"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Limiet batterijschema"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Schema zondag"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Nieuw batterijschema maandag"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Nieuw batterijschema dinsdag"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Nieuw batterijschema woensdag"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Nieuw batterijschema donderdag"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Nieuw batterijschema vrijdag"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Nieuw batterijschema zaterdag"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Nieuw batterijschema zondag"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Batterijschema maandag"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Batterijschema dinsdag"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Batterijschema woensdag"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Batterijschema donderdag"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Batterijschema vrijdag"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Batterijschema zaterdag"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Batterijschema zondag"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Schema"
+      },
+      "battery_new_schedule_type": {
+        "name": "Type batterijschema"
+      },
+      "battery_schedule_selected": {
+        "name": "Batterijschema"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Nieuw schema maken"
+      },
+      "battery_schedule_add": {
+        "name": "Batterijschema toevoegen"
+      },
+      "battery_schedule_delete": {
+        "name": "Batterijschema verwijderen"
+      },
+      "battery_schedule_refresh": {
+        "name": "Batterijschema vernieuwen"
+      },
+      "battery_schedule_save": {
+        "name": "Batterijschema opslaan"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Eindtijd schema"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Batterij Nieuw schema Starttijd"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Batterij Nieuw schema Eindtijd"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Starttijd batterijschema"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Eindtijd batterijschema"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Site-ID",
           "description": "Enphase-site-ID (optioneel; afgeleid van het doelapparaat)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Forceer vernieuwen",
+      "description": "Vernieuw de batterijschemagegevens onmiddellijk vanuit de Enphase-cloud.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-identificatie; wordt automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        },
+        "config_entry_id": {
+          "name": "Configuratie-item-ID",
+          "description": "Optionele identificatie van het configuratie-item voor één Enphase-site-item."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Voeg batterijschema toe",
+      "description": "Maak een batterijschema voor CFG, DTG of RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Schematype",
+          "description": "Familie van het batterijschema: cfg, dtg of rbd."
+        },
+        "start_time": {
+          "name": "Starttijd",
+          "description": "Starttijd van het schema."
+        },
+        "end_time": {
+          "name": "Eindtijd",
+          "description": "Eindtijd van het schema."
+        },
+        "limit": {
+          "name": "Laadlimiet",
+          "description": "Maximale laadtoestand van de batterij (%)."
+        },
+        "days": {
+          "name": "Dagen",
+          "description": "Lijst met actieve weekdagen, waarbij maandag=1 en zondag=7."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-identificatie; wordt automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        },
+        "config_entry_id": {
+          "name": "Configuratie-item-ID",
+          "description": "Optionele identificatie van het configuratie-item voor één Enphase-site-item."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Update het batterijschema",
+      "description": "Update een batterijschema op basis van schema-ID.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Schema-ID",
+          "description": "Identificatie van een bestaand Enphase-batterijschema."
+        },
+        "schedule_type": {
+          "name": "Schematype",
+          "description": "Familie van het batterijschema: cfg, dtg of rbd."
+        },
+        "start_time": {
+          "name": "Starttijd",
+          "description": "Starttijd van het schema."
+        },
+        "end_time": {
+          "name": "Eindtijd",
+          "description": "Eindtijd van het schema."
+        },
+        "limit": {
+          "name": "Laadlimiet",
+          "description": "Maximale laadtoestand van de batterij (%)."
+        },
+        "days": {
+          "name": "Dagen",
+          "description": "Lijst met actieve weekdagen, waarbij maandag=1 en zondag=7."
+        },
+        "confirm": {
+          "name": "Bevestigen",
+          "description": "Stel in op true om de schema-update te bevestigen."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-identificatie; wordt automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        },
+        "config_entry_id": {
+          "name": "Configuratie-item-ID",
+          "description": "Optionele identificatie van het configuratie-item voor één Enphase-site-item."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Batterijschema verwijderen",
+      "description": "Verwijder een of meer batterijschema's op schema-ID.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Schema-ID",
+          "description": "Identificatie van één Enphase-batterijschema om te verwijderen."
+        },
+        "schedule_ids": {
+          "name": "Schema-ID's",
+          "description": "Optionele kommagescheiden waarde of lijstinvoer voor meerdere schema-identificaties."
+        },
+        "confirm": {
+          "name": "Bevestigen",
+          "description": "Stel in op true om het verwijderen van het schema te bevestigen."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-identificatie; wordt automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        },
+        "config_entry_id": {
+          "name": "Configuratie-item-ID",
+          "description": "Optionele identificatie van het configuratie-item voor één Enphase-site-item."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Valideer het batterijschema",
+      "description": "Controleer of het bewerken van het batterijschema beschikbaar is voor de geselecteerde schemafamilie.",
+      "sections": {
+        "advanced": {
+          "name": "Geavanceerde opties"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Schematype",
+          "description": "Familie van het batterijschema: cfg, dtg of rbd."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-identificatie; wordt automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        },
+        "config_entry_id": {
+          "name": "Configuratie-item-ID",
+          "description": "Optionele identificatie van het configuratie-item voor één Enphase-site-item."
         }
       }
     }

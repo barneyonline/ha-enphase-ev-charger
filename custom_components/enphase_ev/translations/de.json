@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Der Zeitplan überschneidet sich mit dem vorhandenen {schedule_label}. Passe diesen Zeitplan zuerst an oder deaktiviere ihn."
+    },
+    "ac_battery_unavailable": {
+      "message": "Derzeit sind keine Geräte mit Wechselstrombatterie verfügbar."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Die Authentifizierungseinstellungen sind nicht verfügbar, während der Enphase-Dienst ausgefallen ist."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Aktualisierungen des Batterieprofils sind für dieses Konto nicht zulässig."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Aktualisierungen der Batterieeinstellungen sind für dieses Konto nicht zulässig."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Eine weitere Aktualisierung des Batterieprofils ist bereits in Bearbeitung."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Ein weiteres Update der Batterieeinstellungen ist bereits in Bearbeitung."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Aktualisierungen des Batterieprofils sind nicht verfügbar."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Aktualisierungen der Batterieeinstellungen sind nicht verfügbar."
+    },
+    "battery_updates_unavailable": {
+      "message": "Batterieaktualisierungen sind nicht verfügbar."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Batterieaktualisierungen sind für dieses Konto nicht zulässig."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Die Aktualisierung des Batterieprofils wurde zu schnell angefordert. Bitte warten Sie und versuchen Sie es erneut."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Die Aktualisierung der Batterieeinstellungen wurde zu schnell angefordert. Bitte warten Sie und versuchen Sie es erneut."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Der Schreibzugriff auf die Batterie konnte nicht bestätigt werden. Aktualisieren Sie und versuchen Sie es erneut."
+    },
+    "schedule_update_forbidden": {
+      "message": "Die Zeitplanaktualisierung wurde von Enphase abgelehnt (HTTP 403 verboten)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Die Zeitplanaktualisierung konnte nicht authentifiziert werden. Authentifizieren Sie sich erneut und versuchen Sie es erneut."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Der Zeitplan steht im Konflikt mit dem bestehenden Zeitplan für die Einspeisung ins Netz. Passen Sie diesen Zeitplan zuerst an oder deaktivieren Sie ihn."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Der Zeitplan steht in Konflikt mit dem bestehenden Zeitplan für die Einschränkung der Batterieentladung. Passen Sie diesen Zeitplan zuerst an oder deaktivieren Sie ihn."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Der Zeitplan steht in Konflikt mit dem vorhandenen Netzladeplan. Passen Sie diesen Zeitplan zuerst an oder deaktivieren Sie ihn."
+    },
+    "schedule_update_conflict": {
+      "message": "Der Zeitplan für die Aktualisierung steht in Konflikt mit einem vorhandenen Batterieplan."
+    },
+    "battery_profile_unavailable": {
+      "message": "Das Batterieprofil ist nicht verfügbar."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Die Aktualisierung des Batterieprofils wurde von Enphase abgelehnt (HTTP 403 verboten)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Die Aktualisierung des Batterieprofils konnte nicht authentifiziert werden. Authentifizieren Sie sich erneut und versuchen Sie es erneut."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Die Nutzlast „Batterieeinstellungen“ ist nicht verfügbar."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Die Aktualisierung der Batterieeinstellungen wurde von Enphase abgelehnt (HTTP 403 verboten)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Die Aktualisierung der Batterieeinstellungen konnte nicht authentifiziert werden. Authentifizieren Sie sich erneut und versuchen Sie es erneut."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Die vollständige Backup-Reserve ist auf 100 % festgelegt."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Batteriereserve ist nicht verfügbar."
+    },
+    "savings_profile_required": {
+      "message": "Das Sparprofil muss aktiv sein."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Die Einstellungen für das Sparprofil sind nicht verfügbar."
+    },
+    "battery_profile_unsupported": {
+      "message": "Das ausgewählte Batterieprofil wird nicht unterstützt."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Die Einstellung „Laden aus dem Netz“ ist nicht verfügbar."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Die Ladung durch Netzumschaltung wurde von Enphase nicht angewendet."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Der Zeitplan für die Ladung aus dem Netz ist nicht verfügbar."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Die Start- und Endzeiten des Charge-from-Grid-Zeitplans müssen unterschiedlich sein."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Die Umschaltung des Lade-vom-Netz-Zeitplans wurde von Enphase nicht angewendet."
+    },
+    "charge_from_grid_required": {
+      "message": "Die Ladung aus dem Netz muss zuerst aktiviert werden."
+    },
+    "schedule_change_pending": {
+      "message": "Eine Zeitplanänderung steht zur Envoy-Synchronisierung an. Bitte warten."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Die Ladezeit aus dem Netz ist ungültig."
+    },
+    "schedule_api_unavailable": {
+      "message": "Die Zeitplan-API ist in dieser Clientversion nicht verfügbar."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Es ist kein Zeitplan für die Ladung aus dem Netz verfügbar."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Erstellen Sie im IQ Battery Scheduler ein {schedule_label}, bevor Sie es aktivieren."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} wird derzeit von Enphase für diese Site nicht bereitgestellt. Warten Sie, bis die Zeitplansynchronisierung abgeschlossen ist, aktualisieren Sie dann den Vorgang und versuchen Sie es erneut."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "{schedule_label}-Umschaltung wurde von Enphase nicht angewendet."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "Primärer Schreibvorgang abgelehnt"
+    },
+    "schedule_family_times_different": {
+      "message": "Die Start- und Endzeiten von {schedule_label} müssen unterschiedlich sein."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Der Zeitplan für die Einspeisung ins Netz ist ungültig."
+    },
+    "schedule_missing": {
+      "message": "Es ist kein vorhandener {schedule_label_lower}-Zeitplan verfügbar."
+    },
+    "schedule_unavailable": {
+      "message": "Der {schedule_label}-Zeitplan ist nicht verfügbar."
+    },
+    "schedule_time_invalid": {
+      "message": "Die {schedule_label}-Zeitplanung ist ungültig."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Die aktuelle {schedule_label_lower}-Zeitplanung ist ungültig."
+    },
+    "schedule_limit_range": {
+      "message": "Das {schedule_label}-Zeitplanlimit muss zwischen {minimum} und {maximum} liegen."
+    },
+    "schedule_limit_minimum": {
+      "message": "Das {schedule_label}-Zeitplanlimit muss mindestens {minimum} % betragen."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Aktuelle Fahrzeiten sind nicht verfügbar."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Das Limit für die Ladung aus dem Netz muss zwischen {minimum} und {maximum} liegen."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Das Limit für die Ladung aus dem Netz muss mindestens {minimum} % betragen."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Der Akku-Abschaltpegel ist nicht verfügbar."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Der Akku-Abschaltwert ist ungültig."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Der Batterieabschaltwert muss zwischen {minimum} und {maximum} liegen."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Die Abmeldung von der Sturmwarnung ist nicht möglich."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Die Abmeldung der Sturmwarnung für {count}-Warnungen ist fehlgeschlagen."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Storm Guard-Updates sind für dieses Konto nicht zulässig."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guard-Einstellungen sind nicht verfügbar."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Das Storm Guard-Update wurde von Enphase abgelehnt (HTTP 403 verboten)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Storm Guard-Update konnte nicht authentifiziert werden. Authentifizieren Sie sich erneut und versuchen Sie es erneut."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Das ausgewählte Systemprofil ist nicht verfügbar."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Die Aktualisierung des Systemprofils wurde von Enphase abgelehnt (HTTP 403 verboten)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Die Aktualisierung des Systemprofils konnte nicht authentifiziert werden. Authentifizieren Sie sich erneut und versuchen Sie es erneut."
+    },
+    "system_profile_update_failed": {
+      "message": "Die Aktualisierung des Systemprofils ist fehlgeschlagen."
+    },
+    "system_profile_update_network": {
+      "message": "Die Aktualisierung des Systemprofils ist aufgrund eines Netzwerkfehlers fehlgeschlagen. Versuchen Sie es erneut."
+    },
+    "system_profile_update_timeout": {
+      "message": "Zeitüberschreitung bei der Aktualisierung des Systemprofils. Versuchen Sie es erneut."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Die Auswahl des Lademodus ist nicht verfügbar, solange der Enphase-Planungsdienst nicht verfügbar ist."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Der ausgewählte Zielladezustand der Wechselstrombatterie ist nicht verfügbar."
+    },
+    "battery_schedule_day_required": {
+      "message": "Wählen Sie mindestens einen Tag für den Zeitplan aus."
+    },
+    "battery_schedule_times_different": {
+      "message": "Die Start- und Endzeiten des Zeitplans müssen unterschiedlich sein."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Das {schedule_type}-Zeitplanlimit muss zwischen {minimum} und {maximum} liegen."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Zeitplan vom Enphase-Validierungsendpunkt abgelehnt."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Die Bearbeitung des Batteriezeitplans ist nicht verfügbar."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Die Batterieplan-API ist nicht verfügbar."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Zum Aktualisieren eines Zeitplans ist eine Bestätigung erforderlich."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Zum Löschen eines Zeitplans ist eine Bestätigung erforderlich."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Ungültige Zeitplan-ID: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Zeitplan-ID in den aktuellen Daten nicht gefunden: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Geben Sie mindestens eine Zeitplan-ID zum Löschen an."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Ungültige Zeitplan-ID(s): {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Zeitplan-ID(s) in den aktuellen Daten nicht gefunden: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Zeitplan vom Enphase-Validierungsendpunkt abgelehnt: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Konflikte bei der Aktualisierung des Zeitplans mit einem vorhandenen Batterieplan: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "API-Zeitlimit (s)",
           "nominal_voltage": "Nennspannung (V)",
           "session_history_interval": "Intervall für Sitzungsverlauf (min)",
-          "schedule_sync_enabled": "Aktivieren Sie die Scheduler-Unterstützung",
+          "schedule_sync_enabled": "Aktivieren Sie den EV-Ladeplaner",
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen",
           "type_heatpump": "Wärmepumpe",
-          "type_ac_battery": "AC-Batterie"
+          "type_ac_battery": "AC-Batterie",
+          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -174,11 +436,12 @@
           "api_timeout": "Sekunden, bevor API-Anfragen abbrechen.",
           "nominal_voltage": "Ersatzspannung für die Leistungsberechnung des Ladegeräts.",
           "session_history_interval": "Minuten zwischen Abrufen des Cloud-Sitzungsverlaufs.",
-          "schedule_sync_enabled": "Verwalten Sie die Enphase-Zeitplanverwaltung",
+          "schedule_sync_enabled": "Verwalten Sie die Zeitpläne für IQ-Ladegeräte für Elektrofahrzeuge",
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
           "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
-          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar.",
+          "battery_schedules_enabled": "IQ-Batteriepläne verwalten"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Reauthentifizierung starten",
           "forget_password": "Gespeichertes Passwort löschen",
           "type_heatpump": "Wärmepumpe",
-          "type_ac_battery": "AC-Batterie"
+          "type_ac_battery": "AC-Batterie",
+          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -216,7 +480,8 @@
           "reauth": "Startet den Login-Ablauf, um Zugangsdaten zu erneuern, ohne die Integration zu entfernen.",
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
           "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
-          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar."
+          "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar.",
+          "battery_schedules_enabled": "IQ-Batteriepläne verwalten"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Netzeinspeisung",
           "battery_charge": "Batterieladung",
           "battery_discharge": "Batterieentladung"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "{serial} zuletzt gemeldet"
+      },
+      "battery_cfg_schedules": {
+        "name": "Batterie-CFG-Zeitpläne"
+      },
+      "battery_dtg_schedules": {
+        "name": "Batterie-DTG-Zeitpläne"
+      },
+      "battery_rbd_schedules": {
+        "name": "Batterie-RBD-Zeitpläne"
+      },
+      "battery_schedule_summary": {
+        "name": "Zusammenfassung des Batterieplans"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Grenzwert für eingeschränkte Batterieentladung"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Neues Zeitplanlimit für die Batterie"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Batteriezeitplanbegrenzung"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Zeitplan Sonntag"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Batterie neuer Zeitplan Montag"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Batterie neuer Zeitplan am Dienstag"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Batterie neuer Zeitplan Mittwoch"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Batterie-Neuplan am Donnerstag"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Batterie neuer Zeitplan am Freitag"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Batterie neuer Zeitplan Samstag"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Batterie neuer Zeitplan am Sonntag"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Batterieplan Montag"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Batterieplan Dienstag"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Batterieplan Mittwoch"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Batterieplan Donnerstag"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Batterieplan Freitag"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Batterieplan Samstag"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Batterieplan Sonntag"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Zeitplan"
+      },
+      "battery_new_schedule_type": {
+        "name": "Typ des Batterieplans"
+      },
+      "battery_schedule_selected": {
+        "name": "Batterieplan"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Neuen Zeitplan erstellen"
+      },
+      "battery_schedule_add": {
+        "name": "Batterieplan hinzufügen"
+      },
+      "battery_schedule_delete": {
+        "name": "Batterieplan löschen"
+      },
+      "battery_schedule_refresh": {
+        "name": "Aktualisierung des Batterieplans"
+      },
+      "battery_schedule_save": {
+        "name": "Speichern des Batterieplans"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Endzeit des Zeitplans"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Startzeit des neuen Batterieplans"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Endzeit des neuen Batterieplans"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Startzeit des Batterieplans"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Endzeit des Batterieplans"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Standort-ID",
           "description": "Enphase-Standort-ID (optional; wird aus dem Zielgerät ermittelt)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Aktualisierung erzwingen",
+      "description": "Aktualisieren Sie die Batterieplandaten sofort aus der Enphase-Cloud.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionale Site-ID; automatisch erkannt, wenn ein Standortgerät ausgewählt wird."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionaler Konfigurationseintragsbezeichner für einen einzelnen Enphase-Site-Eintrag."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Batterieplan hinzufügen",
+      "description": "Erstellen Sie einen Batterieplan für CFG, DTG oder RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Zeitplantyp",
+          "description": "Batterieplanfamilie: cfg, dtg oder rbd."
+        },
+        "start_time": {
+          "name": "Startzeit",
+          "description": "Planen Sie die Startzeit."
+        },
+        "end_time": {
+          "name": "Endzeit",
+          "description": "Planen Sie die Endzeit ein."
+        },
+        "limit": {
+          "name": "Gebührenlimit",
+          "description": "Maximaler Ladezustand der Batterie (%)."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Liste der aktiven Wochentage mit Montag=1 bis Sonntag=7."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionale Site-ID; automatisch erkannt, wenn ein Standortgerät ausgewählt wird."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionaler Konfigurationseintragsbezeichner für einen einzelnen Enphase-Site-Eintrag."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Batterieplan aktualisieren",
+      "description": "Aktualisieren Sie einen Batteriezeitplan anhand der Zeitplan-ID.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Zeitplan-ID",
+          "description": "Kennung des vorhandenen Enphase-Batterieplans."
+        },
+        "schedule_type": {
+          "name": "Zeitplantyp",
+          "description": "Batterieplanfamilie: cfg, dtg oder rbd."
+        },
+        "start_time": {
+          "name": "Startzeit",
+          "description": "Planen Sie die Startzeit."
+        },
+        "end_time": {
+          "name": "Endzeit",
+          "description": "Planen Sie die Endzeit ein."
+        },
+        "limit": {
+          "name": "Gebührenlimit",
+          "description": "Maximaler Ladezustand der Batterie (%)."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Liste der aktiven Wochentage mit Montag=1 bis Sonntag=7."
+        },
+        "confirm": {
+          "name": "Bestätigen",
+          "description": "Auf „true“ setzen, um die Zeitplanaktualisierung zu bestätigen."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionale Site-ID; automatisch erkannt, wenn ein Standortgerät ausgewählt wird."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionaler Konfigurationseintragsbezeichner für einen einzelnen Enphase-Site-Eintrag."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Batterieplan löschen",
+      "description": "Löschen Sie einen oder mehrere Batteriepläne nach Zeitplan-ID.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Zeitplan-ID",
+          "description": "Einzelne zu löschende Enphase-Batterieplan-ID."
+        },
+        "schedule_ids": {
+          "name": "Zeitplan-IDs",
+          "description": "Optionale durch Kommas getrennte Eingabe oder Listeneingabe für mehrere Zeitplan-IDs."
+        },
+        "confirm": {
+          "name": "Bestätigen",
+          "description": "Auf „true“ setzen, um das Löschen des Zeitplans zu bestätigen."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionale Site-ID; automatisch erkannt, wenn ein Standortgerät ausgewählt wird."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionaler Konfigurationseintragsbezeichner für einen einzelnen Enphase-Site-Eintrag."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Batterieplan validieren",
+      "description": "Überprüfen Sie, ob die Bearbeitung des Batterieplans für die ausgewählte Zeitplanfamilie verfügbar ist.",
+      "sections": {
+        "advanced": {
+          "name": "Erweiterte Optionen"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Zeitplantyp",
+          "description": "Batterieplanfamilie: cfg, dtg oder rbd."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionale Site-ID; automatisch erkannt, wenn ein Standortgerät ausgewählt wird."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionaler Konfigurationseintragsbezeichner für einen einzelnen Enphase-Site-Eintrag."
         }
       }
     }

@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Графикът се припокрива със съществуващия {schedule_label}. Коригирайте го или го деактивирайте първо."
+    },
+    "ac_battery_unavailable": {
+      "message": "Понастоящем няма налични устройства с AC батерия."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Настройките за удостоверяване не са налични, докато услугата Enphase не работи."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Актуализациите на профила на батерията не са разрешени за този акаунт."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Актуализациите на настройките на батерията не са разрешени за този акаунт."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Друга актуализация на профила на батерията вече е в ход."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Друга актуализация на настройките на батерията вече е в ход."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Актуализациите на профила на батерията не са налични."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Не са налични актуализации на настройките на батерията."
+    },
+    "battery_updates_unavailable": {
+      "message": "Не са налични актуализации на батерията."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Актуализациите на батерията не са разрешени за този акаунт."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Актуализацията на профила на батерията е заявена твърде бързо. Моля, изчакайте и опитайте отново."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Актуализацията на настройките на батерията е заявена твърде бързо. Моля, изчакайте и опитайте отново."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Достъпът за запис на батерията не можа да бъде потвърден. Опреснете и опитайте отново."
+    },
+    "schedule_update_forbidden": {
+      "message": "Актуализацията на графика беше отхвърлена от Enphase (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Актуализацията на графика не можа да бъде удостоверена. Повторно удостоверяване и опитайте отново."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Графикът е в конфликт със съществуващия график за заустване към мрежата. Първо коригирайте или деактивирайте този график."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Графикът е в конфликт със съществуващия график за ограничаване на разреждането на батерията. Първо коригирайте или деактивирайте този график."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Графикът е в конфликт със съществуващия график за таксуване от мрежата. Първо коригирайте или деактивирайте този график."
+    },
+    "schedule_update_conflict": {
+      "message": "Актуализацията на графика е в конфликт със съществуващ график на батерията."
+    },
+    "battery_profile_unavailable": {
+      "message": "Профилът на батерията не е наличен."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Актуализацията на профила на батерията беше отхвърлена от Enphase (HTTP 403 забранен)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Актуализацията на профила на батерията не може да бъде удостоверена. Повторно удостоверяване и опитайте отново."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Полезният товар на настройките на батерията не е наличен."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Актуализацията на настройките на батерията беше отхвърлена от Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Актуализацията на настройките на батерията не може да бъде удостоверена. Повторно удостоверяване и опитайте отново."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Пълният резервен резерв е фиксиран на 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Резервът на батерията не е наличен."
+    },
+    "savings_profile_required": {
+      "message": "Спестовният профил трябва да е активен."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Настройките на профила за спестявания не са налични."
+    },
+    "battery_profile_unsupported": {
+      "message": "Избраният профил на батерията не се поддържа."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Настройката за зареждане от мрежата не е налична."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Зареждането от превключване на мрежата не е приложено от Enphase."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Таксуването от графика на мрежата не е налично."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Началният и крайният час на графика за зареждане от мрежата трябва да са различни."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Превключването на графика за таксуване от мрежата не е приложено от Enphase."
+    },
+    "charge_from_grid_required": {
+      "message": "Първо трябва да се активира таксуването от мрежата."
+    },
+    "schedule_change_pending": {
+      "message": "Промяна в графика чака синхронизиране на Envoy. моля изчакайте"
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Графикът за зареждане от мрежата е невалиден."
+    },
+    "schedule_api_unavailable": {
+      "message": "API за график не е наличен за тази клиентска версия."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Няма съществуващ график за зареждане от мрежата."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Създайте {schedule_label} в планировчика на IQ Battery, преди да го активирате."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} в момента не се излага от Enphase за този сайт. Изчакайте синхронизирането на графика да завърши, след това опреснете и опитайте отново."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Превключването {schedule_label} не е приложено от Enphase."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "първичният запис е отхвърлен"
+    },
+    "schedule_family_times_different": {
+      "message": "Началният и крайният час на {schedule_label} трябва да са различни."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Графикът за изхвърляне към мрежата е невалиден."
+    },
+    "schedule_missing": {
+      "message": "Няма наличен съществуващ график за {schedule_label_lower}."
+    },
+    "schedule_unavailable": {
+      "message": "Графикът на {schedule_label} не е наличен."
+    },
+    "schedule_time_invalid": {
+      "message": "Графикът на {schedule_label} е невалиден."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Текущият график на {schedule_label_lower} е невалиден."
+    },
+    "schedule_limit_range": {
+      "message": "Графикът на {schedule_label} трябва да бъде между {minimum} и {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "Графикът за {schedule_label} трябва да бъде поне {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Текущите часове по график не са налични."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Графикът за таксуване от мрежата трябва да бъде между {minimum} и {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Графикът за таксуване от мрежата трябва да бъде поне {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Нивото на изключване на батерията не е налично."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Нивото на изключване на батерията е невалидно."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Нивото на изключване на батерията трябва да е между {minimum} и {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Отказът за предупреждение за буря не е наличен."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Неуспешно отказване за предупреждение за буря за предупреждение(я) за {count}."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Актуализациите на Storm Guard не са разрешени за този акаунт."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Настройките на Storm Guard не са налични."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Актуализацията на Storm Guard беше отхвърлена от Enphase (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Актуализацията на Storm Guard не можа да бъде удостоверена. Повторно удостоверяване и опитайте отново."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Избраният системен профил не е наличен."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Актуализацията на системния профил беше отхвърлена от Enphase (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Актуализацията на системния профил не можа да бъде удостоверена. Повторно удостоверяване и опитайте отново."
+    },
+    "system_profile_update_failed": {
+      "message": "Неуспешна актуализация на системния профил."
+    },
+    "system_profile_update_network": {
+      "message": "Актуализирането на системния профил не бе успешно поради мрежова грешка. Опитайте отново."
+    },
+    "system_profile_update_timeout": {
+      "message": "Актуализацията на системния профил изтече. Опитайте отново."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Изборът на режим на зареждане не е наличен, докато услугата за планиране на Enphase не работи."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Избраното целево състояние на зареждане на променливотокова батерия не е налично."
+    },
+    "battery_schedule_day_required": {
+      "message": "Изберете поне един ден за графика."
+    },
+    "battery_schedule_times_different": {
+      "message": "Началният и крайният час на графика трябва да са различни."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Графикът на {schedule_type} трябва да бъде между {minimum} и {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Графикът е отхвърлен от крайната точка за валидиране на Enphase."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Редактирането на графика на батерията не е налично."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "API за график на батерията не е наличен."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Необходимо е потвърждение за актуализиране на график."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Изисква се потвърждение за изтриване на график."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Невалиден ID на графика: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "ИД на график не е намерен в текущите данни: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Предоставете поне един идентификатор на график за изтриване."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Невалидни ИД на графика: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Идентификационните номера на графика не са намерени в текущите данни: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Графикът е отхвърлен от крайната точка за валидиране на Enphase: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Актуализацията на графика е в конфликт със съществуващ график на батерията: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "Изчакване на API (s)",
           "nominal_voltage": "Номинално напрежение (V)",
           "session_history_interval": "Интервал на историята на сесиите (min)",
-          "schedule_sync_enabled": "Активирайте поддръжката на Scheduler",
+          "schedule_sync_enabled": "Активиране на EV Charger Scheduler",
           "reauth": "Стартиране на повторна автентикация",
           "forget_password": "Забрави запазената парола",
           "type_heatpump": "Термопомпа",
-          "type_ac_battery": "AC батерия"
+          "type_ac_battery": "AC батерия",
+          "battery_schedules_enabled": "Активирайте програмата за планиране на батерията"
         },
         "data_description": {
           "type_envoy": "Включва диагностика за свързаността на шлюза и електромерите.",
@@ -174,11 +436,12 @@
           "api_timeout": "Секунди преди заявките към API да изтекат.",
           "nominal_voltage": "Резервно напрежение за оценка на мощността на зарядното.",
           "session_history_interval": "Минути за изчакване между извличанията на историята на сесиите в облака.",
-          "schedule_sync_enabled": "Управление на управлението на графика на Enphase",
+          "schedule_sync_enabled": "Управлявайте графици за зарядно за IQ EV",
           "reauth": "Стартирайте процеса на вход за обновяване на данните без да премахвате интеграцията.",
           "forget_password": "Премахва запазената парола. Автоматичното обновяване вече няма да се опитва.",
           "type_heatpump": "Включва сензори за състояние, диагностика и потребление на термопомпата.",
-          "type_ac_battery": "Включва сензори за AC батерията и контроли за режим на заспиване, когато са налични."
+          "type_ac_battery": "Включва сензори за AC батерията и контроли за режим на заспиване, когато са налични.",
+          "battery_schedules_enabled": "Управлявайте графици за IQ батерия"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Стартиране на повторна автентикация",
           "forget_password": "Забрави запазената парола",
           "type_heatpump": "Термопомпа",
-          "type_ac_battery": "AC батерия"
+          "type_ac_battery": "AC батерия",
+          "battery_schedules_enabled": "Активирайте програмата за планиране на батерията"
         },
         "data_description": {
           "type_envoy": "Включва диагностика за свързаността на шлюза и електромерите.",
@@ -216,7 +480,8 @@
           "reauth": "Стартирайте процеса на вход за обновяване на данните без да премахвате интеграцията.",
           "forget_password": "Премахва запазената парола. Автоматичното обновяване вече няма да се опитва.",
           "type_heatpump": "Включва сензори за състояние, диагностика и потребление на термопомпата.",
-          "type_ac_battery": "Включва сензори за AC батерията и контроли за режим на заспиване, когато са налични."
+          "type_ac_battery": "Включва сензори за AC батерията и контроли за режим на заспиване, когато са налични.",
+          "battery_schedules_enabled": "Управлявайте графици за IQ батерия"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Износ към мрежата",
           "battery_charge": "Зареждане на батерията",
           "battery_discharge": "Разреждане на батерията"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Последен отчет на {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Графици за CFG на батерията"
+      },
+      "battery_dtg_schedules": {
+        "name": "Графици за DTG на батерията"
+      },
+      "battery_rbd_schedules": {
+        "name": "Графици за RBD на батерията"
+      },
+      "battery_schedule_summary": {
+        "name": "Резюме на графика на батерията"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Лимит за ограничаване на разреждането на батерията"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Нов график на батерията"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "График на батерията"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "График за неделя"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Нов график на батерията в понеделник"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Нов график на батерията във вторник"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Нов график на батерията в сряда"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Нов график на батерията в четвъртък"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Нов график на батерията в петък"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Нов график на батерията в събота"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Нов график на батерията в неделя"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "График на батерията в понеделник"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "График на батерията във вторник"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "График на батерията в сряда"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "График на батерията в четвъртък"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "График за батерията в петък"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "График на батериите в събота"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "График на батериите в неделя"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "График"
+      },
+      "battery_new_schedule_type": {
+        "name": "Тип график на батерията"
+      },
+      "battery_schedule_selected": {
+        "name": "График на батерията"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Създаване на нов график"
+      },
+      "battery_schedule_add": {
+        "name": "Добавяне на график на батерията"
+      },
+      "battery_schedule_delete": {
+        "name": "Изтриване на графика на батерията"
+      },
+      "battery_schedule_refresh": {
+        "name": "Обновяване на графика на батерията"
+      },
+      "battery_schedule_save": {
+        "name": "Запазване на графика на батерията"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Краен час на графика"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Батерия Нов график Начално време"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Краен час на новия график на батерията"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Начално време по график на батерията"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Краен час на графика на батерията"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "ID на обекта",
           "description": "Enphase ID на обекта (по избор; определя се от целевото устройство)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Принудително опресняване",
+      "description": "Обновете незабавно данните за графика на батерията от облака Enphase.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Идентификатор на обекта",
+          "description": "Незадължителен идентификатор на обекта; открива се автоматично, когато е избрано устройство на обекта."
+        },
+        "config_entry_id": {
+          "name": "Конфигуриране на идентификатор на запис",
+          "description": "Незадължителен идентификатор за въвеждане на конфигурация за единичен запис в Enphase сайт."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Добавяне на график за батерията",
+      "description": "Създайте график на батерията за CFG, DTG или RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Вид график",
+          "description": "Семейство график на батерията: cfg, dtg или rbd."
+        },
+        "start_time": {
+          "name": "Начално време",
+          "description": "Насрочете начален час."
+        },
+        "end_time": {
+          "name": "Краен час",
+          "description": "Насрочване на краен час."
+        },
+        "limit": {
+          "name": "Лимит на таксуване",
+          "description": "Максимално ниво на зареждане на батерията (%)."
+        },
+        "days": {
+          "name": "Дни",
+          "description": "Списък на активните делнични дни, използващи понеделник=1 до неделя=7."
+        },
+        "site_id": {
+          "name": "Идентификатор на обекта",
+          "description": "Незадължителен идентификатор на обекта; открива се автоматично, когато е избрано устройство на обекта."
+        },
+        "config_entry_id": {
+          "name": "Конфигуриране на идентификатор на запис",
+          "description": "Незадължителен идентификатор за въвеждане на конфигурация за единичен запис в Enphase сайт."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Актуализиране на графика на батерията",
+      "description": "Актуализирайте график на батерията по ID на графика.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Насрочване на документ за самоличност",
+          "description": "Съществуващ идентификатор на графика на Enphase батерията."
+        },
+        "schedule_type": {
+          "name": "Вид график",
+          "description": "Семейство график на батерията: cfg, dtg или rbd."
+        },
+        "start_time": {
+          "name": "Начално време",
+          "description": "Насрочете начален час."
+        },
+        "end_time": {
+          "name": "Краен час",
+          "description": "Насрочване на краен час."
+        },
+        "limit": {
+          "name": "Лимит на таксуване",
+          "description": "Максимално ниво на зареждане на батерията (%)."
+        },
+        "days": {
+          "name": "Дни",
+          "description": "Списък на активните делнични дни, използващи понеделник=1 до неделя=7."
+        },
+        "confirm": {
+          "name": "Потвърждаване",
+          "description": "Задайте на „вярно “, за да потвърдите актуализацията на графика."
+        },
+        "site_id": {
+          "name": "Идентификатор на обекта",
+          "description": "Незадължителен идентификатор на обекта; открива се автоматично, когато е избрано устройство на обекта."
+        },
+        "config_entry_id": {
+          "name": "Конфигуриране на идентификатор на запис",
+          "description": "Незадължителен идентификатор за въвеждане на конфигурация за единичен запис в Enphase сайт."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Изтриване на графика на батерията",
+      "description": "Изтрийте един или повече графици на батерията по ID на график.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Насрочване на документ за самоличност",
+          "description": "Идентификатор на график на единична Enphase батерия за изтриване."
+        },
+        "schedule_ids": {
+          "name": "Насрочване на документи за самоличност",
+          "description": "Незадължително въвеждане, разделено със запетая, или въвеждане на списък за множество идентификатори на график."
+        },
+        "confirm": {
+          "name": "Потвърждаване",
+          "description": "Задайте на „вярно “, за да потвърдите изтриването на графика."
+        },
+        "site_id": {
+          "name": "Идентификатор на обекта",
+          "description": "Незадължителен идентификатор на обекта; открива се автоматично, когато е избрано устройство на обекта."
+        },
+        "config_entry_id": {
+          "name": "Конфигуриране на идентификатор на запис",
+          "description": "Незадължителен идентификатор за въвеждане на конфигурация за единичен запис в Enphase сайт."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Потвърдете графика на батерията",
+      "description": "Проверете дали редактирането на графика на батерията е налично за избраното семейство графици.",
+      "sections": {
+        "advanced": {
+          "name": "Разширени опции"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Вид график",
+          "description": "Семейство график на батерията: cfg, dtg или rbd."
+        },
+        "site_id": {
+          "name": "Идентификатор на обекта",
+          "description": "Незадължителен идентификатор на обекта; открива се автоматично, когато е избрано устройство на обекта."
+        },
+        "config_entry_id": {
+          "name": "Конфигуриране на идентификатор на запис",
+          "description": "Незадължителен идентификатор за въвеждане на конфигурация за единичен запис в Enphase сайт."
         }
       }
     }

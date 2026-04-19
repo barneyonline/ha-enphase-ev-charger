@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Ajakava kattub olemasoleva {schedule_label}-ga. Kohanda või keela see ajakava enne."
+    },
+    "ac_battery_unavailable": {
+      "message": "Ühtegi AC Battery seadet pole praegu saadaval."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Autentimisseaded pole saadaval, kui Enphase'i teenus on maas."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Aku profiili uuendused pole selle konto jaoks lubatud."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Aku seadete uuendused pole selle konto jaoks lubatud."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Teine aku profiili uuendus on juba käimas."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Teine aku seadete uuendus on juba käimas."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Aku profiili uuendused pole saadaval."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Aku seadete uuendused pole saadaval."
+    },
+    "battery_updates_unavailable": {
+      "message": "Aku uuendused pole saadaval."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Aku uuendused pole selle konto jaoks lubatud."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Aku profiili uuendust taotleti liiga kiiresti. Palun oota ja proovi uuesti."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Aku seadete uuendust taotleti liiga kiiresti. Palun oota ja proovi uuesti."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Aku kirjutusõigust ei saanud kinnitada. Värskenda ja proovi uuesti."
+    },
+    "schedule_update_forbidden": {
+      "message": "Enphase lükkas ajakava uuenduse tagasi (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Ajakava uuendust ei saanud autentida. Autendi uuesti ja proovi uuesti."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Ajakava on vastuolus olemasoleva discharge-to-grid ajakavaga. Kohanda või keela see ajakava enne."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Ajakava on vastuolus olemasoleva restrict-battery-discharge ajakavaga. Kohanda või keela see ajakava enne."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Ajakava on vastuolus olemasoleva charge-from-grid ajakavaga. Kohanda või keela see ajakava enne."
+    },
+    "schedule_update_conflict": {
+      "message": "Ajakava uuendus on vastuolus olemasoleva aku ajakavaga."
+    },
+    "battery_profile_unavailable": {
+      "message": "Aku profiil pole saadaval."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Enphase lükkas aku profiili uuenduse tagasi (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Aku profiili uuendust ei saanud autentida. Autendi uuesti ja proovi uuesti."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Aku seadete koormusandmed pole saadaval."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Enphase lükkas aku seadete uuenduse tagasi (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Aku seadete uuendust ei saanud autentida. Autendi uuesti ja proovi uuesti."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Full Backupi reserv on fikseeritud 100% peale."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Aku reserv pole saadaval."
+    },
+    "savings_profile_required": {
+      "message": "Savings profiil peab olema aktiivne."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Savings profiili seaded pole saadaval."
+    },
+    "battery_profile_unsupported": {
+      "message": "Valitud aku profiili ei toetata."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Võrgust laadimise seadistus pole saadaval."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Enphase ei rakendanud võrgust laadimise lülitit."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Võrgust laadimise ajakava pole saadaval."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Charge-from-grid ajakava algus- ja lõpuaeg peavad olema erinevad."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Enphase ei rakendanud charge-from-grid ajakava lülitit."
+    },
+    "charge_from_grid_required": {
+      "message": "Võrgust laadimine tuleb enne lubada."
+    },
+    "schedule_change_pending": {
+      "message": "Ajakava muudatus ootab Envoy sünkroonimist. Palun oota."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Charge-from-grid ajakava aeg on vigane."
+    },
+    "schedule_api_unavailable": {
+      "message": "Ajakava API pole selles kliendiversioonis saadaval."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Olemasolevat charge-from-grid ajakava pole saadaval."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Loo IQ Battery ajastajas {schedule_label} enne selle lubamist."
+    },
+    "schedule_not_exposed": {
+      "message": "Enphase ei kuva praegu selle saidi jaoks {schedule_label}. Oota, kuni ajakava sünkroonimine lõpeb, seejärel värskenda ja proovi uuesti."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Enphase ei rakendanud lülitit {schedule_label}."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "Peamine kirjutamine lükati tagasi."
+    },
+    "schedule_family_times_different": {
+      "message": "{schedule_label} algus- ja lõpuaeg peavad olema erinevad."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Discharge-to-grid ajakava aeg on vigane."
+    },
+    "schedule_missing": {
+      "message": "Olemasolevat ajakava {schedule_label_lower} pole saadaval."
+    },
+    "schedule_unavailable": {
+      "message": "{schedule_label} ajakava pole saadaval."
+    },
+    "schedule_time_invalid": {
+      "message": "{schedule_label} ajakava aeg on vigane."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Praegune {schedule_label_lower} ajakava aeg on vigane."
+    },
+    "schedule_limit_range": {
+      "message": "{schedule_label} ajakava piirang peab olema vahemikus {minimum} kuni {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "{schedule_label} ajakava piirang peab olema vähemalt {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Praegused ajakava ajad pole saadaval."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Charge-from-grid ajakava piirang peab olema vahemikus {minimum} kuni {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Charge-from-grid ajakava piirang peab olema vähemalt {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Aku väljalülitustase pole saadaval."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Aku väljalülitustase on vigane."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Aku väljalülitustase peab olema vahemikus {minimum} kuni {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Storm Alertist loobumine pole saadaval."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Storm Alertist loobumine ebaõnnestus {count} hoiatuse puhul."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Storm Guardi uuendused pole selle konto jaoks lubatud."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guardi seaded pole saadaval."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Enphase lükkas Storm Guardi uuenduse tagasi (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Storm Guardi uuendust ei saanud autentida. Autendi uuesti ja proovi uuesti."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Valitud süsteemiprofiil pole saadaval."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Enphase lükkas süsteemiprofiili uuenduse tagasi (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Süsteemiprofiili uuendust ei saanud autentida. Autendi uuesti ja proovi uuesti."
+    },
+    "system_profile_update_failed": {
+      "message": "Süsteemiprofiili uuendus ebaõnnestus."
+    },
+    "system_profile_update_network": {
+      "message": "Süsteemiprofiili uuendus ebaõnnestus võrguvea tõttu. Proovi uuesti."
+    },
+    "system_profile_update_timeout": {
+      "message": "Süsteemiprofiili uuenduse ajalõpp saabus. Proovi uuesti."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Laadimisrežiimi valik pole saadaval, kui Enphase'i ajastusteenus on maas."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Valitud AC-aku sihtlaetuse tase pole saadaval."
+    },
+    "battery_schedule_day_required": {
+      "message": "Vali ajakava jaoks vähemalt üks päev."
+    },
+    "battery_schedule_times_different": {
+      "message": "Ajakava algus- ja lõpuaeg peavad erinema."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Ajakava {schedule_type} piirang peab olema vahemikus {minimum} kuni {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Enphase'i valideerimise lõpp-punkt lükkas ajakava tagasi."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Aku ajakavade muutmine pole saadaval."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Aku ajakavade API pole saadaval."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Ajakava uuendamiseks on vaja kinnitust."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Ajakava kustutamiseks on vaja kinnitust."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Vigane ajakava ID: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Ajakava ID-d ei leitud praegustest andmetest: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Kustutamiseks esita vähemalt üks ajakava ID."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Vigased ajakava ID-d: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Ajakava ID-sid ei leitud praegustest andmetest: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Enphase'i valideerimise lõpp-punkt lükkas ajakava tagasi: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Ajakava uuendus on vastuolus olemasoleva aku ajakavaga: {message}"
     }
   },
   "options": {
@@ -161,7 +422,8 @@
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool",
           "type_heatpump": "Soojuspump",
-          "type_ac_battery": "AC-aku"
+          "type_ac_battery": "AC-aku",
+          "battery_schedules_enabled": "Luba aku ajastaja"
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
@@ -178,7 +440,8 @@
           "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata.",
           "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid.",
-          "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval."
+          "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval.",
+          "battery_schedules_enabled": "Halda IQ aku ajakavasid"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Alusta taasautentimist",
           "forget_password": "Unusta salvestatud parool",
           "type_heatpump": "Soojuspump",
-          "type_ac_battery": "AC-aku"
+          "type_ac_battery": "AC-aku",
+          "battery_schedules_enabled": "Luba aku ajastaja"
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
@@ -216,7 +480,8 @@
           "reauth": "Käivitage sisselogimisvoog, et uuendada mandaate ilma integratsiooni eemaldamata.",
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata.",
           "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid.",
-          "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval."
+          "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval.",
+          "battery_schedules_enabled": "Halda IQ aku ajakavasid"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Võrku eksport",
           "battery_charge": "Aku laadimine",
           "battery_discharge": "Aku tühjenemine"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Määra kumulatiivne aku laadimise kogus andurile Enphase Energy Site Battery Charge. Ära vali päevast energiat ega reaalajas võimsust.",
+          "battery_discharge": "Määra kumulatiivne aku tühjenemise kogus andurile Enphase Energy Site Battery Discharge. Ära vali päevast energiat ega reaalajas võimsust."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "{serial} viimane raport"
+      },
+      "battery_cfg_schedules": {
+        "name": "Aku CFG ajakavad"
+      },
+      "battery_dtg_schedules": {
+        "name": "Aku DTG ajakavad"
+      },
+      "battery_rbd_schedules": {
+        "name": "Aku RBD ajakavad"
+      },
+      "battery_schedule_summary": {
+        "name": "Aku ajakavade kokkuvõte"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Aku tühjendamise piirangu määr"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Uue aku ajakava piirang"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Aku ajakava piirang"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Pühapäeva ajakava"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Uus aku ajakava esmaspäev"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Uus aku ajakava teisipäev"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Uus aku ajakava kolmapäev"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Uus aku ajakava neljapäev"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Uus aku ajakava reede"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Uus aku ajakava laupäev"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Uus aku ajakava pühapäev"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Aku ajakava esmaspäev"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Aku ajakava teisipäev"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Aku ajakava kolmapäev"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Aku ajakava neljapäev"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Aku ajakava reede"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Aku ajakava laupäev"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Aku ajakava pühapäev"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Ajakava"
+      },
+      "battery_new_schedule_type": {
+        "name": "Aku ajakava tüüp"
+      },
+      "battery_schedule_selected": {
+        "name": "Aku ajakava"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Uue ajakava loomine"
+      },
+      "battery_schedule_add": {
+        "name": "Lisa aku ajakava"
+      },
+      "battery_schedule_delete": {
+        "name": "Kustuta aku ajakava"
+      },
+      "battery_schedule_refresh": {
+        "name": "Värskenda aku ajakava"
+      },
+      "battery_schedule_save": {
+        "name": "Salvesta aku ajakava"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Ajakava lõppaeg"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Uue aku ajakava algusaeg"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Uue aku ajakava lõpuaeg"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Aku ajakava algusaeg"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Aku ajakava lõpuaeg"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Koha ID",
           "description": "Enphase koha ID (valikuline; leitakse sihtseadmest)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Sunni värskendust",
+      "description": "Värskenda aku ajakavade andmed kohe Enphase'i pilvest.",
+      "sections": {
+        "advanced": {
+          "name": "Lisavalikud"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Saidi ID",
+          "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt, kui valitakse saidi seade."
+        },
+        "config_entry_id": {
+          "name": "Konfiguratsioonikirje ID",
+          "description": "Valikuline konfiguratsioonikirje identifikaator ühe Enphase'i saidikirje jaoks."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Lisa aku ajakava",
+      "description": "Loo aku ajakava CFG, DTG või RBD jaoks.",
+      "sections": {
+        "advanced": {
+          "name": "Lisavalikud"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Ajakava tüüp",
+          "description": "Aku ajakavapere: cfg, dtg või rbd."
+        },
+        "start_time": {
+          "name": "Algusaeg",
+          "description": "Ajakava algusaeg."
+        },
+        "end_time": {
+          "name": "Lõppaeg",
+          "description": "Ajakava lõppaeg."
+        },
+        "limit": {
+          "name": "Laadimispiirang",
+          "description": "Aku maksimaalne laetuse tase (%)."
+        },
+        "days": {
+          "name": "Päevad",
+          "description": "Aktiivsete nädalapäevade loend, kus esmaspäev=1 ja pühapäev=7."
+        },
+        "site_id": {
+          "name": "Saidi ID",
+          "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt, kui valitakse saidi seade."
+        },
+        "config_entry_id": {
+          "name": "Konfiguratsioonikirje ID",
+          "description": "Valikuline konfiguratsioonikirje identifikaator ühe Enphase'i saidikirje jaoks."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Uuenda aku ajakava",
+      "description": "Uuenda aku ajakava ajakava ID järgi.",
+      "sections": {
+        "advanced": {
+          "name": "Lisavalikud"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Ajakava ID",
+          "description": "Olemasolev Enphase'i aku ajakava identifikaator."
+        },
+        "schedule_type": {
+          "name": "Ajakava tüüp",
+          "description": "Aku ajakavapere: cfg, dtg või rbd."
+        },
+        "start_time": {
+          "name": "Algusaeg",
+          "description": "Ajakava algusaeg."
+        },
+        "end_time": {
+          "name": "Lõppaeg",
+          "description": "Ajakava lõppaeg."
+        },
+        "limit": {
+          "name": "Laadimispiirang",
+          "description": "Aku maksimaalne laetuse tase (%)."
+        },
+        "days": {
+          "name": "Päevad",
+          "description": "Aktiivsete nädalapäevade loend, kus esmaspäev=1 ja pühapäev=7."
+        },
+        "confirm": {
+          "name": "Kinnita",
+          "description": "Määra väärtuseks true, et kinnitada ajakava uuendamine."
+        },
+        "site_id": {
+          "name": "Saidi ID",
+          "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt, kui valitakse saidi seade."
+        },
+        "config_entry_id": {
+          "name": "Konfiguratsioonikirje ID",
+          "description": "Valikuline konfiguratsioonikirje identifikaator ühe Enphase'i saidikirje jaoks."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Kustuta aku ajakava",
+      "description": "Kustuta üks või mitu aku ajakava ajakava ID järgi.",
+      "sections": {
+        "advanced": {
+          "name": "Lisavalikud"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Ajakava ID",
+          "description": "Kustutatava üksiku Enphase'i aku ajakava identifikaator."
+        },
+        "schedule_ids": {
+          "name": "Ajakava ID-d",
+          "description": "Valikuline komadega eraldatud või loendina sisend mitme ajakava identifikaatori jaoks."
+        },
+        "confirm": {
+          "name": "Kinnita",
+          "description": "Määra väärtuseks true, et kinnitada ajakava kustutamine."
+        },
+        "site_id": {
+          "name": "Saidi ID",
+          "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt, kui valitakse saidi seade."
+        },
+        "config_entry_id": {
+          "name": "Konfiguratsioonikirje ID",
+          "description": "Valikuline konfiguratsioonikirje identifikaator ühe Enphase'i saidikirje jaoks."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Valideeri aku ajakava",
+      "description": "Kontrolli, kas aku ajakavade muutmine on valitud ajakavapere jaoks saadaval.",
+      "sections": {
+        "advanced": {
+          "name": "Lisavalikud"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Ajakava tüüp",
+          "description": "Aku ajakavapere: cfg, dtg või rbd."
+        },
+        "site_id": {
+          "name": "Saidi ID",
+          "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt, kui valitakse saidi seade."
+        },
+        "config_entry_id": {
+          "name": "Konfiguratsioonikirje ID",
+          "description": "Valikuline konfiguratsioonikirje identifikaator ühe Enphase'i saidikirje jaoks."
         }
       }
     }

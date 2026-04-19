@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "La pianificazione si sovrappone alla {schedule_label} esistente. Regola o disattiva prima quella pianificazione."
+    },
+    "ac_battery_unavailable": {
+      "message": "Al momento non è disponibile alcun dispositivo batteria AC."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Le impostazioni di autenticazione non sono disponibili mentre il servizio Enphase non è operativo."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Gli aggiornamenti del profilo batteria non sono consentiti per questo account."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Gli aggiornamenti delle impostazioni della batteria non sono consentiti per questo account."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "È già in corso un altro aggiornamento del profilo batteria."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "È già in corso un altro aggiornamento delle impostazioni della batteria."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Gli aggiornamenti del profilo batteria non sono disponibili."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Gli aggiornamenti delle impostazioni della batteria non sono disponibili."
+    },
+    "battery_updates_unavailable": {
+      "message": "Gli aggiornamenti della batteria non sono disponibili."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Gli aggiornamenti della batteria non sono consentiti per questo account."
+    },
+    "battery_profile_update_debounced": {
+      "message": "L'aggiornamento del profilo batteria è stato richiesto troppo rapidamente. Attendi e riprova."
+    },
+    "battery_settings_update_debounced": {
+      "message": "L'aggiornamento delle impostazioni della batteria è stato richiesto troppo rapidamente. Attendi e riprova."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Non è stato possibile confermare l'accesso in scrittura alla batteria. Aggiorna e riprova."
+    },
+    "schedule_update_forbidden": {
+      "message": "L'aggiornamento della pianificazione è stato rifiutato da Enphase (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Non è stato possibile autenticare l'aggiornamento della pianificazione. Esegui nuovamente l'autenticazione e riprova."
+    },
+    "schedule_conflict_dtg": {
+      "message": "La pianificazione è in conflitto con la pianificazione esistente di scarica verso la rete. Regola o disattiva prima quella pianificazione."
+    },
+    "schedule_conflict_rbd": {
+      "message": "La pianificazione è in conflitto con la pianificazione esistente di limitazione della scarica della batteria. Regola o disattiva prima quella pianificazione."
+    },
+    "schedule_conflict_cfg": {
+      "message": "La pianificazione è in conflitto con la pianificazione esistente di ricarica dalla rete. Regola o disattiva prima quella pianificazione."
+    },
+    "schedule_update_conflict": {
+      "message": "L'aggiornamento della pianificazione è in conflitto con una pianificazione della batteria esistente."
+    },
+    "battery_profile_unavailable": {
+      "message": "Il profilo batteria non è disponibile."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "L'aggiornamento del profilo batteria è stato rifiutato da Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Non è stato possibile autenticare l'aggiornamento del profilo batteria. Esegui nuovamente l'autenticazione e riprova."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Il payload delle impostazioni della batteria non è disponibile."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "L'aggiornamento delle impostazioni della batteria è stato rifiutato da Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Non è stato possibile autenticare l'aggiornamento delle impostazioni della batteria. Esegui nuovamente l'autenticazione e riprova."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "La riserva Backup completo è fissata al 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "La riserva della batteria non è disponibile."
+    },
+    "savings_profile_required": {
+      "message": "Il profilo Risparmio deve essere attivo."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Le impostazioni del profilo Risparmio non sono disponibili."
+    },
+    "battery_profile_unsupported": {
+      "message": "Il profilo batteria selezionato non è supportato."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "L'impostazione di ricarica dalla rete non è disponibile."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Enphase non ha applicato l'attivazione o disattivazione della ricarica dalla rete."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "La pianificazione di ricarica dalla rete non è disponibile."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "L'ora di inizio e di fine della pianificazione di ricarica dalla rete devono essere diverse."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Enphase non ha applicato l'attivazione o disattivazione della pianificazione di ricarica dalla rete."
+    },
+    "charge_from_grid_required": {
+      "message": "La ricarica dalla rete deve essere prima abilitata."
+    },
+    "schedule_change_pending": {
+      "message": "Una modifica alla pianificazione è in attesa della sincronizzazione Envoy. Attendi."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "L'orario della pianificazione di ricarica dalla rete non è valido."
+    },
+    "schedule_api_unavailable": {
+      "message": "L'API delle pianificazioni non è disponibile in questa versione del client."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Non è disponibile alcuna pianificazione esistente di ricarica dalla rete."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Crea una {schedule_label} nel pianificatore IQ Battery prima di abilitarla."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} al momento non è esposta da Enphase per questo sito. Attendi il completamento della sincronizzazione delle pianificazioni, poi aggiorna e riprova."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Enphase non ha applicato l'attivazione o disattivazione di {schedule_label}."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "scrittura primaria rifiutata"
+    },
+    "schedule_family_times_different": {
+      "message": "L'ora di inizio e di fine di {schedule_label} devono essere diverse."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "L'orario della pianificazione di scarica verso la rete non è valido."
+    },
+    "schedule_missing": {
+      "message": "Non è disponibile alcuna pianificazione esistente {schedule_label_lower}."
+    },
+    "schedule_unavailable": {
+      "message": "La pianificazione {schedule_label} non è disponibile."
+    },
+    "schedule_time_invalid": {
+      "message": "L'orario della pianificazione {schedule_label} non è valido."
+    },
+    "current_schedule_time_invalid": {
+      "message": "L'orario attuale della pianificazione {schedule_label_lower} non è valido."
+    },
+    "schedule_limit_range": {
+      "message": "Il limite della pianificazione {schedule_label} deve essere compreso tra {minimum} e {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "Il limite della pianificazione {schedule_label} deve essere almeno {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Gli orari attuali della pianificazione non sono disponibili."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Il limite della pianificazione di ricarica dalla rete deve essere compreso tra {minimum} e {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Il limite della pianificazione di ricarica dalla rete deve essere almeno {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Il livello di arresto della batteria non è disponibile."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Il livello di arresto della batteria non è valido."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Il livello di arresto della batteria deve essere compreso tra {minimum} e {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "La disattivazione di Storm Alert non è disponibile."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "La disattivazione di Storm Alert non è riuscita per {count} avviso/i."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Gli aggiornamenti di Storm Guard non sono consentiti per questo account."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Le impostazioni di Storm Guard non sono disponibili."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "L'aggiornamento di Storm Guard è stato rifiutato da Enphase (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Non è stato possibile autenticare l'aggiornamento di Storm Guard. Esegui nuovamente l'autenticazione e riprova."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Il profilo di sistema selezionato non è disponibile."
+    },
+    "system_profile_update_forbidden": {
+      "message": "L'aggiornamento del profilo di sistema è stato rifiutato da Enphase (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Non è stato possibile autenticare l'aggiornamento del profilo di sistema. Esegui nuovamente l'autenticazione e riprova."
+    },
+    "system_profile_update_failed": {
+      "message": "L'aggiornamento del profilo di sistema non è riuscito."
+    },
+    "system_profile_update_network": {
+      "message": "L'aggiornamento del profilo di sistema non è riuscito a causa di un errore di rete. Riprova."
+    },
+    "system_profile_update_timeout": {
+      "message": "L'aggiornamento del profilo di sistema è scaduto. Riprova."
+    },
+    "scheduler_service_unavailable": {
+      "message": "La selezione della modalità di ricarica non è disponibile mentre il servizio di pianificazione Enphase non è disponibile."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Lo stato di carica target selezionato della batteria AC non è disponibile."
+    },
+    "battery_schedule_day_required": {
+      "message": "Seleziona almeno un giorno per la pianificazione."
+    },
+    "battery_schedule_times_different": {
+      "message": "L'ora di inizio e di fine della pianificazione devono essere diverse."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Il limite della pianificazione {schedule_type} deve essere compreso tra {minimum} e {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Pianificazione rifiutata dall'endpoint di convalida Enphase."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "La modifica delle pianificazioni della batteria non è disponibile."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "L'API delle pianificazioni della batteria non è disponibile."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "È richiesta una conferma per aggiornare una pianificazione."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "È richiesta una conferma per eliminare una pianificazione."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "ID pianificazione non valido: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "ID pianificazione non trovato nei dati correnti: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Fornisci almeno un ID pianificazione da eliminare."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "ID pianificazione non validi: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "ID pianificazione non trovati nei dati correnti: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Pianificazione rifiutata dall'endpoint di convalida Enphase: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "L'aggiornamento della pianificazione è in conflitto con una pianificazione della batteria esistente: {message}"
     }
   },
   "options": {
@@ -161,7 +422,8 @@
           "reauth": "Avvia riautenticazione",
           "forget_password": "Dimentica password salvata",
           "type_heatpump": "Pompa di calore",
-          "type_ac_battery": "Batteria AC"
+          "type_ac_battery": "Batteria AC",
+          "battery_schedules_enabled": "Attiva pianificatore batteria"
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
@@ -178,7 +440,8 @@
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
           "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato.",
           "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore.",
-          "type_ac_battery": "Include sensori della batteria AC e controlli della modalità sospensione quando disponibili."
+          "type_ac_battery": "Include sensori della batteria AC e controlli della modalità sospensione quando disponibili.",
+          "battery_schedules_enabled": "Gestisci le pianificazioni batteria IQ"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Avvia riautenticazione",
           "forget_password": "Dimentica password salvata",
           "type_heatpump": "Pompa di calore",
-          "type_ac_battery": "Batteria AC"
+          "type_ac_battery": "Batteria AC",
+          "battery_schedules_enabled": "Attiva pianificatore batteria"
         },
         "data_description": {
           "type_envoy": "Include connettività del gateway e diagnostica dei contatori.",
@@ -216,7 +480,8 @@
           "reauth": "Avvia il flusso di accesso per aggiornare le credenziali senza rimuovere l'integrazione.",
           "forget_password": "Rimuove la password salvata. L'aggiornamento automatico non verrà più tentato.",
           "type_heatpump": "Include sensori di stato, diagnostica e consumo della pompa di calore.",
-          "type_ac_battery": "Include sensori della batteria AC e controlli della modalità sospensione quando disponibili."
+          "type_ac_battery": "Include sensori della batteria AC e controlli della modalità sospensione quando disponibili.",
+          "battery_schedules_enabled": "Gestisci le pianificazioni batteria IQ"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Esportazione verso rete",
           "battery_charge": "Carica batteria",
           "battery_discharge": "Scarica batteria"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Ultimo report di {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Pianificazioni CFG batteria"
+      },
+      "battery_dtg_schedules": {
+        "name": "Pianificazioni DTG batteria"
+      },
+      "battery_rbd_schedules": {
+        "name": "Pianificazioni RBD batteria"
+      },
+      "battery_schedule_summary": {
+        "name": "Riepilogo pianificazioni batteria"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Limite di restrizione della scarica della batteria"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Limite nuova pianificazione batteria"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Limite pianificazione batteria"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Pianificazione domenica"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Nuova pianificazione batteria lunedì"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Nuova pianificazione batteria martedì"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Nuova pianificazione batteria mercoledì"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Nuova pianificazione batteria giovedì"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Nuova pianificazione batteria venerdì"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Nuova pianificazione batteria sabato"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Nuova pianificazione batteria domenica"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Pianificazione batteria lunedì"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Pianificazione batteria martedì"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Pianificazione batteria mercoledì"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Pianificazione batteria giovedì"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Pianificazione batteria venerdì"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Pianificazione batteria sabato"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Pianificazione batteria domenica"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Pianificazione"
+      },
+      "battery_new_schedule_type": {
+        "name": "Tipo di pianificazione batteria"
+      },
+      "battery_schedule_selected": {
+        "name": "Pianificazione batteria"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Crea nuova pianificazione"
+      },
+      "battery_schedule_add": {
+        "name": "Aggiungi pianificazione batteria"
+      },
+      "battery_schedule_delete": {
+        "name": "Elimina pianificazione batteria"
+      },
+      "battery_schedule_refresh": {
+        "name": "Aggiorna pianificazione batteria"
+      },
+      "battery_schedule_save": {
+        "name": "Salva pianificazione batteria"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Ora di fine pianificazione"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Ora di inizio nuova pianificazione batteria"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Ora di fine nuova pianificazione batteria"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Ora di inizio pianificazione batteria"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Ora di fine pianificazione batteria"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "ID sito",
           "description": "ID sito Enphase (facoltativo; risolto dal dispositivo di destinazione)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Aggiornamento forzato",
+      "description": "Aggiorna immediatamente i dati delle pianificazioni della batteria dal cloud Enphase.",
+      "sections": {
+        "advanced": {
+          "name": "Opzioni avanzate"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando viene selezionato un dispositivo del sito."
+        },
+        "config_entry_id": {
+          "name": "ID voce di configurazione",
+          "description": "Identificatore facoltativo della voce di configurazione per una singola voce sito Enphase."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Aggiungi pianificazione batteria",
+      "description": "Crea una pianificazione della batteria per CFG, DTG o RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Opzioni avanzate"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Tipo di pianificazione",
+          "description": "Famiglia di pianificazioni della batteria: cfg, dtg o rbd."
+        },
+        "start_time": {
+          "name": "Ora di inizio",
+          "description": "Ora di inizio della pianificazione."
+        },
+        "end_time": {
+          "name": "Ora di fine",
+          "description": "Ora di fine della pianificazione."
+        },
+        "limit": {
+          "name": "Limite di carica",
+          "description": "Stato di carica massimo della batteria (%)."
+        },
+        "days": {
+          "name": "Giorni",
+          "description": "Elenco dei giorni della settimana attivi con lunedì=1 fino a domenica=7."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando viene selezionato un dispositivo del sito."
+        },
+        "config_entry_id": {
+          "name": "ID voce di configurazione",
+          "description": "Identificatore facoltativo della voce di configurazione per una singola voce sito Enphase."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Aggiorna pianificazione batteria",
+      "description": "Aggiorna una pianificazione della batteria tramite ID pianificazione.",
+      "sections": {
+        "advanced": {
+          "name": "Opzioni avanzate"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "ID pianificazione",
+          "description": "Identificatore di una pianificazione batteria Enphase esistente."
+        },
+        "schedule_type": {
+          "name": "Tipo di pianificazione",
+          "description": "Famiglia di pianificazioni della batteria: cfg, dtg o rbd."
+        },
+        "start_time": {
+          "name": "Ora di inizio",
+          "description": "Ora di inizio della pianificazione."
+        },
+        "end_time": {
+          "name": "Ora di fine",
+          "description": "Ora di fine della pianificazione."
+        },
+        "limit": {
+          "name": "Limite di carica",
+          "description": "Stato di carica massimo della batteria (%)."
+        },
+        "days": {
+          "name": "Giorni",
+          "description": "Elenco dei giorni della settimana attivi con lunedì=1 fino a domenica=7."
+        },
+        "confirm": {
+          "name": "Conferma",
+          "description": "Imposta su true per confermare l'aggiornamento della pianificazione."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando viene selezionato un dispositivo del sito."
+        },
+        "config_entry_id": {
+          "name": "ID voce di configurazione",
+          "description": "Identificatore facoltativo della voce di configurazione per una singola voce sito Enphase."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Elimina pianificazione batteria",
+      "description": "Elimina una o più pianificazioni della batteria tramite ID pianificazione.",
+      "sections": {
+        "advanced": {
+          "name": "Opzioni avanzate"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "ID pianificazione",
+          "description": "Identificatore di una singola pianificazione batteria Enphase da eliminare."
+        },
+        "schedule_ids": {
+          "name": "ID pianificazioni",
+          "description": "Input facoltativo separato da virgole o in elenco per più identificatori di pianificazione."
+        },
+        "confirm": {
+          "name": "Conferma",
+          "description": "Imposta su true per confermare l'eliminazione della pianificazione."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando viene selezionato un dispositivo del sito."
+        },
+        "config_entry_id": {
+          "name": "ID voce di configurazione",
+          "description": "Identificatore facoltativo della voce di configurazione per una singola voce sito Enphase."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Convalida pianificazione batteria",
+      "description": "Verifica se la modifica delle pianificazioni della batteria è disponibile per la famiglia di pianificazioni selezionata.",
+      "sections": {
+        "advanced": {
+          "name": "Opzioni avanzate"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Tipo di pianificazione",
+          "description": "Famiglia di pianificazioni della batteria: cfg, dtg o rbd."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando viene selezionato un dispositivo del sito."
+        },
+        "config_entry_id": {
+          "name": "ID voce di configurazione",
+          "description": "Identificatore facoltativo della voce di configurazione per una singola voce sito Enphase."
         }
       }
     }

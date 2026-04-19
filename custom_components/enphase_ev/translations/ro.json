@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Programul se suprapune peste {schedule_label} existent. Ajustați sau dezactivați mai întâi acel program."
+    },
+    "ac_battery_unavailable": {
+      "message": "În prezent, nu sunt disponibile dispozitive cu baterie AC."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Setările de autentificare nu sunt disponibile în timp ce serviciul Enphase este oprit."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Actualizările profilului bateriei nu sunt permise pentru acest cont."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Actualizările setărilor bateriei nu sunt permise pentru acest cont."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "O altă actualizare a profilului bateriei este deja în curs."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "O altă actualizare a setărilor bateriei este deja în curs."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Actualizările profilului bateriei nu sunt disponibile."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Actualizările setărilor bateriei nu sunt disponibile."
+    },
+    "battery_updates_unavailable": {
+      "message": "Actualizările bateriei nu sunt disponibile."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Actualizările bateriei nu sunt permise pentru acest cont."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Actualizarea profilului bateriei a fost solicitată prea repede. Vă rugăm să așteptați și să încercați din nou."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Actualizarea setărilor bateriei a fost solicitată prea repede. Vă rugăm să așteptați și să încercați din nou."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Accesul la scriere la baterie nu a putut fi confirmat. Actualizați și încercați din nou."
+    },
+    "schedule_update_forbidden": {
+      "message": "Actualizarea programului a fost respinsă de Enphase (HTTP 403 interzis)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Actualizarea programului nu a putut fi autentificată. Reautentificați-vă și încercați din nou."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Programul intră în conflict cu programul existent de descărcare în rețea. Ajustați sau dezactivați mai întâi programul respectiv."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Programul intră în conflict cu programul existent de restricție-descărcare a bateriei. Ajustați sau dezactivați mai întâi programul respectiv."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Programul intră în conflict cu programul existent de taxare de la rețea. Ajustați sau dezactivați mai întâi programul respectiv."
+    },
+    "schedule_update_conflict": {
+      "message": "Actualizarea planificării intră în conflict cu o planificare existentă a bateriei."
+    },
+    "battery_profile_unavailable": {
+      "message": "Profilul bateriei nu este disponibil."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Actualizarea profilului bateriei a fost respinsă de Enphase (HTTP 403 interzis)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Actualizarea profilului bateriei nu a putut fi autentificată. Reautentificați-vă și încercați din nou."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Sarcina utilă a setărilor bateriei nu este disponibilă."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Actualizarea setărilor bateriei a fost respinsă de Enphase (HTTP 403 interzis)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Actualizarea setărilor bateriei nu a putut fi autentificată. Reautentificați-vă și încercați din nou."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Rezerva de rezervă completă este fixată la 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Rezerva bateriei nu este disponibilă."
+    },
+    "savings_profile_required": {
+      "message": "Profilul de economii trebuie să fie activ."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Setările profilului de economii nu sunt disponibile."
+    },
+    "battery_profile_unsupported": {
+      "message": "Profilul de baterie selectat nu este acceptat."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Setarea de încărcare din rețea nu este disponibilă."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Încărcarea de la comutatorul de rețea nu a fost aplicată de Enphase."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Încărcarea din programul rețelei nu este disponibilă."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Orele de începere și de încheiere a programului de taxare din rețea trebuie să fie diferite."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Comutarea programului de încărcare de la rețea nu a fost aplicată de Enphase."
+    },
+    "charge_from_grid_required": {
+      "message": "Încărcarea de la rețea trebuie mai întâi activată."
+    },
+    "schedule_change_pending": {
+      "message": "O modificare a programului este în așteptarea sincronizării Envoy. Va rugam asteptati."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Ora de programare a taxării de la rețea este nevalidă."
+    },
+    "schedule_api_unavailable": {
+      "message": "Schedule API nu este disponibil pentru această versiune client."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Nu este disponibil niciun program existent de taxare de la rețea."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Creați un {schedule_label} în programatorul IQ Battery înainte de a-l activa."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} nu este expus momentan de către Enphase pentru acest site. Așteptați finalizarea sincronizarii programului, apoi reîmprospătați și încercați din nou."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Comutatorul {schedule_label} nu a fost aplicat de Enphase."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "scrierea primară a fost respinsă"
+    },
+    "schedule_family_times_different": {
+      "message": "Orele de începere și de sfârșit ale {schedule_label} trebuie să fie diferite."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Ora programului de descărcare în rețea este invalidă."
+    },
+    "schedule_missing": {
+      "message": "Nu este disponibil niciun program existent {schedule_label_lower}."
+    },
+    "schedule_unavailable": {
+      "message": "Programul {schedule_label} nu este disponibil."
+    },
+    "schedule_time_invalid": {
+      "message": "Ora de programare {schedule_label} este nevalidă."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Ora actuală de programare {schedule_label_lower} este nevalidă."
+    },
+    "schedule_limit_range": {
+      "message": "Limita programului {schedule_label} trebuie să fie între {minimum} și {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "Limita programului {schedule_label} trebuie să fie de cel puțin {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Orarul actual al programului nu este disponibil."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Limita programului de taxare din rețea trebuie să fie între {minimum} și {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Limita programului de taxare din rețea trebuie să fie de cel puțin {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Nivelul de oprire a bateriei nu este disponibil."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Nivelul de oprire a bateriei este nevalid."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Nivelul de oprire a bateriei trebuie să fie între {minimum} și {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Renunțarea la Alertă de furtună nu este disponibilă."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Renunțarea la Alertă de furtună a eșuat pentru alertele {count}."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Actualizările Storm Guard nu sunt permise pentru acest cont."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Setările Storm Guard nu sunt disponibile."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Actualizarea Storm Guard a fost respinsă de Enphase (HTTP 403 interzis)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Actualizarea Storm Guard nu a putut fi autentificată. Reautentificați-vă și încercați din nou."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Profilul de sistem selectat nu este disponibil."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Actualizarea profilului de sistem a fost respinsă de Enphase (HTTP 403 interzis)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Actualizarea profilului de sistem nu a putut fi autentificată. Reautentificați-vă și încercați din nou."
+    },
+    "system_profile_update_failed": {
+      "message": "Actualizarea profilului de sistem a eșuat."
+    },
+    "system_profile_update_network": {
+      "message": "Actualizarea profilului de sistem a eșuat din cauza unei erori de rețea. Încearcă din nou."
+    },
+    "system_profile_update_timeout": {
+      "message": "Actualizarea profilului de sistem a expirat. Încearcă din nou."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Selectarea modului de încărcare nu este disponibilă cât timp serviciul de planificare Enphase este indisponibil."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Starea de încărcare țintă a bateriei AC selectată nu este disponibilă."
+    },
+    "battery_schedule_day_required": {
+      "message": "Selectați cel puțin o zi pentru planificare."
+    },
+    "battery_schedule_times_different": {
+      "message": "Orele de început și de sfârșit ale planificării trebuie să fie diferite."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Limita pentru planificarea {schedule_type} trebuie să fie între {minimum} și {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Planificare respinsă de endpoint-ul de validare Enphase."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Editarea planificărilor bateriei nu este disponibilă."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "API-ul de planificare a bateriei nu este disponibil."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Este necesară confirmarea pentru a actualiza o planificare."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Este necesară confirmarea pentru a șterge o planificare."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "ID de planificare invalid: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "ID-ul planificării nu a fost găsit în datele curente: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Furnizați cel puțin un ID de planificare pentru ștergere."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "ID-uri de planificare invalide: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "ID-urile planificării nu au fost găsite în datele curente: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Planificare respinsă de endpoint-ul de validare Enphase: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Actualizarea planificării intră în conflict cu o planificare existentă a bateriei: {message}"
     }
   },
   "options": {
@@ -161,7 +422,8 @@
           "reauth": "Pornește reautentificarea",
           "forget_password": "Uită parola salvată",
           "type_heatpump": "Pompă de căldură",
-          "type_ac_battery": "Baterie AC"
+          "type_ac_battery": "Baterie AC",
+          "battery_schedules_enabled": "Activați planificatorul bateriei"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -178,7 +440,8 @@
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
           "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură.",
-          "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile."
+          "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile.",
+          "battery_schedules_enabled": "Gestionați programele bateriei IQ"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Pornește reautentificarea",
           "forget_password": "Uită parola salvată",
           "type_heatpump": "Pompă de căldură",
-          "type_ac_battery": "Baterie AC"
+          "type_ac_battery": "Baterie AC",
+          "battery_schedules_enabled": "Activați planificatorul bateriei"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -216,7 +480,8 @@
           "reauth": "Lansați fluxul de autentificare pentru a reîmprospăta credențialele fără a elimina integrarea.",
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
           "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură.",
-          "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile."
+          "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile.",
+          "battery_schedules_enabled": "Gestionați programele bateriei IQ"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Export în rețea",
           "battery_charge": "Încărcare baterie",
           "battery_discharge": "Descărcare baterie"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Ultimul raport pentru {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Planificări CFG baterie"
+      },
+      "battery_dtg_schedules": {
+        "name": "Planificări DTG baterie"
+      },
+      "battery_rbd_schedules": {
+        "name": "Planificări RBD baterie"
+      },
+      "battery_schedule_summary": {
+        "name": "Rezumatul planificărilor bateriei"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Limită de restricționare a descărcării bateriei"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Limită pentru planificare nouă a bateriei"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Limită de planificare a bateriei"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Programare duminică"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Planificare nouă a bateriei luni"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Planificare nouă a bateriei marți"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Planificare nouă a bateriei miercuri"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Planificare nouă a bateriei joi"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Planificare nouă a bateriei vineri"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Planificare nouă a bateriei sâmbătă"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Planificare nouă a bateriei duminică"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Planificare baterie luni"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Planificare baterie marți"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Planificare baterie miercuri"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Planificare baterie joi"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Planificare baterie vineri"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Planificare baterie sâmbătă"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Planificare baterie duminică"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Programare"
+      },
+      "battery_new_schedule_type": {
+        "name": "Tip planificare baterie"
+      },
+      "battery_schedule_selected": {
+        "name": "Planificare baterie"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Creare programare nouă"
+      },
+      "battery_schedule_add": {
+        "name": "Adăugare planificare baterie"
+      },
+      "battery_schedule_delete": {
+        "name": "Ștergere planificare baterie"
+      },
+      "battery_schedule_refresh": {
+        "name": "Reîmprospătare planificare baterie"
+      },
+      "battery_schedule_save": {
+        "name": "Salvare planificare baterie"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Ora de sfârșit a programării"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Ora de începere a noii planificări a bateriei"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Ora de încheiere a noii planificări a bateriei"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Ora de începere a planificării bateriei"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Ora de încheiere a planificării bateriei"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "ID locație",
           "description": "ID locație Enphase (opțional; rezolvat din dispozitivul țintă)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Forțează reîmprospătarea",
+      "description": "Reîmprospătați imediat datele de planificare a bateriei din cloud-ul Enphase.",
+      "sections": {
+        "advanced": {
+          "name": "Opțiuni avansate"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID-ul site-ului",
+          "description": "Identificator opțional de site; detectat automat atunci când este selectat un dispozitiv de site."
+        },
+        "config_entry_id": {
+          "name": "ID de intrare de configurare",
+          "description": "Identificator opțional de intrare de configurare pentru o singură intrare de site Enphase."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Adăugați o planificare a bateriei",
+      "description": "Creați o planificare a bateriei pentru CFG, DTG sau RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Opțiuni avansate"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Tip planificare",
+          "description": "Familia planificării bateriei: cfg, dtg sau rbd."
+        },
+        "start_time": {
+          "name": "Ora de începere",
+          "description": "Ora de începere a planificării."
+        },
+        "end_time": {
+          "name": "Ora de încheiere",
+          "description": "Ora de încheiere a planificării."
+        },
+        "limit": {
+          "name": "Limită de încărcare",
+          "description": "Nivelul maxim de încărcare a bateriei (%)."
+        },
+        "days": {
+          "name": "Zile",
+          "description": "Lista zilelor active ale săptămânii folosind luni=1 până la duminică=7."
+        },
+        "site_id": {
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv al locației."
+        },
+        "config_entry_id": {
+          "name": "ID intrare de configurare",
+          "description": "Identificator opțional al intrării de configurare pentru o singură intrare de locație Enphase."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Actualizați planificarea bateriei",
+      "description": "Actualizați o planificare a bateriei după ID-ul planificării.",
+      "sections": {
+        "advanced": {
+          "name": "Opțiuni avansate"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "ID planificare",
+          "description": "Identificatorul unei planificări existente de baterie Enphase."
+        },
+        "schedule_type": {
+          "name": "Tip planificare",
+          "description": "Familia planificării bateriei: cfg, dtg sau rbd."
+        },
+        "start_time": {
+          "name": "Ora de începere",
+          "description": "Ora de începere a planificării."
+        },
+        "end_time": {
+          "name": "Ora de încheiere",
+          "description": "Ora de încheiere a planificării."
+        },
+        "limit": {
+          "name": "Limită de încărcare",
+          "description": "Nivelul maxim de încărcare a bateriei (%)."
+        },
+        "days": {
+          "name": "Zile",
+          "description": "Lista zilelor active ale săptămânii folosind luni=1 până la duminică=7."
+        },
+        "confirm": {
+          "name": "Confirmați",
+          "description": "Setați la true pentru a confirma actualizarea planificării."
+        },
+        "site_id": {
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv al locației."
+        },
+        "config_entry_id": {
+          "name": "ID intrare de configurare",
+          "description": "Identificator opțional al intrării de configurare pentru o singură intrare de locație Enphase."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Ștergeți planificarea bateriei",
+      "description": "Ștergeți una sau mai multe planificări ale bateriei după ID-ul planificării.",
+      "sections": {
+        "advanced": {
+          "name": "Opțiuni avansate"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "ID planificare",
+          "description": "Identificatorul unei singure planificări de baterie Enphase care va fi ștearsă."
+        },
+        "schedule_ids": {
+          "name": "ID-uri de planificare",
+          "description": "Intrare opțională, separată prin virgule sau ca listă, pentru mai mulți identificatori de planificare."
+        },
+        "confirm": {
+          "name": "Confirmați",
+          "description": "Setați la true pentru a confirma ștergerea planificării."
+        },
+        "site_id": {
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv al locației."
+        },
+        "config_entry_id": {
+          "name": "ID intrare de configurare",
+          "description": "Identificator opțional al intrării de configurare pentru o singură intrare de locație Enphase."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Validați planificarea bateriei",
+      "description": "Verificați dacă editarea planificărilor bateriei este disponibilă pentru familia de planificări selectată.",
+      "sections": {
+        "advanced": {
+          "name": "Opțiuni avansate"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Tip planificare",
+          "description": "Familia planificării bateriei: cfg, dtg sau rbd."
+        },
+        "site_id": {
+          "name": "ID locație",
+          "description": "Identificator opțional al locației; detectat automat când este selectat un dispozitiv al locației."
+        },
+        "config_entry_id": {
+          "name": "ID intrare de configurare",
+          "description": "Identificator opțional al intrării de configurare pentru o singură intrare de locație Enphase."
         }
       }
     }
