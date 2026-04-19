@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import pathlib
 
@@ -220,8 +221,8 @@ def test_battery_cfg_schedule_status_strings_localized_for_non_english_locales()
             ), f"{name} should localize {path} (still matches English)"
 
 
-def test_battery_schedule_editor_strings_exist_for_english_locales() -> None:
-    """Ensure battery schedule parity entities/services are present in English catalogs."""
+def test_battery_schedule_editor_strings_localized_for_non_english_locales() -> None:
+    """Guard battery schedule strings from silently falling back to English."""
 
     translations_dir = (
         pathlib.Path(__file__).resolve().parents[3]
@@ -229,42 +230,103 @@ def test_battery_schedule_editor_strings_exist_for_english_locales() -> None:
         / "enphase_ev"
         / "translations"
     )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
     paths = [
         "options.step.init.data.schedule_sync_enabled",
         "options.step.init.data.battery_schedules_enabled",
         "options.step.init.data_description.schedule_sync_enabled",
         "options.step.init.data_description.battery_schedules_enabled",
-        "entity.button.battery_schedule_refresh.name",
-        "entity.button.battery_schedule_save.name",
-        "entity.button.battery_schedule_delete.name",
-        "entity.select.battery_schedule_selected.name",
-        "entity.select.battery_new_schedule_type.name",
-        "entity.number.battery_schedule_edit_limit.name",
-        "entity.time.battery_schedule_edit_start_time.name",
-        "entity.time.battery_schedule_edit_end_time.name",
-        "entity.switch.battery_schedule_edit_mon.name",
+        "options.step.settings.data.battery_schedules_enabled",
+        "options.step.settings.data_description.battery_schedules_enabled",
         "entity.sensor.battery_cfg_schedules.name",
         "entity.sensor.battery_dtg_schedules.name",
         "entity.sensor.battery_rbd_schedules.name",
+        "entity.sensor.battery_schedule_summary.name",
+        "entity.number.battery_new_schedule_limit.name",
+        "entity.number.battery_schedule_edit_limit.name",
+        "entity.select.battery_new_schedule_type.name",
+        "entity.select.battery_schedule_selected.name",
+        "entity.button.battery_schedule_refresh.name",
+        "entity.button.battery_schedule_save.name",
+        "entity.button.battery_schedule_delete.name",
+        "entity.button.battery_schedule_add.name",
+        "entity.time.battery_new_schedule_start_time.name",
+        "entity.time.battery_new_schedule_end_time.name",
+        "entity.time.battery_schedule_edit_start_time.name",
+        "entity.time.battery_schedule_edit_end_time.name",
         "services.force_refresh.name",
+        "services.force_refresh.description",
         "services.add_schedule.name",
+        "services.add_schedule.description",
         "services.update_schedule.name",
+        "services.update_schedule.description",
         "services.delete_schedule.name",
+        "services.delete_schedule.description",
         "services.validate_schedule.name",
+        "services.validate_schedule.description",
+        "exceptions.scheduler_service_unavailable.message",
+        "exceptions.battery_schedule_day_required.message",
+        "exceptions.battery_schedule_times_different.message",
+        "exceptions.battery_schedule_limit_range.message",
+        "exceptions.battery_schedule_validation_rejected.message",
+        "exceptions.battery_schedule_validation_rejected_detail.message",
+        "exceptions.battery_schedule_editing_unavailable.message",
+        "exceptions.battery_schedule_api_unavailable.message",
+        "exceptions.battery_schedule_update_confirm_required.message",
+        "exceptions.battery_schedule_delete_confirm_required.message",
+        "exceptions.battery_schedule_id_invalid.message",
+        "exceptions.battery_schedule_id_not_found.message",
+        "exceptions.battery_schedule_ids_required.message",
+        "exceptions.battery_schedule_ids_invalid.message",
+        "exceptions.battery_schedule_ids_not_found.message",
+        "exceptions.schedule_update_conflict_detail.message",
     ]
-    for locale_name in (
-        "en.json",
-        "en-AU.json",
-        "en-CA.json",
-        "en-IE.json",
-        "en-NZ.json",
-        "en-US.json",
-    ):
-        locale = translations_dir / locale_name
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
         data = json.loads(locale.read_text(encoding="utf-8"))
         for path in paths:
             value = _at_path(data, path)
-            assert value.strip(), f"{locale.name} missing value for {path}"
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
+
+
+def test_translated_user_facing_errors_require_translation_keys() -> None:
+    """Guard audited modules from reintroducing raw user-facing error strings."""
+
+    root = (
+        pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "enphase_ev"
+    )
+    audited_files = [
+        "ac_battery_runtime.py",
+        "battery_runtime.py",
+        "select.py",
+        "services.py",
+        "switch.py",
+    ]
+    for relative_path in audited_files:
+        source = (root / relative_path).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Raise) or not isinstance(node.exc, ast.Call):
+                continue
+            func = node.exc.func
+            name = (
+                func.id
+                if isinstance(func, ast.Name)
+                else func.attr if isinstance(func, ast.Attribute) else None
+            )
+            if name not in {"ServiceValidationError", "HomeAssistantError"}:
+                continue
+            has_translation_key = any(
+                keyword.arg == "translation_key" for keyword in node.exc.keywords
+            )
+            assert has_translation_key, (
+                f"{relative_path}:{node.lineno} raises {name} "
+                "without translation_key"
+            )
 
 
 def test_evse_schedule_editor_strings_exist_for_all_locales() -> None:

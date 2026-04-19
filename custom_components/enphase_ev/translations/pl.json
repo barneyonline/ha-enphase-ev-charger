@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Harmonogram nakłada się z istniejącym {schedule_label}. Najpierw dostosuj lub wyłącz ten harmonogram."
+    },
+    "ac_battery_unavailable": {
+      "message": "No AC Battery devices are currently available."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Authentication settings are unavailable while the Enphase service is down."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Battery profile updates are not permitted for this account."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Battery settings updates are not permitted for this account."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Another battery profile update is already in progress."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Another battery settings update is already in progress."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Battery profile updates are unavailable."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Battery settings updates are unavailable."
+    },
+    "battery_updates_unavailable": {
+      "message": "Battery updates are unavailable."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Battery updates are not permitted for this account."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Battery profile update requested too quickly. Please wait and try again."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Battery settings update requested too quickly. Please wait and try again."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Battery write access could not be confirmed. Refresh and try again."
+    },
+    "schedule_update_forbidden": {
+      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+    },
+    "schedule_update_conflict": {
+      "message": "Harmonogram aktualizacji koliduje z istniejącym harmonogramem baterii."
+    },
+    "battery_profile_unavailable": {
+      "message": "Battery profile is unavailable."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Battery settings payload is unavailable."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Full Backup reserve is fixed at 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Battery reserve is unavailable."
+    },
+    "savings_profile_required": {
+      "message": "Savings profile must be active."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Savings profile settings are unavailable."
+    },
+    "battery_profile_unsupported": {
+      "message": "Selected battery profile is not supported."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Charge from grid setting is unavailable."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Charge from grid toggle was not applied by Enphase."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Charge from grid schedule is unavailable."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Charge-from-grid schedule start and end times must be different."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+    },
+    "charge_from_grid_required": {
+      "message": "Charge from grid must be enabled first."
+    },
+    "schedule_change_pending": {
+      "message": "A schedule change is pending Envoy sync. Please wait."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Charge-from-grid schedule time is invalid."
+    },
+    "schedule_api_unavailable": {
+      "message": "Schedule API not available on this client version."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "No existing charge-from-grid schedule is available."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "{schedule_label} toggle was not applied by Enphase."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "primary write rejected"
+    },
+    "schedule_family_times_different": {
+      "message": "{schedule_label} start and end times must be different."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Discharge to grid schedule time is invalid."
+    },
+    "schedule_missing": {
+      "message": "No existing {schedule_label_lower} schedule is available."
+    },
+    "schedule_unavailable": {
+      "message": "{schedule_label} schedule is unavailable."
+    },
+    "schedule_time_invalid": {
+      "message": "{schedule_label} schedule time is invalid."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Current {schedule_label_lower} schedule time is invalid."
+    },
+    "schedule_limit_range": {
+      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Current schedule times are not available."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Battery shutdown level is unavailable."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Battery shutdown level is invalid."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Storm Alert opt-out is unavailable."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Storm Alert opt-out failed for {count} alert(s)."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Storm Guard updates are not permitted for this account."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guard settings are unavailable."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Selected system profile is not available."
+    },
+    "system_profile_update_forbidden": {
+      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+    },
+    "system_profile_update_failed": {
+      "message": "System profile update failed."
+    },
+    "system_profile_update_network": {
+      "message": "System profile update failed due to a network error. Try again."
+    },
+    "system_profile_update_timeout": {
+      "message": "System profile update timed out. Try again."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Wybór trybu ładowania jest niedostępny, gdy usługa harmonogramu Enphase jest wyłączona."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Selected AC Battery target state of charge is not available."
+    },
+    "battery_schedule_day_required": {
+      "message": "Wybierz co najmniej jeden dzień dla harmonogramu."
+    },
+    "battery_schedule_times_different": {
+      "message": "Godziny rozpoczęcia i zakończenia harmonogramu muszą być różne."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Limit harmonogramu {schedule_type} musi mieścić się w przedziale od {minimum} do {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Harmonogram odrzucony przez punkt końcowy walidacji Enphase."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Edycja harmonogramu baterii jest niedostępna."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Interfejs API harmonogramu baterii jest niedostępny."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Aby zaktualizować harmonogram, wymagane jest potwierdzenie."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Aby usunąć harmonogram, wymagane jest potwierdzenie."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Nieprawidłowy identyfikator harmonogramu: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "W bieżących danych nie znaleziono identyfikatora harmonogramu: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Podaj co najmniej jeden identyfikator harmonogramu do usunięcia."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Nieprawidłowe identyfikatory harmonogramu: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Nie znaleziono identyfikatorów harmonogramu w bieżących danych: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Harmonogram odrzucony przez punkt końcowy walidacji Enphase: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Aktualizacja harmonogramu koliduje z istniejącym harmonogramem baterii: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "Limit czasu API (s)",
           "nominal_voltage": "Napięcie znamionowe (V)",
           "session_history_interval": "Interwał historii sesji (min)",
-          "schedule_sync_enabled": "Włącz obsługę harmonogramu",
+          "schedule_sync_enabled": "Włącz harmonogram ładowania pojazdów elektrycznych",
           "reauth": "Rozpocznij ponowne uwierzytelnienie",
           "forget_password": "Usuń zapisane hasło",
           "type_heatpump": "Pompa ciepła",
-          "type_ac_battery": "Bateria AC"
+          "type_ac_battery": "Bateria AC",
+          "battery_schedules_enabled": "Włącz harmonogram baterii"
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
@@ -174,11 +436,12 @@
           "api_timeout": "Liczba sekund przed przekroczeniem limitu czasu żądań API.",
           "nominal_voltage": "Napięcie zapasowe do szacowania mocy ładowarki.",
           "session_history_interval": "Minuty oczekiwania między pobieraniem historii sesji z chmury.",
-          "schedule_sync_enabled": "Zarządzaj zarządzaniem harmonogramem Enphase",
+          "schedule_sync_enabled": "Zarządzaj harmonogramami ładowarek IQ EV",
           "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
           "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane.",
           "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła.",
-          "type_ac_battery": "Obejmuje sensory baterii AC i sterowanie trybem uśpienia, gdy są dostępne."
+          "type_ac_battery": "Obejmuje sensory baterii AC i sterowanie trybem uśpienia, gdy są dostępne.",
+          "battery_schedules_enabled": "Zarządzaj harmonogramami baterii IQ"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Rozpocznij ponowne uwierzytelnienie",
           "forget_password": "Usuń zapisane hasło",
           "type_heatpump": "Pompa ciepła",
-          "type_ac_battery": "Bateria AC"
+          "type_ac_battery": "Bateria AC",
+          "battery_schedules_enabled": "Włącz harmonogram baterii"
         },
         "data_description": {
           "type_envoy": "Zawiera diagnostykę łączności bramy i liczników.",
@@ -216,7 +480,8 @@
           "reauth": "Uruchom proces logowania, aby odświeżyć dane uwierzytelniające bez usuwania integracji.",
           "forget_password": "Usuwa zapisane hasło. Automatyczne odświeżanie nie będzie już wykonywane.",
           "type_heatpump": "Zawiera czujniki stanu, diagnostyki i zużycia pompy ciepła.",
-          "type_ac_battery": "Obejmuje sensory baterii AC i sterowanie trybem uśpienia, gdy są dostępne."
+          "type_ac_battery": "Obejmuje sensory baterii AC i sterowanie trybem uśpienia, gdy są dostępne.",
+          "battery_schedules_enabled": "Zarządzaj harmonogramami baterii IQ"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Eksport do sieci",
           "battery_charge": "Ładowanie baterii",
           "battery_discharge": "Rozładowanie baterii"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Ostatni raport {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Harmonogramy CFG baterii"
+      },
+      "battery_dtg_schedules": {
+        "name": "Harmonogramy DTG akumulatorów"
+      },
+      "battery_rbd_schedules": {
+        "name": "Harmonogramy RBD baterii"
+      },
+      "battery_schedule_summary": {
+        "name": "Podsumowanie harmonogramu baterii"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Limit ograniczenia rozładowania baterii"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Nowy limit harmonogramu baterii"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Limit harmonogramu baterii"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Harmonogram na niedzielę"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Nowy harmonogram baterii na poniedziałek"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Nowy harmonogram baterii na wtorek"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Nowy harmonogram baterii na środę"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Nowy harmonogram baterii na czwartek"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Nowy harmonogram baterii na piątek"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Nowy harmonogram baterii na sobotę"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Nowy harmonogram baterii na niedzielę"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Harmonogram baterii na poniedziałek"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Harmonogram baterii na wtorek"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Harmonogram baterii na środę"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Harmonogram baterii na czwartek"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Harmonogram baterii na piątek"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Harmonogram baterii na sobotę"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Harmonogram baterii na niedzielę"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Harmonogram"
+      },
+      "battery_new_schedule_type": {
+        "name": "Typ harmonogramu baterii"
+      },
+      "battery_schedule_selected": {
+        "name": "Harmonogram baterii"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Utwórz nowy harmonogram"
+      },
+      "battery_schedule_add": {
+        "name": "Harmonogram baterii Dodaj"
+      },
+      "battery_schedule_delete": {
+        "name": "Harmonogram baterii Usuń"
+      },
+      "battery_schedule_refresh": {
+        "name": "Odświeżanie harmonogramu baterii"
+      },
+      "battery_schedule_save": {
+        "name": "Zapis harmonogramu baterii"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Godzina zakończenia harmonogramu"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Bateria Czas rozpoczęcia nowego harmonogramu"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Czas zakończenia nowego harmonogramu baterii"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Czas rozpoczęcia harmonogramu baterii"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Czas zakończenia harmonogramu baterii"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "ID lokalizacji",
           "description": "ID lokalizacji Enphase (opcjonalne; ustalane z urządzenia docelowego)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Wymuś odświeżenie",
+      "description": "Natychmiast odśwież dane harmonogramu baterii z chmury Enphase.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Identyfikator witryny",
+          "description": "Opcjonalny identyfikator witryny; wykrywany automatycznie po wybraniu urządzenia witryny."
+        },
+        "config_entry_id": {
+          "name": "Identyfikator wpisu konfiguracji",
+          "description": "Opcjonalny identyfikator wpisu konfiguracji dla pojedynczego wpisu witryny Enphase."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Dodaj harmonogram baterii",
+      "description": "Utwórz harmonogram baterii dla CFG, DTG lub RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Typ harmonogramu",
+          "description": "Rodzina harmonogramu baterii: cfg, dtg lub rbd."
+        },
+        "start_time": {
+          "name": "Godzina rozpoczęcia",
+          "description": "Godzina rozpoczęcia harmonogramu."
+        },
+        "end_time": {
+          "name": "Godzina zakończenia",
+          "description": "Godzina zakończenia harmonogramu."
+        },
+        "limit": {
+          "name": "Limit ładowania",
+          "description": "Maksymalny poziom naładowania baterii (%)."
+        },
+        "days": {
+          "name": "Dni",
+          "description": "Lista aktywnych dni tygodnia, gdzie poniedziałek=1, a niedziela=7."
+        },
+        "site_id": {
+          "name": "Identyfikator witryny",
+          "description": "Opcjonalny identyfikator witryny; wykrywany automatycznie po wybraniu urządzenia witryny."
+        },
+        "config_entry_id": {
+          "name": "Identyfikator wpisu konfiguracji",
+          "description": "Opcjonalny identyfikator wpisu konfiguracji dla pojedynczego wpisu witryny Enphase."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Zaktualizuj harmonogram baterii",
+      "description": "Zaktualizuj harmonogram baterii według identyfikatora harmonogramu.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Identyfikator harmonogramu",
+          "description": "Identyfikator istniejącego harmonogramu baterii Enphase."
+        },
+        "schedule_type": {
+          "name": "Typ harmonogramu",
+          "description": "Rodzina harmonogramu baterii: cfg, dtg lub rbd."
+        },
+        "start_time": {
+          "name": "Godzina rozpoczęcia",
+          "description": "Godzina rozpoczęcia harmonogramu."
+        },
+        "end_time": {
+          "name": "Godzina zakończenia",
+          "description": "Godzina zakończenia harmonogramu."
+        },
+        "limit": {
+          "name": "Limit ładowania",
+          "description": "Maksymalny poziom naładowania baterii (%)."
+        },
+        "days": {
+          "name": "Dni",
+          "description": "Lista aktywnych dni tygodnia, gdzie poniedziałek=1, a niedziela=7."
+        },
+        "confirm": {
+          "name": "Potwierdź",
+          "description": "Ustaw wartość true, aby potwierdzić aktualizację harmonogramu."
+        },
+        "site_id": {
+          "name": "Identyfikator witryny",
+          "description": "Opcjonalny identyfikator witryny; wykrywany automatycznie po wybraniu urządzenia witryny."
+        },
+        "config_entry_id": {
+          "name": "Identyfikator wpisu konfiguracji",
+          "description": "Opcjonalny identyfikator wpisu konfiguracji dla pojedynczego wpisu witryny Enphase."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Usuń harmonogram baterii",
+      "description": "Usuń jeden lub więcej harmonogramów baterii według identyfikatora harmonogramu.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Identyfikator harmonogramu",
+          "description": "Identyfikator pojedynczego harmonogramu baterii Enphase do usunięcia."
+        },
+        "schedule_ids": {
+          "name": "Identyfikatory harmonogramów",
+          "description": "Opcjonalna wartość rozdzielona przecinkami lub lista dla wielu identyfikatorów harmonogramów."
+        },
+        "confirm": {
+          "name": "Potwierdź",
+          "description": "Ustaw wartość true, aby potwierdzić usunięcie harmonogramu."
+        },
+        "site_id": {
+          "name": "Identyfikator witryny",
+          "description": "Opcjonalny identyfikator witryny; wykrywany automatycznie po wybraniu urządzenia witryny."
+        },
+        "config_entry_id": {
+          "name": "Identyfikator wpisu konfiguracji",
+          "description": "Opcjonalny identyfikator wpisu konfiguracji dla pojedynczego wpisu witryny Enphase."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Sprawdź harmonogram baterii",
+      "description": "Sprawdź, czy dla wybranej rodziny harmonogramów dostępna jest edycja harmonogramu baterii.",
+      "sections": {
+        "advanced": {
+          "name": "Opcje zaawansowane"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Typ harmonogramu",
+          "description": "Rodzina harmonogramu baterii: cfg, dtg lub rbd."
+        },
+        "site_id": {
+          "name": "Identyfikator witryny",
+          "description": "Opcjonalny identyfikator witryny; wykrywany automatycznie po wybraniu urządzenia witryny."
+        },
+        "config_entry_id": {
+          "name": "Identyfikator wpisu konfiguracji",
+          "description": "Opcjonalny identyfikator wpisu konfiguracji dla pojedynczego wpisu witryny Enphase."
         }
       }
     }

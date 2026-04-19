@@ -6,7 +6,7 @@ import json
 import aiohttp
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -47,6 +47,7 @@ from .runtime_helpers import (
     inventory_type_device_info as _type_device_info,
 )
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
+from .service_validation import raise_translated_service_validation
 
 PARALLEL_UPDATES = 0
 
@@ -377,30 +378,51 @@ class SystemProfileSelect(CoordinatorEntity, SelectEntity):
                 selected_key = key
                 break
         if selected_key is None:
-            raise ServiceValidationError("Selected system profile is not available.")
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.selected_system_profile_unavailable",
+                message="Selected system profile is not available.",
+            )
         try:
             await self._coord.battery_runtime.async_set_system_profile(selected_key)
-        except ServiceValidationError as err:
-            message = str(err).strip() or "System profile update failed."
-            raise ServiceValidationError(message) from err
+        except ServiceValidationError:
+            raise
         except aiohttp.ClientResponseError as err:
             if err.status == 403:
-                raise ServiceValidationError(
-                    "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
-                ) from err
+                raise_translated_service_validation(
+                    translation_domain=DOMAIN,
+                    translation_key="exceptions.system_profile_update_forbidden",
+                    message=(
+                        "System profile update was rejected by Enphase "
+                        "(HTTP 403 Forbidden)."
+                    ),
+                )
             if err.status == 401:
-                raise ServiceValidationError(
-                    "System profile update could not be authenticated. Reauthenticate and try again."
-                ) from err
-            raise ServiceValidationError("System profile update failed.") from err
-        except aiohttp.ClientError as err:
-            raise ServiceValidationError(
-                "System profile update failed due to a network error. Try again."
-            ) from err
-        except asyncio.TimeoutError as err:
-            raise ServiceValidationError(
-                "System profile update timed out. Try again."
-            ) from err
+                raise_translated_service_validation(
+                    translation_domain=DOMAIN,
+                    translation_key="exceptions.system_profile_update_unauthorized",
+                    message=(
+                        "System profile update could not be authenticated. "
+                        "Reauthenticate and try again."
+                    ),
+                )
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.system_profile_update_failed",
+                message="System profile update failed.",
+            )
+        except aiohttp.ClientError:
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.system_profile_update_network",
+                message="System profile update failed due to a network error. Try again.",
+            )
+        except asyncio.TimeoutError:
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.system_profile_update_timeout",
+                message="System profile update timed out. Try again.",
+            )
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -630,8 +652,13 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         if not self._coord.scheduler_available:
-            raise HomeAssistantError(
-                "Charging mode selection is unavailable while the Enphase scheduler service is down."
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.scheduler_service_unavailable",
+                message=(
+                    "Charging mode selection is unavailable while the Enphase "
+                    "scheduler service is down."
+                ),
             )
         hass = getattr(self, "hass", None) or self._coord.hass
         solar_mode_key, solar_label = _solar_mode(self._coord, self._sn)
@@ -661,9 +688,14 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
             self._coord.mark_scheduler_available()
         except SchedulerUnavailable as err:
             self._coord.note_scheduler_unavailable(err)
-            raise HomeAssistantError(
-                "Charging mode selection is unavailable while the Enphase scheduler service is down."
-            ) from err
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.scheduler_service_unavailable",
+                message=(
+                    "Charging mode selection is unavailable while the Enphase "
+                    "scheduler service is down."
+                ),
+            )
         except aiohttp.ClientResponseError as err:
             code, display = _parse_scheduler_error(err.message)
             if err.status == 400 and (
@@ -674,7 +706,7 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                     "Enable at least one schedule before selecting Scheduled charging.",
                     translation_domain=DOMAIN,
                     translation_key="exceptions.schedule_required",
-                ) from err
+                )
             raise
         # Update cache immediately to reflect in UI, then refresh
         self._coord.set_charge_mode_cache(self._sn, mode)
@@ -727,8 +759,12 @@ class AcBatteryTargetStateOfChargeSelect(CoordinatorEntity, SelectEntity):
                 selected_value = value
                 break
         if selected_value is None:
-            raise ServiceValidationError(
-                "Selected AC Battery target state of charge is not available."
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key=(
+                    "exceptions.selected_ac_battery_target_state_of_charge_unavailable"
+                ),
+                message="Selected AC Battery target state of charge is not available.",
             )
         await self._coord.async_set_ac_battery_target_soc(selected_value)
 
