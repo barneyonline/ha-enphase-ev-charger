@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed `Battery settings update was rejected by Enphase (HTTP 403 Forbidden)` loops on EMEA sites where the legacy BatteryConfig bootstrap failed to acquire an XSRF token. The client now performs a GET against `siteSettings` and reads the `x-csrf-token` response header — matching the `battery-profile-ui.enphaseenergy.com` web UI — before falling back to the previous POST `schedules/isValid` shape.
 
 ### 🔧 Improvements
 - None
