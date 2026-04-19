@@ -11,6 +11,23 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.8.5 - 2026-04-19
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
 - Fixed `Battery settings update was rejected by Enphase (HTTP 403 Forbidden)` loops on EMEA sites where the legacy BatteryConfig bootstrap failed to acquire an XSRF token. The client now performs a GET against `siteSettings` and reads the `x-csrf-token` response header — matching the `battery-profile-ui.enphaseenergy.com` web UI — before falling back to the previous POST `schedules/isValid` shape.
 - Fixed the standalone IQ Battery schedule validation service so it correctly interprets Enphase's raw `isValid` responses and reports validation failures consistently.
 - Stopped battery schedule refreshes from overwriting control-derived enabled state with conflicting `/schedules` entry flags, and prevented disabled CFG/DTG/RBD families from selecting the wrong schedule record when Enphase echoes temporary schedule entries as `isEnabled: true`.
@@ -21,7 +38,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔄 Other changes
-- None
+- Bumped the integration manifest version to `2.8.5`.
 
 ## v2.8.4 - 2026-04-18
 
