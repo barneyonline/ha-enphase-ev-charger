@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase a respins modificarea programării."
+    },
+    "battery_schedule_overlap": {
+      "message": "Programul se suprapune peste {schedule_label} existent. Ajustați sau dezactivați mai întâi acel program."
     }
   },
   "options": {

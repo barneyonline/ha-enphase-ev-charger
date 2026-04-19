@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase rejected the schedule change."
+    },
+    "battery_schedule_overlap": {
+      "message": "Schedule overlaps with the existing {schedule_label}. Adjust or disable that schedule first."
     }
   },
   "options": {

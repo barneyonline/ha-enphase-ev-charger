@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase zamítl změnu harmonogramu."
+    },
+    "battery_schedule_overlap": {
+      "message": "Plán se překrývá se stávajícím {schedule_label}. Nejprve tento plán upravte nebo deaktivujte."
     }
   },
   "options": {

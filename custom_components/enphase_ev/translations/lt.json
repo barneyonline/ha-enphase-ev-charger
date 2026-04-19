@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase atmetė tvarkaraščio pakeitimą."
+    },
+    "battery_schedule_overlap": {
+      "message": "Tvarkaraštis persidengia su esamu {schedule_label}. Pirmiausia pakoreguokite arba išjunkite tą tvarkaraštį."
     }
   },
   "options": {

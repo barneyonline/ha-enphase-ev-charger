@@ -135,9 +135,9 @@ Example response:
 | BatteryConfig MQTT authorizer bootstrap | `GET` | `/service/batteryConfig/api/v1/mqttSignedUrl/<site_id>` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No |
 | BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
 | BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | official-web BatteryConfig read shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
-| BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | BatteryConfig write shape plus `X-XSRF-Token`; on affected sites the verified working shape is the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) sent from a stateless client session so aiohttp does not merge cookie-jar state; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No |
-| BatteryConfig schedule validation / XSRF bootstrap | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | explicit validation uses the official-web BatteryConfig write shape without `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`, or `X-XSRF-Token`; the internal XSRF-bootstrap helper now prefers `GET /siteSettings/<site_id>?userId=<user_id>` and reads `x-csrf-token`, then falls back to this route where it may include the currently held `X-XSRF-Token` while harvesting a fresh token from the response header, `Set-Cookie`, or the session cookie jar; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI and live verification) |
-| BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | BatteryConfig write shape plus `X-XSRF-Token`; verified working update uses the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) from a stateless client session; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No (documented from live verification) |
+| BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | BatteryConfig write shape plus `X-XSRF-Token`; live verification on the affected site showed create should send explicit `isEnabled`; on affected sites the verified working shape is the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) sent from a stateless client session so aiohttp does not merge cookie-jar state; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No |
+| BatteryConfig schedule validation / XSRF bootstrap | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | explicit validation uses the official-web BatteryConfig write shape without `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`, or `X-XSRF-Token`; success shape is `{"isValid": true}` while affected sites may return `403`; the internal XSRF-bootstrap helper now prefers `GET /siteSettings/<site_id>?userId=<user_id>` and reads `x-csrf-token`, then falls back to this route where it may include the currently held `X-XSRF-Token` while harvesting a fresh token from the response header, `Set-Cookie`, response cookies, or the session cookie jar; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI and live verification) |
+| BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | BatteryConfig write shape plus `X-XSRF-Token`; ordinary time/limit edits can omit `isEnabled`, while explicit schedule-entry toggle writes may include it; verified working update uses the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) from a stateless client session; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No (documented from live verification) |
 | BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | same BatteryConfig write planner as schedule create/update; cookie-backed browser request is the verified working compatibility shape on affected sites | No |
 | BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | documented write pattern only; when used, current client will try the same cookie-backed, primary, lean, and mixed-auth BatteryConfig write variants | No (not currently used by runtime) |
 | PES in-app banner/status | `GET` | `/service/pes_management/systems/<site_id>/inapp?type=<type>` | authenticated session cookies | No (documented from mobile/web HAR) |
@@ -4747,6 +4747,7 @@ Observed structure:
 - `cfg`, `dtg`, and `rbd` are separate schedule families; later captures showed all three families carrying populated `details[]` entries at the same time.
 - The captured `days` field used numeric weekday values, but the exact weekday-to-number mapping was not explicit in the trace.
 - `scheduleStatus` and per-entry `isEnabled` are separate flags; preserve both rather than collapsing them.
+- Live verification on the affected site showed that `/schedules` entry `isEnabled` is not authoritative for disabled families: temporary CFG/DTG/RBD schedules created with `isEnabled: false` were still echoed back as `isEnabled: true` while the corresponding family control in `batterySettings` stayed disabled.
 
 ### 5.8.1 Create Battery Schedule
 ```
@@ -4773,7 +4774,8 @@ Implementation auth notes:
 Observed behavior:
 - `scheduleType` is sent uppercase (`CFG`, `DTG`, `RBD`).
 - `limit` is included for charge-oriented schedules and omitted for pure RBD recreate flows.
-- `isEnabled` is optional on create; some clients rely on the backend default when omitted.
+- Live verification on the affected site showed that `isEnabled` should be sent explicitly on create; omitting it caused a CFG create attempt to fail with `409 CONFLICTING_SCHEDULE_CFG`.
+- Disabled temp creates (`isEnabled: false`) for CFG/DTG/RBD were still echoed back by `/schedules` as `isEnabled: true`, so create responses and follow-up `/schedules` entry flags are not sufficient to infer the effective enabled state.
 - `startTime` and `endTime` are `HH:MM` strings, while `days` uses the same numeric weekday array returned by `GET /schedules`.
 - The current integration treats the create response body as opaque JSON and reconciles authoritative state from the subsequent `GET /schedules` refresh.
 
@@ -4835,6 +4837,8 @@ Example response (anonymized):
 }
 ```
 
+The current integration normalizes this success shape to `valid: true` for the standalone Home Assistant service response.
+
 Observed `403` response shape from the live affected site:
 ```json
 {
@@ -4870,6 +4874,19 @@ Body: {
 ```
 Updates an existing battery schedule in place.  This is the endpoint used by
 the Enlighten battery profile UI when the user modifies a CFG schedule.
+
+Alternate toggle-style request shape used by explicit schedule-entry helper paths:
+```json
+{
+  "timezone": "Europe/Lisbon",
+  "startTime": "02:00",
+  "endTime": "08:00",
+  "limit": 61,
+  "scheduleType": "CFG",
+  "days": [1, 2, 3, 4, 5, 6, 7],
+  "isEnabled": false
+}
+```
 
 **Headers** (same as other BatteryConfig calls in the current implementation):
 - `Username`: Enphase user ID when decodable from the active auth context
@@ -4941,6 +4958,9 @@ Observed behavior:
   - disable/off reconciliation may need to treat the family as already off when `rbdControl` is also absent on the paired `batterySettings` read
   - enable/on should be blocked by the client until a real RBD schedule is created
 - This replaces the delete+create pattern previously used for schedule modifications.
+- Ordinary time/limit edits on the affected site preserved `isEnabled: false` when updating the existing real disabled CFG/DTG/RBD schedules without sending `isEnabled`.
+- Temporary disabled schedules created with `isEnabled: false` were still echoed back from later update/readback calls as `isEnabled: true` even when the follow-up `PUT` omitted `isEnabled`.
+- Explicit CFG schedule-entry toggle writes that included `isEnabled: true` or `isEnabled: false` still read back as `false` for the existing real schedule on the affected site, indicating that effective CFG enablement is controlled by `batterySettings.chargeFromGridScheduleEnabled`, not reliably by the `/schedules` entry flag.
 - Captured DTG/RBD enablement toggles were also observed as partial `PUT /batterySettings/<site_id>` payloads (`dtgControl.enabled` / `rbdControl.enabled`), so clients should not assume all schedule-family toggles go through `PUT /battery/sites/<site_id>/schedules/<schedule_id>`.
 - The current DTG runtime now follows that split explicitly:
   - toggle enable/disable uses `PUT /batterySettings/<site_id>`
@@ -4949,6 +4969,7 @@ Observed behavior:
   - toggle disable uses `PUT /batterySettings/<site_id>` and may reconcile to off when the backend exposes no `rbdControl` and no saved RBD schedule
   - toggle enable should require an existing RBD schedule entry
   - schedule creation, time edits, and deletes use `/battery/sites/<site_id>/schedules`
+- Live verification on 2026-04-19 showed that overlapping temporary schedule creates can be rejected with misleading cross-family `409` statuses such as `CONFLICTING_SCHEDULE_CFG` even when the attempted write was DTG. The current integration now performs local overlap validation against the cached battery schedule inventory before calling create/update so users see a deterministic conflict message.
 
 ### 5.11 ITC Disclaimer Acknowledgement
 ```
@@ -4967,6 +4988,7 @@ Example response (anonymized):
 Observed behavior:
 - This call preceded `PUT /batterySettings/<site_id>` in the captured sequence.
 - A subsequent battery-settings update used `acceptedItcDisclaimer: true`; later `GET /batterySettings/<site_id>` returned `acceptedItcDisclaimer` as a timestamp string, so the backend normalizes the acknowledgement internally.
+- Repeating the disclaimer-accept call on an already-accepted site refreshed the returned `acceptedItcDisclaimer` timestamp on later `GET /batterySettings/<site_id>` reads.
 - The runtime no longer preflights this route before `PUT /batterySettings/<site_id>`, because the affected site accepted direct battery-settings writes without the extra disclaimer POST.
 - If used again in the future, it should follow the same compatibility planner as the other BatteryConfig mutation endpoints, including the raw-cookie browser request on affected sites.
 

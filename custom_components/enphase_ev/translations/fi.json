@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase hylkäsi aikataulumuutoksen."
+    },
+    "battery_schedule_overlap": {
+      "message": "Aikataulu on päällekkäinen olemassa olevan {schedule_label} kanssa. Muokkaa tai poista kyseinen aikataulu ensin käytöstä."
     }
   },
   "options": {

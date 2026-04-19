@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase avvisade schemaändringen."
+    },
+    "battery_schedule_overlap": {
+      "message": "Schemat överlappar det befintliga {schedule_label}. Justera eller inaktivera det schemat först."
     }
   },
   "options": {
