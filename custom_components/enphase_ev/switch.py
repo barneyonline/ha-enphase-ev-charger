@@ -6,7 +6,7 @@ import re
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import STATE_ON
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -40,6 +40,7 @@ from .runtime_helpers import (
     inventory_type_device_info as _type_device_info,
 )
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
+from .service_validation import raise_translated_service_validation
 
 PARALLEL_UPDATES = 0
 _LOGGER = logging.getLogger(__name__)
@@ -955,9 +956,14 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
             self._coord.mark_auth_settings_available()
         except AuthSettingsUnavailable as err:
             self._coord.note_auth_settings_unavailable(err)
-            raise HomeAssistantError(
-                "Authentication settings are unavailable while the Enphase service is down."
-            ) from err
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.auth_settings_service_unavailable",
+                message=(
+                    "Authentication settings are unavailable while the Enphase "
+                    "service is down."
+                ),
+            )
         self._coord.set_app_auth_cache(self._sn, True)
         await self._coord.async_request_refresh()
 
@@ -967,9 +973,14 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
             self._coord.mark_auth_settings_available()
         except AuthSettingsUnavailable as err:
             self._coord.note_auth_settings_unavailable(err)
-            raise HomeAssistantError(
-                "Authentication settings are unavailable while the Enphase service is down."
-            ) from err
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.auth_settings_service_unavailable",
+                message=(
+                    "Authentication settings are unavailable while the Enphase "
+                    "service is down."
+                ),
+            )
         self._coord.set_app_auth_cache(self._sn, False)
         await self._coord.async_request_refresh()
 

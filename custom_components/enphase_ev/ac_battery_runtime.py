@@ -6,8 +6,10 @@ from datetime import datetime, timezone as _tz
 from html import unescape
 from zoneinfo import ZoneInfo
 
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
+
+from .const import DOMAIN
+from .service_validation import raise_translated_service_validation
 
 _AC_BATTERY_TABLE_RE = re.compile(
     r"<table[^>]*id=['\"]ac_batteries['\"][^>]*>(?P<table>.*?)</table>",
@@ -585,8 +587,10 @@ class AcBatteryRuntime:
         state = self.battery_state
         rows = dict(getattr(state, "_ac_battery_data", {}) or {})
         if not rows:
-            raise ServiceValidationError(
-                "No AC Battery devices are currently available."
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.ac_battery_unavailable",
+                message="No AC Battery devices are currently available.",
             )
         target_soc = None
         if enabled:

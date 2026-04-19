@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Tidsplanen overlapper den eksisterende {schedule_label}. Juster eller deaktiver først den pågældende tidsplan."
+    },
+    "ac_battery_unavailable": {
+      "message": "Ingen AC-batterienheder er tilgængelige i øjeblikket."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Godkendelsesindstillinger er ikke tilgængelige, mens Enphase-tjenesten er nede."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Batteriprofilopdateringer er ikke tilladt for denne konto."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Opdateringer af batteriindstillinger er ikke tilladt for denne konto."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Endnu en batteriprofilopdatering er allerede i gang."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "En anden opdatering af batteriindstillinger er allerede i gang."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Batteriprofilopdateringer er ikke tilgængelige."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Opdateringer af batteriindstillinger er ikke tilgængelige."
+    },
+    "battery_updates_unavailable": {
+      "message": "Batteriopdateringer er ikke tilgængelige."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Batteriopdateringer er ikke tilladt for denne konto."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Batteriprofilopdatering blev anmodet for hurtigt. Vent venligst og prøv igen."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Opdatering af batteriindstillinger blev anmodet om for hurtigt. Vent venligst og prøv igen."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Batteri skriveadgang kunne ikke bekræftes. Opdater og prøv igen."
+    },
+    "schedule_update_forbidden": {
+      "message": "Skemaopdatering blev afvist af Enphase (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Planlæg opdatering kunne ikke godkendes. Genautentificer og prøv igen."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Tidsplan er i konflikt med den eksisterende tidsplan for udledning til net. Juster eller deaktiver den tidsplan først."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Tidsplan er i konflikt med den eksisterende tidsplan for begrænsning af batteriafladning. Juster eller deaktiver den tidsplan først."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Tidsplan er i konflikt med den eksisterende afgift-fra-net-plan. Juster eller deaktiver den tidsplan først."
+    },
+    "schedule_update_conflict": {
+      "message": "Planlæg opdatering er i konflikt med en eksisterende batteritidsplan."
+    },
+    "battery_profile_unavailable": {
+      "message": "Batteriprofil er ikke tilgængelig."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Opdatering af batteriprofilen blev afvist af Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Batteriprofilopdatering kunne ikke godkendes. Genautentificer og prøv igen."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Nyttelasten for batteriindstillinger er ikke tilgængelig."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Opdatering af batteriindstillinger blev afvist af Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Opdatering af batteriindstillinger kunne ikke godkendes. Genautentificer og prøv igen."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Fuld backup reserve er fastsat til 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Batterireserve er ikke tilgængelig."
+    },
+    "savings_profile_required": {
+      "message": "Opsparingsprofil skal være aktiv."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Opsparingsprofilindstillinger er ikke tilgængelige."
+    },
+    "battery_profile_unsupported": {
+      "message": "Den valgte batteriprofil understøttes ikke."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Opladning fra gitterindstillingen er ikke tilgængelig."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Charge from grid toggle blev ikke anvendt af Enphase."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Opkrævning fra netplan er ikke tilgængelig."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Start- og sluttidspunkter for gebyr-fra-gitter skal være forskellige."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Til/fra-til-fra-net-planlægning blev ikke anvendt af Enphase."
+    },
+    "charge_from_grid_required": {
+      "message": "Opladning fra nettet skal aktiveres først."
+    },
+    "schedule_change_pending": {
+      "message": "En tidsplanændring afventer Envoy-synkronisering. Vent venligst."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Tidsplan for opkrævning fra nettet er ugyldig."
+    },
+    "schedule_api_unavailable": {
+      "message": "Schedule API er ikke tilgængelig på denne klientversion."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Der er ingen eksisterende afgift-fra-net-plan tilgængelig."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Opret en {schedule_label} i IQ Battery Scheduler, før du aktiverer den."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} er i øjeblikket ikke eksponeret af Enphase for dette websted. Vent på, at tidsplansynkroniseringen er fuldført, og opdater derefter, og prøv igen."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "{schedule_label} toggle blev ikke anvendt af Enphase."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "primær skrivelse afvist"
+    },
+    "schedule_family_times_different": {
+      "message": "{schedule_label} start- og sluttidspunkter skal være forskellige."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Tidsplan for udledning til nettet er ugyldig."
+    },
+    "schedule_missing": {
+      "message": "Ingen eksisterende {schedule_label_lower} tidsplan er tilgængelig."
+    },
+    "schedule_unavailable": {
+      "message": "{schedule_label} tidsplan er ikke tilgængelig."
+    },
+    "schedule_time_invalid": {
+      "message": "{schedule_label} tidsplan er ugyldig."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Den aktuelle {schedule_label_lower}-tidsplan er ugyldig."
+    },
+    "schedule_limit_range": {
+      "message": "{schedule_label}-tidsplangrænsen skal være mellem {minimum} og {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "{schedule_label}-tidsplangrænsen skal være mindst {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Aktuelle tidsplaner er ikke tilgængelige."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Tidsplangrænsen for gebyr fra nettet skal være mellem {minimum} og {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Tidsplangrænsen for afgift fra nettet skal være mindst {minimum} %."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Batteriets nedlukningsniveau er ikke tilgængeligt."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Batteriets nedlukningsniveau er ugyldigt."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Batteriets nedlukningsniveau skal være mellem {minimum} og {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Storm Alert fravalg er ikke tilgængelig."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Storm Alert fravalg mislykkedes for {count}-advarsler."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Storm Guard-opdateringer er ikke tilladt for denne konto."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guard-indstillinger er ikke tilgængelige."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Storm Guard-opdateringen blev afvist af Enphase (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Storm Guard-opdateringen kunne ikke godkendes. Genautentificer og prøv igen."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Den valgte systemprofil er ikke tilgængelig."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Systemprofilopdatering blev afvist af Enphase (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Systemprofilopdatering kunne ikke godkendes. Genautentificer og prøv igen."
+    },
+    "system_profile_update_failed": {
+      "message": "Opdatering af systemprofil mislykkedes."
+    },
+    "system_profile_update_network": {
+      "message": "Opdatering af systemprofil mislykkedes på grund af en netværksfejl. Prøv igen."
+    },
+    "system_profile_update_timeout": {
+      "message": "Systemprofilopdateringen fik timeout. Prøv igen."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Valg af opladningstilstand er ikke tilgængelig, mens Enphase-planlægningstjenesten er nede."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Den valgte opladningstilstand for AC-batteri er ikke tilgængelig."
+    },
+    "battery_schedule_day_required": {
+      "message": "Vælg mindst én dag til tidsplanen."
+    },
+    "battery_schedule_times_different": {
+      "message": "Start- og sluttidspunkterne skal være forskellige."
+    },
+    "battery_schedule_limit_range": {
+      "message": "{schedule_type}-tidsplangrænsen skal være mellem {minimum} og {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Tidsplan afvist af Enphase-valideringsslutpunktet."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Redigering af batteritidsplan er ikke tilgængelig."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Batteritidsplan API er ikke tilgængelig."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Bekræftelse påkrævet for at opdatere en tidsplan."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Bekræftelse påkrævet for at slette en tidsplan."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Ugyldigt tidsplan-id: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Skema-id ikke fundet i aktuelle data: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Angiv mindst ét ​​tidsplan-id, der skal slettes."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Ugyldige tidsplan-id(er): {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Skema-id(er) ikke fundet i aktuelle data: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Tidsplan afvist af Enphase-valideringsslutpunktet: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Planlæg opdatering er i konflikt med en eksisterende batteritidsplan: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "API-timeout (s)",
           "nominal_voltage": "Nominel spænding (V)",
           "session_history_interval": "Sessionshistorik-interval (min)",
-          "schedule_sync_enabled": "Aktiver Scheduler Support",
+          "schedule_sync_enabled": "Aktiver EV Charger Scheduler",
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode",
           "type_heatpump": "Varmepumpe",
-          "type_ac_battery": "AC-batteri"
+          "type_ac_battery": "AC-batteri",
+          "battery_schedules_enabled": "Aktiver Battery Scheduler"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -174,11 +436,12 @@
           "api_timeout": "Sekunder før API-anmodninger udløber.",
           "nominal_voltage": "Fallback-spænding brugt til effektestimat for laderen.",
           "session_history_interval": "Minutter at vente mellem hentninger af cloud-sessionhistorik.",
-          "schedule_sync_enabled": "Administrer Enphase tidsplanstyring",
+          "schedule_sync_enabled": "Administrer IQ EV Charger Schedules",
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
           "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
-          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige.",
+          "battery_schedules_enabled": "Administrer IQ batteri tidsplaner"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Start reautentificering",
           "forget_password": "Glem gemt adgangskode",
           "type_heatpump": "Varmepumpe",
-          "type_ac_battery": "AC-batteri"
+          "type_ac_battery": "AC-batteri",
+          "battery_schedules_enabled": "Aktiver Battery Scheduler"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -216,7 +480,8 @@
           "reauth": "Start loginflowet for at opdatere legitimationsoplysninger uden at fjerne integrationen.",
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
           "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
-          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige."
+          "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige.",
+          "battery_schedules_enabled": "Administrer IQ batteri tidsplaner"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Neteksport",
           "battery_charge": "Batteriopladning",
           "battery_discharge": "Batteriafladning"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "{serial} sidst rapporteret"
+      },
+      "battery_cfg_schedules": {
+        "name": "Batteri CFG skemaer"
+      },
+      "battery_dtg_schedules": {
+        "name": "Batteri DTG tidsplaner"
+      },
+      "battery_rbd_schedules": {
+        "name": "Batteri RBD skemaer"
+      },
+      "battery_schedule_summary": {
+        "name": "Oversigt over batteritidsplan"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Grænse for begrænset batteriafladning"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Batteri Ny tidsplangrænse"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Batteritidsplangrænse"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Tidsplan søndag"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Batteri nyt skema mandag"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Batteri nyt skema tirsdag"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Batteri nyt skema onsdag"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Batteri nyt skema torsdag"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Batteri nyt skema fredag"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Batteri nyt skema lørdag"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Batteri nyt skema søndag"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Batteriplan mandag"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Batteriplan tirsdag"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Batteriplan onsdag"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Batteriplan torsdag"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Batteriplan fredag"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Batteriplan lørdag"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Batteri tidsplan søndag"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Tidsplan"
+      },
+      "battery_new_schedule_type": {
+        "name": "Batteritidsplantype"
+      },
+      "battery_schedule_selected": {
+        "name": "Batteritidsplan"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Opret ny tidsplan"
+      },
+      "battery_schedule_add": {
+        "name": "Batteritidsplan Tilføj"
+      },
+      "battery_schedule_delete": {
+        "name": "Batteriplan Slet"
+      },
+      "battery_schedule_refresh": {
+        "name": "Opdatering af batteritidsplan"
+      },
+      "battery_schedule_save": {
+        "name": "Batteritidsplanspare"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Sluttid for tidsplan"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Batteri Nyt Tidsplan Starttid"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Batteri Ny tidsplan Sluttid"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Starttid for batteriplan"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Sluttid for batteriplanlægning"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Site-id",
           "description": "Enphase-site-id (valgfrit; findes via målenheden)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Tving opdatering",
+      "description": "Opdater batteritidsplandata fra Enphase-skyen med det samme.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerede muligheder"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Side ID",
+          "description": "Valgfri webstedsidentifikator; registreres automatisk, når en webstedsenhed vælges."
+        },
+        "config_entry_id": {
+          "name": "Konfigurer indtastnings-id",
+          "description": "Valgfri konfigurationsindtastningsidentifikator for en enkelt Enphase-webstedsindtastning."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Tilføj batteritidsplan",
+      "description": "Opret en batteritidsplan for CFG, DTG eller RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerede muligheder"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Tidsplan type",
+          "description": "Batteri tidsplan familie: cfg, dtg eller rbd."
+        },
+        "start_time": {
+          "name": "Starttid",
+          "description": "Planlagt Start dato/Tidspunkt"
+        },
+        "end_time": {
+          "name": "Sluttid",
+          "description": "Planlæg sluttidspunkt."
+        },
+        "limit": {
+          "name": "ladningsgrænse",
+          "description": "Maksimal batteriladningstilstand (%)."
+        },
+        "days": {
+          "name": "Dage",
+          "description": "Liste over aktive hverdage med mandag=1 til søndag=7."
+        },
+        "site_id": {
+          "name": "Side ID",
+          "description": "Valgfri webstedsidentifikator; registreres automatisk, når en webstedsenhed vælges."
+        },
+        "config_entry_id": {
+          "name": "Konfigurer indtastnings-id",
+          "description": "Valgfri konfigurationsindtastningsidentifikator for en enkelt Enphase-webstedsindtastning."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Opdater batteritidsplan",
+      "description": "Opdater en batteritidsplan efter tidsplan-id.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerede muligheder"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Planlægnings-id",
+          "description": "Eksisterende Enphase batteri tidsplan identifikator."
+        },
+        "schedule_type": {
+          "name": "Tidsplan type",
+          "description": "Batteri tidsplan familie: cfg, dtg eller rbd."
+        },
+        "start_time": {
+          "name": "Starttid",
+          "description": "Planlagt Start dato/Tidspunkt"
+        },
+        "end_time": {
+          "name": "Sluttid",
+          "description": "Planlæg sluttidspunkt."
+        },
+        "limit": {
+          "name": "ladningsgrænse",
+          "description": "Maksimal batteriladningstilstand (%)."
+        },
+        "days": {
+          "name": "Dage",
+          "description": "Liste over aktive hverdage med mandag=1 til søndag=7."
+        },
+        "confirm": {
+          "name": "Bekræft",
+          "description": "Indstil til true for at bekræfte tidsplanopdateringen."
+        },
+        "site_id": {
+          "name": "Side ID",
+          "description": "Valgfri webstedsidentifikator; registreres automatisk, når en webstedsenhed vælges."
+        },
+        "config_entry_id": {
+          "name": "Konfigurer indtastnings-id",
+          "description": "Valgfri konfigurationsindtastningsidentifikator for en enkelt Enphase-webstedsindtastning."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Slet batteritidsplan",
+      "description": "Slet en eller flere batteriplaner efter tidsplan-id.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerede muligheder"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Planlægnings-id",
+          "description": "Enkeltfaset batteri tidsplanidentifikator, der skal slettes."
+        },
+        "schedule_ids": {
+          "name": "Planlæg ID'er",
+          "description": "Valgfri kommasepareret eller listeindtastning for flere tidsplanidentifikatorer."
+        },
+        "confirm": {
+          "name": "Bekræft",
+          "description": "Indstil til true for at bekræfte sletning af tidsplanen."
+        },
+        "site_id": {
+          "name": "Side ID",
+          "description": "Valgfri webstedsidentifikator; registreres automatisk, når en webstedsenhed vælges."
+        },
+        "config_entry_id": {
+          "name": "Konfigurer indtastnings-id",
+          "description": "Valgfri konfigurationsindtastningsidentifikator for en enkelt Enphase-webstedsindtastning."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Valider batteritidsplan",
+      "description": "Kontroller, om redigering af batteritidsplan er tilgængelig for den valgte tidsplanfamilie.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerede muligheder"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Tidsplan type",
+          "description": "Batteri tidsplan familie: cfg, dtg eller rbd."
+        },
+        "site_id": {
+          "name": "Side ID",
+          "description": "Valgfri webstedsidentifikator; registreres automatisk, når en webstedsenhed vælges."
+        },
+        "config_entry_id": {
+          "name": "Konfigurer indtastnings-id",
+          "description": "Valgfri konfigurationsindtastningsidentifikator for en enkelt Enphase-webstedsindtastning."
         }
       }
     }

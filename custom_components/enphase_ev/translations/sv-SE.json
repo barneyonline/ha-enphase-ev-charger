@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Schemat överlappar det befintliga {schedule_label}. Justera eller inaktivera det schemat först."
+    },
+    "ac_battery_unavailable": {
+      "message": "Inga AC-batterienheter är tillgängliga för närvarande."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Autentiseringsinställningar är inte tillgängliga när Enphase-tjänsten är nere."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Batteriprofiluppdateringar är inte tillåtna för det här kontot."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Uppdateringar av batteriinställningar är inte tillåtna för det här kontot."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "En annan uppdatering av batteriprofilen pågår redan."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "En annan uppdatering av batteriinställningar pågår redan."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Batteriprofiluppdateringar är inte tillgängliga."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Uppdateringar av batteriinställningar är inte tillgängliga."
+    },
+    "battery_updates_unavailable": {
+      "message": "Batteriuppdateringar är inte tillgängliga."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Batteriuppdateringar är inte tillåtna för detta konto."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Uppdatering av batteriprofil begärdes för snabbt. Vänta och försök igen."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Uppdatering av batteriinställningar begärdes för snabbt. Vänta och försök igen."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Batteriskrivåtkomst kunde inte bekräftas. Uppdatera och försök igen."
+    },
+    "schedule_update_forbidden": {
+      "message": "Schemauppdatering avvisades av Enphase (HTTP 403 förbjuden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Schemauppdatering kunde inte autentiseras. Autentisera igen och försök igen."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Schema står i konflikt med det befintliga schemat för utsläpp till nät. Justera eller inaktivera det schemat först."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Schema konflikter med det befintliga schemat för begränsning av batteriurladdning. Justera eller inaktivera det schemat först."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Schema konflikter med det befintliga schemat för debitering från nätet. Justera eller inaktivera det schemat först."
+    },
+    "schedule_update_conflict": {
+      "message": "Schemauppdateringen konflikterar med ett befintligt batterischema."
+    },
+    "battery_profile_unavailable": {
+      "message": "Batteriprofilen är inte tillgänglig."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Uppdatering av batteriprofilen avvisades av Enphase (HTTP 403 förbjuden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Uppdatering av batteriprofilen kunde inte autentiseras. Autentisera igen och försök igen."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Batteriinställningarnas nyttolast är inte tillgänglig."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Uppdatering av batteriinställningar avvisades av Enphase (HTTP 403 förbjuden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Uppdatering av batteriinställningar kunde inte autentiseras. Autentisera igen och försök igen."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Full reserv för säkerhetskopiering är fixerad till 100 %."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Batterireserven är inte tillgänglig."
+    },
+    "savings_profile_required": {
+      "message": "Sparprofilen måste vara aktiv."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Inställningar för sparprofiler är inte tillgängliga."
+    },
+    "battery_profile_unsupported": {
+      "message": "Vald batteriprofil stöds inte."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Inställningen för laddning från nät är inte tillgänglig."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Charge from grid toggle applicerades inte av Enphase."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Debitering från nätschema är inte tillgänglig."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Start- och sluttid för debitering från nätet måste vara olika."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Växling mellan schema för laddning från nät tillämpades inte av Enphase."
+    },
+    "charge_from_grid_required": {
+      "message": "Laddning från nätet måste aktiveras först."
+    },
+    "schedule_change_pending": {
+      "message": "En schemaändring väntar på Envoy-synkronisering. Vänta."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Schemaläggningstiden för debitering från nätet är ogiltig."
+    },
+    "schedule_api_unavailable": {
+      "message": "Schema API är inte tillgängligt på den här klientversionen."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Det finns inget befintligt schema för avgifter från nätet."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Skapa en {schedule_label} i IQ Battery Scheduler innan du aktiverar den."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} är för närvarande inte exponerad av Enphase för denna webbplats. Vänta tills schemasynkroniseringen är klar, uppdatera sedan och försök igen."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "{schedule_label}-växlingen användes inte av Enphase."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "primär skrivning avvisad"
+    },
+    "schedule_family_times_different": {
+      "message": "{schedule_label} start- och sluttid måste vara olika."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Tid för urladdning till nätet är ogiltig."
+    },
+    "schedule_missing": {
+      "message": "Inget befintligt {schedule_label_lower}-schema är tillgängligt."
+    },
+    "schedule_unavailable": {
+      "message": "{schedule_label}-schemat är inte tillgängligt."
+    },
+    "schedule_time_invalid": {
+      "message": "{schedule_label} schemaläggningstid är ogiltig."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Den aktuella {schedule_label_lower}-schematiden är ogiltig."
+    },
+    "schedule_limit_range": {
+      "message": "{schedule_label}-schemagränsen måste vara mellan {minimum} och {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "{schedule_label}-schemagränsen måste vara minst {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Aktuella schematider är inte tillgängliga."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Schemagränsen för avgifter från nätet måste vara mellan {minimum} och {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Schemagränsen för avgifter från nätet måste vara minst {minimum} %."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Batteriavstängningsnivån är inte tillgänglig."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Batteriavstängningsnivån är ogiltig."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Batteriavstängningsnivån måste vara mellan {minimum} och {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Storm Alert-opt-out är inte tillgängligt."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Det gick inte att välja bort Storm Alert för {count}-varningar."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Storm Guard-uppdateringar är inte tillåtna för detta konto."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guard-inställningarna är inte tillgängliga."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Storm Guard-uppdateringen avvisades av Enphase (HTTP 403 förbjuden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Storm Guard-uppdateringen kunde inte autentiseras. Autentisera igen och försök igen."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Den valda systemprofilen är inte tillgänglig."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Uppdatering av systemprofilen avvisades av Enphase (HTTP 403 förbjuden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Systemprofiluppdateringen kunde inte autentiseras. Autentisera igen och försök igen."
+    },
+    "system_profile_update_failed": {
+      "message": "Uppdateringen av systemprofilen misslyckades."
+    },
+    "system_profile_update_network": {
+      "message": "Uppdateringen av systemprofilen misslyckades på grund av ett nätverksfel. Försök igen."
+    },
+    "system_profile_update_timeout": {
+      "message": "Uppdatering av systemprofilen tog timeout. Försök igen."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Val av laddningsläge är inte tillgängligt medan Enphases schematjänst är nere."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Valt AC-batterimålläge för laddning är inte tillgängligt."
+    },
+    "battery_schedule_day_required": {
+      "message": "Välj minst en dag för schemat."
+    },
+    "battery_schedule_times_different": {
+      "message": "Schemats start- och sluttider måste vara olika."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Gränsen för schemat {schedule_type} måste vara mellan {minimum} och {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Schemat avvisades av Enphases valideringsendpoint."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Redigering av batterischeman är inte tillgänglig."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "API:et för batterischeman är inte tillgängligt."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Bekräftelse krävs för att uppdatera ett schema."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Bekräftelse krävs för att ta bort ett schema."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Ogiltigt schema-ID: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Schema-ID hittades inte i aktuella data: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Ange minst ett schema-ID att ta bort."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Ogiltiga schema-ID:n: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Schema-ID:n hittades inte i aktuella data: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Schemat avvisades av Enphases valideringsendpoint: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Schemauppdateringen konflikterar med ett befintligt batterischema: {message}"
     }
   },
   "options": {
@@ -161,7 +422,8 @@
           "reauth": "Starta omautentisering",
           "forget_password": "Glöm lagrat lösenord",
           "type_heatpump": "Värmepump",
-          "type_ac_battery": "AC-batteri"
+          "type_ac_battery": "AC-batteri",
+          "battery_schedules_enabled": "Aktivera batterischemaläggare"
         },
         "data_description": {
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
@@ -178,7 +440,8 @@
           "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
           "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning.",
-          "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga."
+          "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga.",
+          "battery_schedules_enabled": "Hantera IQ-batterischeman"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Starta omautentisering",
           "forget_password": "Glöm lagrat lösenord",
           "type_heatpump": "Värmepump",
-          "type_ac_battery": "AC-batteri"
+          "type_ac_battery": "AC-batteri",
+          "battery_schedules_enabled": "Aktivera batterischemaläggare"
         },
         "data_description": {
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
@@ -216,7 +480,8 @@
           "reauth": "Starta inloggningsflödet för att uppdatera inloggningsuppgifter utan att ta bort integrationen.",
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
           "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning.",
-          "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga."
+          "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga.",
+          "battery_schedules_enabled": "Hantera IQ-batterischeman"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Export till nätet",
           "battery_charge": "Batteriladdning",
           "battery_discharge": "Batteriurladdning"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Senast rapporterat för {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Batteri-CFG-scheman"
+      },
+      "battery_dtg_schedules": {
+        "name": "Batteri-DTG-scheman"
+      },
+      "battery_rbd_schedules": {
+        "name": "Batteri-RBD-scheman"
+      },
+      "battery_schedule_summary": {
+        "name": "Sammanfattning av batterischeman"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Gräns för begränsning av batteriurladdning"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Gräns för nytt batterischema"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Gräns för batterischema"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Schema söndag"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Nytt batterischema måndag"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Nytt batterischema tisdag"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Nytt batterischema onsdag"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Nytt batterischema torsdag"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Nytt batterischema fredag"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Nytt batterischema lördag"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Nytt batterischema söndag"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Batterischema måndag"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Batterischema tisdag"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Batterischema onsdag"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Batterischema torsdag"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Batterischema fredag"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Batterischema lördag"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Batterischema söndag"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Schema"
+      },
+      "battery_new_schedule_type": {
+        "name": "Typ av batterischema"
+      },
+      "battery_schedule_selected": {
+        "name": "Batterischema"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Skapa nytt schema"
+      },
+      "battery_schedule_add": {
+        "name": "Lägg till batterischema"
+      },
+      "battery_schedule_delete": {
+        "name": "Ta bort batterischema"
+      },
+      "battery_schedule_refresh": {
+        "name": "Uppdatera batterischema"
+      },
+      "battery_schedule_save": {
+        "name": "Spara batterischema"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Schemas sluttid"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Starttid för nytt batterischema"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Sluttid för nytt batterischema"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Starttid för batterischema"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Sluttid för batterischema"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Plats-ID",
           "description": "Enphase plats-ID (valfritt; hämtas från målenheten)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Tvinga uppdatering",
+      "description": "Uppdatera data för batterischeman från Enphase-molnet omedelbart.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Webbplats-ID",
+          "description": "Valfri platsidentifierare; detekteras automatiskt när en platsenhet väljs."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationspost-ID",
+          "description": "Valfri konfigurationspostidentifierare för en enda Enphase-platspost."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Lägg till batterischema",
+      "description": "Skapa ett batterischema för CFG, DTG eller RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Schematyp",
+          "description": "Batterischemafamilj: cfg, dtg eller rbd."
+        },
+        "start_time": {
+          "name": "Starttid",
+          "description": "Schemats starttid."
+        },
+        "end_time": {
+          "name": "Sluttid",
+          "description": "Schemats sluttid."
+        },
+        "limit": {
+          "name": "Laddningsgräns",
+          "description": "Batteriets maximala laddningsnivå (%)."
+        },
+        "days": {
+          "name": "Dagar",
+          "description": "Lista över aktiva veckodagar med måndag=1 till söndag=7."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet väljs."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationspost-ID",
+          "description": "Valfri identifierare för konfigurationsposten för en enskild Enphase-plats."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Uppdatera batterischema",
+      "description": "Uppdatera ett batterischema efter schema-ID.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Schema-ID",
+          "description": "Identifierare för ett befintligt Enphase-batterischema."
+        },
+        "schedule_type": {
+          "name": "Schematyp",
+          "description": "Batterischemafamilj: cfg, dtg eller rbd."
+        },
+        "start_time": {
+          "name": "Starttid",
+          "description": "Schemats starttid."
+        },
+        "end_time": {
+          "name": "Sluttid",
+          "description": "Schemats sluttid."
+        },
+        "limit": {
+          "name": "Laddningsgräns",
+          "description": "Batteriets maximala laddningsnivå (%)."
+        },
+        "days": {
+          "name": "Dagar",
+          "description": "Lista över aktiva veckodagar med måndag=1 till söndag=7."
+        },
+        "confirm": {
+          "name": "Bekräfta",
+          "description": "Ange true för att bekräfta schemauppdateringen."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet väljs."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationspost-ID",
+          "description": "Valfri identifierare för konfigurationsposten för en enskild Enphase-plats."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Ta bort batterischema",
+      "description": "Ta bort ett eller flera batterischeman efter schema-ID.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Schema-ID",
+          "description": "Identifierare för ett enskilt Enphase-batterischema som ska tas bort."
+        },
+        "schedule_ids": {
+          "name": "Schema-ID:n",
+          "description": "Valfri kommaseparerad inmatning eller lista för flera schemaidentifierare."
+        },
+        "confirm": {
+          "name": "Bekräfta",
+          "description": "Ange true för att bekräfta borttagningen av schemat."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet väljs."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationspost-ID",
+          "description": "Valfri identifierare för konfigurationsposten för en enskild Enphase-plats."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Validera batterischema",
+      "description": "Kontrollera om redigering av batterischeman är tillgänglig för den valda schemafamiljen.",
+      "sections": {
+        "advanced": {
+          "name": "Avancerade alternativ"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Schematyp",
+          "description": "Batterischemafamilj: cfg, dtg eller rbd."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; upptäcks automatiskt när en platsenhet väljs."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationspost-ID",
+          "description": "Valfri identifierare för konfigurationsposten för en enskild Enphase-plats."
         }
       }
     }

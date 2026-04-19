@@ -2070,6 +2070,20 @@ async def test_battery_schedule_services_cover_failure_paths(
             )
         )
 
+    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": False})
+    with pytest.raises(
+        ServiceValidationError,
+        match="Schedule rejected by the Enphase validation endpoint.",
+    ):
+        await validate_schedule(
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_type": "cfg",
+                }
+            )
+        )
+
     coord.client.validate_battery_schedule = AsyncMock(
         return_value={"isValid": "true", "message": "string ok"}
     )

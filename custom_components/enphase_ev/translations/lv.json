@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Grafiks pārklājas ar esošo {schedule_label}. Vispirms pielāgojiet vai atspējojiet šo grafiku."
+    },
+    "ac_battery_unavailable": {
+      "message": "Pašlaik nav pieejama neviena AC Battery ierīce."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Autentifikācijas iestatījumi nav pieejami, kamēr Enphase pakalpojums nedarbojas."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Šim kontam akumulatora profila atjauninājumi nav atļauti."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Šim kontam akumulatora iestatījumu atjauninājumi nav atļauti."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Jau notiek cita akumulatora profila atjaunināšana."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Jau notiek cita akumulatora iestatījumu atjaunināšana."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Akumulatora profila atjauninājumi nav pieejami."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Akumulatora iestatījumu atjauninājumi nav pieejami."
+    },
+    "battery_updates_unavailable": {
+      "message": "Akumulatora atjauninājumi nav pieejami."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Šim kontam akumulatora atjauninājumi nav atļauti."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Akumulatora profila atjauninājums tika pieprasīts pārāk ātri. Lūdzu, uzgaidiet un mēģiniet vēlreiz."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Akumulatora iestatījumu atjauninājums tika pieprasīts pārāk ātri. Lūdzu, uzgaidiet un mēģiniet vēlreiz."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Nevarēja apstiprināt akumulatora rakstīšanas piekļuvi. Atsvaidziniet un mēģiniet vēlreiz."
+    },
+    "schedule_update_forbidden": {
+      "message": "Enphase noraidīja grafika atjauninājumu (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Nevarēja autentificēt grafika atjauninājumu. Veiciet atkārtotu autentifikāciju un mēģiniet vēlreiz."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Grafiks konfliktē ar esošo izlādes tīklā grafiku. Vispirms pielāgojiet vai atspējojiet to."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Grafiks konfliktē ar esošo akumulatora izlādes ierobežošanas grafiku. Vispirms pielāgojiet vai atspējojiet to."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Grafiks konfliktē ar esošo uzlādes no tīkla grafiku. Vispirms pielāgojiet vai atspējojiet to."
+    },
+    "schedule_update_conflict": {
+      "message": "Grafika atjauninājums konfliktē ar esošu akumulatora grafiku."
+    },
+    "battery_profile_unavailable": {
+      "message": "Akumulatora profils nav pieejams."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Enphase noraidīja akumulatora profila atjauninājumu (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Nevarēja autentificēt akumulatora profila atjauninājumu. Veiciet atkārtotu autentifikāciju un mēģiniet vēlreiz."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Akumulatora iestatījumu slodze nav pieejama."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Enphase noraidīja akumulatora iestatījumu atjauninājumu (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Nevarēja autentificēt akumulatora iestatījumu atjauninājumu. Veiciet atkārtotu autentifikāciju un mēģiniet vēlreiz."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Full Backup rezerve ir fiksēta uz 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Akumulatora rezerve nav pieejama."
+    },
+    "savings_profile_required": {
+      "message": "Savings profilam jābūt aktīvam."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Savings profila iestatījumi nav pieejami."
+    },
+    "battery_profile_unsupported": {
+      "message": "Izvēlētais akumulatora profils netiek atbalstīts."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Uzlādes no tīkla iestatījums nav pieejams."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Enphase nepiemēroja uzlādes no tīkla slēdzi."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Uzlādes no tīkla grafiks nav pieejams."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Uzlādes no tīkla grafika sākuma un beigu laikam jāatšķiras."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Enphase nepiemēroja uzlādes no tīkla grafika slēdzi."
+    },
+    "charge_from_grid_required": {
+      "message": "Vispirms jāiespējo uzlāde no tīkla."
+    },
+    "schedule_change_pending": {
+      "message": "Grafika maiņa gaida Envoy sinhronizāciju. Lūdzu, uzgaidiet."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Uzlādes no tīkla grafika laiks nav derīgs."
+    },
+    "schedule_api_unavailable": {
+      "message": "Šajā klienta versijā grafiku API nav pieejams."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Nav pieejams neviens esošs uzlādes no tīkla grafiks."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Pirms iespējošanas izveidojiet {schedule_label} IQ Battery plānotājā."
+    },
+    "schedule_not_exposed": {
+      "message": "Enphase pašlaik nepadara {schedule_label} pieejamu šai vietnei. Pagaidiet, līdz grafika sinhronizācija ir pabeigta, pēc tam atsvaidziniet un mēģiniet vēlreiz."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Enphase nepiemēroja {schedule_label} slēdzi."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "primārā rakstīšana noraidīta"
+    },
+    "schedule_family_times_different": {
+      "message": "{schedule_label} sākuma un beigu laikam jāatšķiras."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Izlādes tīklā grafika laiks nav derīgs."
+    },
+    "schedule_missing": {
+      "message": "Nav pieejams neviens esošs {schedule_label_lower} grafiks."
+    },
+    "schedule_unavailable": {
+      "message": "{schedule_label} grafiks nav pieejams."
+    },
+    "schedule_time_invalid": {
+      "message": "{schedule_label} grafika laiks nav derīgs."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Pašreizējais {schedule_label_lower} grafika laiks nav derīgs."
+    },
+    "schedule_limit_range": {
+      "message": "{schedule_label} grafika limitam jābūt starp {minimum} un {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "{schedule_label} grafika limitam jābūt vismaz {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Pašreizējie grafika laiki nav pieejami."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Uzlādes no tīkla grafika limitam jābūt starp {minimum} un {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Uzlādes no tīkla grafika limitam jābūt vismaz {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Akumulatora izslēgšanās līmenis nav pieejams."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Akumulatora izslēgšanās līmenis nav derīgs."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Akumulatora izslēgšanās līmenim jābūt starp {minimum} un {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Storm Alert atteikšanās nav pieejama."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Storm Alert atteikšanās neizdevās {count} brīdinājumiem."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Šim kontam Storm Guard atjauninājumi nav atļauti."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guard iestatījumi nav pieejami."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Enphase noraidīja Storm Guard atjauninājumu (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Nevarēja autentificēt Storm Guard atjauninājumu. Veiciet atkārtotu autentifikāciju un mēģiniet vēlreiz."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Izvēlētais sistēmas profils nav pieejams."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Enphase noraidīja sistēmas profila atjauninājumu (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Nevarēja autentificēt sistēmas profila atjauninājumu. Veiciet atkārtotu autentifikāciju un mēģiniet vēlreiz."
+    },
+    "system_profile_update_failed": {
+      "message": "Sistēmas profila atjaunināšana neizdevās."
+    },
+    "system_profile_update_network": {
+      "message": "Sistēmas profila atjaunināšana neizdevās tīkla kļūdas dēļ. Mēģiniet vēlreiz."
+    },
+    "system_profile_update_timeout": {
+      "message": "Sistēmas profila atjaunināšanas laiks beidzās. Mēģiniet vēlreiz."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Uzlādes režīma izvēle nav pieejama, kamēr Enphase plānošanas pakalpojums nav pieejams."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Izvēlētais AC Battery mērķa uzlādes līmenis nav pieejams."
+    },
+    "battery_schedule_day_required": {
+      "message": "Izvēlieties grafikam vismaz vienu dienu."
+    },
+    "battery_schedule_times_different": {
+      "message": "Grafika sākuma un beigu laikam jābūt atšķirīgam."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Grafika {schedule_type} limitam jābūt starp {minimum} un {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Enphase validācijas galapunkts noraidīja grafiku."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Akumulatora grafiku rediģēšana nav pieejama."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Akumulatora grafiku API nav pieejams."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Lai atjauninātu grafiku, ir nepieciešams apstiprinājums."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Lai dzēstu grafiku, ir nepieciešams apstiprinājums."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Nederīgs grafika ID: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Grafika ID nav atrasts pašreizējos datos: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Norādiet vismaz vienu dzēšamu grafika ID."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Nederīgi grafiku ID: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Grafiku ID nav atrasti pašreizējos datos: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Enphase validācijas galapunkts noraidīja grafiku: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Grafika atjauninājums konfliktē ar esošu akumulatora grafiku: {message}"
     }
   },
   "options": {
@@ -161,7 +422,8 @@
           "reauth": "Sākt atkārtotu autentifikāciju",
           "forget_password": "Aizmirst saglabāto paroli",
           "type_heatpump": "Siltumsūknis",
-          "type_ac_battery": "AC baterija"
+          "type_ac_battery": "AC baterija",
+          "battery_schedules_enabled": "Iespējot akumulatora plānotāju"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -178,7 +440,8 @@
           "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
           "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
-          "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas."
+          "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas.",
+          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Sākt atkārtotu autentifikāciju",
           "forget_password": "Aizmirst saglabāto paroli",
           "type_heatpump": "Siltumsūknis",
-          "type_ac_battery": "AC baterija"
+          "type_ac_battery": "AC baterija",
+          "battery_schedules_enabled": "Iespējot akumulatora plānotāju"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -216,7 +480,8 @@
           "reauth": "Palaidiet pieteikšanās plūsmu, lai atjaunotu datus, nenoņemot integrāciju.",
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
           "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
-          "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas."
+          "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas.",
+          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Eksports uz tīklu",
           "battery_charge": "Akumulatora uzlāde",
           "battery_discharge": "Akumulatora izlāde"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Pēdējais {serial} ziņojums"
+      },
+      "battery_cfg_schedules": {
+        "name": "Akumulatora CFG grafiki"
+      },
+      "battery_dtg_schedules": {
+        "name": "Akumulatora DTG grafiki"
+      },
+      "battery_rbd_schedules": {
+        "name": "Akumulatora RBD grafiki"
+      },
+      "battery_schedule_summary": {
+        "name": "Akumulatora grafiku kopsavilkums"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Akumulatora izlādes ierobežošanas limits"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Jauna akumulatora grafika limits"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Akumulatora grafika limits"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Svētdienas grafiks"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Jauns akumulatora grafiks pirmdienai"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Jauns akumulatora grafiks otrdienai"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Jauns akumulatora grafiks trešdienai"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Jauns akumulatora grafiks ceturtdienai"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Jauns akumulatora grafiks piektdienai"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Jauns akumulatora grafiks sestdienai"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Jauns akumulatora grafiks svētdienai"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Akumulatora grafiks pirmdienai"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Akumulatora grafiks otrdienai"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Akumulatora grafiks trešdienai"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Akumulatora grafiks ceturtdienai"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Akumulatora grafiks piektdienai"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Akumulatora grafiks sestdienai"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Akumulatora grafiks svētdienai"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Grafiks"
+      },
+      "battery_new_schedule_type": {
+        "name": "Akumulatora grafika tips"
+      },
+      "battery_schedule_selected": {
+        "name": "Akumulatora grafiks"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Izveidot jaunu grafiku"
+      },
+      "battery_schedule_add": {
+        "name": "Pievienot akumulatora grafiku"
+      },
+      "battery_schedule_delete": {
+        "name": "Dzēst akumulatora grafiku"
+      },
+      "battery_schedule_refresh": {
+        "name": "Atsvaidzināt akumulatora grafiku"
+      },
+      "battery_schedule_save": {
+        "name": "Saglabāt akumulatora grafiku"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Grafika beigu laiks"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Jauna akumulatora grafika sākuma laiks"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Jauna akumulatora grafika beigu laiks"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Akumulatora grafika sākuma laiks"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Akumulatora grafika beigu laiks"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Vietnes ID",
           "description": "Enphase vietnes ID (neobligāts; noteikts no mērķa ierīces)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Piespiest atsvaidzināšanu",
+      "description": "Nekavējoties atsvaidziniet akumulatora grafiku datus no Enphase mākoņa.",
+      "sections": {
+        "advanced": {
+          "name": "Papildu opcijas"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, ja ir izvēlēta vietnes ierīce."
+        },
+        "config_entry_id": {
+          "name": "Konfigurācijas ieraksta ID",
+          "description": "Neobligāts konfigurācijas ieraksta identifikators vienam Enphase vietnes ierakstam."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Pievienot akumulatora grafiku",
+      "description": "Izveidojiet akumulatora grafiku CFG, DTG vai RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Papildu opcijas"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Grafika tips",
+          "description": "Akumulatora grafika saime: cfg, dtg vai rbd."
+        },
+        "start_time": {
+          "name": "Sākuma laiks",
+          "description": "Grafika sākuma laiks."
+        },
+        "end_time": {
+          "name": "Beigu laiks",
+          "description": "Grafika beigu laiks."
+        },
+        "limit": {
+          "name": "Uzlādes limits",
+          "description": "Maksimālais akumulatora uzlādes līmenis (%)."
+        },
+        "days": {
+          "name": "Dienas",
+          "description": "Aktīvo nedēļas dienu saraksts, kur pirmdiena=1 un svētdiena=7."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, ja ir izvēlēta vietnes ierīce."
+        },
+        "config_entry_id": {
+          "name": "Konfigurācijas ieraksta ID",
+          "description": "Neobligāts konfigurācijas ieraksta identifikators vienam Enphase vietnes ierakstam."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Atjaunināt akumulatora grafiku",
+      "description": "Atjauniniet akumulatora grafiku pēc grafika ID.",
+      "sections": {
+        "advanced": {
+          "name": "Papildu opcijas"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Grafika ID",
+          "description": "Esošā Enphase akumulatora grafika identifikators."
+        },
+        "schedule_type": {
+          "name": "Grafika tips",
+          "description": "Akumulatora grafika saime: cfg, dtg vai rbd."
+        },
+        "start_time": {
+          "name": "Sākuma laiks",
+          "description": "Grafika sākuma laiks."
+        },
+        "end_time": {
+          "name": "Beigu laiks",
+          "description": "Grafika beigu laiks."
+        },
+        "limit": {
+          "name": "Uzlādes limits",
+          "description": "Maksimālais akumulatora uzlādes līmenis (%)."
+        },
+        "days": {
+          "name": "Dienas",
+          "description": "Aktīvo nedēļas dienu saraksts, kur pirmdiena=1 un svētdiena=7."
+        },
+        "confirm": {
+          "name": "Apstiprināt",
+          "description": "Iestatiet uz true, lai apstiprinātu grafika atjaunināšanu."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, ja ir izvēlēta vietnes ierīce."
+        },
+        "config_entry_id": {
+          "name": "Konfigurācijas ieraksta ID",
+          "description": "Neobligāts konfigurācijas ieraksta identifikators vienam Enphase vietnes ierakstam."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Dzēst akumulatora grafiku",
+      "description": "Dzēsiet vienu vai vairākus akumulatora grafikus pēc grafika ID.",
+      "sections": {
+        "advanced": {
+          "name": "Papildu opcijas"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Grafika ID",
+          "description": "Viena dzēšama Enphase akumulatora grafika identifikators."
+        },
+        "schedule_ids": {
+          "name": "Grafiku ID",
+          "description": "Neobligāta ar komatiem atdalīta vērtība vai saraksts vairākiem grafiku identifikatoriem."
+        },
+        "confirm": {
+          "name": "Apstiprināt",
+          "description": "Iestatiet uz true, lai apstiprinātu grafika dzēšanu."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, ja ir izvēlēta vietnes ierīce."
+        },
+        "config_entry_id": {
+          "name": "Konfigurācijas ieraksta ID",
+          "description": "Neobligāts konfigurācijas ieraksta identifikators vienam Enphase vietnes ierakstam."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Validēt akumulatora grafiku",
+      "description": "Pārbaudiet, vai akumulatora grafiku rediģēšana ir pieejama izvēlētajai grafiku saimei.",
+      "sections": {
+        "advanced": {
+          "name": "Papildu opcijas"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Grafika tips",
+          "description": "Akumulatora grafika saime: cfg, dtg vai rbd."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, ja ir izvēlēta vietnes ierīce."
+        },
+        "config_entry_id": {
+          "name": "Konfigurācijas ieraksta ID",
+          "description": "Neobligāts konfigurācijas ieraksta identifikators vienam Enphase vietnes ierakstam."
         }
       }
     }

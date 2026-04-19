@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Το πρόγραμμα επικαλύπτεται με το υπάρχον {schedule_label}. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το πρόγραμμα."
+    },
+    "ac_battery_unavailable": {
+      "message": "Δεν υπάρχουν αυτή τη στιγμή διαθέσιμες συσκευές AC Battery."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Οι ρυθμίσεις ελέγχου ταυτότητας δεν είναι διαθέσιμες όσο η υπηρεσία Enphase είναι εκτός λειτουργίας."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Οι ενημερώσεις προφίλ μπαταρίας δεν επιτρέπονται για αυτόν τον λογαριασμό."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Οι ενημερώσεις ρυθμίσεων μπαταρίας δεν επιτρέπονται για αυτόν τον λογαριασμό."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Μια άλλη ενημέρωση προφίλ μπαταρίας βρίσκεται ήδη σε εξέλιξη."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Μια άλλη ενημέρωση ρυθμίσεων μπαταρίας βρίσκεται ήδη σε εξέλιξη."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Οι ενημερώσεις προφίλ μπαταρίας δεν είναι διαθέσιμες."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Οι ενημερώσεις ρυθμίσεων μπαταρίας δεν είναι διαθέσιμες."
+    },
+    "battery_updates_unavailable": {
+      "message": "Οι ενημερώσεις μπαταρίας δεν είναι διαθέσιμες."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Οι ενημερώσεις μπαταρίας δεν επιτρέπονται για αυτόν τον λογαριασμό."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Η ενημέρωση προφίλ μπαταρίας ζητήθηκε πολύ γρήγορα. Περιμένετε και δοκιμάστε ξανά."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Η ενημέρωση ρυθμίσεων μπαταρίας ζητήθηκε πολύ γρήγορα. Περιμένετε και δοκιμάστε ξανά."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Δεν ήταν δυνατή η επιβεβαίωση πρόσβασης εγγραφής στη μπαταρία. Ανανεώστε και δοκιμάστε ξανά."
+    },
+    "schedule_update_forbidden": {
+      "message": "Η ενημέρωση χρονοδιαγράμματος απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης χρονοδιαγράμματος. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Το χρονοδιάγραμμα έρχεται σε σύγκρουση με το υπάρχον χρονοδιάγραμμα discharge-to-grid. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το χρονοδιάγραμμα."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Το χρονοδιάγραμμα έρχεται σε σύγκρουση με το υπάρχον χρονοδιάγραμμα restrict-battery-discharge. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το χρονοδιάγραμμα."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Το χρονοδιάγραμμα έρχεται σε σύγκρουση με το υπάρχον χρονοδιάγραμμα charge-from-grid. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το χρονοδιάγραμμα."
+    },
+    "schedule_update_conflict": {
+      "message": "Η ενημέρωση του χρονοδιαγράμματος έρχεται σε διένεξη με ένα υπάρχον χρονοδιάγραμμα μπαταρίας."
+    },
+    "battery_profile_unavailable": {
+      "message": "Το προφίλ μπαταρίας δεν είναι διαθέσιμο."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Η ενημέρωση προφίλ μπαταρίας απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης προφίλ μπαταρίας. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Το payload ρυθμίσεων μπαταρίας δεν είναι διαθέσιμο."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Η ενημέρωση ρυθμίσεων μπαταρίας απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης ρυθμίσεων μπαταρίας. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Το απόθεμα Full Backup είναι σταθερό στο 100%."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Το απόθεμα μπαταρίας δεν είναι διαθέσιμο."
+    },
+    "savings_profile_required": {
+      "message": "Το προφίλ Savings πρέπει να είναι ενεργό."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Οι ρυθμίσεις προφίλ Savings δεν είναι διαθέσιμες."
+    },
+    "battery_profile_unsupported": {
+      "message": "Το επιλεγμένο προφίλ μπαταρίας δεν υποστηρίζεται."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Η ρύθμιση φόρτισης από το δίκτυο δεν είναι διαθέσιμη."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Η εναλλαγή φόρτισης από το δίκτυο δεν εφαρμόστηκε από το Enphase."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Το χρονοδιάγραμμα φόρτισης από το δίκτυο δεν είναι διαθέσιμο."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Οι ώρες έναρξης και λήξης του χρονοδιαγράμματος charge-from-grid πρέπει να είναι διαφορετικές."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Η εναλλαγή του χρονοδιαγράμματος charge-from-grid δεν εφαρμόστηκε από το Enphase."
+    },
+    "charge_from_grid_required": {
+      "message": "Πρέπει πρώτα να ενεργοποιηθεί η φόρτιση από το δίκτυο."
+    },
+    "schedule_change_pending": {
+      "message": "Εκκρεμεί συγχρονισμός Envoy για αλλαγή χρονοδιαγράμματος. Περιμένετε."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Η ώρα του χρονοδιαγράμματος charge-from-grid δεν είναι έγκυρη."
+    },
+    "schedule_api_unavailable": {
+      "message": "Το API χρονοδιαγράμματος δεν είναι διαθέσιμο σε αυτήν την έκδοση πελάτη."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Δεν υπάρχει διαθέσιμο υπάρχον χρονοδιάγραμμα charge-from-grid."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Δημιουργήστε ένα {schedule_label} στον προγραμματιστή IQ Battery πριν το ενεργοποιήσετε."
+    },
+    "schedule_not_exposed": {
+      "message": "Το {schedule_label} δεν εκτίθεται αυτή τη στιγμή από το Enphase για αυτόν τον ιστότοπο. Περιμένετε να ολοκληρωθεί ο συγχρονισμός χρονοδιαγράμματος, έπειτα ανανεώστε και δοκιμάστε ξανά."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Η εναλλαγή {schedule_label} δεν εφαρμόστηκε από το Enphase."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "Η κύρια εγγραφή απορρίφθηκε."
+    },
+    "schedule_family_times_different": {
+      "message": "Οι ώρες έναρξης και λήξης του {schedule_label} πρέπει να είναι διαφορετικές."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Η ώρα του χρονοδιαγράμματος discharge-to-grid δεν είναι έγκυρη."
+    },
+    "schedule_missing": {
+      "message": "Δεν υπάρχει διαθέσιμο υπάρχον χρονοδιάγραμμα {schedule_label_lower}."
+    },
+    "schedule_unavailable": {
+      "message": "Το χρονοδιάγραμμα {schedule_label} δεν είναι διαθέσιμο."
+    },
+    "schedule_time_invalid": {
+      "message": "Η ώρα του χρονοδιαγράμματος {schedule_label} δεν είναι έγκυρη."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Η τρέχουσα ώρα του χρονοδιαγράμματος {schedule_label_lower} δεν είναι έγκυρη."
+    },
+    "schedule_limit_range": {
+      "message": "Το όριο του χρονοδιαγράμματος {schedule_label} πρέπει να είναι μεταξύ {minimum} και {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "Το όριο του χρονοδιαγράμματος {schedule_label} πρέπει να είναι τουλάχιστον {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Οι τρέχουσες ώρες χρονοδιαγράμματος δεν είναι διαθέσιμες."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Το όριο του χρονοδιαγράμματος charge-from-grid πρέπει να είναι μεταξύ {minimum} και {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Το όριο του χρονοδιαγράμματος charge-from-grid πρέπει να είναι τουλάχιστον {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Το επίπεδο απενεργοποίησης της μπαταρίας δεν είναι διαθέσιμο."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Το επίπεδο απενεργοποίησης της μπαταρίας δεν είναι έγκυρο."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Το επίπεδο απενεργοποίησης της μπαταρίας πρέπει να είναι μεταξύ {minimum} και {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Η εξαίρεση από το Storm Alert δεν είναι διαθέσιμη."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Η εξαίρεση από το Storm Alert απέτυχε για {count} ειδοποίηση(εις)."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Οι ενημερώσεις Storm Guard δεν επιτρέπονται για αυτόν τον λογαριασμό."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Οι ρυθμίσεις Storm Guard δεν είναι διαθέσιμες."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Η ενημέρωση Storm Guard απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης Storm Guard. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Το επιλεγμένο προφίλ συστήματος δεν είναι διαθέσιμο."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Η ενημέρωση προφίλ συστήματος απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης προφίλ συστήματος. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
+    },
+    "system_profile_update_failed": {
+      "message": "Η ενημέρωση προφίλ συστήματος απέτυχε."
+    },
+    "system_profile_update_network": {
+      "message": "Η ενημέρωση προφίλ συστήματος απέτυχε λόγω σφάλματος δικτύου. Δοκιμάστε ξανά."
+    },
+    "system_profile_update_timeout": {
+      "message": "Η ενημέρωση προφίλ συστήματος έληξε χρονικά. Δοκιμάστε ξανά."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Η επιλογή τρόπου φόρτισης δεν είναι διαθέσιμη όταν η υπηρεσία προγραμματισμού Enphase είναι απενεργοποιημένη."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Η επιλεγμένη τιμή στόχου κατάστασης φόρτισης της μπαταρίας AC δεν είναι διαθέσιμη."
+    },
+    "battery_schedule_day_required": {
+      "message": "Επιλέξτε τουλάχιστον μία ημέρα για το πρόγραμμα."
+    },
+    "battery_schedule_times_different": {
+      "message": "Οι ώρες έναρξης και λήξης του προγράμματος πρέπει να είναι διαφορετικές."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Το όριο προγράμματος {schedule_type} πρέπει να είναι μεταξύ {minimum} και {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Το χρονοδιάγραμμα απορρίφθηκε από το τελικό σημείο επικύρωσης Enphase."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Η επεξεργασία του προγράμματος μπαταρίας δεν είναι διαθέσιμη."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Το API χρονοδιαγράμματος μπαταρίας δεν είναι διαθέσιμο."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Απαιτείται επιβεβαίωση για την ενημέρωση ενός χρονοδιαγράμματος."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Απαιτείται επιβεβαίωση για τη διαγραφή ενός προγράμματος."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Μη έγκυρο αναγνωριστικό προγράμματος: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Το αναγνωριστικό χρονοδιαγράμματος δεν βρέθηκε στα τρέχοντα δεδομένα: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Καταχωρίστε τουλάχιστον ένα αναγνωριστικό προγράμματος για διαγραφή."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Μη έγκυρο αναγνωριστικό προγράμματος: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Τα αναγνωριστικά χρονοδιαγράμματος δεν βρέθηκαν στα τρέχοντα δεδομένα: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Το πρόγραμμα απορρίφθηκε από το τελικό σημείο επικύρωσης Enphase: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Η ενημέρωση του χρονοδιαγράμματος έρχεται σε διένεξη με ένα υπάρχον πρόγραμμα μπαταρίας: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "Χρονικό όριο API (s)",
           "nominal_voltage": "Ονομαστική τάση (V)",
           "session_history_interval": "Διάστημα ιστορικού συνεδριών (min)",
-          "schedule_sync_enabled": "Ενεργοποιήστε την Υποστήριξη Προγραμματιστή",
+          "schedule_sync_enabled": "Ενεργοποιήστε το EV Charger Scheduler",
           "reauth": "Έναρξη επαλήθευσης",
           "forget_password": "Διαγραφή αποθηκευμένου κωδικού",
           "type_heatpump": "Αντλία θερμότητας",
-          "type_ac_battery": "Μπαταρία AC"
+          "type_ac_battery": "Μπαταρία AC",
+          "battery_schedules_enabled": "Ενεργοποιήστε τον προγραμματισμό μπαταρίας"
         },
         "data_description": {
           "type_envoy": "Περιλαμβάνει διαγνωστικά συνδεσιμότητας πύλης και μετρητών.",
@@ -174,11 +436,12 @@
           "api_timeout": "Δευτερόλεπτα πριν λήξουν τα αιτήματα API.",
           "nominal_voltage": "Εφεδρική τάση για εκτίμηση ισχύος φορτιστή.",
           "session_history_interval": "Λεπτά αναμονής μεταξύ ανακτήσεων ιστορικού συνεδριών cloud.",
-          "schedule_sync_enabled": "Διαχείριση χρονοδιαγράμματος Enphase",
+          "schedule_sync_enabled": "Διαχειριστείτε τα χρονοδιαγράμματα φορτιστή IQ EV",
           "reauth": "Εκκινήστε τη ροή σύνδεσης για ανανέωση διαπιστευτηρίων χωρίς αφαίρεση της ενσωμάτωσης.",
           "forget_password": "Αφαιρεί τον αποθηκευμένο κωδικό. Δεν θα επιχειρείται πλέον αυτόματη ανανέωση.",
           "type_heatpump": "Περιλαμβάνει αισθητήρες κατάστασης, διαγνωστικών και κατανάλωσης της αντλίας θερμότητας.",
-          "type_ac_battery": "Περιλαμβάνει αισθητήρες μπαταρίας AC και χειριστήρια λειτουργίας ύπνου όταν είναι διαθέσιμα."
+          "type_ac_battery": "Περιλαμβάνει αισθητήρες μπαταρίας AC και χειριστήρια λειτουργίας ύπνου όταν είναι διαθέσιμα.",
+          "battery_schedules_enabled": "Διαχειριστείτε τα χρονοδιαγράμματα μπαταριών IQ"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Έναρξη επαλήθευσης",
           "forget_password": "Διαγραφή αποθηκευμένου κωδικού",
           "type_heatpump": "Αντλία θερμότητας",
-          "type_ac_battery": "Μπαταρία AC"
+          "type_ac_battery": "Μπαταρία AC",
+          "battery_schedules_enabled": "Ενεργοποιήστε τον προγραμματισμό μπαταρίας"
         },
         "data_description": {
           "type_envoy": "Περιλαμβάνει διαγνωστικά συνδεσιμότητας πύλης και μετρητών.",
@@ -216,7 +480,8 @@
           "reauth": "Εκκινήστε τη ροή σύνδεσης για ανανέωση διαπιστευτηρίων χωρίς αφαίρεση της ενσωμάτωσης.",
           "forget_password": "Αφαιρεί τον αποθηκευμένο κωδικό. Δεν θα επιχειρείται πλέον αυτόματη ανανέωση.",
           "type_heatpump": "Περιλαμβάνει αισθητήρες κατάστασης, διαγνωστικών και κατανάλωσης της αντλίας θερμότητας.",
-          "type_ac_battery": "Περιλαμβάνει αισθητήρες μπαταρίας AC και χειριστήρια λειτουργίας ύπνου όταν είναι διαθέσιμα."
+          "type_ac_battery": "Περιλαμβάνει αισθητήρες μπαταρίας AC και χειριστήρια λειτουργίας ύπνου όταν είναι διαθέσιμα.",
+          "battery_schedules_enabled": "Διαχειριστείτε τα χρονοδιαγράμματα μπαταριών IQ"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Εξαγωγή προς δίκτυο",
           "battery_charge": "Φόρτιση μπαταρίας",
           "battery_discharge": "Εκφόρτιση μπαταρίας"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Αντιστοιχίστε ένα αθροιστικό σύνολο φόρτισης μπαταρίας στον αισθητήρα Enphase Energy Site Battery Charge. Μην επιλέξετε ημερήσια ενέργεια ή ζωντανή ισχύ.",
+          "battery_discharge": "Αντιστοιχίστε ένα αθροιστικό σύνολο εκφόρτισης μπαταρίας στον αισθητήρα Enphase Energy Site Battery Discharge. Μην επιλέξετε ημερήσια ενέργεια ή ζωντανή ισχύ."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Τελευταία αναφορά {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Προγράμματα CFG μπαταρίας"
+      },
+      "battery_dtg_schedules": {
+        "name": "Χρονοδιαγράμματα DTG μπαταρίας"
+      },
+      "battery_rbd_schedules": {
+        "name": "Προγράμματα RBD μπαταρίας"
+      },
+      "battery_schedule_summary": {
+        "name": "Περίληψη χρονοδιαγράμματος μπαταρίας"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Όριο περιορισμού εκφόρτισης μπαταρίας"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Μπαταρία Νέο όριο χρονοδιαγράμματος"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Όριο χρονοδιαγράμματος μπαταρίας"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Πρόγραμμα Κυριακής"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Νέο πρόγραμμα μπαταρίας Δευτέρα"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Νέο πρόγραμμα μπαταρίας Τρίτη"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Νέο πρόγραμμα μπαταρίας Τετάρτη"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Νέο πρόγραμμα μπαταρίας Πέμπτη"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Νέο πρόγραμμα μπαταρίας Παρασκευή"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Νέο πρόγραμμα μπαταρίας Σάββατο"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Νέο πρόγραμμα μπαταρίας Κυριακή"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Πρόγραμμα μπαταρίας Δευτέρα"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Πρόγραμμα μπαταρίας Τρίτη"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Πρόγραμμα μπαταρίας Τετάρτη"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Πρόγραμμα μπαταρίας Πέμπτη"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Πρόγραμμα μπαταρίας Παρασκευή"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Πρόγραμμα μπαταρίας Σάββατο"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Πρόγραμμα μπαταρίας Κυριακή"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Πρόγραμμα"
+      },
+      "battery_new_schedule_type": {
+        "name": "Τύπος χρονοδιαγράμματος μπαταρίας"
+      },
+      "battery_schedule_selected": {
+        "name": "Χρονοδιάγραμμα μπαταρίας"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Δημιουργία νέου προγράμματος"
+      },
+      "battery_schedule_add": {
+        "name": "Προσθήκη χρονοδιαγράμματος μπαταρίας"
+      },
+      "battery_schedule_delete": {
+        "name": "Διαγραφή χρονοδιαγράμματος μπαταρίας"
+      },
+      "battery_schedule_refresh": {
+        "name": "Ανανέωση χρονοδιαγράμματος μπαταρίας"
+      },
+      "battery_schedule_save": {
+        "name": "Αποθήκευση χρονοδιαγράμματος μπαταρίας"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Ώρα λήξης προγράμματος"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Μπαταρία Νέο χρονοδιάγραμμα Ώρα έναρξης"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Μπαταρία Νέο χρονοδιάγραμμα Ώρα λήξης"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Χρονοδιάγραμμα μπαταρίας Ώρα έναρξης"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Χρόνος λήξης χρονοδιαγράμματος μπαταρίας"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "ID τοποθεσίας",
           "description": "ID τοποθεσίας Enphase (προαιρετικό· επιλύεται από τη συσκευή στόχο)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Αναγκαστική ανανέωση",
+      "description": "Ανανεώστε αμέσως τα δεδομένα του προγράμματος μπαταρίας από το Enphase cloud.",
+      "sections": {
+        "advanced": {
+          "name": "Σύνθετες επιλογές"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Αναγνωριστικό τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας. Εντοπίζεται αυτόματα όταν επιλέγεται συσκευή τοποθεσίας."
+        },
+        "config_entry_id": {
+          "name": "Αναγνωριστικό καταχώρισης ρύθμισης",
+          "description": "Προαιρετικό αναγνωριστικό καταχώρισης ρύθμισης για μία καταχώριση τοποθεσίας Enphase."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Προσθήκη χρονοδιαγράμματος μπαταρίας",
+      "description": "Δημιουργήστε ένα πρόγραμμα μπαταρίας για CFG, DTG ή RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Σύνθετες επιλογές"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Τύπος προγράμματος",
+          "description": "Οικογένεια προγράμματος μπαταρίας: cfg, dtg ή rbd."
+        },
+        "start_time": {
+          "name": "Ώρα έναρξης",
+          "description": "Ώρα έναρξης του προγράμματος."
+        },
+        "end_time": {
+          "name": "Ώρα λήξης",
+          "description": "Ώρα λήξης του προγράμματος."
+        },
+        "limit": {
+          "name": "Όριο φόρτισης",
+          "description": "Μέγιστη κατάσταση φόρτισης μπαταρίας (%)."
+        },
+        "days": {
+          "name": "Ημέρες",
+          "description": "Λίστα ενεργών ημερών της εβδομάδας με αντιστοίχιση Δευτέρα=1 έως Κυριακή=7."
+        },
+        "site_id": {
+          "name": "Αναγνωριστικό τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας. Εντοπίζεται αυτόματα όταν επιλέγεται συσκευή τοποθεσίας."
+        },
+        "config_entry_id": {
+          "name": "Αναγνωριστικό καταχώρισης ρύθμισης",
+          "description": "Προαιρετικό αναγνωριστικό καταχώρισης ρύθμισης για μία καταχώριση τοποθεσίας Enphase."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Ενημέρωση χρονοδιαγράμματος μπαταρίας",
+      "description": "Ενημερώστε ένα χρονοδιάγραμμα μπαταρίας κατά ID χρονοδιαγράμματος.",
+      "sections": {
+        "advanced": {
+          "name": "Σύνθετες επιλογές"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Αναγνωριστικό προγράμματος",
+          "description": "Υπάρχον αναγνωριστικό προγράμματος μπαταρίας Enphase."
+        },
+        "schedule_type": {
+          "name": "Τύπος προγράμματος",
+          "description": "Οικογένεια προγράμματος μπαταρίας: cfg, dtg ή rbd."
+        },
+        "start_time": {
+          "name": "Ώρα έναρξης",
+          "description": "Ώρα έναρξης του προγράμματος."
+        },
+        "end_time": {
+          "name": "Ώρα λήξης",
+          "description": "Ώρα λήξης του προγράμματος."
+        },
+        "limit": {
+          "name": "Όριο φόρτισης",
+          "description": "Μέγιστη κατάσταση φόρτισης μπαταρίας (%)."
+        },
+        "days": {
+          "name": "Ημέρες",
+          "description": "Λίστα ενεργών ημερών της εβδομάδας με αντιστοίχιση Δευτέρα=1 έως Κυριακή=7."
+        },
+        "confirm": {
+          "name": "Επιβεβαίωση",
+          "description": "Ορίστε την τιμή σε true για να επιβεβαιώσετε την ενημέρωση του προγράμματος."
+        },
+        "site_id": {
+          "name": "Αναγνωριστικό τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας. Εντοπίζεται αυτόματα όταν επιλέγεται συσκευή τοποθεσίας."
+        },
+        "config_entry_id": {
+          "name": "Αναγνωριστικό καταχώρισης ρύθμισης",
+          "description": "Προαιρετικό αναγνωριστικό καταχώρισης ρύθμισης για μία καταχώριση τοποθεσίας Enphase."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Διαγραφή χρονοδιαγράμματος μπαταρίας",
+      "description": "Διαγράψτε ένα ή περισσότερα χρονοδιαγράμματα μπαταρίας κατά αναγνωριστικό προγράμματος.",
+      "sections": {
+        "advanced": {
+          "name": "Σύνθετες επιλογές"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Αναγνωριστικό προγράμματος",
+          "description": "Ένα μεμονωμένο αναγνωριστικό προγράμματος μπαταρίας Enphase προς διαγραφή."
+        },
+        "schedule_ids": {
+          "name": "Αναγνωριστικά προγραμμάτων",
+          "description": "Προαιρετική είσοδος λίστας ή τιμών χωρισμένων με κόμματα για πολλά αναγνωριστικά προγραμμάτων."
+        },
+        "confirm": {
+          "name": "Επιβεβαίωση",
+          "description": "Ορίστε την τιμή σε true για να επιβεβαιώσετε τη διαγραφή του προγράμματος."
+        },
+        "site_id": {
+          "name": "Αναγνωριστικό τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας. Εντοπίζεται αυτόματα όταν επιλέγεται συσκευή τοποθεσίας."
+        },
+        "config_entry_id": {
+          "name": "Αναγνωριστικό καταχώρισης ρύθμισης",
+          "description": "Προαιρετικό αναγνωριστικό καταχώρισης ρύθμισης για μία καταχώριση τοποθεσίας Enphase."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Επικύρωση χρονοδιαγράμματος μπαταρίας",
+      "description": "Ελέγξτε εάν η επεξεργασία προγράμματος μπαταρίας είναι διαθέσιμη για την επιλεγμένη οικογένεια χρονοδιαγράμματος.",
+      "sections": {
+        "advanced": {
+          "name": "Σύνθετες επιλογές"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Τύπος προγράμματος",
+          "description": "Οικογένεια προγράμματος μπαταρίας: cfg, dtg ή rbd."
+        },
+        "site_id": {
+          "name": "Αναγνωριστικό τοποθεσίας",
+          "description": "Προαιρετικό αναγνωριστικό τοποθεσίας. Εντοπίζεται αυτόματα όταν επιλέγεται συσκευή τοποθεσίας."
+        },
+        "config_entry_id": {
+          "name": "Αναγνωριστικό καταχώρισης ρύθμισης",
+          "description": "Προαιρετικό αναγνωριστικό καταχώρισης ρύθμισης για μία καταχώριση τοποθεσίας Enphase."
         }
       }
     }

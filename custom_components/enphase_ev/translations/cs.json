@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Plán se překrývá se stávajícím {schedule_label}. Nejprve tento plán upravte nebo deaktivujte."
+    },
+    "ac_battery_unavailable": {
+      "message": "Aktuálně nejsou k dispozici žádná zařízení AC Battery."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Když je služba Enphase mimo provoz, nastavení ověřování není k dispozici."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Aktualizace profilu baterie nejsou pro tento účet povoleny."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Aktualizace nastavení baterie nejsou pro tento účet povoleny."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Další aktualizace profilu baterie již probíhá."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Další aktualizace nastavení baterie již probíhá."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Aktualizace profilu baterie nejsou k dispozici."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Aktualizace nastavení baterie nejsou k dispozici."
+    },
+    "battery_updates_unavailable": {
+      "message": "Aktualizace baterie nejsou k dispozici."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Aktualizace baterie nejsou pro tento účet povoleny."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Aktualizace profilu baterie byla požadována příliš rychle. Počkejte prosím a zkuste to znovu."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Aktualizace nastavení baterie byla požadována příliš rychle. Počkejte prosím a zkuste to znovu."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Přístup k zápisu z baterie nelze potvrdit. Obnovte a zkuste to znovu."
+    },
+    "schedule_update_forbidden": {
+      "message": "Aktualizace plánu byla zamítnuta Enphase (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Aktualizaci plánu se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Plán je v konfliktu se stávajícím plánem vybíjení do sítě. Nejprve upravte nebo deaktivujte tento plán."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Plán je v konfliktu se stávajícím plánem omezení vybití baterie. Nejprve upravte nebo deaktivujte tento plán."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Plán je v konfliktu se stávajícím plánem nabíjení ze sítě. Nejprve upravte nebo deaktivujte tento plán."
+    },
+    "schedule_update_conflict": {
+      "message": "Aktualizace plánu je v konfliktu se stávajícím plánem baterie."
+    },
+    "battery_profile_unavailable": {
+      "message": "Profil baterie není k dispozici."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Aktualizace profilu baterie byla zamítnuta Enphase (HTTP 403 zakázáno)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Aktualizaci profilu baterie se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Užitečná zátěž nastavení baterie není k dispozici."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Aktualizace nastavení baterie byla zamítnuta Enphase (HTTP 403 zakázáno)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Aktualizaci nastavení baterie se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Plná záloha je pevně nastavena na 100 %."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Rezerva baterie není k dispozici."
+    },
+    "savings_profile_required": {
+      "message": "Spořicí profil musí být aktivní."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Nastavení profilu ukládání nejsou k dispozici."
+    },
+    "battery_profile_unsupported": {
+      "message": "Vybraný profil baterie není podporován."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Nabíjení z nastavení sítě není k dispozici."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Enphase nepoužilo nabíjení z přepínače mřížky."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Poplatek ze sítě není k dispozici."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Čas začátku a konce plánu nabíjení ze sítě se musí lišit."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Enphase nepoužil přepínač plánu nabíjení z mřížky."
+    },
+    "charge_from_grid_required": {
+      "message": "Nejprve musí být povoleno nabíjení ze sítě."
+    },
+    "schedule_change_pending": {
+      "message": "Změna plánu čeká na synchronizaci Envoy. Čekejte prosím."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Čas plánu nabíjení ze sítě je neplatný."
+    },
+    "schedule_api_unavailable": {
+      "message": "Rozhraní API není v této klientské verzi k dispozici."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Není k dispozici žádný stávající plán nabíjení ze sítě."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Před aktivací vytvořte {schedule_label} v plánovači baterie IQ."
+    },
+    "schedule_not_exposed": {
+      "message": "{schedule_label} aktuálně není pro tento web vystaven Enphase. Počkejte na dokončení synchronizace plánu, poté obnovte stránku a zkuste to znovu."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Enphase nepoužil přepínač {schedule_label}."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "primární zápis zamítnut"
+    },
+    "schedule_family_times_different": {
+      "message": "Čas začátku a konce {schedule_label} se musí lišit."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Plánovaný čas vypouštění do sítě je neplatný."
+    },
+    "schedule_missing": {
+      "message": "Není k dispozici žádný stávající rozvrh {schedule_label_lower}."
+    },
+    "schedule_unavailable": {
+      "message": "Plán {schedule_label} není k dispozici."
+    },
+    "schedule_time_invalid": {
+      "message": "Čas plánu {schedule_label} je neplatný."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Aktuální plánovací čas {schedule_label_lower} je neplatný."
+    },
+    "schedule_limit_range": {
+      "message": "Limit plánu {schedule_label} musí být mezi {minimum} a {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "Limit plánu {schedule_label} musí být alespoň {minimum} %."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Aktuální rozvrhové časy nejsou k dispozici."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Limit plánu nabíjení ze sítě musí být mezi {minimum} a {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Limit plánu nabíjení ze sítě musí být alespoň {minimum} %."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Úroveň vypínání baterie není k dispozici."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Úroveň vypínání baterie je neplatná."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Úroveň vypínání baterie musí být mezi {minimum} a {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Odhlášení Storm Alert není dostupné."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Odhlášení Storm Alert selhalo pro {count} výstrahy."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Aktualizace Storm Guard nejsou pro tento účet povoleny."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Nastavení Storm Guard nejsou dostupná."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Aktualizace Storm Guard byla zamítnuta Enphase (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Aktualizaci Storm Guard nebylo možné ověřit. Znovu se ověřte a zkuste to znovu."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Vybraný systémový profil není k dispozici."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Aktualizace systémového profilu byla zamítnuta Enphase (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Aktualizaci systémového profilu se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
+    },
+    "system_profile_update_failed": {
+      "message": "Aktualizace systémového profilu se nezdařila."
+    },
+    "system_profile_update_network": {
+      "message": "Aktualizace systémového profilu se nezdařila kvůli chybě sítě. Zkuste to znovu."
+    },
+    "system_profile_update_timeout": {
+      "message": "Časový limit aktualizace systémového profilu vypršel. Zkuste to znovu."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Výběr režimu nabíjení není dostupný, pokud je služba plánovače Enphase mimo provoz."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Vybraný cílový stav nabití AC baterie není k dispozici."
+    },
+    "battery_schedule_day_required": {
+      "message": "Vyberte pro rozvrh alespoň jeden den."
+    },
+    "battery_schedule_times_different": {
+      "message": "Čas začátku a konce plánu se musí lišit."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Limit plánu {schedule_type} musí být mezi {minimum} a {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Plán byl zamítnut koncovým bodem ověření Enphase."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Úprava plánu baterie není k dispozici."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Rozhraní API rozvrhu baterie není k dispozici."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "K aktualizaci plánu je vyžadováno potvrzení."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Pro smazání plánu je vyžadováno potvrzení."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Neplatné ID plánu: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "ID plánu nebylo v aktuálních datech nalezeno: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Zadejte alespoň jedno ID plánu, které chcete odstranit."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Neplatná ID plánu: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "ID plánu nenalezeno v aktuálních datech: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Plán zamítnut koncovým bodem ověření Enphase: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Aktualizace plánu je v konfliktu se stávajícím plánem baterie: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "Časový limit API (s)",
           "nominal_voltage": "Jmenovité napětí (V)",
           "session_history_interval": "Interval historie relací (min)",
-          "schedule_sync_enabled": "Povolit podporu plánovače",
+          "schedule_sync_enabled": "Povolit plánovač EV Charger Scheduler",
           "reauth": "Spustit reautentizaci",
           "forget_password": "Zapomenout uložené heslo",
           "type_heatpump": "Tepelné čerpadlo",
-          "type_ac_battery": "AC baterie"
+          "type_ac_battery": "AC baterie",
+          "battery_schedules_enabled": "Povolit Plánovač baterie"
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
@@ -174,11 +436,12 @@
           "api_timeout": "Sekundy, než požadavky API vyprší.",
           "nominal_voltage": "Záložní napětí pro odhad výkonu nabíječky.",
           "session_history_interval": "Minuty čekání mezi načítáním historie relací z cloudu.",
-          "schedule_sync_enabled": "Správa správy plánu Enphase",
+          "schedule_sync_enabled": "Správa plánů nabíječek IQ EV",
           "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
           "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
           "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla.",
-          "type_ac_battery": "Zahrnuje senzory AC baterie a ovládání režimu spánku, pokud jsou k dispozici."
+          "type_ac_battery": "Zahrnuje senzory AC baterie a ovládání režimu spánku, pokud jsou k dispozici.",
+          "battery_schedules_enabled": "Správa rozvrhů baterií IQ"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Spustit reautentizaci",
           "forget_password": "Zapomenout uložené heslo",
           "type_heatpump": "Tepelné čerpadlo",
-          "type_ac_battery": "AC baterie"
+          "type_ac_battery": "AC baterie",
+          "battery_schedules_enabled": "Povolit Plánovač baterie"
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
@@ -216,7 +480,8 @@
           "reauth": "Spusťte přihlašovací tok pro obnovení údajů bez odebrání integrace.",
           "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
           "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla.",
-          "type_ac_battery": "Zahrnuje senzory AC baterie a ovládání režimu spánku, pokud jsou k dispozici."
+          "type_ac_battery": "Zahrnuje senzory AC baterie a ovládání režimu spánku, pokud jsou k dispozici.",
+          "battery_schedules_enabled": "Správa rozvrhů baterií IQ"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Export do sítě",
           "battery_charge": "Nabíjení baterie",
           "battery_discharge": "Vybíjení baterie"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "Naposledy hlášeno u {serial}"
+      },
+      "battery_cfg_schedules": {
+        "name": "Plány CFG baterií"
+      },
+      "battery_dtg_schedules": {
+        "name": "Plány DTG baterie"
+      },
+      "battery_rbd_schedules": {
+        "name": "Plány RBD baterií"
+      },
+      "battery_schedule_summary": {
+        "name": "Shrnutí plánu baterie"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Limit omezení vybíjení baterie"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Limit pro nový plán baterie"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Limit baterie"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Harmonogram neděle"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Baterie - nový harmonogram pondělí"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Úterý s novým rozvrhem baterií"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Battery New Schedule Středa"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Nový rozvrh baterií ve čtvrtek"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Pátek s novým rozvrhem baterií"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Baterie - nový harmonogram sobota"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Baterie Nový rozvrh neděle"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Plán baterií v pondělí"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Plán baterií Úterý"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Plán baterií Středa"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Plán baterií ve čtvrtek"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Plán baterie v pátek"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Plán baterie na sobotu"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Plán baterie v neděli"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Harmonogram"
+      },
+      "battery_new_schedule_type": {
+        "name": "Typ plánu baterie"
+      },
+      "battery_schedule_selected": {
+        "name": "Plán baterie"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Vytvořit nový harmonogram"
+      },
+      "battery_schedule_add": {
+        "name": "Plán baterie Přidat"
+      },
+      "battery_schedule_delete": {
+        "name": "Smazat plán baterie"
+      },
+      "battery_schedule_refresh": {
+        "name": "Obnovení plánu baterie"
+      },
+      "battery_schedule_save": {
+        "name": "Uložení rozvrhu baterie"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Čas konce harmonogramu"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Doba spuštění nového plánu"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Baterie Nový čas konce plánu"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Čas spuštění plánu baterie"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Čas ukončení plánu baterie"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "ID lokality",
           "description": "ID lokality Enphase (volitelné; určí se z cílového zařízení)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Vynutit aktualizaci",
+      "description": "Okamžitě obnovte data plánu baterie z cloudu Enphase.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "ID webu",
+          "description": "Volitelný identifikátor pracoviště; detekován automaticky, když je vybráno zařízení pracoviště."
+        },
+        "config_entry_id": {
+          "name": "ID vstupu konfigurace",
+          "description": "Volitelný identifikátor položky konfigurace pro jednu položku webu Enphase."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Přidat plán baterie",
+      "description": "Vytvořte plán baterie pro CFG, DTG nebo RBD.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Typ plánu",
+          "description": "Rodina rozvrhu baterií: cfg, dtg nebo rbd."
+        },
+        "start_time": {
+          "name": "Čas zahájení",
+          "description": "Naplánujte datum/čas začátku"
+        },
+        "end_time": {
+          "name": "Čas ukončení",
+          "description": "Naplánujte čas ukončení"
+        },
+        "limit": {
+          "name": "Limit nabití",
+          "description": "Maximální stav nabití baterie (%)."
+        },
+        "days": {
+          "name": "Dny",
+          "description": "Seznam aktivních pracovních dnů s použitím pondělí=1 až neděle=7."
+        },
+        "site_id": {
+          "name": "ID webu",
+          "description": "Volitelný identifikátor pracoviště; detekován automaticky, když je vybráno zařízení pracoviště."
+        },
+        "config_entry_id": {
+          "name": "ID vstupu konfigurace",
+          "description": "Volitelný identifikátor položky konfigurace pro jednu položku webu Enphase."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Aktualizujte plán baterie",
+      "description": "Aktualizujte plán baterie podle ID plánu.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "ID rozvrhu",
+          "description": "Existující identifikátor plánu baterie Enphase."
+        },
+        "schedule_type": {
+          "name": "Typ plánu",
+          "description": "Rodina rozvrhu baterií: cfg, dtg nebo rbd."
+        },
+        "start_time": {
+          "name": "Čas zahájení",
+          "description": "Naplánujte datum/čas začátku"
+        },
+        "end_time": {
+          "name": "Čas ukončení",
+          "description": "Naplánujte čas ukončení"
+        },
+        "limit": {
+          "name": "Limit nabití",
+          "description": "Maximální stav nabití baterie (%)."
+        },
+        "days": {
+          "name": "Dny",
+          "description": "Seznam aktivních pracovních dnů s použitím pondělí=1 až neděle=7."
+        },
+        "confirm": {
+          "name": "Potvrdit",
+          "description": "Nastavením na hodnotu true potvrdíte aktualizaci plánu."
+        },
+        "site_id": {
+          "name": "ID webu",
+          "description": "Volitelný identifikátor pracoviště; detekován automaticky, když je vybráno zařízení pracoviště."
+        },
+        "config_entry_id": {
+          "name": "ID vstupu konfigurace",
+          "description": "Volitelný identifikátor položky konfigurace pro jednu položku webu Enphase."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Smazat Plán baterie",
+      "description": "Odstraňte jeden nebo více plánů baterie podle ID plánu.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "ID rozvrhu",
+          "description": "Identifikátor rozvrhu baterie Single Enphase, který chcete odstranit."
+        },
+        "schedule_ids": {
+          "name": "ID plánů",
+          "description": "Volitelný vstup oddělený čárkami nebo seznamem pro více identifikátorů plánu."
+        },
+        "confirm": {
+          "name": "Potvrdit",
+          "description": "Nastavením na hodnotu true potvrdíte odstranění plánu."
+        },
+        "site_id": {
+          "name": "ID webu",
+          "description": "Volitelný identifikátor pracoviště; detekován automaticky, když je vybráno zařízení pracoviště."
+        },
+        "config_entry_id": {
+          "name": "ID vstupu konfigurace",
+          "description": "Volitelný identifikátor položky konfigurace pro jednu položku webu Enphase."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Ověřte plán baterie",
+      "description": "Zkontrolujte, zda je pro vybranou rodinu plánů k dispozici úprava plánu baterie.",
+      "sections": {
+        "advanced": {
+          "name": "Pokročilé možnosti"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Typ plánu",
+          "description": "Rodina rozvrhu baterií: cfg, dtg nebo rbd."
+        },
+        "site_id": {
+          "name": "ID webu",
+          "description": "Volitelný identifikátor pracoviště; detekován automaticky, když je vybráno zařízení pracoviště."
+        },
+        "config_entry_id": {
+          "name": "ID vstupu konfigurace",
+          "description": "Volitelný identifikátor položky konfigurace pro jednu položku webu Enphase."
         }
       }
     }

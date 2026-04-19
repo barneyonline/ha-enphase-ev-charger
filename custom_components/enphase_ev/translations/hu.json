@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Az ütemezés átfedésben van a meglévő {schedule_label} elemmel. Először módosítsa vagy tiltsa le azt az ütemezést."
+    },
+    "ac_battery_unavailable": {
+      "message": "Jelenleg nem érhetők el AC akkumulátoros eszközök."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "A hitelesítési beállítások nem érhetők el, amíg az Enphase szolgáltatás nem működik."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Az akkumulátorprofil frissítése ennél a fióknál nem engedélyezett."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Az akkumulátorbeállítások frissítése ennél a fióknál nem engedélyezett."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Már folyamatban van egy másik akkumulátorprofil-frissítés."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Már folyamatban van egy másik akkumulátorbeállítás-frissítés."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Az akkumulátorprofil frissítése nem érhető el."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Az akkumulátorbeállítások frissítése nem érhető el."
+    },
+    "battery_updates_unavailable": {
+      "message": "Az akkumulátorfrissítések nem érhetők el."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Az akkumulátorfrissítések ennél a fióknál nem engedélyezettek."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Az akkumulátorprofil frissítését túl gyorsan kérték. Kérjük, várjon, majd próbálja újra."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Az akkumulátorbeállítások frissítését túl gyorsan kérték. Kérjük, várjon, majd próbálja újra."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Az akkumulátor írási hozzáférését nem sikerült megerősíteni. Frissítsen, majd próbálja újra."
+    },
+    "schedule_update_forbidden": {
+      "message": "Az Enphase elutasította az ütemezés frissítését (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Az ütemezés frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Az ütemezés ütközik a meglévő hálózatba táplálási ütemezéssel. Először módosítsa vagy tiltsa le azt az ütemezést."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Az ütemezés ütközik a meglévő akkumulátorkisütés-korlátozó ütemezéssel. Először módosítsa vagy tiltsa le azt az ütemezést."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Az ütemezés ütközik a meglévő hálózatról töltési ütemezéssel. Először módosítsa vagy tiltsa le azt az ütemezést."
+    },
+    "schedule_update_conflict": {
+      "message": "Az ütemezési frissítés ütközik egy meglévő akkumulátorütemezéssel."
+    },
+    "battery_profile_unavailable": {
+      "message": "Az akkumulátorprofil nem érhető el."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Az Enphase elutasította az akkumulátorprofil frissítését (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Az akkumulátorprofil frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Az akkumulátorbeállítások adatterhe nem érhető el."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Az Enphase elutasította az akkumulátorbeállítások frissítését (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Az akkumulátorbeállítások frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "A teljes tartalék akkumulátorszint 100%-on rögzített."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Az akkumulátortartalék nem érhető el."
+    },
+    "savings_profile_required": {
+      "message": "A Megtakarítások profilnak aktívnak kell lennie."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "A Megtakarítások profil beállításai nem érhetők el."
+    },
+    "battery_profile_unsupported": {
+      "message": "A kiválasztott akkumulátorprofil nem támogatott."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "A hálózatról töltés beállítás nem érhető el."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Az Enphase nem alkalmazta a hálózatról töltés kapcsolóállapotát."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "A hálózatról töltési ütemezés nem érhető el."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "A hálózatról töltési ütemezés kezdési és befejezési idejének különböznie kell."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Az Enphase nem alkalmazta a hálózatról töltési ütemezés kapcsolóállapotát."
+    },
+    "charge_from_grid_required": {
+      "message": "Először engedélyezni kell a hálózatról töltést."
+    },
+    "schedule_change_pending": {
+      "message": "Egy ütemezésmódosítás Envoy-szinkronizálásra vár. Kérjük, várjon."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "A hálózatról töltési ütemezés ideje érvénytelen."
+    },
+    "schedule_api_unavailable": {
+      "message": "Az ütemezési API ebben a kliensverzióban nem érhető el."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Nem érhető el meglévő hálózatról töltési ütemezés."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Hozzon létre egy {schedule_label} elemet az IQ Battery ütemezőben, mielőtt engedélyezné."
+    },
+    "schedule_not_exposed": {
+      "message": "A(z) {schedule_label} jelenleg nincs kitéve az Enphase által ehhez a helyszínhez. Várja meg, amíg az ütemezésszinkronizálás befejeződik, majd frissítsen és próbálja újra."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Az Enphase nem alkalmazta a(z) {schedule_label} kapcsolóállapotát."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "elsődleges írás elutasítva"
+    },
+    "schedule_family_times_different": {
+      "message": "A(z) {schedule_label} kezdési és befejezési idejének különböznie kell."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "A hálózatba táplálási ütemezés ideje érvénytelen."
+    },
+    "schedule_missing": {
+      "message": "Nem érhető el meglévő {schedule_label_lower} ütemezés."
+    },
+    "schedule_unavailable": {
+      "message": "A(z) {schedule_label} ütemezés nem érhető el."
+    },
+    "schedule_time_invalid": {
+      "message": "A(z) {schedule_label} ütemezés ideje érvénytelen."
+    },
+    "current_schedule_time_invalid": {
+      "message": "A jelenlegi {schedule_label_lower} ütemezés ideje érvénytelen."
+    },
+    "schedule_limit_range": {
+      "message": "A(z) {schedule_label} ütemezési korlátjának {minimum} és {maximum} között kell lennie."
+    },
+    "schedule_limit_minimum": {
+      "message": "A(z) {schedule_label} ütemezési korlátjának legalább {minimum}%-nak kell lennie."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "A jelenlegi ütemezési idők nem érhetők el."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "A hálózatról töltési ütemezés korlátjának {minimum} és {maximum} között kell lennie."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "A hálózatról töltési ütemezés korlátjának legalább {minimum}%-nak kell lennie."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Az akkumulátor leállítási szintje nem érhető el."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Az akkumulátor leállítási szintje érvénytelen."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Az akkumulátor leállítási szintjének {minimum} és {maximum} között kell lennie."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "A Storm Alert letiltása nem érhető el."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "A Storm Alert letiltása {count} riasztásnál nem sikerült."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "A Storm Guard frissítése ennél a fióknál nem engedélyezett."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "A Storm Guard beállításai nem érhetők el."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Az Enphase elutasította a Storm Guard frissítését (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "A Storm Guard frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "A kiválasztott rendszerprofil nem érhető el."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Az Enphase elutasította a rendszerprofil frissítését (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "A rendszerprofil frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
+    },
+    "system_profile_update_failed": {
+      "message": "A rendszerprofil frissítése nem sikerült."
+    },
+    "system_profile_update_network": {
+      "message": "A rendszerprofil frissítése hálózati hiba miatt nem sikerült. Próbálja újra."
+    },
+    "system_profile_update_timeout": {
+      "message": "A rendszerprofil frissítése időtúllépés miatt megszakadt. Próbálja újra."
+    },
+    "scheduler_service_unavailable": {
+      "message": "A töltési mód kiválasztása nem érhető el, amíg az Enphase ütemező szolgáltatás nem működik."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "A kiválasztott AC akkumulátor cél töltöttségi szintje nem érhető el."
+    },
+    "battery_schedule_day_required": {
+      "message": "Válasszon legalább egy napot az ütemezéshez."
+    },
+    "battery_schedule_times_different": {
+      "message": "Az ütemezés kezdési és befejezési időpontjának eltérőnek kell lennie."
+    },
+    "battery_schedule_limit_range": {
+      "message": "A {schedule_type} ütemezési korlátjának {minimum} és {maximum} között kell lennie."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Az ütemezést az Enphase érvényesítési végpontja elutasította."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Az akkumulátor-ütemezés szerkesztése nem érhető el."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Az akkumulátor ütemezési API nem érhető el."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Az ütemterv frissítéséhez megerősítés szükséges."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Az ütemezés törléséhez megerősítés szükséges."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Érvénytelen ütemezési azonosító: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Az ütemezési azonosító nem található a jelenlegi adatok között: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Adjon meg legalább egy ütemezési azonosítót a törléshez."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Érvénytelen ütemezési azonosító(k): {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Az ütemezési azonosító(k) nem találhatók az aktuális adatokban: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Az ütemezést az Enphase érvényesítési végpontja elutasította: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Az ütemezési frissítés ütközik egy meglévő akkumulátorütemezéssel: {message}"
     }
   },
   "options": {
@@ -157,11 +418,12 @@
           "api_timeout": "API-időtúllépés (s)",
           "nominal_voltage": "Névleges feszültség (V)",
           "session_history_interval": "Munkamenet előzmény intervallum (min)",
-          "schedule_sync_enabled": "Ütemező támogatás engedélyezése",
+          "schedule_sync_enabled": "Az EV Charger Scheduler engedélyezése",
           "reauth": "Újrahitelesítés indítása",
           "forget_password": "Mentett jelszó elfelejtése",
           "type_heatpump": "Hőszivattyú",
-          "type_ac_battery": "AC akkumulátor"
+          "type_ac_battery": "AC akkumulátor",
+          "battery_schedules_enabled": "Az akkumulátor ütemező engedélyezése"
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
@@ -174,11 +436,12 @@
           "api_timeout": "Ennyi másodperc után jár le az API-kérések időkorlátja.",
           "nominal_voltage": "Tartalék feszültség a töltő teljesítménybecsléséhez.",
           "session_history_interval": "Várakozási percek a felhő munkamenet-előzmények lekérései között.",
-          "schedule_sync_enabled": "Az Enphase ütemezésének kezelése",
+          "schedule_sync_enabled": "Kezelje az IQ EV töltő ütemezését",
           "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve.",
           "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza.",
-          "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők."
+          "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők.",
+          "battery_schedules_enabled": "Kezelje az IQ akkumulátor-ütemezéseket"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Újrahitelesítés indítása",
           "forget_password": "Mentett jelszó elfelejtése",
           "type_heatpump": "Hőszivattyú",
-          "type_ac_battery": "AC akkumulátor"
+          "type_ac_battery": "AC akkumulátor",
+          "battery_schedules_enabled": "Az akkumulátor ütemező engedélyezése"
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
@@ -216,7 +480,8 @@
           "reauth": "Indítsa el a bejelentkezési folyamatot a hitelesítő adatok frissítéséhez az integráció eltávolítása nélkül.",
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve.",
           "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza.",
-          "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők."
+          "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők.",
+          "battery_schedules_enabled": "Kezelje az IQ akkumulátor-ütemezéseket"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Hálózati export",
           "battery_charge": "Akkumulátor töltés",
           "battery_discharge": "Akkumulátor kisütés"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
+          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "{serial} utolsó jelentése"
+      },
+      "battery_cfg_schedules": {
+        "name": "Akkumulátor CFG ütemezések"
+      },
+      "battery_dtg_schedules": {
+        "name": "Akkumulátor DTG ütemezések"
+      },
+      "battery_rbd_schedules": {
+        "name": "Akkumulátor RBD ütemezések"
+      },
+      "battery_schedule_summary": {
+        "name": "Akkumulátor-ütemezési összefoglaló"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Akkumulátorkisütés-korlátozási határ"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Új akkumulátor-ütemezés korlátja"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Akkumulátor ütemezési korlát"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Vasárnapi ütemezés"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Új akkumulátor-ütemezés hétfő"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Új akkumulátor-ütemezés kedd"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Új akkumulátor-ütemezés szerda"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Új akkumulátor-ütemezés csütörtök"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Új akkumulátor-ütemezés péntek"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Új akkumulátor-ütemezés szombat"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Új akkumulátor-ütemezés vasárnap"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Akkumulátor-ütemezés hétfő"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Akkumulátor-ütemezés kedd"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Akkumulátor-ütemezés szerda"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Akkumulátor-ütemezés csütörtök"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Akkumulátor-ütemezés péntek"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Akkumulátor-ütemezés szombat"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Akkumulátor-ütemezés vasárnap"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Ütemezés"
+      },
+      "battery_new_schedule_type": {
+        "name": "Akkumulátor ütemezési típusa"
+      },
+      "battery_schedule_selected": {
+        "name": "Akkumulátor ütemezése"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Új ütemezés létrehozása"
+      },
+      "battery_schedule_add": {
+        "name": "Akkumulátor-ütemezés hozzáadása"
+      },
+      "battery_schedule_delete": {
+        "name": "Akkumulátor ütemezésének törlése"
+      },
+      "battery_schedule_refresh": {
+        "name": "Akkumulátor ütemezésének frissítése"
+      },
+      "battery_schedule_save": {
+        "name": "Akkumulátor-ütemezési mentés"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Ütemezés befejezési ideje"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Új akkumulátor-ütemezés kezdési ideje"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Új akkumulátor-ütemezés befejezési ideje"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Az akkumulátor ütemezésének kezdési ideje"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Az akkumulátor ütemezésének befejezési ideje"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Helyszín ID",
           "description": "Enphase helyszínazonosító (opcionális; a célkészülékből oldható fel)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Frissítés kényszerítése",
+      "description": "Azonnal frissítse az akkumulátor-ütemezési adatokat az Enphase felhőből.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Helyszínazonosító",
+          "description": "Nem kötelező helyszínazonosító; a rendszer automatikusan felismeri, ha helyszíneszköz van kiválasztva."
+        },
+        "config_entry_id": {
+          "name": "Konfigurációs bejegyzés azonosítója",
+          "description": "Nem kötelező konfigurációsbejegyzés-azonosító egyetlen Enphase-helyszínbejegyzéshez."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Akkumulátor-ütemezés hozzáadása",
+      "description": "Akkumulátor-ütemezés létrehozása CFG, DTG vagy RBD típushoz.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Ütemezés típusa",
+          "description": "Az akkumulátor-ütemezés családja: cfg, dtg vagy rbd."
+        },
+        "start_time": {
+          "name": "Kezdési idő",
+          "description": "Az ütemezés kezdési ideje."
+        },
+        "end_time": {
+          "name": "Befejezési idő",
+          "description": "Az ütemezés befejezési ideje."
+        },
+        "limit": {
+          "name": "Töltési korlát",
+          "description": "Az akkumulátor maximális töltöttségi szintje (%)."
+        },
+        "days": {
+          "name": "Napok",
+          "description": "Az aktív hétköznapok listája, ahol hétfő=1 és vasárnap=7."
+        },
+        "site_id": {
+          "name": "Helyszínazonosító",
+          "description": "Nem kötelező helyszínazonosító; a rendszer automatikusan felismeri, ha helyszíneszköz van kiválasztva."
+        },
+        "config_entry_id": {
+          "name": "Konfigurációs bejegyzés azonosítója",
+          "description": "Nem kötelező konfigurációsbejegyzés-azonosító egyetlen Enphase-helyszínbejegyzéshez."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Akkumulátor-ütemezés frissítése",
+      "description": "Akkumulátor-ütemezés frissítése ütemezésazonosító alapján.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Ütemezésazonosító",
+          "description": "Meglévő Enphase akkumulátor-ütemezés azonosítója."
+        },
+        "schedule_type": {
+          "name": "Ütemezés típusa",
+          "description": "Az akkumulátor-ütemezés családja: cfg, dtg vagy rbd."
+        },
+        "start_time": {
+          "name": "Kezdési idő",
+          "description": "Az ütemezés kezdési ideje."
+        },
+        "end_time": {
+          "name": "Befejezési idő",
+          "description": "Az ütemezés befejezési ideje."
+        },
+        "limit": {
+          "name": "Töltési korlát",
+          "description": "Az akkumulátor maximális töltöttségi szintje (%)."
+        },
+        "days": {
+          "name": "Napok",
+          "description": "Az aktív hétköznapok listája, ahol hétfő=1 és vasárnap=7."
+        },
+        "confirm": {
+          "name": "Megerősítés",
+          "description": "Állítsa true értékre az ütemezés frissítésének megerősítéséhez."
+        },
+        "site_id": {
+          "name": "Helyszínazonosító",
+          "description": "Nem kötelező helyszínazonosító; a rendszer automatikusan felismeri, ha helyszíneszköz van kiválasztva."
+        },
+        "config_entry_id": {
+          "name": "Konfigurációs bejegyzés azonosítója",
+          "description": "Nem kötelező konfigurációsbejegyzés-azonosító egyetlen Enphase-helyszínbejegyzéshez."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Akkumulátor-ütemezés törlése",
+      "description": "Egy vagy több akkumulátor-ütemezés törlése ütemezésazonosító alapján.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Ütemezésazonosító",
+          "description": "Törlendő egyetlen Enphase akkumulátor-ütemezés azonosítója."
+        },
+        "schedule_ids": {
+          "name": "Ütemezésazonosítók",
+          "description": "Nem kötelező, vesszővel elválasztott vagy listás bemenet több ütemezésazonosítóhoz."
+        },
+        "confirm": {
+          "name": "Megerősítés",
+          "description": "Állítsa true értékre az ütemezés törlésének megerősítéséhez."
+        },
+        "site_id": {
+          "name": "Helyszínazonosító",
+          "description": "Nem kötelező helyszínazonosító; a rendszer automatikusan felismeri, ha helyszíneszköz van kiválasztva."
+        },
+        "config_entry_id": {
+          "name": "Konfigurációs bejegyzés azonosítója",
+          "description": "Nem kötelező konfigurációsbejegyzés-azonosító egyetlen Enphase-helyszínbejegyzéshez."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Akkumulátor-ütemezés ellenőrzése",
+      "description": "Ellenőrizze, hogy a kiválasztott ütemezéscsaládhoz elérhető-e az akkumulátor-ütemezés szerkesztése.",
+      "sections": {
+        "advanced": {
+          "name": "Speciális beállítások"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Ütemezés típusa",
+          "description": "Az akkumulátor-ütemezés családja: cfg, dtg vagy rbd."
+        },
+        "site_id": {
+          "name": "Helyszínazonosító",
+          "description": "Nem kötelező helyszínazonosító; a rendszer automatikusan felismeri, ha helyszíneszköz van kiválasztva."
+        },
+        "config_entry_id": {
+          "name": "Konfigurációs bejegyzés azonosítója",
+          "description": "Nem kötelező konfigurációsbejegyzés-azonosító egyetlen Enphase-helyszínbejegyzéshez."
         }
       }
     }

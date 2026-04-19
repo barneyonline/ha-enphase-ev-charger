@@ -131,6 +131,267 @@
     },
     "battery_schedule_overlap": {
       "message": "Aikataulu on päällekkäinen olemassa olevan {schedule_label} kanssa. Muokkaa tai poista kyseinen aikataulu ensin käytöstä."
+    },
+    "ac_battery_unavailable": {
+      "message": "AC Battery -laitteita ei ole tällä hetkellä saatavilla."
+    },
+    "auth_settings_service_unavailable": {
+      "message": "Todennusasetukset eivät ole käytettävissä, kun Enphase-palvelu on poissa käytöstä."
+    },
+    "battery_profile_update_not_permitted": {
+      "message": "Akun profiilin päivitykset eivät ole sallittuja tälle tilille."
+    },
+    "battery_settings_update_not_permitted": {
+      "message": "Akun asetusten päivitykset eivät ole sallittuja tälle tilille."
+    },
+    "battery_profile_update_in_progress": {
+      "message": "Toinen akun profiilin päivitys on jo käynnissä."
+    },
+    "battery_settings_update_in_progress": {
+      "message": "Toinen akun asetusten päivitys on jo käynnissä."
+    },
+    "battery_profile_updates_unavailable": {
+      "message": "Akun profiilin päivitykset eivät ole käytettävissä."
+    },
+    "battery_settings_updates_unavailable": {
+      "message": "Akun asetusten päivitykset eivät ole käytettävissä."
+    },
+    "battery_updates_unavailable": {
+      "message": "Akun päivitykset eivät ole käytettävissä."
+    },
+    "battery_updates_not_permitted": {
+      "message": "Akun päivitykset eivät ole sallittuja tälle tilille."
+    },
+    "battery_profile_update_debounced": {
+      "message": "Akun profiilin päivitystä pyydettiin liian nopeasti. Odota ja yritä uudelleen."
+    },
+    "battery_settings_update_debounced": {
+      "message": "Akun asetusten päivitystä pyydettiin liian nopeasti. Odota ja yritä uudelleen."
+    },
+    "battery_write_access_unconfirmed": {
+      "message": "Akun kirjoitusoikeutta ei voitu vahvistaa. Päivitä ja yritä uudelleen."
+    },
+    "schedule_update_forbidden": {
+      "message": "Enphase hylkäsi aikataulun päivityksen (HTTP 403 Forbidden)."
+    },
+    "schedule_update_unauthorized": {
+      "message": "Aikataulun päivitystä ei voitu todentaa. Todennu uudelleen ja yritä uudestaan."
+    },
+    "schedule_conflict_dtg": {
+      "message": "Aikataulu on ristiriidassa olemassa olevan discharge-to-grid-aikataulun kanssa. Muokkaa tai poista kyseinen aikataulu ensin käytöstä."
+    },
+    "schedule_conflict_rbd": {
+      "message": "Aikataulu on ristiriidassa olemassa olevan restrict-battery-discharge-aikataulun kanssa. Muokkaa tai poista kyseinen aikataulu ensin käytöstä."
+    },
+    "schedule_conflict_cfg": {
+      "message": "Aikataulu on ristiriidassa olemassa olevan charge-from-grid-aikataulun kanssa. Muokkaa tai poista kyseinen aikataulu ensin käytöstä."
+    },
+    "schedule_update_conflict": {
+      "message": "Aikataulun päivitys on ristiriidassa olemassa olevan akun aikataulun kanssa."
+    },
+    "battery_profile_unavailable": {
+      "message": "Akun profiili ei ole käytettävissä."
+    },
+    "battery_profile_update_forbidden": {
+      "message": "Enphase hylkäsi akun profiilin päivityksen (HTTP 403 Forbidden)."
+    },
+    "battery_profile_update_unauthorized": {
+      "message": "Akun profiilin päivitystä ei voitu todentaa. Todennu uudelleen ja yritä uudestaan."
+    },
+    "battery_settings_payload_unavailable": {
+      "message": "Akun asetusten hyötykuorma ei ole käytettävissä."
+    },
+    "battery_settings_update_forbidden": {
+      "message": "Enphase hylkäsi akun asetusten päivityksen (HTTP 403 Forbidden)."
+    },
+    "battery_settings_update_unauthorized": {
+      "message": "Akun asetusten päivitystä ei voitu todentaa. Todennu uudelleen ja yritä uudestaan."
+    },
+    "full_backup_reserve_fixed": {
+      "message": "Full Backup -varaus on kiinteästi 100 %."
+    },
+    "battery_reserve_unavailable": {
+      "message": "Akun varausreservi ei ole käytettävissä."
+    },
+    "savings_profile_required": {
+      "message": "Savings-profiilin on oltava aktiivinen."
+    },
+    "savings_profile_settings_unavailable": {
+      "message": "Savings-profiilin asetukset eivät ole käytettävissä."
+    },
+    "battery_profile_unsupported": {
+      "message": "Valittua akun profiilia ei tueta."
+    },
+    "charge_from_grid_unavailable": {
+      "message": "Verkosta lataamisen asetus ei ole käytettävissä."
+    },
+    "charge_from_grid_toggle_not_applied": {
+      "message": "Enphase ei ottanut verkosta lataamisen kytkintä käyttöön."
+    },
+    "charge_from_grid_schedule_unavailable": {
+      "message": "Verkosta lataamisen aikataulu ei ole käytettävissä."
+    },
+    "charge_from_grid_schedule_times_different": {
+      "message": "Charge-from-grid-aikataulun alku- ja loppuaikojen on oltava eri."
+    },
+    "charge_from_grid_schedule_toggle_not_applied": {
+      "message": "Enphase ei ottanut charge-from-grid-aikataulun kytkintä käyttöön."
+    },
+    "charge_from_grid_required": {
+      "message": "Verkosta lataaminen on otettava ensin käyttöön."
+    },
+    "schedule_change_pending": {
+      "message": "Aikataulumuutos odottaa Envoy-synkronointia. Odota."
+    },
+    "charge_from_grid_schedule_time_invalid": {
+      "message": "Charge-from-grid-aikataulun aika on virheellinen."
+    },
+    "schedule_api_unavailable": {
+      "message": "Aikataulu-API ei ole käytettävissä tässä asiakasversiossa."
+    },
+    "charge_from_grid_schedule_missing": {
+      "message": "Yhtään olemassa olevaa charge-from-grid-aikataulua ei ole käytettävissä."
+    },
+    "schedule_toggle_create_before_enable": {
+      "message": "Luo {schedule_label} IQ Battery -ajastimeen ennen sen käyttöönottoa."
+    },
+    "schedule_not_exposed": {
+      "message": "Enphase ei tällä hetkellä tuo {schedule_label} esiin tälle sivustolle. Odota, että aikataulun synkronointi valmistuu, päivitä ja yritä uudelleen."
+    },
+    "schedule_toggle_not_applied": {
+      "message": "Enphase ei ottanut käyttöön {schedule_label}-kytkintä."
+    },
+    "schedule_primary_write_rejected": {
+      "message": "ensisijainen kirjoitus hylättiin"
+    },
+    "schedule_family_times_different": {
+      "message": "{schedule_label}-aikataulun alku- ja loppuaikojen on oltava eri."
+    },
+    "discharge_to_grid_schedule_time_invalid": {
+      "message": "Discharge-to-grid-aikataulun aika on virheellinen."
+    },
+    "schedule_missing": {
+      "message": "Yhtään olemassa olevaa {schedule_label_lower}-aikataulua ei ole käytettävissä."
+    },
+    "schedule_unavailable": {
+      "message": "{schedule_label}-aikataulu ei ole käytettävissä."
+    },
+    "schedule_time_invalid": {
+      "message": "{schedule_label}-aikataulun aika on virheellinen."
+    },
+    "current_schedule_time_invalid": {
+      "message": "Nykyinen {schedule_label_lower}-aikataulun aika on virheellinen."
+    },
+    "schedule_limit_range": {
+      "message": "{schedule_label}-aikataulun rajan on oltava välillä {minimum} ja {maximum}."
+    },
+    "schedule_limit_minimum": {
+      "message": "{schedule_label}-aikataulun rajan on oltava vähintään {minimum}%."
+    },
+    "current_schedule_times_unavailable": {
+      "message": "Nykyiset aikatauluajat eivät ole käytettävissä."
+    },
+    "charge_from_grid_schedule_limit_range": {
+      "message": "Charge-from-grid-aikataulun rajan on oltava välillä {minimum} ja {maximum}."
+    },
+    "charge_from_grid_schedule_limit_minimum": {
+      "message": "Charge-from-grid-aikataulun rajan on oltava vähintään {minimum}%."
+    },
+    "battery_shutdown_level_unavailable": {
+      "message": "Akun sammutustaso ei ole käytettävissä."
+    },
+    "battery_shutdown_level_invalid": {
+      "message": "Akun sammutustaso on virheellinen."
+    },
+    "battery_shutdown_level_range": {
+      "message": "Akun sammutustason on oltava välillä {minimum} ja {maximum}."
+    },
+    "storm_alert_opt_out_unavailable": {
+      "message": "Storm Alert -poistuminen ei ole käytettävissä."
+    },
+    "storm_alert_opt_out_failed": {
+      "message": "Storm Alert -poistuminen epäonnistui {count} hälytyksen osalta."
+    },
+    "storm_guard_update_not_permitted": {
+      "message": "Storm Guard -päivitykset eivät ole sallittuja tälle tilille."
+    },
+    "storm_guard_settings_unavailable": {
+      "message": "Storm Guard -asetukset eivät ole käytettävissä."
+    },
+    "storm_guard_update_forbidden": {
+      "message": "Enphase hylkäsi Storm Guard -päivityksen (HTTP 403 Forbidden)."
+    },
+    "storm_guard_update_unauthorized": {
+      "message": "Storm Guard -päivitystä ei voitu todentaa. Todennu uudelleen ja yritä uudestaan."
+    },
+    "selected_system_profile_unavailable": {
+      "message": "Valittu järjestelmäprofiili ei ole käytettävissä."
+    },
+    "system_profile_update_forbidden": {
+      "message": "Enphase hylkäsi järjestelmäprofiilin päivityksen (HTTP 403 Forbidden)."
+    },
+    "system_profile_update_unauthorized": {
+      "message": "Järjestelmäprofiilin päivitystä ei voitu todentaa. Todennu uudelleen ja yritä uudestaan."
+    },
+    "system_profile_update_failed": {
+      "message": "Järjestelmäprofiilin päivitys epäonnistui."
+    },
+    "system_profile_update_network": {
+      "message": "Järjestelmäprofiilin päivitys epäonnistui verkkovirheen vuoksi. Yritä uudelleen."
+    },
+    "system_profile_update_timeout": {
+      "message": "Järjestelmäprofiilin päivitys aikakatkaistiin. Yritä uudelleen."
+    },
+    "scheduler_service_unavailable": {
+      "message": "Lataustilan valinta ei ole käytettävissä, kun Enphase-ajastuspalvelu ei ole käytettävissä."
+    },
+    "selected_ac_battery_target_state_of_charge_unavailable": {
+      "message": "Valittu AC-akun tavoitevaraustaso ei ole käytettävissä."
+    },
+    "battery_schedule_day_required": {
+      "message": "Valitse aikataululle vähintään yksi päivä."
+    },
+    "battery_schedule_times_different": {
+      "message": "Aikataulun alkamis- ja päättymisaikojen on oltava eri."
+    },
+    "battery_schedule_limit_range": {
+      "message": "Aikataulun {schedule_type} rajan on oltava välillä {minimum} ja {maximum}."
+    },
+    "battery_schedule_validation_rejected": {
+      "message": "Enphase-validointipäätepiste hylkäsi aikataulun."
+    },
+    "battery_schedule_editing_unavailable": {
+      "message": "Akun aikataulujen muokkaus ei ole käytettävissä."
+    },
+    "battery_schedule_api_unavailable": {
+      "message": "Akun aikataulujen API ei ole käytettävissä."
+    },
+    "battery_schedule_update_confirm_required": {
+      "message": "Aikataulun päivittämiseen vaaditaan vahvistus."
+    },
+    "battery_schedule_delete_confirm_required": {
+      "message": "Aikataulun poistamiseen vaaditaan vahvistus."
+    },
+    "battery_schedule_id_invalid": {
+      "message": "Virheellinen aikataulutunnus: {schedule_id}"
+    },
+    "battery_schedule_id_not_found": {
+      "message": "Aikataulutunnusta ei löytynyt nykyisistä tiedoista: {schedule_id}"
+    },
+    "battery_schedule_ids_required": {
+      "message": "Anna vähintään yksi poistettava aikataulutunnus."
+    },
+    "battery_schedule_ids_invalid": {
+      "message": "Virheelliset aikataulutunnukset: {schedule_ids}"
+    },
+    "battery_schedule_ids_not_found": {
+      "message": "Aikataulutunnuksia ei löytynyt nykyisistä tiedoista: {schedule_ids}"
+    },
+    "battery_schedule_validation_rejected_detail": {
+      "message": "Enphase-validointipäätepiste hylkäsi aikataulun: {message}"
+    },
+    "schedule_update_conflict_detail": {
+      "message": "Aikataulun päivitys on ristiriidassa olemassa olevan akun aikataulun kanssa: {message}"
     }
   },
   "options": {
@@ -161,7 +422,8 @@
           "reauth": "Aloita uudelleentodennus",
           "forget_password": "Unohda tallennettu salasana",
           "type_heatpump": "Lämpöpumppu",
-          "type_ac_battery": "AC-akku"
+          "type_ac_battery": "AC-akku",
+          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -178,7 +440,8 @@
           "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
           "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
-          "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla."
+          "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla.",
+          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja"
         }
       },
       "settings": {
@@ -199,7 +462,8 @@
           "reauth": "Aloita uudelleentodennus",
           "forget_password": "Unohda tallennettu salasana",
           "type_heatpump": "Lämpöpumppu",
-          "type_ac_battery": "AC-akku"
+          "type_ac_battery": "AC-akku",
+          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -216,7 +480,8 @@
           "reauth": "Käynnistä kirjautumiskulku päivittääksesi valtuustiedot poistamatta integraatiota.",
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
           "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
-          "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla."
+          "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla.",
+          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja"
         }
       },
       "migrate_envoy_source": {
@@ -243,6 +508,14 @@
           "grid_export": "Verkko-vienti",
           "battery_charge": "Akun lataus",
           "battery_discharge": "Akun purku"
+        },
+        "data_description": {
+          "solar_production": "Assign a cumulative production total to the Enphase Energy Site Solar Production sensor. Do not choose daily energy or live power.",
+          "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
+          "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
+          "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
+          "battery_charge": "Määritä kumulatiivinen akun latauksen kokonaismäärä Enphase Energy Site Battery Charge -anturille. Älä valitse päivittäistä energiaa tai reaaliaikaista tehoa.",
+          "battery_discharge": "Määritä kumulatiivinen akun purkauksen kokonaismäärä Enphase Energy Site Battery Discharge -anturille. Älä valitse päivittäistä energiaa tai reaaliaikaista tehoa."
         }
       },
       "migrate_envoy_confirm": {
@@ -1008,6 +1281,18 @@
       },
       "ac_battery_storage_last_reported": {
         "name": "{serial} viimeksi raportoitu"
+      },
+      "battery_cfg_schedules": {
+        "name": "Akun CFG-aikataulut"
+      },
+      "battery_dtg_schedules": {
+        "name": "Akun DTG-aikataulut"
+      },
+      "battery_rbd_schedules": {
+        "name": "Akun RBD-aikataulut"
+      },
+      "battery_schedule_summary": {
+        "name": "Akun aikataulujen yhteenveto"
       }
     },
     "number": {
@@ -1028,6 +1313,12 @@
       },
       "battery_rbd_schedule_limit": {
         "name": "Akun purkauksen rajoitusraja"
+      },
+      "battery_new_schedule_limit": {
+        "name": "Uuden akun aikataulun raja"
+      },
+      "battery_schedule_edit_limit": {
+        "name": "Akun aikataulun raja"
       }
     },
     "binary_sensor": {
@@ -1109,6 +1400,48 @@
       },
       "evse_schedule_edit_sun": {
         "name": "Sunnuntain aikataulu"
+      },
+      "battery_new_schedule_mon": {
+        "name": "Uusi akun aikataulu maanantai"
+      },
+      "battery_new_schedule_tue": {
+        "name": "Uusi akun aikataulu tiistai"
+      },
+      "battery_new_schedule_wed": {
+        "name": "Uusi akun aikataulu keskiviikko"
+      },
+      "battery_new_schedule_thu": {
+        "name": "Uusi akun aikataulu torstai"
+      },
+      "battery_new_schedule_fri": {
+        "name": "Uusi akun aikataulu perjantai"
+      },
+      "battery_new_schedule_sat": {
+        "name": "Uusi akun aikataulu lauantai"
+      },
+      "battery_new_schedule_sun": {
+        "name": "Uusi akun aikataulu sunnuntai"
+      },
+      "battery_schedule_edit_mon": {
+        "name": "Akun aikataulu maanantai"
+      },
+      "battery_schedule_edit_tue": {
+        "name": "Akun aikataulu tiistai"
+      },
+      "battery_schedule_edit_wed": {
+        "name": "Akun aikataulu keskiviikko"
+      },
+      "battery_schedule_edit_thu": {
+        "name": "Akun aikataulu torstai"
+      },
+      "battery_schedule_edit_fri": {
+        "name": "Akun aikataulu perjantai"
+      },
+      "battery_schedule_edit_sat": {
+        "name": "Akun aikataulu lauantai"
+      },
+      "battery_schedule_edit_sun": {
+        "name": "Akun aikataulu sunnuntai"
       }
     },
     "select": {
@@ -1123,6 +1456,12 @@
       },
       "evse_schedule_selected": {
         "name": "Aikataulu"
+      },
+      "battery_new_schedule_type": {
+        "name": "Akun aikataulun tyyppi"
+      },
+      "battery_schedule_selected": {
+        "name": "Akun aikataulu"
       }
     },
     "button": {
@@ -1152,6 +1491,18 @@
       },
       "evse_schedule_add": {
         "name": "Luo uusi aikataulu"
+      },
+      "battery_schedule_add": {
+        "name": "Lisää akun aikataulu"
+      },
+      "battery_schedule_delete": {
+        "name": "Poista akun aikataulu"
+      },
+      "battery_schedule_refresh": {
+        "name": "Päivitä akun aikataulu"
+      },
+      "battery_schedule_save": {
+        "name": "Tallenna akun aikataulu"
       }
     },
     "time": {
@@ -1178,6 +1529,18 @@
       },
       "evse_schedule_edit_end_time": {
         "name": "Aikataulun päättymisaika"
+      },
+      "battery_new_schedule_start_time": {
+        "name": "Uuden akun aikataulun aloitusaika"
+      },
+      "battery_new_schedule_end_time": {
+        "name": "Uuden akun aikataulun päättymisaika"
+      },
+      "battery_schedule_edit_start_time": {
+        "name": "Akun aikataulun aloitusaika"
+      },
+      "battery_schedule_edit_end_time": {
+        "name": "Akun aikataulun päättymisaika"
       }
     },
     "calendar": {
@@ -1455,6 +1818,165 @@
         "site_id": {
           "name": "Sivuston tunnus",
           "description": "Enphase-sivuston tunnus (valinnainen; päätellään kohdelaitteesta)."
+        }
+      }
+    },
+    "force_refresh": {
+      "name": "Pakota päivitys",
+      "description": "Päivitä akun aikataulutiedot heti Enphase-pilvestä.",
+      "sections": {
+        "advanced": {
+          "name": "Lisäasetukset"
+        }
+      },
+      "fields": {
+        "site_id": {
+          "name": "Kohteen tunnus",
+          "description": "Valinnainen kohteen tunniste; havaitaan automaattisesti, kun kohteen laite on valittu."
+        },
+        "config_entry_id": {
+          "name": "Asetusmerkinnän tunnus",
+          "description": "Valinnainen asetuskirjauksen tunniste yhdelle Enphase-kohdemerkinnälle."
+        }
+      }
+    },
+    "add_schedule": {
+      "name": "Lisää akun aikataulu",
+      "description": "Luo akun aikataulu CFG:lle, DTG:lle tai RBD:lle.",
+      "sections": {
+        "advanced": {
+          "name": "Lisäasetukset"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Aikataulun tyyppi",
+          "description": "Akun aikatauluperhe: cfg, dtg tai rbd."
+        },
+        "start_time": {
+          "name": "Alkamisaika",
+          "description": "Aikataulun alkamisaika."
+        },
+        "end_time": {
+          "name": "Päättymisaika",
+          "description": "Aikataulun päättymisaika."
+        },
+        "limit": {
+          "name": "Latausraja",
+          "description": "Akun enimmäisvaraustaso (%)."
+        },
+        "days": {
+          "name": "Päivät",
+          "description": "Aktiivisten viikonpäivien luettelo käyttäen merkintää maanantai=1 ... sunnuntai=7."
+        },
+        "site_id": {
+          "name": "Kohteen tunnus",
+          "description": "Valinnainen kohteen tunniste; havaitaan automaattisesti, kun kohteen laite on valittu."
+        },
+        "config_entry_id": {
+          "name": "Asetusmerkinnän tunnus",
+          "description": "Valinnainen asetuskirjauksen tunniste yhdelle Enphase-kohdemerkinnälle."
+        }
+      }
+    },
+    "update_schedule": {
+      "name": "Päivitä akun aikataulu",
+      "description": "Päivitä akun aikataulu aikataulutunnuksen perusteella.",
+      "sections": {
+        "advanced": {
+          "name": "Lisäasetukset"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Aikataulun tunnus",
+          "description": "Olemassa olevan Enphase-akun aikataulun tunniste."
+        },
+        "schedule_type": {
+          "name": "Aikataulun tyyppi",
+          "description": "Akun aikatauluperhe: cfg, dtg tai rbd."
+        },
+        "start_time": {
+          "name": "Alkamisaika",
+          "description": "Aikataulun alkamisaika."
+        },
+        "end_time": {
+          "name": "Päättymisaika",
+          "description": "Aikataulun päättymisaika."
+        },
+        "limit": {
+          "name": "Latausraja",
+          "description": "Akun enimmäisvaraustaso (%)."
+        },
+        "days": {
+          "name": "Päivät",
+          "description": "Aktiivisten viikonpäivien luettelo käyttäen merkintää maanantai=1 ... sunnuntai=7."
+        },
+        "confirm": {
+          "name": "Vahvista",
+          "description": "Aseta arvoksi true vahvistaaksesi aikataulun päivityksen."
+        },
+        "site_id": {
+          "name": "Kohteen tunnus",
+          "description": "Valinnainen kohteen tunniste; havaitaan automaattisesti, kun kohteen laite on valittu."
+        },
+        "config_entry_id": {
+          "name": "Asetusmerkinnän tunnus",
+          "description": "Valinnainen asetuskirjauksen tunniste yhdelle Enphase-kohdemerkinnälle."
+        }
+      }
+    },
+    "delete_schedule": {
+      "name": "Poista akun aikataulu",
+      "description": "Poista yksi tai useampi akun aikataulu aikataulutunnuksen perusteella.",
+      "sections": {
+        "advanced": {
+          "name": "Lisäasetukset"
+        }
+      },
+      "fields": {
+        "schedule_id": {
+          "name": "Aikataulun tunnus",
+          "description": "Poistettavan yksittäisen Enphase-akun aikataulun tunniste."
+        },
+        "schedule_ids": {
+          "name": "Aikataulujen tunnukset",
+          "description": "Valinnainen pilkuilla eroteltu tai luettelomuotoinen syöte useille aikataulutunnuksille."
+        },
+        "confirm": {
+          "name": "Vahvista",
+          "description": "Aseta arvoksi true vahvistaaksesi aikataulun poiston."
+        },
+        "site_id": {
+          "name": "Kohteen tunnus",
+          "description": "Valinnainen kohteen tunniste; havaitaan automaattisesti, kun kohteen laite on valittu."
+        },
+        "config_entry_id": {
+          "name": "Asetusmerkinnän tunnus",
+          "description": "Valinnainen asetuskirjauksen tunniste yhdelle Enphase-kohdemerkinnälle."
+        }
+      }
+    },
+    "validate_schedule": {
+      "name": "Validoi akun aikataulu",
+      "description": "Tarkista, onko akun aikataulujen muokkaus käytettävissä valitulle aikatauluperheelle.",
+      "sections": {
+        "advanced": {
+          "name": "Lisäasetukset"
+        }
+      },
+      "fields": {
+        "schedule_type": {
+          "name": "Aikataulun tyyppi",
+          "description": "Akun aikatauluperhe: cfg, dtg tai rbd."
+        },
+        "site_id": {
+          "name": "Kohteen tunnus",
+          "description": "Valinnainen kohteen tunniste; havaitaan automaattisesti, kun kohteen laite on valittu."
+        },
+        "config_entry_id": {
+          "name": "Asetusmerkinnän tunnus",
+          "description": "Valinnainen asetuskirjauksen tunniste yhdelle Enphase-kohdemerkinnälle."
         }
       }
     }
