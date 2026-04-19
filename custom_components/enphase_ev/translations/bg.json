@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase отхвърли промяната на графика."
+    },
+    "battery_schedule_overlap": {
+      "message": "Графикът се припокрива със съществуващия {schedule_label}. Коригирайте го или го деактивирайте първо."
     }
   },
   "options": {

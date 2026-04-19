@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Το Enphase απέρριψε την αλλαγή του προγράμματος."
+    },
+    "battery_schedule_overlap": {
+      "message": "Το πρόγραμμα επικαλύπτεται με το υπάρχον {schedule_label}. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το πρόγραμμα."
     }
   },
   "options": {

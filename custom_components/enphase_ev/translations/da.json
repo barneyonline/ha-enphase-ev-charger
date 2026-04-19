@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase afviste ændringen af tidsplanen."
+    },
+    "battery_schedule_overlap": {
+      "message": "Tidsplanen overlapper den eksisterende {schedule_label}. Juster eller deaktiver først den pågældende tidsplan."
     }
   },
   "options": {

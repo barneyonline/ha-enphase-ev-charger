@@ -17,6 +17,7 @@ from homeassistant.util import dt as dt_util
 from .ac_battery_runtime import AcBatteryRuntime
 from .battery_schedule_editor import (
     battery_schedule_overlap_message,
+    battery_schedule_overlap_placeholders,
     battery_schedule_overlap_record,
 )
 from .const import (
@@ -1358,7 +1359,18 @@ class BatteryRuntime:
             exclude_schedule_id=exclude_schedule_id,
         )
         if overlapping is not None:
-            raise ServiceValidationError(battery_schedule_overlap_message(overlapping))
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.battery_schedule_overlap",
+                translation_placeholders=battery_schedule_overlap_placeholders(
+                    overlapping,
+                    hass=getattr(self.coordinator, "hass", None),
+                ),
+                message=battery_schedule_overlap_message(
+                    overlapping,
+                    hass=getattr(self.coordinator, "hass", None),
+                ),
+            )
 
     @staticmethod
     def _is_already_processed_profile_cancel_error(
