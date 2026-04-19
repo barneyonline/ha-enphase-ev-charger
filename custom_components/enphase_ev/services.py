@@ -65,6 +65,19 @@ def async_setup_services(
     )
     SCHEDULE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 
+    def _raise_service_validation(
+        key: str,
+        *,
+        placeholders: dict[str, object] | None = None,
+        message: str | None = None,
+    ) -> None:
+        raise_translated_service_validation(
+            translation_domain=DOMAIN,
+            translation_key=f"exceptions.{key}",
+            translation_placeholders=placeholders,
+            message=message,
+        )
+
     async def _resolve_sn(device_id: str) -> str | None:
         dev_reg = dr.async_get(hass)
         dev = dev_reg.async_get(device_id)
@@ -234,16 +247,29 @@ def async_setup_services(
         limit: int,
     ) -> tuple[str, str]:
         if not days:
-            raise ServiceValidationError("Select at least one day for the schedule.")
+            _raise_service_validation(
+                "battery_schedule_day_required",
+                message="Select at least one day for the schedule.",
+            )
         start_str = start_time.strftime("%H:%M")
         end_str = end_time.strftime("%H:%M")
         if start_str == end_str:
-            raise ServiceValidationError(
-                "Schedule start and end times must be different."
+            _raise_service_validation(
+                "battery_schedule_times_different",
+                message="Schedule start and end times must be different.",
             )
         if not 5 <= int(limit) <= 100:
-            raise ServiceValidationError(
-                f"{str(schedule_type).upper()} schedule limit must be between 5 and 100."
+            schedule_type_label = str(schedule_type).upper()
+            _raise_service_validation(
+                "battery_schedule_limit_range",
+                placeholders={
+                    "schedule_type": schedule_type_label,
+                    "minimum": "5",
+                    "maximum": "100",
+                },
+                message=(
+                    f"{schedule_type_label} schedule limit must be between 5 and 100."
+                ),
             )
         return start_str, end_str
 
@@ -271,13 +297,20 @@ def async_setup_services(
         if valid is None and "isValid" in result:
             valid = coerce_optional_bool(result.get("isValid"))
         if valid is False:
-            raise ServiceValidationError(
-                str(
-                    result.get(
-                        "message",
-                        "Schedule rejected by the Enphase validation endpoint.",
-                    )
+            raw_message = result.get("message")
+            if isinstance(raw_message, str) and raw_message.strip():
+                detail = raw_message.strip()
+                _raise_service_validation(
+                    "battery_schedule_validation_rejected_detail",
+                    placeholders={"message": detail},
+                    message=(
+                        "Schedule rejected by the Enphase validation endpoint: "
+                        f"{detail}"
+                    ),
                 )
+            _raise_service_validation(
+                "battery_schedule_validation_rejected",
+                message="Schedule rejected by the Enphase validation endpoint.",
             )
         if valid is not None and "valid" not in result:
             return {**result, "valid": bool(valid)}
@@ -517,7 +550,10 @@ def async_setup_services(
     async def _svc_add_schedule(call: ServiceCall) -> None:
         coord = await _resolve_single_site_coordinator(call)
         if not coord.battery_write_access_confirmed:
-            raise ServiceValidationError("Battery schedule editing is unavailable.")
+            _raise_service_validation(
+                "battery_schedule_editing_unavailable",
+                message="Battery schedule editing is unavailable.",
+            )
         schedule_type = str(call.data["schedule_type"]).lower()
         days = sorted({int(day) for day in call.data["days"]})
         limit = int(call.data["limit"])
@@ -537,7 +573,10 @@ def async_setup_services(
         await _validate_schedule_with_api(coord, schedule_type)
         creator = getattr(coord.client, "create_battery_schedule", None)
         if not callable(creator):
-            raise ServiceValidationError("Battery schedule API is unavailable.")
+            _raise_service_validation(
+                "battery_schedule_api_unavailable",
+                message="Battery schedule API is unavailable.",
+            )
         try:
             await creator(
                 schedule_type=str(schedule_type).upper(),
@@ -560,17 +599,29 @@ def async_setup_services(
     async def _svc_update_schedule(call: ServiceCall) -> None:
         coord = await _resolve_single_site_coordinator(call)
         if not coord.battery_write_access_confirmed:
-            raise ServiceValidationError("Battery schedule editing is unavailable.")
+            _raise_service_validation(
+                "battery_schedule_editing_unavailable",
+                message="Battery schedule editing is unavailable.",
+            )
         if not call.data.get("confirm"):
-            raise ServiceValidationError("Confirmation required to update a schedule.")
+            _raise_service_validation(
+                "battery_schedule_update_confirm_required",
+                message="Confirmation required to update a schedule.",
+            )
         schedule_id = str(call.data["schedule_id"]).strip()
         if not SCHEDULE_ID_PATTERN.match(schedule_id):
-            raise ServiceValidationError(f"Invalid schedule ID: {schedule_id}")
+            _raise_service_validation(
+                "battery_schedule_id_invalid",
+                placeholders={"schedule_id": schedule_id},
+                message=f"Invalid schedule ID: {schedule_id}",
+            )
         schedule_inventory = _schedule_inventory_by_id(coord)
         known_ids = set(schedule_inventory)
         if known_ids and schedule_id not in known_ids:
-            raise ServiceValidationError(
-                f"Schedule ID not found in current data: {schedule_id}"
+            _raise_service_validation(
+                "battery_schedule_id_not_found",
+                placeholders={"schedule_id": schedule_id},
+                message=f"Schedule ID not found in current data: {schedule_id}",
             )
         existing_schedule = schedule_inventory.get(schedule_id)
         schedule_type = (
@@ -597,7 +648,10 @@ def async_setup_services(
         await _validate_schedule_with_api(coord, schedule_type)
         updater = getattr(coord.client, "update_battery_schedule", None)
         if not callable(updater):
-            raise ServiceValidationError("Battery schedule API is unavailable.")
+            _raise_service_validation(
+                "battery_schedule_api_unavailable",
+                message="Battery schedule API is unavailable.",
+            )
         try:
             await updater(
                 schedule_id,
@@ -624,24 +678,36 @@ def async_setup_services(
     async def _svc_delete_schedule(call: ServiceCall) -> None:
         coord = await _resolve_single_site_coordinator(call)
         if not coord.battery_write_access_confirmed:
-            raise ServiceValidationError("Battery schedule editing is unavailable.")
+            _raise_service_validation(
+                "battery_schedule_editing_unavailable",
+                message="Battery schedule editing is unavailable.",
+            )
         if not call.data.get("confirm"):
-            raise ServiceValidationError("Confirmation required to delete a schedule.")
+            _raise_service_validation(
+                "battery_schedule_delete_confirm_required",
+                message="Confirmation required to delete a schedule.",
+            )
         raw_schedule_ids = call.data.get("schedule_ids")
         if raw_schedule_ids:
             schedule_ids = _normalize_schedule_ids(raw_schedule_ids)
         else:
             schedule_ids = _normalize_schedule_ids(call.data.get("schedule_id"))
         if not schedule_ids:
-            raise ServiceValidationError("Provide at least one schedule ID to delete.")
+            _raise_service_validation(
+                "battery_schedule_ids_required",
+                message="Provide at least one schedule ID to delete.",
+            )
         invalid_ids = [
             schedule_id
             for schedule_id in schedule_ids
             if not SCHEDULE_ID_PATTERN.match(schedule_id)
         ]
         if invalid_ids:
-            raise ServiceValidationError(
-                f"Invalid schedule ID(s): {', '.join(invalid_ids)}"
+            ids = ", ".join(invalid_ids)
+            _raise_service_validation(
+                "battery_schedule_ids_invalid",
+                placeholders={"schedule_ids": ids},
+                message=f"Invalid schedule ID(s): {ids}",
             )
         known_ids = _known_schedule_ids(coord)
         if known_ids:
@@ -651,12 +717,18 @@ def async_setup_services(
                 if schedule_id not in known_ids
             ]
             if missing:
-                raise ServiceValidationError(
-                    f"Schedule ID(s) not found in current data: {', '.join(missing)}"
+                ids = ", ".join(missing)
+                _raise_service_validation(
+                    "battery_schedule_ids_not_found",
+                    placeholders={"schedule_ids": ids},
+                    message=f"Schedule ID(s) not found in current data: {ids}",
                 )
         deleter = getattr(coord.client, "delete_battery_schedule", None)
         if not callable(deleter):
-            raise ServiceValidationError("Battery schedule API is unavailable.")
+            _raise_service_validation(
+                "battery_schedule_api_unavailable",
+                message="Battery schedule API is unavailable.",
+            )
         schedule_inventory = _schedule_inventory_by_id(coord)
         requested_schedule_type = call.data.get("schedule_type")
         for schedule_id in schedule_ids:
@@ -683,7 +755,10 @@ def async_setup_services(
     async def _svc_validate_schedule(call: ServiceCall) -> dict[str, object]:
         coord = await _resolve_single_site_coordinator(call)
         if not coord.battery_write_access_confirmed:
-            raise ServiceValidationError("Battery schedule editing is unavailable.")
+            _raise_service_validation(
+                "battery_schedule_editing_unavailable",
+                message="Battery schedule editing is unavailable.",
+            )
         result = await _validate_schedule_with_api(
             coord, str(call.data["schedule_type"]).lower()
         )

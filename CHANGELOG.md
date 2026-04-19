@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Fixed the standalone IQ Battery schedule validation service so it correctly interprets Enphase's raw `isValid` responses and reports validation failures consistently.
 - Stopped battery schedule refreshes from overwriting control-derived enabled state with conflicting `/schedules` entry flags, and prevented disabled CFG/DTG/RBD families from selecting the wrong schedule record when Enphase echoes temporary schedule entries as `isEnabled: true`.
 - Added local IQ Battery schedule overlap validation before schedule create/update writes so Home Assistant rejects conflicting windows consistently even when Enphase returns misleading cross-family `409` errors, and treated profile-cancel `409 ALREADY_PROCESSED` responses as benign no-op results.
+- Localized the IQ Battery scheduler UI and runtime validation errors across all shipped locales, and tightened translation tests so untranslated user-facing error paths cannot regress silently.
 
 ### 🔧 Improvements
 - None

@@ -993,33 +993,53 @@ class BatteryRuntime:
         self._apply_battery_user_details(data.get("userDetails"))
 
     def _assert_battery_system_not_busy(
-        self, unavailable_message: str = "Battery updates are unavailable."
+        self,
+        unavailable_message: str = "Battery updates are unavailable.",
+        *,
+        unavailable_key: str = "battery_updates_unavailable",
     ) -> None:
         if self.coordinator.battery_system_task is True:
-            raise ServiceValidationError(unavailable_message)
+            self._raise_validation(
+                unavailable_key,
+                message=unavailable_message,
+            )
 
     def _assert_battery_profile_feature_writable(
-        self, unavailable_message: str
+        self,
+        unavailable_message: str,
+        *,
+        unavailable_key: str = "battery_profile_unavailable",
     ) -> None:
         coord = self.coordinator
-        self._assert_battery_system_not_busy(unavailable_message)
+        self._assert_battery_system_not_busy(
+            unavailable_message,
+            unavailable_key=unavailable_key,
+        )
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery profile updates are not permitted for this account."
+            self._raise_validation(
+                "battery_profile_update_not_permitted",
+                message="Battery profile updates are not permitted for this account.",
             )
 
     def _assert_battery_settings_feature_writable(
-        self, unavailable_message: str
+        self,
+        unavailable_message: str,
+        *,
+        unavailable_key: str = "battery_settings_unavailable",
     ) -> None:
         coord = self.coordinator
-        self._assert_battery_system_not_busy(unavailable_message)
+        self._assert_battery_system_not_busy(
+            unavailable_message,
+            unavailable_key=unavailable_key,
+        )
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery settings updates are not permitted for this account."
+            self._raise_validation(
+                "battery_settings_update_not_permitted",
+                message="Battery settings updates are not permitted for this account.",
             )
 
     def assert_battery_profile_write_allowed(self) -> None:
@@ -1027,16 +1047,21 @@ class BatteryRuntime:
         state = self.battery_state
         lock = getattr(state, "_battery_profile_write_lock", None)
         if lock is not None and lock.locked():
-            raise ServiceValidationError(
-                "Another battery profile update is already in progress."
+            self._raise_validation(
+                "battery_profile_update_in_progress",
+                message="Another battery profile update is already in progress.",
             )
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery profile updates are not permitted for this account."
+            self._raise_validation(
+                "battery_profile_update_not_permitted",
+                message="Battery profile updates are not permitted for this account.",
             )
-        self._assert_battery_system_not_busy("Battery profile updates are unavailable.")
+        self._assert_battery_system_not_busy(
+            "Battery profile updates are unavailable.",
+            unavailable_key="battery_profile_updates_unavailable",
+        )
 
         now = time.monotonic()
         last = getattr(state, "_battery_profile_last_write_mono", None)
@@ -1045,14 +1070,19 @@ class BatteryRuntime:
             and now >= last
             and (now - last) < BATTERY_PROFILE_WRITE_DEBOUNCE_S
         ):
-            raise ServiceValidationError(
-                "Battery profile update requested too quickly. Please wait and try again."
+            self._raise_validation(
+                "battery_profile_update_debounced",
+                message=(
+                    "Battery profile update requested too quickly. Please wait and "
+                    "try again."
+                ),
             )
 
     async def async_ensure_battery_write_access_confirmed(
         self,
         *,
         denied_message: str = "Battery updates are not permitted for this account.",
+        denied_key: str = "battery_updates_not_permitted",
     ) -> None:
         coord = self.coordinator
         state = self.battery_state
@@ -1061,7 +1091,7 @@ class BatteryRuntime:
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(denied_message)
+            self._raise_validation(denied_key, message=denied_message)
         fetcher = getattr(coord.client, "battery_site_settings", None)
         if callable(fetcher):
             try:
@@ -1083,9 +1113,10 @@ class BatteryRuntime:
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(denied_message)
-        raise ServiceValidationError(
-            "Battery write access could not be confirmed. Refresh and try again."
+            self._raise_validation(denied_key, message=denied_message)
+        self._raise_validation(
+            "battery_write_access_unconfirmed",
+            message="Battery write access could not be confirmed. Refresh and try again.",
         )
 
     async def async_assert_battery_profile_write_allowed(self) -> None:
@@ -1098,17 +1129,20 @@ class BatteryRuntime:
         state = self.battery_state
         lock = getattr(state, "_battery_settings_write_lock", None)
         if lock is not None and lock.locked():
-            raise ServiceValidationError(
-                "Another battery settings update is already in progress."
+            self._raise_validation(
+                "battery_settings_update_in_progress",
+                message="Another battery settings update is already in progress.",
             )
         owner = coord.battery_user_is_owner
         installer = coord.battery_user_is_installer
         if owner is False and installer is False:
-            raise ServiceValidationError(
-                "Battery settings updates are not permitted for this account."
+            self._raise_validation(
+                "battery_settings_update_not_permitted",
+                message="Battery settings updates are not permitted for this account.",
             )
         self._assert_battery_system_not_busy(
-            "Battery settings updates are unavailable."
+            "Battery settings updates are unavailable.",
+            unavailable_key="battery_settings_updates_unavailable",
         )
         now = time.monotonic()
         last = getattr(state, "_battery_settings_last_write_mono", None)
@@ -1117,8 +1151,12 @@ class BatteryRuntime:
             and now >= last
             and (now - last) < BATTERY_SETTINGS_WRITE_DEBOUNCE_S
         ):
-            raise ServiceValidationError(
-                "Battery settings update requested too quickly. Please wait and try again."
+            self._raise_validation(
+                "battery_settings_update_debounced",
+                message=(
+                    "Battery settings update requested too quickly. Please wait and "
+                    "try again."
+                ),
             )
 
     async def async_assert_battery_settings_write_allowed(self) -> None:
@@ -1372,6 +1410,27 @@ class BatteryRuntime:
                 ),
             )
 
+    def _raise_validation(
+        self,
+        key: str,
+        *,
+        placeholders: dict[str, object] | None = None,
+        message: str | None = None,
+    ) -> None:
+        raise_translated_service_validation(
+            translation_domain=DOMAIN,
+            translation_key=f"exceptions.{key}",
+            translation_placeholders=placeholders,
+            message=message,
+        )
+
+    def _schedule_label_placeholders(self, schedule_type: str) -> dict[str, object]:
+        schedule_label = self._battery_schedule_label(schedule_type)
+        return {
+            "schedule_label": schedule_label,
+            "schedule_label_lower": schedule_label.lower(),
+        }
+
     @staticmethod
     def _is_already_processed_profile_cancel_error(
         err: aiohttp.ClientResponseError,
@@ -1398,13 +1457,18 @@ class BatteryRuntime:
         self, err: aiohttp.ClientResponseError
     ) -> None:
         if err.status == HTTPStatus.FORBIDDEN:
-            raise ServiceValidationError(
-                "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
-            ) from err
+            self._raise_validation(
+                "schedule_update_forbidden",
+                message="Schedule update was rejected by Enphase (HTTP 403 Forbidden).",
+            )
         if err.status == HTTPStatus.UNAUTHORIZED:
-            raise ServiceValidationError(
-                "Schedule update could not be authenticated. Reauthenticate and try again."
-            ) from err
+            self._raise_validation(
+                "schedule_update_unauthorized",
+                message=(
+                    "Schedule update could not be authenticated. Reauthenticate and "
+                    "try again."
+                ),
+            )
         if err.status == HTTPStatus.CONFLICT:
             backend_status: str | None = None
             backend_message: str | None = None
@@ -1425,27 +1489,45 @@ class BatteryRuntime:
                             backend_message = message_value.strip()
 
             if backend_status == "CONFLICTING_SCHEDULE_DTG":
-                raise ServiceValidationError(
-                    "Schedule conflicts with the existing discharge-to-grid schedule. "
-                    "Adjust or disable that schedule first."
-                ) from err
+                self._raise_validation(
+                    "schedule_conflict_dtg",
+                    message=(
+                        "Schedule conflicts with the existing discharge-to-grid "
+                        "schedule. Adjust or disable that schedule first."
+                    ),
+                )
             if backend_status == "CONFLICTING_SCHEDULE_RBD":
-                raise ServiceValidationError(
-                    "Schedule conflicts with the existing restrict-battery-discharge "
-                    "schedule. Adjust or disable that schedule first."
-                ) from err
+                self._raise_validation(
+                    "schedule_conflict_rbd",
+                    message=(
+                        "Schedule conflicts with the existing "
+                        "restrict-battery-discharge schedule. Adjust or disable that "
+                        "schedule first."
+                    ),
+                )
             if backend_status == "CONFLICTING_SCHEDULE_CFG":
-                raise ServiceValidationError(
-                    "Schedule conflicts with the existing charge-from-grid schedule. "
-                    "Adjust or disable that schedule first."
-                ) from err
+                self._raise_validation(
+                    "schedule_conflict_cfg",
+                    message=(
+                        "Schedule conflicts with the existing charge-from-grid "
+                        "schedule. Adjust or disable that schedule first."
+                    ),
+                )
             if backend_message:
                 if not backend_message.endswith("."):
                     backend_message = f"{backend_message}."
-                raise ServiceValidationError(backend_message) from err
-            raise ServiceValidationError(
-                "Schedule update conflicts with an existing battery schedule."
-            ) from err
+                self._raise_validation(
+                    "schedule_update_conflict_detail",
+                    placeholders={"message": backend_message},
+                    message=(
+                        "Schedule update conflicts with an existing battery "
+                        f"schedule: {backend_message}"
+                    ),
+                )
+            self._raise_validation(
+                "schedule_update_conflict",
+                message="Schedule update conflicts with an existing battery schedule.",
+            )
 
     async def async_update_battery_schedule(
         self,
@@ -1494,7 +1576,10 @@ class BatteryRuntime:
         state = self.battery_state
         normalized_profile = self.normalize_battery_profile_key(profile)
         if not normalized_profile:
-            raise ServiceValidationError("Battery profile is unavailable.")
+            self._raise_validation(
+                "battery_profile_unavailable",
+                message="Battery profile is unavailable.",
+            )
         await self.async_assert_battery_profile_write_allowed()
         normalized_reserve = self.normalize_battery_reserve_for_profile(
             normalized_profile, reserve
@@ -1523,16 +1608,28 @@ class BatteryRuntime:
                     owner = coord.battery_user_is_owner
                     installer = coord.battery_user_is_installer
                     if owner is False and installer is False:
-                        raise ServiceValidationError(
-                            "Battery profile updates are not permitted for this account."
-                        ) from err
-                    raise ServiceValidationError(
-                        "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
-                    ) from err
+                        self._raise_validation(
+                            "battery_profile_update_not_permitted",
+                            message=(
+                                "Battery profile updates are not permitted for this "
+                                "account."
+                            ),
+                        )
+                    self._raise_validation(
+                        "battery_profile_update_forbidden",
+                        message=(
+                            "Battery profile update was rejected by Enphase "
+                            "(HTTP 403 Forbidden)."
+                        ),
+                    )
                 if err.status == HTTPStatus.UNAUTHORIZED:
-                    raise ServiceValidationError(
-                        "Battery profile update could not be authenticated. Reauthenticate and try again."
-                    ) from err
+                    self._raise_validation(
+                        "battery_profile_update_unauthorized",
+                        message=(
+                            "Battery profile update could not be authenticated. "
+                            "Reauthenticate and try again."
+                        ),
+                    )
                 raise
         self.remember_battery_reserve(normalized_profile, normalized_reserve)
         self.set_battery_pending(
@@ -1550,7 +1647,10 @@ class BatteryRuntime:
         coord = self.coordinator
         state = self.battery_state
         if not isinstance(payload, dict) or not payload:
-            raise ServiceValidationError("Battery settings payload is unavailable.")
+            self._raise_validation(
+                "battery_settings_payload_unavailable",
+                message="Battery settings payload is unavailable.",
+            )
         await self.async_assert_battery_settings_write_allowed()
         async with state._battery_settings_write_lock:
             state._battery_settings_last_write_mono = time.monotonic()
@@ -1558,13 +1658,21 @@ class BatteryRuntime:
                 await coord.client.set_battery_settings(payload)
             except aiohttp.ClientResponseError as err:
                 if err.status == HTTPStatus.FORBIDDEN:
-                    raise ServiceValidationError(
-                        "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
-                    ) from err
+                    self._raise_validation(
+                        "battery_settings_update_forbidden",
+                        message=(
+                            "Battery settings update was rejected by Enphase "
+                            "(HTTP 403 Forbidden)."
+                        ),
+                    )
                 if err.status == HTTPStatus.UNAUTHORIZED:
-                    raise ServiceValidationError(
-                        "Battery settings update could not be authenticated. Reauthenticate and try again."
-                    ) from err
+                    self._raise_validation(
+                        "battery_settings_update_unauthorized",
+                        message=(
+                            "Battery settings update could not be authenticated. "
+                            "Reauthenticate and try again."
+                        ),
+                    )
                 raise
         self.parse_battery_settings_payload(
             payload,
@@ -1588,7 +1696,10 @@ class BatteryRuntime:
         coord = self.coordinator
         state = self.battery_state
         if not isinstance(payload, dict) or not payload:
-            raise ServiceValidationError("Battery settings payload is unavailable.")
+            self._raise_validation(
+                "battery_settings_payload_unavailable",
+                message="Battery settings payload is unavailable.",
+            )
         await self.async_assert_battery_settings_write_allowed()
         async with state._battery_settings_write_lock:
             state._battery_settings_last_write_mono = time.monotonic()
@@ -1602,13 +1713,21 @@ class BatteryRuntime:
                 )
             except aiohttp.ClientResponseError as err:
                 if err.status == HTTPStatus.FORBIDDEN:
-                    raise ServiceValidationError(
-                        "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
-                    ) from err
+                    self._raise_validation(
+                        "battery_settings_update_forbidden",
+                        message=(
+                            "Battery settings update was rejected by Enphase "
+                            "(HTTP 403 Forbidden)."
+                        ),
+                    )
                 if err.status == HTTPStatus.UNAUTHORIZED:
-                    raise ServiceValidationError(
-                        "Battery settings update could not be authenticated. Reauthenticate and try again."
-                    ) from err
+                    self._raise_validation(
+                        "battery_settings_update_unauthorized",
+                        message=(
+                            "Battery settings update could not be authenticated. "
+                            "Reauthenticate and try again."
+                        ),
+                    )
                 raise
         self.parse_battery_settings_payload(
             payload,
@@ -3256,12 +3375,24 @@ class BatteryRuntime:
         coord = self.coordinator
         profile = coord.battery_selected_profile
         if not profile:
-            raise ServiceValidationError("Battery profile is unavailable.")
+            self._raise_validation(
+                "battery_profile_unavailable",
+                message="Battery profile is unavailable.",
+            )
         if profile == "backup_only":
-            raise ServiceValidationError("Full Backup reserve is fixed at 100%.")
-        self._assert_battery_profile_feature_writable("Battery reserve is unavailable.")
+            self._raise_validation(
+                "full_backup_reserve_fixed",
+                message="Full Backup reserve is fixed at 100%.",
+            )
+        self._assert_battery_profile_feature_writable(
+            "Battery reserve is unavailable.",
+            unavailable_key="battery_reserve_unavailable",
+        )
         if not coord.battery_reserve_editable:
-            raise ServiceValidationError("Battery reserve is unavailable.")
+            self._raise_validation(
+                "battery_reserve_unavailable",
+                message="Battery reserve is unavailable.",
+            )
         normalized = self.normalize_battery_reserve_for_profile(profile, reserve)
         sub_type = self.target_operation_mode_sub_type(profile)
         await self.async_apply_battery_profile(
@@ -3274,12 +3405,19 @@ class BatteryRuntime:
         coord = self.coordinator
         profile = coord.battery_selected_profile
         if profile != "cost_savings":
-            raise ServiceValidationError("Savings profile must be active.")
+            self._raise_validation(
+                "savings_profile_required",
+                message="Savings profile must be active.",
+            )
         self._assert_battery_profile_feature_writable(
-            "Savings profile settings are unavailable."
+            "Savings profile settings are unavailable.",
+            unavailable_key="savings_profile_settings_unavailable",
         )
         if not coord.savings_use_battery_switch_available:
-            raise ServiceValidationError("Savings profile settings are unavailable.")
+            self._raise_validation(
+                "savings_profile_settings_unavailable",
+                message="Savings profile settings are unavailable.",
+            )
         reserve = coord.battery_selected_backup_percentage
         if reserve is None:
             reserve = self.target_reserve_for_profile("cost_savings")
@@ -3294,10 +3432,19 @@ class BatteryRuntime:
         coord = self.coordinator
         profile = self.normalize_battery_profile_key(profile_key)
         if not profile:
-            raise ServiceValidationError("Battery profile is unavailable.")
+            self._raise_validation(
+                "battery_profile_unavailable",
+                message="Battery profile is unavailable.",
+            )
         if profile not in coord.battery_profile_option_keys:
-            raise ServiceValidationError("Selected battery profile is not supported.")
-        self._assert_battery_profile_feature_writable("Battery profile is unavailable.")
+            self._raise_validation(
+                "battery_profile_unsupported",
+                message="Selected battery profile is not supported.",
+            )
+        self._assert_battery_profile_feature_writable(
+            "Battery profile is unavailable.",
+            unavailable_key="battery_profile_unavailable",
+        )
         reserve = self.target_reserve_for_profile(profile)
         sub_type = self.target_operation_mode_sub_type(profile)
         await self.async_apply_battery_profile(
@@ -3333,10 +3480,14 @@ class BatteryRuntime:
     async def async_set_charge_from_grid(self, enabled: bool) -> None:
         coord = self.coordinator
         self._assert_battery_settings_feature_writable(
-            "Charge from grid setting is unavailable."
+            "Charge from grid setting is unavailable.",
+            unavailable_key="charge_from_grid_unavailable",
         )
         if not coord.charge_from_grid_control_available:
-            raise ServiceValidationError("Charge from grid setting is unavailable.")
+            self._raise_validation(
+                "charge_from_grid_unavailable",
+                message="Charge from grid setting is unavailable.",
+            )
         payload: dict[str, object] = {"chargeFromGrid": bool(enabled)}
         if enabled:
             payload["acceptedItcDisclaimer"] = self.battery_itc_disclaimer_value()
@@ -3356,21 +3507,29 @@ class BatteryRuntime:
             if attempt < 3:
                 await asyncio.sleep(0.75)
 
-        raise ServiceValidationError(
-            "Charge from grid toggle was not applied by Enphase."
+        self._raise_validation(
+            "charge_from_grid_toggle_not_applied",
+            message="Charge from grid toggle was not applied by Enphase.",
         )
 
     async def async_set_charge_from_grid_schedule_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
         self._assert_battery_settings_feature_writable(
-            "Charge from grid schedule is unavailable."
+            "Charge from grid schedule is unavailable.",
+            unavailable_key="charge_from_grid_schedule_unavailable",
         )
         if not coord.charge_from_grid_force_schedule_supported:
-            raise ServiceValidationError("Charge from grid schedule is unavailable.")
+            self._raise_validation(
+                "charge_from_grid_schedule_unavailable",
+                message="Charge from grid schedule is unavailable.",
+            )
         start, end = self.current_charge_from_grid_schedule_window()
         if start == end:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule start and end times must be different."
+            self._raise_validation(
+                "charge_from_grid_schedule_times_different",
+                message=(
+                    "Charge-from-grid schedule start and end times must be different."
+                ),
             )
         charge_from_grid_enabled = coord.battery_charge_from_grid_enabled is True
         payload: dict[str, object] = {
@@ -3424,8 +3583,9 @@ class BatteryRuntime:
         if await _verify():
             return
 
-        raise ServiceValidationError(
-            "Charge-from-grid schedule toggle was not applied by Enphase."
+        self._raise_validation(
+            "charge_from_grid_schedule_toggle_not_applied",
+            message="Charge-from-grid schedule toggle was not applied by Enphase.",
         )
 
     async def async_set_charge_from_grid_schedule_time(
@@ -3437,15 +3597,23 @@ class BatteryRuntime:
         coord = self.coordinator
         state = self.battery_state
         self._assert_battery_settings_feature_writable(
-            "Charge from grid schedule is unavailable."
+            "Charge from grid schedule is unavailable.",
+            unavailable_key="charge_from_grid_schedule_unavailable",
         )
         if not coord.charge_from_grid_schedule_supported:
-            raise ServiceValidationError("Charge from grid schedule is unavailable.")
+            self._raise_validation(
+                "charge_from_grid_schedule_unavailable",
+                message="Charge from grid schedule is unavailable.",
+            )
         if coord.battery_charge_from_grid_enabled is not True:
-            raise ServiceValidationError("Charge from grid must be enabled first.")
+            self._raise_validation(
+                "charge_from_grid_required",
+                message="Charge from grid must be enabled first.",
+            )
         if coord.battery_cfg_schedule_pending:
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
+            self._raise_validation(
+                "schedule_change_pending",
+                message="A schedule change is pending Envoy sync. Please wait.",
             )
         current_start, current_end = self.current_charge_from_grid_schedule_window()
         next_start = (
@@ -3453,10 +3621,16 @@ class BatteryRuntime:
         )
         next_end = coord.time_to_minutes_of_day(end) if end is not None else current_end
         if next_start is None or next_end is None:
-            raise ServiceValidationError("Charge-from-grid schedule time is invalid.")
+            self._raise_validation(
+                "charge_from_grid_schedule_time_invalid",
+                message="Charge-from-grid schedule time is invalid.",
+            )
         if next_start == next_end:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule start and end times must be different."
+            self._raise_validation(
+                "charge_from_grid_schedule_times_different",
+                message=(
+                    "Charge-from-grid schedule start and end times must be different."
+                ),
             )
 
         schedule_id = getattr(coord, "_battery_cfg_schedule_id", None)
@@ -3552,17 +3726,23 @@ class BatteryRuntime:
         coord = self.coordinator
         state = self.battery_state
         self._assert_battery_settings_feature_writable(
-            "Charge from grid schedule is unavailable."
+            "Charge from grid schedule is unavailable.",
+            unavailable_key="charge_from_grid_schedule_unavailable",
         )
         if coord.battery_cfg_control_force_schedule_supported is False:
-            raise ServiceValidationError("Charge from grid schedule is unavailable.")
+            self._raise_validation(
+                "charge_from_grid_schedule_unavailable",
+                message="Charge from grid schedule is unavailable.",
+            )
         if not hasattr(coord.client, "update_battery_schedule"):
-            raise ServiceValidationError(
-                "Schedule API not available on this client version."
+            self._raise_validation(
+                "schedule_api_unavailable",
+                message="Schedule API not available on this client version.",
             )
         if coord.battery_cfg_schedule_pending:
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
+            self._raise_validation(
+                "schedule_change_pending",
+                message="A schedule change is pending Envoy sync. Please wait.",
             )
         if (
             getattr(coord, "_battery_cfg_schedule_id", None) is None
@@ -3570,8 +3750,9 @@ class BatteryRuntime:
             or getattr(coord, "_battery_charge_begin_time", None) is None
             or getattr(coord, "_battery_charge_end_time", None) is None
         ):
-            raise ServiceValidationError(
-                "No existing charge-from-grid schedule is available."
+            self._raise_validation(
+                "charge_from_grid_schedule_missing",
+                message="No existing charge-from-grid schedule is available.",
             )
         await self.async_assert_battery_settings_write_allowed()
         async with state._battery_settings_write_lock:
@@ -3627,6 +3808,51 @@ class BatteryRuntime:
             return coord.battery_rbd_control_enabled
         return getattr(coord, self._battery_schedule_enabled_attr(schedule_type), None)
 
+    def _schedule_family_toggle_validation_details(
+        self,
+        schedule_type: str,
+        *,
+        enabled: bool,
+        schedule_id: object | None,
+        current_start: int | None,
+        current_end: int | None,
+    ) -> tuple[str, dict[str, object], str]:
+        normalized = str(schedule_type).lower()
+        coord = self.coordinator
+        placeholders = self._schedule_label_placeholders(schedule_type)
+
+        if normalized == "rbd" and enabled:
+            if schedule_id is None or current_start is None or current_end is None:
+                return (
+                    "schedule_toggle_create_before_enable",
+                    {"schedule_label": "restrict battery discharge schedule"},
+                    "Create a restrict battery discharge schedule in the IQ Battery "
+                    "scheduler before enabling it.",
+                )
+            if coord.battery_rbd_control is None:
+                return (
+                    "schedule_not_exposed",
+                    {"schedule_label": "Restrict battery discharge"},
+                    "Restrict battery discharge is not currently exposed by Enphase "
+                    "for this site. Wait for the schedule sync to complete, then "
+                    "refresh and try again.",
+                )
+
+        if normalized == "dtg" and enabled and coord.battery_dtg_control is None:
+            return (
+                "schedule_not_exposed",
+                {"schedule_label": "Discharge to grid"},
+                "Discharge to grid is not currently exposed by Enphase for this "
+                "site. Wait for the schedule sync to complete, then refresh and "
+                "try again.",
+            )
+
+        return (
+            "schedule_toggle_not_applied",
+            placeholders,
+            (f"{placeholders['schedule_label']} toggle was not applied by " "Enphase."),
+        )
+
     def _schedule_family_toggle_validation_error(
         self,
         schedule_type: str,
@@ -3635,32 +3861,17 @@ class BatteryRuntime:
         schedule_id: object | None,
         current_start: int | None,
         current_end: int | None,
-    ) -> str | None:
-        normalized = str(schedule_type).lower()
-        label = self._battery_schedule_label(schedule_type)
-        coord = self.coordinator
+    ) -> str:
+        """Backward-compatible message helper used by tests."""
 
-        if normalized == "rbd" and enabled:
-            if schedule_id is None or current_start is None or current_end is None:
-                return (
-                    "Create a restrict battery discharge schedule in the IQ Battery "
-                    "scheduler before enabling it."
-                )
-            if coord.battery_rbd_control is None:
-                return (
-                    "Restrict battery discharge is not currently exposed by Enphase "
-                    "for this site. Wait for the schedule sync to complete, then "
-                    "refresh and try again."
-                )
-
-        if normalized == "dtg" and enabled and coord.battery_dtg_control is None:
-            return (
-                "Discharge to grid is not currently exposed by Enphase for this "
-                "site. Wait for the schedule sync to complete, then refresh and "
-                "try again."
-            )
-
-        return f"{label} toggle was not applied by Enphase."
+        _key, _placeholders, message = self._schedule_family_toggle_validation_details(
+            schedule_type,
+            enabled=enabled,
+            schedule_id=schedule_id,
+            current_start=current_start,
+            current_end=current_end,
+        )
+        return message
 
     def _schedule_family_toggle_effective_state(
         self, schedule_type: str
@@ -3764,27 +3975,26 @@ class BatteryRuntime:
                 getattr(state, self._battery_schedule_status_attr(schedule_type), None),
             )
 
-        raise ServiceValidationError(
-            self._schedule_family_toggle_validation_error(
-                schedule_type,
-                enabled=enabled,
-                schedule_id=getattr(
-                    self.battery_state,
-                    self._battery_schedule_id_attr(schedule_type),
-                    None,
-                ),
-                current_start=getattr(
-                    self.battery_state,
-                    self._battery_schedule_start_attr(schedule_type),
-                    None,
-                ),
-                current_end=getattr(
-                    self.battery_state,
-                    self._battery_schedule_end_attr(schedule_type),
-                    None,
-                ),
-            )
+        key, placeholders, message = self._schedule_family_toggle_validation_details(
+            schedule_type,
+            enabled=enabled,
+            schedule_id=getattr(
+                self.battery_state,
+                self._battery_schedule_id_attr(schedule_type),
+                None,
+            ),
+            current_start=getattr(
+                self.battery_state,
+                self._battery_schedule_start_attr(schedule_type),
+                None,
+            ),
+            current_end=getattr(
+                self.battery_state,
+                self._battery_schedule_end_attr(schedule_type),
+                None,
+            ),
         )
+        self._raise_validation(key, placeholders=placeholders, message=message)
 
     def _schedule_family_control_payload(
         self,
@@ -3828,8 +4038,14 @@ class BatteryRuntime:
             and current_end is not None
         ):
             if current_start == current_end:
-                raise ServiceValidationError(
-                    f"{self._battery_schedule_label(schedule_type)} start and end times must be different."
+                placeholders = self._schedule_label_placeholders(schedule_type)
+                self._raise_validation(
+                    "schedule_family_times_different",
+                    placeholders=placeholders,
+                    message=(
+                        f"{placeholders['schedule_label']} start and end times must "
+                        "be different."
+                    ),
                 )
             payload["scheduleSupported"] = True
             payload["startTime"] = current_start
@@ -3837,8 +4053,9 @@ class BatteryRuntime:
 
         if normalized == "dtg" and enabled:
             if current_start is None or current_end is None:
-                raise ServiceValidationError(
-                    "Discharge to grid schedule time is invalid."
+                self._raise_validation(
+                    "discharge_to_grid_schedule_time_invalid",
+                    message="Discharge to grid schedule time is invalid.",
                 )
 
         return payload
@@ -3922,8 +4139,14 @@ class BatteryRuntime:
             )
             return
         if not self._schedule_create_supported():
-            raise ServiceValidationError(
-                f"No existing {self._battery_schedule_label(schedule_type).lower()} schedule is available."
+            placeholders = self._schedule_label_placeholders(schedule_type)
+            self._raise_validation(
+                "schedule_missing",
+                placeholders=placeholders,
+                message=(
+                    f"No existing {placeholders['schedule_label_lower']} schedule is "
+                    "available."
+                ),
             )
         create_limit = limit
         if create_limit is None:
@@ -3955,22 +4178,30 @@ class BatteryRuntime:
         label = self._battery_schedule_label(schedule_type)
         normalized_schedule_type = str(schedule_type).lower()
         self._assert_battery_settings_feature_writable(
-            f"{label} schedule is unavailable."
+            f"{label} schedule is unavailable.",
+            unavailable_key="schedule_unavailable",
         )
         if not getattr(coord, self._schedule_supported_property_name(schedule_type)):
-            raise ServiceValidationError(f"{label} schedule is unavailable.")
+            self._raise_validation(
+                "schedule_unavailable",
+                placeholders=self._schedule_label_placeholders(schedule_type),
+                message=f"{label} schedule is unavailable.",
+            )
         await self.async_assert_battery_settings_write_allowed()
         if normalized_schedule_type == "cfg":
             if getattr(coord, self._schedule_pending_property_name(schedule_type)):
-                raise ServiceValidationError(
-                    "A schedule change is pending Envoy sync. Please wait."
+                self._raise_validation(
+                    "schedule_change_pending",
+                    message="A schedule change is pending Envoy sync. Please wait.",
                 )
             current_start, current_end = self._current_battery_schedule_window_for_type(
                 schedule_type,
             )
             if current_start == current_end:
-                raise ServiceValidationError(
-                    f"{label} schedule start and end times must be different."
+                self._raise_validation(
+                    "schedule_family_times_different",
+                    placeholders=self._schedule_label_placeholders(schedule_type),
+                    message=f"{label} schedule start and end times must be different.",
                 )
             await self.async_set_charge_from_grid_schedule_enabled(enabled)
             return
@@ -3989,15 +4220,25 @@ class BatteryRuntime:
             )
             if normalized_schedule_type == "rbd" and enabled:
                 if schedule_id is None or current_start is None or current_end is None:
-                    raise ServiceValidationError(
-                        "Create a restrict battery discharge schedule in the IQ Battery "
-                        "scheduler before enabling it."
+                    self._raise_validation(
+                        "schedule_toggle_create_before_enable",
+                        placeholders={
+                            "schedule_label": "restrict battery discharge schedule"
+                        },
+                        message=(
+                            "Create a restrict battery discharge schedule in the IQ "
+                            "Battery scheduler before enabling it."
+                        ),
                     )
                 if coord.battery_rbd_control is None:
-                    raise ServiceValidationError(
-                        "Restrict battery discharge is not currently exposed by Enphase "
-                        "for this site. Wait for the schedule sync to complete, then "
-                        "refresh and try again."
+                    self._raise_validation(
+                        "schedule_not_exposed",
+                        placeholders={"schedule_label": "Restrict battery discharge"},
+                        message=(
+                            "Restrict battery discharge is not currently exposed by "
+                            "Enphase for this site. Wait for the schedule sync to "
+                            "complete, then refresh and try again."
+                        ),
                     )
             if use_battery_settings_toggle:
                 control_key = f"{normalized_schedule_type}Control"
@@ -4029,7 +4270,10 @@ class BatteryRuntime:
                 coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
                 try:
                     if primary_write_rejected:
-                        raise ServiceValidationError("primary write rejected")
+                        self._raise_validation(
+                            "schedule_primary_write_rejected",
+                            message="primary write rejected",
+                        )
                     await self._async_verify_schedule_family_toggle_applied(
                         schedule_type,
                         enabled=enabled,
@@ -4070,13 +4314,19 @@ class BatteryRuntime:
         state = self.battery_state
         label = self._battery_schedule_label(schedule_type)
         self._assert_battery_settings_feature_writable(
-            f"{label} schedule is unavailable."
+            f"{label} schedule is unavailable.",
+            unavailable_key="schedule_unavailable",
         )
         if not getattr(coord, self._schedule_supported_property_name(schedule_type)):
-            raise ServiceValidationError(f"{label} schedule is unavailable.")
+            self._raise_validation(
+                "schedule_unavailable",
+                placeholders=self._schedule_label_placeholders(schedule_type),
+                message=f"{label} schedule is unavailable.",
+            )
         if getattr(coord, self._schedule_pending_property_name(schedule_type)):
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
+            self._raise_validation(
+                "schedule_change_pending",
+                message="A schedule change is pending Envoy sync. Please wait.",
             )
 
         current_start, current_end = self._current_battery_schedule_window_for_type(
@@ -4089,15 +4339,21 @@ class BatteryRuntime:
         if next_start is None or next_end is None:
             default_window = self._schedule_default_window_for_create(schedule_type)
             if default_window is None:
-                raise ServiceValidationError(f"{label} schedule time is invalid.")
+                self._raise_validation(
+                    "schedule_time_invalid",
+                    placeholders=self._schedule_label_placeholders(schedule_type),
+                    message=f"{label} schedule time is invalid.",
+                )
             default_start, default_end = default_window
             if next_start is None:
                 next_start = default_start
             if next_end is None:
                 next_end = default_end
         if next_start == next_end:
-            raise ServiceValidationError(
-                f"{label} schedule start and end times must be different."
+            self._raise_validation(
+                "schedule_family_times_different",
+                placeholders=self._schedule_label_placeholders(schedule_type),
+                message=f"{label} schedule start and end times must be different.",
             )
         current_limit = getattr(
             state, self._battery_schedule_limit_attr(schedule_type), None
@@ -4133,29 +4389,48 @@ class BatteryRuntime:
         state = self.battery_state
         label = self._battery_schedule_label(schedule_type)
         self._assert_battery_settings_feature_writable(
-            f"{label} schedule is unavailable."
+            f"{label} schedule is unavailable.",
+            unavailable_key="schedule_unavailable",
         )
         if not getattr(coord, self._schedule_supported_property_name(schedule_type)):
-            raise ServiceValidationError(f"{label} schedule is unavailable.")
+            self._raise_validation(
+                "schedule_unavailable",
+                placeholders=self._schedule_label_placeholders(schedule_type),
+                message=f"{label} schedule is unavailable.",
+            )
         if getattr(coord, self._schedule_pending_property_name(schedule_type)):
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
+            self._raise_validation(
+                "schedule_change_pending",
+                message="A schedule change is pending Envoy sync. Please wait.",
             )
         current_start, current_end = self._current_battery_schedule_window_for_type(
             schedule_type
         )
         if current_start is None or current_end is None:
-            raise ServiceValidationError(
-                f"Current {label.lower()} schedule time is invalid."
+            self._raise_validation(
+                "current_schedule_time_invalid",
+                placeholders=self._schedule_label_placeholders(schedule_type),
+                message=f"Current {label.lower()} schedule time is invalid.",
             )
         if not 5 <= int(limit) <= 100:
-            raise ServiceValidationError(
-                f"{label} schedule limit must be between 5 and 100."
+            self._raise_validation(
+                "schedule_limit_range",
+                placeholders={
+                    **self._schedule_label_placeholders(schedule_type),
+                    "minimum": "5",
+                    "maximum": "100",
+                },
+                message=f"{label} schedule limit must be between 5 and 100.",
             )
         shutdown_floor = coord.battery_shutdown_level
         if shutdown_floor is not None and int(limit) < shutdown_floor:
-            raise ServiceValidationError(
-                f"{label} schedule limit must be at least {shutdown_floor}%."
+            self._raise_validation(
+                "schedule_limit_minimum",
+                placeholders={
+                    **self._schedule_label_placeholders(schedule_type),
+                    "minimum": str(shutdown_floor),
+                },
+                message=f"{label} schedule limit must be at least {shutdown_floor}%.",
             )
         current_enabled = getattr(
             state, self._battery_schedule_enabled_attr(schedule_type), None
@@ -4219,24 +4494,31 @@ class BatteryRuntime:
         coord = self.coordinator
         state = self.battery_state
         self._assert_battery_settings_feature_writable(
-            "Charge from grid schedule is unavailable."
+            "Charge from grid schedule is unavailable.",
+            unavailable_key="charge_from_grid_schedule_unavailable",
         )
         if not hasattr(coord.client, "update_battery_schedule"):
-            raise ServiceValidationError(
-                "Schedule API not available on this client version."
+            self._raise_validation(
+                "schedule_api_unavailable",
+                message="Schedule API not available on this client version.",
             )
         if coord.battery_cfg_schedule_pending:
-            raise ServiceValidationError(
-                "A schedule change is pending Envoy sync. Please wait."
+            self._raise_validation(
+                "schedule_change_pending",
+                message="A schedule change is pending Envoy sync. Please wait.",
             )
         schedule_id = getattr(state, "_battery_cfg_schedule_id", None)
         if schedule_id is None:
-            raise ServiceValidationError(
-                "No existing charge-from-grid schedule is available."
+            self._raise_validation(
+                "charge_from_grid_schedule_missing",
+                message="No existing charge-from-grid schedule is available.",
             )
         current_start, current_end = self._current_schedule_window_from_coordinator()
         if current_start is None or current_end is None:
-            raise ServiceValidationError("Current schedule times are not available.")
+            self._raise_validation(
+                "current_schedule_times_unavailable",
+                message="Current schedule times are not available.",
+            )
         next_start = (
             coord.time_to_minutes_of_day(start) if start is not None else current_start
         )
@@ -4247,20 +4529,32 @@ class BatteryRuntime:
             else getattr(state, "_battery_cfg_schedule_limit", None) or 100
         )
         if next_start is None or next_end is None:
-            raise ServiceValidationError("Charge-from-grid schedule time is invalid.")
+            self._raise_validation(
+                "charge_from_grid_schedule_time_invalid",
+                message="Charge-from-grid schedule time is invalid.",
+            )
         if next_start == next_end:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule start and end times must be different."
+            self._raise_validation(
+                "charge_from_grid_schedule_times_different",
+                message=(
+                    "Charge-from-grid schedule start and end times must be different."
+                ),
             )
         if not 5 <= next_limit <= 100:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule limit must be between 5 and 100."
+            self._raise_validation(
+                "charge_from_grid_schedule_limit_range",
+                placeholders={"minimum": "5", "maximum": "100"},
+                message="Charge-from-grid schedule limit must be between 5 and 100.",
             )
         shutdown_floor = coord.battery_shutdown_level
         if shutdown_floor is not None and next_limit < shutdown_floor:
-            raise ServiceValidationError(
-                "Charge-from-grid schedule limit must be at least "
-                f"{shutdown_floor}%."
+            self._raise_validation(
+                "charge_from_grid_schedule_limit_minimum",
+                placeholders={"minimum": str(shutdown_floor)},
+                message=(
+                    "Charge-from-grid schedule limit must be at least "
+                    f"{shutdown_floor}%."
+                ),
             )
         await self.async_assert_battery_settings_write_allowed()
         async with state._battery_settings_write_lock:
@@ -4462,19 +4756,34 @@ class BatteryRuntime:
     async def async_set_battery_shutdown_level(self, level: int) -> None:
         coord = self.coordinator
         self._assert_battery_settings_feature_writable(
-            "Battery shutdown level is unavailable."
+            "Battery shutdown level is unavailable.",
+            unavailable_key="battery_shutdown_level_unavailable",
         )
         if not coord.battery_shutdown_level_available:
-            raise ServiceValidationError("Battery shutdown level is unavailable.")
+            self._raise_validation(
+                "battery_shutdown_level_unavailable",
+                message="Battery shutdown level is unavailable.",
+            )
         try:
             normalized = int(level)
-        except Exception as err:  # noqa: BLE001
-            raise ServiceValidationError("Battery shutdown level is invalid.") from err
+        except Exception:  # noqa: BLE001
+            self._raise_validation(
+                "battery_shutdown_level_invalid",
+                message="Battery shutdown level is invalid.",
+            )
         min_level = coord.battery_shutdown_level_min
         max_level = coord.battery_shutdown_level_max
         if normalized < min_level or normalized > max_level:
-            raise ServiceValidationError(
-                f"Battery shutdown level must be between {min_level} and {max_level}."
+            self._raise_validation(
+                "battery_shutdown_level_range",
+                placeholders={
+                    "minimum": str(min_level),
+                    "maximum": str(max_level),
+                },
+                message=(
+                    f"Battery shutdown level must be between {min_level} and "
+                    f"{max_level}."
+                ),
             )
         await self.async_apply_battery_settings({"veryLowSoc": normalized})
 
@@ -4503,7 +4812,10 @@ class BatteryRuntime:
 
         opt_out = getattr(coord.client, "opt_out_storm_alert", None)
         if not callable(opt_out):
-            raise ServiceValidationError("Storm Alert opt-out is unavailable.")
+            self._raise_validation(
+                "storm_alert_opt_out_unavailable",
+                message="Storm Alert opt-out is unavailable.",
+            )
 
         failures: list[tuple[str, Exception]] = []
         for alert_id, name in actionable:
@@ -4537,8 +4849,10 @@ class BatteryRuntime:
             )
 
         if failures:
-            raise ServiceValidationError(
-                f"Storm Alert opt-out failed for {len(failures)} alert(s)."
+            self._raise_validation(
+                "storm_alert_opt_out_failed",
+                placeholders={"count": str(len(failures))},
+                message=f"Storm Alert opt-out failed for {len(failures)} alert(s).",
             )
         if refresh_err is not None:
             raise refresh_err
@@ -4546,11 +4860,15 @@ class BatteryRuntime:
     async def async_set_storm_guard_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
         await self.async_ensure_battery_write_access_confirmed(
-            denied_message="Storm Guard updates are not permitted for this account."
+            denied_message="Storm Guard updates are not permitted for this account.",
+            denied_key="storm_guard_update_not_permitted",
         )
         await coord.async_refresh_storm_guard_profile(force=True)
         if getattr(coord, "_storm_evse_enabled", None) is None:
-            raise ServiceValidationError("Storm Guard settings are unavailable.")
+            self._raise_validation(
+                "storm_guard_settings_unavailable",
+                message="Storm Guard settings are unavailable.",
+            )
         target_state = "enabled" if enabled else "disabled"
         self.set_storm_guard_pending(target_state)
         try:
@@ -4564,16 +4882,27 @@ class BatteryRuntime:
                 owner = coord.battery_user_is_owner
                 installer = coord.battery_user_is_installer
                 if owner is False and installer is False:
-                    raise ServiceValidationError(
-                        "Storm Guard updates are not permitted for this account."
-                    ) from err
-                raise ServiceValidationError(
-                    "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
-                ) from err
+                    self._raise_validation(
+                        "storm_guard_update_not_permitted",
+                        message=(
+                            "Storm Guard updates are not permitted for this account."
+                        ),
+                    )
+                self._raise_validation(
+                    "storm_guard_update_forbidden",
+                    message=(
+                        "Storm Guard update was rejected by Enphase "
+                        "(HTTP 403 Forbidden)."
+                    ),
+                )
             if err.status == HTTPStatus.UNAUTHORIZED:
-                raise ServiceValidationError(
-                    "Storm Guard update could not be authenticated. Reauthenticate and try again."
-                ) from err
+                self._raise_validation(
+                    "storm_guard_update_unauthorized",
+                    message=(
+                        "Storm Guard update could not be authenticated. "
+                        "Reauthenticate and try again."
+                    ),
+                )
             raise
         except Exception:
             self.clear_storm_guard_pending()
@@ -4584,11 +4913,15 @@ class BatteryRuntime:
     async def async_set_storm_evse_enabled(self, enabled: bool) -> None:
         coord = self.coordinator
         await self.async_ensure_battery_write_access_confirmed(
-            denied_message="Storm Guard updates are not permitted for this account."
+            denied_message="Storm Guard updates are not permitted for this account.",
+            denied_key="storm_guard_update_not_permitted",
         )
         await coord.async_refresh_storm_guard_profile(force=True)
         if getattr(coord, "_storm_guard_state", None) is None:
-            raise ServiceValidationError("Storm Guard settings are unavailable.")
+            self._raise_validation(
+                "storm_guard_settings_unavailable",
+                message="Storm Guard settings are unavailable.",
+            )
         try:
             await coord.client.set_storm_guard(
                 enabled=getattr(coord, "_storm_guard_state", None) == "enabled",
@@ -4599,16 +4932,27 @@ class BatteryRuntime:
                 owner = coord.battery_user_is_owner
                 installer = coord.battery_user_is_installer
                 if owner is False and installer is False:
-                    raise ServiceValidationError(
-                        "Storm Guard updates are not permitted for this account."
-                    ) from err
-                raise ServiceValidationError(
-                    "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
-                ) from err
+                    self._raise_validation(
+                        "storm_guard_update_not_permitted",
+                        message=(
+                            "Storm Guard updates are not permitted for this account."
+                        ),
+                    )
+                self._raise_validation(
+                    "storm_guard_update_forbidden",
+                    message=(
+                        "Storm Guard update was rejected by Enphase "
+                        "(HTTP 403 Forbidden)."
+                    ),
+                )
             if err.status == HTTPStatus.UNAUTHORIZED:
-                raise ServiceValidationError(
-                    "Storm Guard update could not be authenticated. Reauthenticate and try again."
-                ) from err
+                self._raise_validation(
+                    "storm_guard_update_unauthorized",
+                    message=(
+                        "Storm Guard update could not be authenticated. "
+                        "Reauthenticate and try again."
+                    ),
+                )
             raise
         self.battery_state._storm_evse_enabled = bool(enabled)
         self.battery_state._storm_guard_cache_until = (
