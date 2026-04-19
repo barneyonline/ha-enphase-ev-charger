@@ -14,6 +14,9 @@ from custom_components.enphase_ev.battery_schedule_editor import (
     BatteryScheduleEditorManager,
     BatteryScheduleRecord,
     NEW_SCHEDULE_OPTION,
+    _minutes_of_day,
+    battery_schedule_overlap_message,
+    battery_schedule_overlap_record,
     battery_scheduler_enabled,
     editor_days_from_list,
     _normalize_days,
@@ -165,6 +168,206 @@ def test_battery_schedule_inventory_normalizes_payload_and_fallbacks() -> None:
     assert [record.schedule_id for record in fallback_records] == ["789abc", "fedcba"]
     assert fallback_records[1].start_time == "18:00"
     assert fallback_records[1].end_time == "22:00"
+
+
+def test_battery_schedule_overlap_record_detects_same_day_and_wraparound() -> None:
+    coord = SimpleNamespace(_battery_schedules_payload=_schedule_payload())
+
+    conflict = battery_schedule_overlap_record(
+        coord,
+        start_time="02:30",
+        end_time="04:00",
+        days=[1],
+    )
+
+    assert conflict is not None
+    assert conflict.schedule_id == "abc123"
+    assert "charge from grid schedule" in battery_schedule_overlap_message(conflict)
+
+    assert (
+        battery_schedule_overlap_record(
+            coord,
+            start_time="03:30",
+            end_time="04:30",
+            days=[1],
+        )
+        is None
+    )
+
+    wraparound_coord = SimpleNamespace(
+        _battery_schedules_payload={
+            "dtg": {
+                "scheduleStatus": "pending",
+                "details": [
+                    {
+                        "scheduleId": "wrap",
+                        "startTime": "23:00",
+                        "endTime": "01:00",
+                        "limit": 30,
+                        "days": [7],
+                        "timezone": "UTC",
+                        "isEnabled": False,
+                    }
+                ],
+            }
+        }
+    )
+
+    wrap_conflict = battery_schedule_overlap_record(
+        wraparound_coord,
+        start_time="00:30",
+        end_time="00:45",
+        days=[1],
+    )
+
+    assert wrap_conflict is not None
+    assert wrap_conflict.schedule_id == "wrap"
+
+
+def test_battery_schedule_overlap_helpers_cover_invalid_and_fallback_paths() -> None:
+    coord = SimpleNamespace(
+        _battery_schedules_payload={
+            "cfg": {
+                "details": [
+                    {
+                        "scheduleId": "invalid",
+                        "startTime": "bad",
+                        "endTime": "02:00",
+                        "limit": 90,
+                        "days": [1],
+                        "timezone": "UTC",
+                        "isEnabled": True,
+                    },
+                    {
+                        "scheduleId": "invalid-end",
+                        "startTime": "01:00",
+                        "endTime": "bad",
+                        "limit": 90,
+                        "days": [1],
+                        "timezone": "UTC",
+                        "isEnabled": True,
+                    },
+                ]
+            }
+        }
+    )
+
+    assert _minutes_of_day(dt_time(2, 15)) == 135
+    assert _minutes_of_day(75) == 75
+    assert _minutes_of_day(-1) is None
+    assert _minutes_of_day(24 * 60) is None
+    assert _minutes_of_day(object()) is None
+    assert _minutes_of_day("") is None
+    assert _minutes_of_day("nope") is None
+    assert _minutes_of_day("ab:cd") is None
+    assert _minutes_of_day("24:00") is None
+
+    assert (
+        battery_schedule_overlap_record(
+            coord,
+            start_time=None,
+            end_time="02:00",
+            days=[1],
+        )
+        is None
+    )
+    assert (
+        battery_schedule_overlap_record(
+            coord,
+            start_time="01:00",
+            end_time="01:00",
+            days=[1],
+        )
+        is None
+    )
+    assert (
+        battery_schedule_overlap_record(
+            coord,
+            start_time="01:00",
+            end_time="02:00",
+            days=[],
+        )
+        is None
+    )
+
+    message = battery_schedule_overlap_message(
+        BatteryScheduleRecord(
+            schedule_id="fallback",
+            schedule_type="",
+            start_time="00:00",
+            end_time="01:00",
+            limit=None,
+            days=[1],
+            timezone="UTC",
+            enabled=None,
+            schedule_status=None,
+        )
+    )
+    assert message == (
+        "Schedule overlaps with the existing battery schedule. "
+        "Adjust or disable that schedule first."
+    )
+
+    assert (
+        battery_schedule_overlap_message(
+            BatteryScheduleRecord(
+                schedule_id="already",
+                schedule_type="schedule",
+                start_time="00:00",
+                end_time="01:00",
+                limit=None,
+                days=[1],
+                timezone="UTC",
+                enabled=None,
+                schedule_status=None,
+            )
+        )
+        == "Schedule overlaps with the existing schedule. Adjust or disable that schedule first."
+    )
+
+
+def test_battery_schedule_overlap_record_skips_existing_records_with_invalid_times(
+    monkeypatch,
+) -> None:
+    invalid_record = BatteryScheduleRecord(
+        schedule_id="bad-record",
+        schedule_type="cfg",
+        start_time="01:00",
+        end_time="bad",
+        limit=90,
+        days=[1],
+        timezone="UTC",
+        enabled=True,
+        schedule_status="active",
+    )
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_schedule_editor.battery_schedule_inventory",
+        lambda _coord: [invalid_record],
+    )
+
+    assert (
+        battery_schedule_overlap_record(
+            SimpleNamespace(),
+            start_time="01:30",
+            end_time="02:00",
+            days=[1],
+        )
+        is None
+    )
+
+
+def test_battery_schedule_inventory_prefers_control_enabled_state_when_known() -> None:
+    records = battery_schedule_inventory(
+        SimpleNamespace(
+            _battery_schedules_payload=_schedule_payload(),
+            battery_charge_from_grid_schedule_enabled=False,
+            battery_dtg_control_enabled=True,
+        )
+    )
+
+    assert records[0].enabled is False
+    assert records[1].enabled is True
 
 
 def test_battery_scheduler_enabled_defaults_true_when_option_missing() -> None:
@@ -1363,7 +1566,15 @@ async def test_battery_schedule_services_support_crud_and_validation(
     )
 
     coord.async_request_refresh.assert_awaited()
-    coord.client.create_battery_schedule.assert_awaited_once()
+    coord.client.create_battery_schedule.assert_awaited_once_with(
+        schedule_type="CFG",
+        start_time="05:00",
+        end_time="07:00",
+        limit=88,
+        days=[1, 2, 3],
+        timezone="US/Pacific",
+        is_enabled=True,
+    )
     coord.client.update_battery_schedule.assert_awaited_once_with(
         "abc123",
         schedule_type="CFG",
@@ -1372,7 +1583,6 @@ async def test_battery_schedule_services_support_crud_and_validation(
         limit=91,
         days=[1, 5],
         timezone="Australia/Melbourne",
-        is_enabled=True,
     )
     assert coord.client.delete_battery_schedule.await_count == 2
     assert coord.client.delete_battery_schedule.await_args_list[0].kwargs == {
@@ -1472,7 +1682,93 @@ async def test_battery_schedule_services_update_uses_inventory_schedule_family(
         limit=41,
         days=[2, 4],
         timezone="UTC",
-        is_enabled=False,
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_services_reject_local_overlaps_before_client_calls(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.exceptions import ServiceValidationError
+
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {"handler": handler}
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    add_schedule = registered[(DOMAIN, "add_schedule")]["handler"]
+    update_schedule = registered[(DOMAIN, "update_schedule")]["handler"]
+
+    with pytest.raises(
+        ServiceValidationError, match="existing charge from grid schedule"
+    ):
+        await add_schedule(
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_type": "rbd",
+                    "start_time": dt_time(2, 0),
+                    "end_time": dt_time(4, 0),
+                    "limit": 100,
+                    "days": [1],
+                }
+            )
+        )
+
+    coord.client.create_battery_schedule.assert_not_awaited()
+
+    with pytest.raises(
+        ServiceValidationError, match="existing charge from grid schedule"
+    ):
+        await update_schedule(
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_id": "def456",
+                    "schedule_type": "dtg",
+                    "start_time": dt_time(2, 0),
+                    "end_time": dt_time(4, 0),
+                    "limit": 41,
+                    "days": [1],
+                    "confirm": True,
+                }
+            )
+        )
+
+    coord.client.update_battery_schedule.assert_not_awaited()
+
+    await update_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_id": "abc123",
+                "schedule_type": "cfg",
+                "start_time": dt_time(1, 30),
+                "end_time": dt_time(3, 0),
+                "limit": 90,
+                "days": [1, 3, 5],
+                "confirm": True,
+            }
+        )
+    )
+
+    coord.client.update_battery_schedule.assert_awaited_once_with(
+        "abc123",
+        schedule_type="CFG",
+        start_time="01:30",
+        end_time="03:00",
+        limit=90,
+        days=[1, 3, 5],
+        timezone="Australia/Melbourne",
     )
 
 
@@ -1566,8 +1862,8 @@ async def test_battery_schedule_services_cover_failure_paths(
                 data={
                     "config_entry_id": config_entry.entry_id,
                     "schedule_type": "cfg",
-                    "start_time": dt_time(1, 0),
-                    "end_time": dt_time(2, 0),
+                    "start_time": dt_time(4, 0),
+                    "end_time": dt_time(5, 0),
                     "limit": 50,
                     "days": [1],
                 }
@@ -1637,8 +1933,8 @@ async def test_battery_schedule_services_cover_failure_paths(
                     "config_entry_id": config_entry.entry_id,
                     "schedule_id": "abc123",
                     "schedule_type": "cfg",
-                    "start_time": dt_time(1, 0),
-                    "end_time": dt_time(2, 0),
+                    "start_time": dt_time(4, 0),
+                    "end_time": dt_time(5, 0),
                     "limit": 50,
                     "days": [1],
                     "confirm": True,
@@ -1735,6 +2031,69 @@ async def test_battery_schedule_services_cover_failure_paths(
                 }
             )
         )
+
+    coord.client.validate_battery_schedule = AsyncMock(
+        return_value={"isValid": True, "message": "ok"}
+    )
+    assert await validate_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_type": "cfg",
+            }
+        )
+    ) == {"isValid": True, "message": "ok", "valid": True}
+
+    coord.client.validate_battery_schedule = AsyncMock(
+        return_value={"isValid": False, "message": "raw invalid schedule"}
+    )
+    with pytest.raises(ServiceValidationError, match="raw invalid schedule"):
+        await validate_schedule(
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_type": "cfg",
+                }
+            )
+        )
+
+    coord.client.validate_battery_schedule = AsyncMock(
+        return_value={"isValid": "false", "message": "string invalid schedule"}
+    )
+    with pytest.raises(ServiceValidationError, match="string invalid schedule"):
+        await validate_schedule(
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_type": "cfg",
+                }
+            )
+        )
+
+    coord.client.validate_battery_schedule = AsyncMock(
+        return_value={"isValid": "true", "message": "string ok"}
+    )
+    assert await validate_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_type": "cfg",
+            }
+        )
+    ) == {"isValid": "true", "message": "string ok", "valid": True}
+
+    coord.client.validate_battery_schedule = AsyncMock(return_value=["unexpected"])
+    assert (
+        await validate_schedule(
+            SimpleNamespace(
+                data={
+                    "config_entry_id": config_entry.entry_id,
+                    "schedule_type": "cfg",
+                }
+            )
+        )
+        == {}
+    )
 
     coord.client.validate_battery_schedule = AsyncMock(
         side_effect=aiohttp.ClientResponseError(

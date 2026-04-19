@@ -2140,6 +2140,169 @@ def test_parse_battery_schedules_payload_tracks_dtg_and_rbd_families(
     assert coord.battery_rbd_schedule_status == "active"
 
 
+def test_parse_battery_schedules_payload_preserves_enabled_state_from_controls(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "chargeFromGridScheduleEnabled": False,
+                "dtgControl": {"enabled": False},
+                "rbdControl": {"enabled": True},
+            }
+        },
+        clear_missing_schedule_times=False,
+        clear_missing_reserve_bounds=False,
+    )
+    coord.battery_runtime.parse_battery_schedules_payload(
+        {
+            "cfg": {
+                "details": [
+                    {
+                        "scheduleId": "sched-cfg",
+                        "startTime": "00:00",
+                        "endTime": "07:30",
+                        "limit": 90,
+                        "days": [1, 7],
+                        "timezone": "Europe/Lisbon",
+                        "isEnabled": True,
+                    }
+                ]
+            },
+            "dtg": {
+                "details": [
+                    {
+                        "scheduleId": "sched-dtg",
+                        "startTime": "18:00",
+                        "endTime": "23:59",
+                        "limit": 5,
+                        "days": [1, 2, 3, 4, 5, 6, 7],
+                        "timezone": "Europe/London",
+                        "isEnabled": True,
+                    }
+                ]
+            },
+            "rbd": {
+                "details": [
+                    {
+                        "scheduleId": "sched-rbd",
+                        "startTime": "01:00",
+                        "endTime": "16:00",
+                        "limit": 100,
+                        "days": [1, 2, 3, 4, 5, 6, 7],
+                        "timezone": "Europe/London",
+                        "isEnabled": False,
+                    }
+                ]
+            },
+        }
+    )
+
+    assert coord.battery_charge_from_grid_schedule_enabled is False
+    assert coord.battery_discharge_to_grid_schedule_enabled is False
+    assert coord.battery_restrict_battery_discharge_schedule_enabled is True
+
+
+def test_parse_battery_schedules_payload_prefers_control_matching_detail(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.battery_runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "chargeFromGridScheduleEnabled": False,
+                "dtgControl": {"enabled": False},
+                "rbdControl": {"enabled": True},
+            }
+        },
+        clear_missing_schedule_times=False,
+        clear_missing_reserve_bounds=False,
+    )
+    coord.battery_runtime.parse_battery_schedules_payload(
+        {
+            "cfg": {
+                "details": [
+                    {
+                        "scheduleId": "cfg-temp",
+                        "startTime": "00:10",
+                        "endTime": "00:40",
+                        "limit": 100,
+                        "days": [6],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": True,
+                    },
+                    {
+                        "scheduleId": "cfg-real",
+                        "startTime": "02:00",
+                        "endTime": "05:00",
+                        "limit": 100,
+                        "days": [1, 2, 3, 4, 5, 6, 7],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": False,
+                    },
+                ]
+            },
+            "dtg": {
+                "details": [
+                    {
+                        "scheduleId": "dtg-temp",
+                        "startTime": "00:15",
+                        "endTime": "00:45",
+                        "limit": 21,
+                        "days": [6],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": True,
+                    },
+                    {
+                        "scheduleId": "dtg-real",
+                        "startTime": "18:15",
+                        "endTime": "23:45",
+                        "limit": 21,
+                        "days": [1, 2, 3, 4, 5],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": False,
+                    },
+                ]
+            },
+            "rbd": {
+                "details": [
+                    {
+                        "scheduleId": "rbd-temp",
+                        "startTime": "00:50",
+                        "endTime": "01:20",
+                        "limit": 100,
+                        "days": [6],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": False,
+                    },
+                    {
+                        "scheduleId": "rbd-real",
+                        "startTime": "06:30",
+                        "endTime": "11:00",
+                        "limit": 100,
+                        "days": [1, 2, 3, 4, 5, 6, 7],
+                        "timezone": "Australia/Melbourne",
+                        "isEnabled": True,
+                    },
+                ]
+            },
+        }
+    )
+
+    assert coord._battery_cfg_schedule_id == "cfg-real"  # noqa: SLF001
+    assert coord._battery_charge_begin_time == 120  # noqa: SLF001
+    assert coord._battery_charge_end_time == 300  # noqa: SLF001
+    assert coord._battery_dtg_schedule_id == "dtg-real"  # noqa: SLF001
+    assert coord._battery_dtg_begin_time == 1095  # noqa: SLF001
+    assert coord._battery_dtg_end_time == 1425  # noqa: SLF001
+    assert coord._battery_rbd_schedule_id == "rbd-real"  # noqa: SLF001
+    assert coord._battery_rbd_begin_time == 390  # noqa: SLF001
+    assert coord._battery_rbd_end_time == 660  # noqa: SLF001
+
+
 # ---------------------------------------------------------------------------
 # CFG schedule CRUD – lock/debounce, restore-on-failure, availability guards
 # ---------------------------------------------------------------------------
@@ -2761,7 +2924,7 @@ async def test_dtg_schedule_time_update_omits_enabled_flag(
 
 
 @pytest.mark.asyncio
-async def test_dtg_schedule_time_update_preserves_disabled_state(
+async def test_dtg_schedule_time_update_still_omits_enabled_flag_when_disabled(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -2771,7 +2934,7 @@ async def test_dtg_schedule_time_update_preserves_disabled_state(
     await coord.async_set_discharge_to_grid_schedule_time(start=dt_time(17, 30))
 
     call = coord.client.update_battery_schedule.await_args
-    assert call.kwargs["is_enabled"] is False
+    assert call.kwargs["is_enabled"] is None
 
 
 @pytest.mark.asyncio
@@ -2965,7 +3128,7 @@ async def test_rbd_schedule_enabled_without_schedule_or_window_uses_battery_sett
 
 
 @pytest.mark.asyncio
-async def test_rbd_schedule_limit_update_preserves_disabled_state(
+async def test_rbd_schedule_limit_update_still_omits_enabled_flag_when_disabled(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -2975,7 +3138,7 @@ async def test_rbd_schedule_limit_update_preserves_disabled_state(
     await coord.async_set_restrict_battery_discharge_schedule_limit(80)
 
     call = coord.client.update_battery_schedule.await_args
-    assert call.kwargs["is_enabled"] is False
+    assert call.kwargs["is_enabled"] is None
 
 
 @pytest.mark.asyncio
@@ -3179,6 +3342,58 @@ def test_raise_schedule_update_validation_error_parses_conflict_payloads(
         runtime.raise_schedule_update_validation_error(err)  # noqa: SLF001
 
 
+def test_is_already_processed_profile_cancel_error_parsing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    assert (
+        runtime._is_already_processed_profile_cancel_error(  # noqa: SLF001
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=HTTPStatus.BAD_REQUEST,
+                message='{"error":{"status":"ALREADY_PROCESSED"}}',
+            )
+        )
+        is False
+    )
+    assert (
+        runtime._is_already_processed_profile_cancel_error(  # noqa: SLF001
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=HTTPStatus.CONFLICT,
+                message="",
+            )
+        )
+        is False
+    )
+    assert (
+        runtime._is_already_processed_profile_cancel_error(  # noqa: SLF001
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=HTTPStatus.CONFLICT,
+                message="ALREADY_PROCESSED raw conflict",
+            )
+        )
+        is True
+    )
+    assert (
+        runtime._is_already_processed_profile_cancel_error(  # noqa: SLF001
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=HTTPStatus.CONFLICT,
+                message='{"error": []}',
+            )
+        )
+        is False
+    )
+
+
 @pytest.mark.asyncio
 async def test_async_apply_battery_settings_compat_handles_payload_and_auth_errors(
     coordinator_factory,
@@ -3233,23 +3448,32 @@ async def test_dtg_schedule_toggle_unexpected_client_error_reraises(
 
 
 @pytest.mark.asyncio
-async def test_cfg_schedule_enabled_helper_still_uses_schedule_write_path(
+async def test_cfg_schedule_enabled_helper_delegates_to_cfg_settings_toggle(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
-    _seed_cfg_schedule(coord)
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(
+        show=True,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=True,
+    )
+    coord._battery_charge_begin_time = 120  # noqa: SLF001
+    coord._battery_charge_end_time = 300  # noqa: SLF001
+    coord.battery_runtime.async_set_charge_from_grid_schedule_enabled = (
+        AsyncMock()
+    )  # noqa: SLF001
 
     await coord.battery_runtime._async_set_schedule_family_enabled(  # noqa: SLF001
         "cfg", False
     )
 
-    call = coord.client.update_battery_schedule.await_args
-    assert call.args[0] == "sched-1"
-    assert call.kwargs["schedule_type"] == "CFG"
-    assert call.kwargs["start_time"] == "02:00"
-    assert call.kwargs["end_time"] == "05:00"
-    assert call.kwargs["limit"] == 80
-    assert call.kwargs["is_enabled"] is False
+    coord.battery_runtime.async_set_charge_from_grid_schedule_enabled.assert_awaited_once_with(  # noqa: SLF001
+        False
+    )
 
 
 @pytest.mark.asyncio
@@ -3563,6 +3787,44 @@ async def test_create_schedule_family_uses_validation_error_on_client_failure(
 
 
 @pytest.mark.asyncio
+async def test_create_schedule_family_rejects_local_overlap_before_client_call(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_no_schedule_family(coord, "dtg")
+    coord._battery_schedules_payload = {  # noqa: SLF001
+        "cfg": {
+            "details": [
+                {
+                    "scheduleId": "sched-cfg",
+                    "startTime": "02:00",
+                    "endTime": "05:00",
+                    "limit": 100,
+                    "days": [1, 2, 3, 4, 5, 6, 7],
+                    "timezone": "Australia/Melbourne",
+                    "isEnabled": False,
+                }
+            ]
+        },
+        "dtg": {"details": []},
+        "rbd": {"details": []},
+    }
+
+    with pytest.raises(
+        ServiceValidationError, match="existing charge from grid schedule"
+    ):
+        await coord.battery_runtime._async_create_or_update_schedule_family(  # noqa: SLF001
+            "dtg",
+            start_minutes=150,
+            end_minutes=240,
+            limit=10,
+            is_enabled=False,
+        )
+
+    coord.client.create_battery_schedule.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_create_schedule_family_reraises_client_error_when_helper_does_not(
     coordinator_factory,
 ) -> None:
@@ -3587,6 +3849,58 @@ async def test_create_schedule_family_reraises_client_error_when_helper_does_not
             limit=10,
             is_enabled=True,
         )
+
+
+@pytest.mark.asyncio
+async def test_async_update_battery_schedule_rejects_local_overlap_before_client_call(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord._battery_schedules_payload = {  # noqa: SLF001
+        "cfg": {
+            "details": [
+                {
+                    "scheduleId": "sched-cfg",
+                    "startTime": "02:00",
+                    "endTime": "05:00",
+                    "limit": 100,
+                    "days": [1, 2, 3, 4, 5, 6, 7],
+                    "timezone": "Australia/Melbourne",
+                    "isEnabled": False,
+                }
+            ]
+        },
+        "dtg": {
+            "details": [
+                {
+                    "scheduleId": "sched-dtg",
+                    "startTime": "18:00",
+                    "endTime": "23:00",
+                    "limit": 5,
+                    "days": [1, 2, 3, 4, 5, 6, 7],
+                    "timezone": "Europe/London",
+                    "isEnabled": True,
+                }
+            ]
+        },
+        "rbd": {"details": []},
+    }
+
+    with pytest.raises(
+        ServiceValidationError, match="existing charge from grid schedule"
+    ):
+        await coord.battery_runtime.async_update_battery_schedule(
+            "sched-dtg",
+            schedule_type="DTG",
+            start_time="02:30",
+            end_time="04:00",
+            limit=5,
+            days=[1],
+            timezone="Europe/London",
+        )
+
+    coord.client.update_battery_schedule.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -3840,6 +4154,7 @@ def _seed_no_cfg_schedule(coord):
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = False  # noqa: SLF001
     coord._battery_charge_begin_time = 120  # noqa: SLF001
     coord._battery_charge_end_time = 300  # noqa: SLF001
     coord._battery_cfg_schedule_id = None  # noqa: SLF001
@@ -3870,6 +4185,7 @@ async def test_cfg_schedule_creates_when_none_exists(
         limit=100,
         days=[1, 2, 3, 4, 5, 6, 7],
         timezone="UTC",
+        is_enabled=False,
     )
     # Legacy set_battery_settings should NOT have been called.
     coord.client.set_battery_settings.assert_not_awaited()

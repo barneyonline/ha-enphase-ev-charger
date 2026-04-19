@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import time as dt_time
-from typing import Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -11,9 +11,11 @@ from .const import (
     DEFAULT_BATTERY_SCHEDULES_ENABLED,
     OPT_BATTERY_SCHEDULES_ENABLED,
 )
-from .coordinator import EnphaseCoordinator
 from .labels import battery_schedule_type_label
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .coordinator import EnphaseCoordinator
 
 DAY_ORDER: list[tuple[str, int]] = [
     ("mon", 1),
@@ -27,6 +29,7 @@ DAY_ORDER: list[tuple[str, int]] = [
 DAY_KEY_BY_INDEX = {index: key for key, index in DAY_ORDER}
 NEW_SCHEDULE_OPTION = "new_schedule"
 SCHEDULE_TYPE_KEYS: tuple[str, ...] = ("cfg", "dtg", "rbd")
+_DAY_MINUTES = 24 * 60
 
 
 def default_day_flags() -> dict[str, bool]:
@@ -61,6 +64,121 @@ def _normalize_days(raw: object) -> list[int]:
     return sorted(days)
 
 
+def _minutes_of_day(value: object) -> int | None:
+    if isinstance(value, dt_time):
+        return value.hour * 60 + value.minute
+    if isinstance(value, (int, float)):
+        minutes = int(value)
+        if 0 <= minutes < _DAY_MINUTES:
+            return minutes
+        return None
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    parts = text.split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+    except ValueError:
+        return None
+    if not 0 <= hours < 24 or not 0 <= minutes < 60:
+        return None
+    return hours * 60 + minutes
+
+
+def _weekly_schedule_segments(
+    days: list[int], start_minutes: int, end_minutes: int
+) -> list[tuple[int, int]]:
+    if start_minutes == end_minutes:
+        return []
+    segments: list[tuple[int, int]] = []
+    for day in _normalize_days(days):
+        offset = (day - 1) * _DAY_MINUTES
+        if start_minutes < end_minutes:
+            segments.append((offset + start_minutes, offset + end_minutes))
+            continue
+        segments.append((offset + start_minutes, offset + _DAY_MINUTES))
+        next_day_offset = (day % 7) * _DAY_MINUTES
+        segments.append((next_day_offset, next_day_offset + end_minutes))
+    return segments
+
+
+def _segments_overlap(
+    left: list[tuple[int, int]], right: list[tuple[int, int]]
+) -> bool:
+    return any(
+        left_start < right_end and right_start < left_end
+        for left_start, left_end in left
+        for right_start, right_end in right
+    )
+
+
+def battery_schedule_overlap_record(
+    coord: EnphaseCoordinator,
+    *,
+    start_time: object,
+    end_time: object,
+    days: list[int],
+    exclude_schedule_id: str | None = None,
+) -> BatteryScheduleRecord | None:
+    candidate_days = _normalize_days(days)
+    candidate_start = _minutes_of_day(start_time)
+    candidate_end = _minutes_of_day(end_time)
+    if not candidate_days or candidate_start is None or candidate_end is None:
+        return None
+    candidate_segments = _weekly_schedule_segments(
+        candidate_days,
+        candidate_start,
+        candidate_end,
+    )
+    if not candidate_segments:
+        return None
+    for schedule in battery_schedule_inventory(coord):
+        if exclude_schedule_id is not None and schedule.schedule_id == str(
+            exclude_schedule_id
+        ):
+            continue
+        existing_start = _minutes_of_day(schedule.start_time)
+        existing_end = _minutes_of_day(schedule.end_time)
+        if existing_start is None or existing_end is None:
+            continue
+        existing_segments = _weekly_schedule_segments(
+            schedule.days,
+            existing_start,
+            existing_end,
+        )
+        if existing_segments and _segments_overlap(
+            candidate_segments, existing_segments
+        ):
+            return schedule
+    return None
+
+
+def battery_schedule_overlap_message(
+    schedule: BatteryScheduleRecord, *, hass: object | None = None
+) -> str:
+    label = battery_schedule_overlap_placeholders(schedule, hass=hass)["schedule_label"]
+    if not label.endswith("schedule"):
+        label = f"{label} schedule"
+    return (
+        f"Schedule overlaps with the existing {label}. "
+        "Adjust or disable that schedule first."
+    )
+
+
+def battery_schedule_overlap_placeholders(
+    schedule: BatteryScheduleRecord, *, hass: object | None = None
+) -> dict[str, str]:
+    schedule_type = battery_schedule_type_label(schedule.schedule_type, hass=hass)
+    if not schedule_type:
+        schedule_type = str(schedule.schedule_type).strip() or "battery"
+    return {"schedule_label": schedule_type.lower()}
+
+
 def editor_days_from_list(days: list[int]) -> dict[str, bool]:
     flags = {key: False for key, _ in DAY_ORDER}
     for day in days:
@@ -72,6 +190,19 @@ def editor_days_from_list(days: list[int]) -> dict[str, bool]:
 
 def days_list_from_editor(flags: dict[str, bool]) -> list[int]:
     return [index for key, index in DAY_ORDER if flags.get(key)]
+
+
+def _family_control_enabled(
+    coord: EnphaseCoordinator, schedule_type: str
+) -> bool | None:
+    normalized = str(schedule_type).lower()
+    attr_name = {
+        "cfg": "battery_charge_from_grid_schedule_enabled",
+        "dtg": "battery_dtg_control_enabled",
+        "rbd": "battery_rbd_control_enabled",
+    }.get(normalized, "")
+    value = getattr(coord, attr_name, None)
+    return value if isinstance(value, bool) else None
 
 
 def battery_scheduler_enabled(entry: EnphaseConfigEntry | None) -> bool:
@@ -181,7 +312,9 @@ def battery_schedule_inventory(
                 if isinstance(limit_raw, (int, float)):
                     limit = int(limit_raw)
                 enabled_raw = item.get("isEnabled")
-                enabled = enabled_raw if isinstance(enabled_raw, bool) else None
+                enabled = _family_control_enabled(coord, schedule_type)
+                if enabled is None and isinstance(enabled_raw, bool):
+                    enabled = enabled_raw
                 status_raw = item.get("scheduleStatus")
                 status = (
                     str(status_raw).strip().lower()
@@ -492,7 +625,7 @@ class BatteryScheduleEditorManager:
         self._notify_listeners()
 
 
-class BatteryScheduleEditorEntity(CoordinatorEntity[EnphaseCoordinator]):
+class BatteryScheduleEditorEntity(CoordinatorEntity[Any]):
     def __init__(self, coord: EnphaseCoordinator, entry: EnphaseConfigEntry) -> None:
         super().__init__(coord)
         self._coord = coord
