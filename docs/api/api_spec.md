@@ -136,7 +136,7 @@ Example response:
 | BatteryConfig third-party settings | `GET` | `/service/batteryConfig/api/v1/<site_id>/thirdPartyControlSettings` | official-web BatteryConfig shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
 | BatteryConfig schedules | `GET` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | official-web BatteryConfig read shape: `Accept`, `Origin`, `Referer`, Safari-style `User-Agent`, `Username`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI) |
 | BatteryConfig schedule create | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules` | BatteryConfig write shape plus `X-XSRF-Token`; on affected sites the verified working shape is the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) sent from a stateless client session so aiohttp does not merge cookie-jar state; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No |
-| BatteryConfig schedule validation / XSRF bootstrap | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | explicit validation uses the official-web BatteryConfig write shape without `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`, or `X-XSRF-Token`; the internal XSRF-bootstrap helper hits the same route and may include the currently held `X-XSRF-Token` while harvesting a fresh `BP-XSRF-Token` from `Set-Cookie`; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI and live verification) |
+| BatteryConfig schedule validation / XSRF bootstrap | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid` | explicit validation uses the official-web BatteryConfig write shape without `Authorization`, `Cookie`, `X-CSRF-Token`, `X-Requested-With`, or `X-XSRF-Token`; the internal XSRF-bootstrap helper now prefers `GET /siteSettings/<site_id>?userId=<user_id>` and reads `x-csrf-token`, then falls back to this route where it may include the currently held `X-XSRF-Token` while harvesting a fresh token from the response header, `Set-Cookie`, or the session cookie jar; current client uses primary variant with `e-auth-token` + `requestid` and lean fallback without them | No (documented from web UI and live verification) |
 | BatteryConfig schedule update | `PUT` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>` | BatteryConfig write shape plus `X-XSRF-Token`; verified working update uses the raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`) from a stateless client session; current client falls back across cookie-backed, primary, lean, and mixed-auth variants | No (documented from live verification) |
 | BatteryConfig schedule legacy delete alias | `POST` | `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/<schedule_id>/delete` | same BatteryConfig write planner as schedule create/update; cookie-backed browser request is the verified working compatibility shape on affected sites | No |
 | BatteryConfig disclaimer accept | `POST` | `/service/batteryConfig/api/v1/batterySettings/acceptDisclaimer/<site_id>` | documented write pattern only; when used, current client will try the same cookie-backed, primary, lean, and mixed-auth BatteryConfig write variants | No (not currently used by runtime) |
@@ -4216,7 +4216,8 @@ Updates the system profile and reserve percentage. Observed profile keys include
 `self-consumption`, `cost_savings`, `backup_only`, and `ai_optimisation`.
 
 Implementation auth notes:
-- The current client first acquires a fresh `BP-XSRF-Token` by POSTing to `/service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid`.
+- The current client first attempts `GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` and reads the `x-csrf-token` response header.
+- If that GET does not yield a token, it falls back to `POST /service/batteryConfig/api/v1/battery/sites/<site_id>/schedules/isValid`, where it accepts `x-csrf-token`, `Set-Cookie`, response cookies, or the session cookie jar.
 - On affected issue `#460` sites, the verified working write uses the raw stored BatteryConfig cookie (`Cookie`), `e-auth-token` from `enlighten_manager_token_production`, `Username`, `X-XSRF-Token` from the raw cookie header, and `X-Requested-With: XMLHttpRequest`.
 - That cookie-backed write must be sent from a stateless request session so aiohttp does not merge cookie-jar state into the raw `Cookie` header.
 - Verified write planner order:
@@ -4410,7 +4411,8 @@ Headers:
 Updates battery settings. Captured requests used partial payloads to change individual controls.
 
 Implementation auth notes:
-- The current client first acquires a fresh `BP-XSRF-Token` via `/battery/sites/<site_id>/schedules/isValid`.
+- The current client first attempts `GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` and reads the `x-csrf-token` response header.
+- If that GET does not yield a token, it falls back to `POST /battery/sites/<site_id>/schedules/isValid`, where it accepts `x-csrf-token`, `Set-Cookie`, response cookies, or the session cookie jar.
 - On affected issue `#460` sites, the verified working write uses the raw stored BatteryConfig cookie (`Cookie`), `e-auth-token` from `enlighten_manager_token_production`, `Username`, `X-XSRF-Token` from the raw cookie header, and `X-Requested-With: XMLHttpRequest`.
 - That cookie-backed write must be sent from a stateless request session so aiohttp does not merge cookie-jar state into the raw `Cookie` header.
 - Verified write planner order:
@@ -4763,7 +4765,7 @@ Body: {
 Creates a new battery schedule entry. The same endpoint is used for CFG, DTG, and RBD schedule creation and schedule restore flows.
 
 Implementation auth notes:
-- The current client acquires fresh XSRF first, then sends the official-web BatteryConfig shape plus `X-XSRF-Token`.
+- The current client acquires fresh XSRF first by preferring `GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` and its `x-csrf-token` response header, then falling back to `/battery/sites/<site_id>/schedules/isValid` when needed before sending the write plus `X-XSRF-Token`.
 - On affected issue `#460` sites, the verified working write instead reuses the raw stored BatteryConfig cookie (`Cookie`), `e-auth-token`, `Username`, `X-XSRF-Token`, and `X-Requested-With: XMLHttpRequest`.
 - That cookie-backed create/update/delete flow is sent from a stateless request session so aiohttp does not merge cookie-jar state into the raw `Cookie` header.
 - The current client now tries the cookie-backed compatibility write first when the raw cookie/XSRF pair is available, then falls back through official-web primary, official-web lean, and mixed-auth variants.
@@ -4813,7 +4815,8 @@ Performs server-side validation before enabling a battery schedule.
 
 The current codebase uses this endpoint in two distinct ways:
 - Explicit validation requests (`validate_battery_schedule`) send the lowercase family payload below using the official-web primary request shape first, then retry with the lean variant on `403`. These requests do not require `X-XSRF-Token`.
-- Internal XSRF bootstrap requests (`_acquire_xsrf_token`) hit the same route immediately before BatteryConfig writes. That helper sends the same JSON payload, includes the currently held `X-XSRF-Token` when present, and harvests a fresh `BP-XSRF-Token` from `Set-Cookie` or the session cookie jar.
+- Internal XSRF bootstrap requests (`_acquire_xsrf_token`) now first try `GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` and read the `x-csrf-token` response header, matching the homeowner web UI flow on affected EMEA sites.
+- If the GET bootstrap does not yield a token, the helper still hits `/schedules/isValid` immediately before BatteryConfig writes. That fallback sends the same JSON payload, includes the currently held `X-XSRF-Token` when present, and harvests a fresh token from the response header, `Set-Cookie`, response cookies, or the session cookie jar.
 
 Additional request shapes observed:
 
@@ -4876,7 +4879,7 @@ the Enlighten battery profile UI when the user modifies a CFG schedule.
 - Safari-style browser `User-Agent`
 
 Implementation auth notes:
-- The current client acquires fresh XSRF via `/schedules/isValid` immediately before issuing this `PUT`.
+- The current client acquires fresh XSRF immediately before issuing this `PUT`, preferring `GET /siteSettings/<site_id>?userId=<user_id>` and its `x-csrf-token` response header before falling back to `/schedules/isValid`.
 - On affected issue `#460` sites, the verified working request is the raw-cookie browser shape:
   - `Cookie: <serialized stored cookie>`
   - `e-auth-token: <enlighten_manager_token_production>`
@@ -5165,7 +5168,7 @@ There is no single universal header set; the implementation varies headers by en
 | System dashboard reads | authenticated cookies; may also include bearer auth opportunistically |
 | HEMS | bearer-preferred auth plus cookies/base headers; `username` and `requestId` when available |
 | BatteryConfig reads | official-web BatteryConfig shape: `Accept`, `Username`, battery-profile `Origin`/`Referer`, Safari-style `User-Agent`; suppress `Authorization`, `Cookie`, `X-CSRF-Token`, and `X-Requested-With`; current client prefers the `e-auth-token` + `requestid` variant and falls back to the lean variant if needed |
-| BatteryConfig writes | acquire fresh XSRF via `/battery/sites/<site_id>/schedules/isValid`, keep the existing `BP-XSRF-Token` if bootstrap returns `4xx`, then use an endpoint-specific compatibility planner; on affected sites the verified working shape is a stateless raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`), with official-web primary, official-web lean, and mixed-auth fallbacks retained |
+| BatteryConfig writes | acquire fresh XSRF by preferring `GET /service/batteryConfig/api/v1/siteSettings/<site_id>?userId=<user_id>` and its `x-csrf-token` response header, then falling back to `/battery/sites/<site_id>/schedules/isValid`; keep the existing `BP-XSRF-Token` if bootstrap still returns `4xx`, then use an endpoint-specific compatibility planner; on affected sites the verified working shape is a stateless raw-cookie browser request (`Cookie`, `e-auth-token`, `Username`, `X-XSRF-Token`, `X-Requested-With`), with official-web primary, official-web lean, and mixed-auth fallbacks retained |
 
 - Base Enlighten reads:
   - `Cookie: <serialized cookie jar>`
