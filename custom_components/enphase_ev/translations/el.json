@@ -133,214 +133,214 @@
       "message": "Το πρόγραμμα επικαλύπτεται με το υπάρχον {schedule_label}. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το πρόγραμμα."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Δεν υπάρχουν αυτή τη στιγμή διαθέσιμες συσκευές AC Battery."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "Οι ρυθμίσεις ελέγχου ταυτότητας δεν είναι διαθέσιμες όσο η υπηρεσία Enphase είναι εκτός λειτουργίας."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Οι ενημερώσεις προφίλ μπαταρίας δεν επιτρέπονται για αυτόν τον λογαριασμό."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Οι ενημερώσεις ρυθμίσεων μπαταρίας δεν επιτρέπονται για αυτόν τον λογαριασμό."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "Μια άλλη ενημέρωση προφίλ μπαταρίας βρίσκεται ήδη σε εξέλιξη."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "Μια άλλη ενημέρωση ρυθμίσεων μπαταρίας βρίσκεται ήδη σε εξέλιξη."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Οι ενημερώσεις προφίλ μπαταρίας δεν είναι διαθέσιμες."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Οι ενημερώσεις ρυθμίσεων μπαταρίας δεν είναι διαθέσιμες."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Οι ενημερώσεις μπαταρίας δεν είναι διαθέσιμες."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Οι ενημερώσεις μπαταρίας δεν επιτρέπονται για αυτόν τον λογαριασμό."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "Η ενημέρωση προφίλ μπαταρίας ζητήθηκε πολύ γρήγορα. Περιμένετε και δοκιμάστε ξανά."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "Η ενημέρωση ρυθμίσεων μπαταρίας ζητήθηκε πολύ γρήγορα. Περιμένετε και δοκιμάστε ξανά."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Δεν ήταν δυνατή η επιβεβαίωση πρόσβασης εγγραφής στη μπαταρία. Ανανεώστε και δοκιμάστε ξανά."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Η ενημέρωση χρονοδιαγράμματος απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης χρονοδιαγράμματος. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "Το χρονοδιάγραμμα έρχεται σε σύγκρουση με το υπάρχον χρονοδιάγραμμα discharge-to-grid. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το χρονοδιάγραμμα."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "Το χρονοδιάγραμμα έρχεται σε σύγκρουση με το υπάρχον χρονοδιάγραμμα restrict-battery-discharge. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το χρονοδιάγραμμα."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "Το χρονοδιάγραμμα έρχεται σε σύγκρουση με το υπάρχον χρονοδιάγραμμα charge-from-grid. Προσαρμόστε ή απενεργοποιήστε πρώτα αυτό το χρονοδιάγραμμα."
     },
     "schedule_update_conflict": {
       "message": "Η ενημέρωση του χρονοδιαγράμματος έρχεται σε διένεξη με ένα υπάρχον χρονοδιάγραμμα μπαταρίας."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Το προφίλ μπαταρίας δεν είναι διαθέσιμο."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Η ενημέρωση προφίλ μπαταρίας απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης προφίλ μπαταρίας. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "Το payload ρυθμίσεων μπαταρίας δεν είναι διαθέσιμο."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Η ενημέρωση ρυθμίσεων μπαταρίας απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης ρυθμίσεων μπαταρίας. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "Το απόθεμα Full Backup είναι σταθερό στο 100%."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "Το απόθεμα μπαταρίας δεν είναι διαθέσιμο."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "Το προφίλ Savings πρέπει να είναι ενεργό."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "Οι ρυθμίσεις προφίλ Savings δεν είναι διαθέσιμες."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "Το επιλεγμένο προφίλ μπαταρίας δεν υποστηρίζεται."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "Η ρύθμιση φόρτισης από το δίκτυο δεν είναι διαθέσιμη."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "Η εναλλαγή φόρτισης από το δίκτυο δεν εφαρμόστηκε από το Enphase."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "Το χρονοδιάγραμμα φόρτισης από το δίκτυο δεν είναι διαθέσιμο."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "Οι ώρες έναρξης και λήξης του χρονοδιαγράμματος charge-from-grid πρέπει να είναι διαφορετικές."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "Η εναλλαγή του χρονοδιαγράμματος charge-from-grid δεν εφαρμόστηκε από το Enphase."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "Πρέπει πρώτα να ενεργοποιηθεί η φόρτιση από το δίκτυο."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "Εκκρεμεί συγχρονισμός Envoy για αλλαγή χρονοδιαγράμματος. Περιμένετε."
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "Η ώρα του χρονοδιαγράμματος charge-from-grid δεν είναι έγκυρη."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "Το API χρονοδιαγράμματος δεν είναι διαθέσιμο σε αυτήν την έκδοση πελάτη."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Δεν υπάρχει διαθέσιμο υπάρχον χρονοδιάγραμμα charge-from-grid."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Δημιουργήστε ένα {schedule_label} στον προγραμματιστή IQ Battery πριν το ενεργοποιήσετε."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "Το {schedule_label} δεν εκτίθεται αυτή τη στιγμή από το Enphase για αυτόν τον ιστότοπο. Περιμένετε να ολοκληρωθεί ο συγχρονισμός χρονοδιαγράμματος, έπειτα ανανεώστε και δοκιμάστε ξανά."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "Η εναλλαγή {schedule_label} δεν εφαρμόστηκε από το Enphase."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "Η κύρια εγγραφή απορρίφθηκε."
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "Οι ώρες έναρξης και λήξης του {schedule_label} πρέπει να είναι διαφορετικές."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "Η ώρα του χρονοδιαγράμματος discharge-to-grid δεν είναι έγκυρη."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Δεν υπάρχει διαθέσιμο υπάρχον χρονοδιάγραμμα {schedule_label_lower}."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "Το χρονοδιάγραμμα {schedule_label} δεν είναι διαθέσιμο."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "Η ώρα του χρονοδιαγράμματος {schedule_label} δεν είναι έγκυρη."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "Η τρέχουσα ώρα του χρονοδιαγράμματος {schedule_label_lower} δεν είναι έγκυρη."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "Το όριο του χρονοδιαγράμματος {schedule_label} πρέπει να είναι μεταξύ {minimum} και {maximum}."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "Το όριο του χρονοδιαγράμματος {schedule_label} πρέπει να είναι τουλάχιστον {minimum}%."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "Οι τρέχουσες ώρες χρονοδιαγράμματος δεν είναι διαθέσιμες."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "Το όριο του χρονοδιαγράμματος charge-from-grid πρέπει να είναι μεταξύ {minimum} και {maximum}."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "Το όριο του χρονοδιαγράμματος charge-from-grid πρέπει να είναι τουλάχιστον {minimum}%."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Το επίπεδο απενεργοποίησης της μπαταρίας δεν είναι διαθέσιμο."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Το επίπεδο απενεργοποίησης της μπαταρίας δεν είναι έγκυρο."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Το επίπεδο απενεργοποίησης της μπαταρίας πρέπει να είναι μεταξύ {minimum} και {maximum}."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "Η εξαίρεση από το Storm Alert δεν είναι διαθέσιμη."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "Η εξαίρεση από το Storm Alert απέτυχε για {count} ειδοποίηση(εις)."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "Οι ενημερώσεις Storm Guard δεν επιτρέπονται για αυτόν τον λογαριασμό."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "Οι ρυθμίσεις Storm Guard δεν είναι διαθέσιμες."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Η ενημέρωση Storm Guard απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης Storm Guard. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "Το επιλεγμένο προφίλ συστήματος δεν είναι διαθέσιμο."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Η ενημέρωση προφίλ συστήματος απορρίφθηκε από το Enphase (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Δεν ήταν δυνατή η ταυτοποίηση της ενημέρωσης προφίλ συστήματος. Κάντε ξανά έλεγχο ταυτότητας και δοκιμάστε ξανά."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "Η ενημέρωση προφίλ συστήματος απέτυχε."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "Η ενημέρωση προφίλ συστήματος απέτυχε λόγω σφάλματος δικτύου. Δοκιμάστε ξανά."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "Η ενημέρωση προφίλ συστήματος έληξε χρονικά. Δοκιμάστε ξανά."
     },
     "scheduler_service_unavailable": {
       "message": "Η επιλογή τρόπου φόρτισης δεν είναι διαθέσιμη όταν η υπηρεσία προγραμματισμού Enphase είναι απενεργοποιημένη."
@@ -514,8 +514,8 @@
           "consumption": "Assign a cumulative consumption total to the Enphase Energy Site Consumption sensor. Do not choose daily energy or live power.",
           "grid_import": "Assign a cumulative grid import total to the Enphase Energy Site Grid Import sensor. Do not choose daily energy or live power.",
           "grid_export": "Assign a cumulative grid export total to the Enphase Energy Site Grid Export sensor. Do not choose daily energy or live power.",
-          "battery_charge": "Assign a cumulative battery charge total to the Enphase Energy Site Battery Charge sensor. Do not choose daily energy or live power.",
-          "battery_discharge": "Assign a cumulative battery discharge total to the Enphase Energy Site Battery Discharge sensor. Do not choose daily energy or live power."
+          "battery_charge": "Αντιστοιχίστε ένα αθροιστικό σύνολο φόρτισης μπαταρίας στον αισθητήρα Enphase Energy Site Battery Charge. Μην επιλέξετε ημερήσια ενέργεια ή ζωντανή ισχύ.",
+          "battery_discharge": "Αντιστοιχίστε ένα αθροιστικό σύνολο εκφόρτισης μπαταρίας στον αισθητήρα Enphase Energy Site Battery Discharge. Μην επιλέξετε ημερήσια ενέργεια ή ζωντανή ισχύ."
         }
       },
       "migrate_envoy_confirm": {

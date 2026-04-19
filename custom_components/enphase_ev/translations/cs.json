@@ -133,220 +133,220 @@
       "message": "Plán se překrývá se stávajícím {schedule_label}. Nejprve tento plán upravte nebo deaktivujte."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Aktuálně nejsou k dispozici žádná zařízení AC Battery."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "Když je služba Enphase mimo provoz, nastavení ověřování není k dispozici."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Aktualizace profilu baterie nejsou pro tento účet povoleny."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Aktualizace nastavení baterie nejsou pro tento účet povoleny."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "Další aktualizace profilu baterie již probíhá."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "Další aktualizace nastavení baterie již probíhá."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Aktualizace profilu baterie nejsou k dispozici."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Aktualizace nastavení baterie nejsou k dispozici."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Aktualizace baterie nejsou k dispozici."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Aktualizace baterie nejsou pro tento účet povoleny."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "Aktualizace profilu baterie byla požadována příliš rychle. Počkejte prosím a zkuste to znovu."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "Aktualizace nastavení baterie byla požadována příliš rychle. Počkejte prosím a zkuste to znovu."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Přístup k zápisu z baterie nelze potvrdit. Obnovte a zkuste to znovu."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Aktualizace plánu byla zamítnuta Enphase (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "Aktualizaci plánu se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "Plán je v konfliktu se stávajícím plánem vybíjení do sítě. Nejprve upravte nebo deaktivujte tento plán."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "Plán je v konfliktu se stávajícím plánem omezení vybití baterie. Nejprve upravte nebo deaktivujte tento plán."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "Plán je v konfliktu se stávajícím plánem nabíjení ze sítě. Nejprve upravte nebo deaktivujte tento plán."
     },
     "schedule_update_conflict": {
       "message": "Aktualizace plánu je v konfliktu se stávajícím plánem baterie."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Profil baterie není k dispozici."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Aktualizace profilu baterie byla zamítnuta Enphase (HTTP 403 zakázáno)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Aktualizaci profilu baterie se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "Užitečná zátěž nastavení baterie není k dispozici."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Aktualizace nastavení baterie byla zamítnuta Enphase (HTTP 403 zakázáno)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "Aktualizaci nastavení baterie se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "Plná záloha je pevně nastavena na 100 %."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "Rezerva baterie není k dispozici."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "Spořicí profil musí být aktivní."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "Nastavení profilu ukládání nejsou k dispozici."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "Vybraný profil baterie není podporován."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "Nabíjení z nastavení sítě není k dispozici."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "Enphase nepoužilo nabíjení z přepínače mřížky."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "Poplatek ze sítě není k dispozici."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "Čas začátku a konce plánu nabíjení ze sítě se musí lišit."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "Enphase nepoužil přepínač plánu nabíjení z mřížky."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "Nejprve musí být povoleno nabíjení ze sítě."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "Změna plánu čeká na synchronizaci Envoy. Čekejte prosím."
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "Čas plánu nabíjení ze sítě je neplatný."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "Rozhraní API není v této klientské verzi k dispozici."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Není k dispozici žádný stávající plán nabíjení ze sítě."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Před aktivací vytvořte {schedule_label} v plánovači baterie IQ."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "{schedule_label} aktuálně není pro tento web vystaven Enphase. Počkejte na dokončení synchronizace plánu, poté obnovte stránku a zkuste to znovu."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "Enphase nepoužil přepínač {schedule_label}."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "primární zápis zamítnut"
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "Čas začátku a konce {schedule_label} se musí lišit."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "Plánovaný čas vypouštění do sítě je neplatný."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Není k dispozici žádný stávající rozvrh {schedule_label_lower}."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "Plán {schedule_label} není k dispozici."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "Čas plánu {schedule_label} je neplatný."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "Aktuální plánovací čas {schedule_label_lower} je neplatný."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "Limit plánu {schedule_label} musí být mezi {minimum} a {maximum}."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "Limit plánu {schedule_label} musí být alespoň {minimum} %."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "Aktuální rozvrhové časy nejsou k dispozici."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "Limit plánu nabíjení ze sítě musí být mezi {minimum} a {maximum}."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "Limit plánu nabíjení ze sítě musí být alespoň {minimum} %."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Úroveň vypínání baterie není k dispozici."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Úroveň vypínání baterie je neplatná."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Úroveň vypínání baterie musí být mezi {minimum} a {maximum}."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "Odhlášení Storm Alert není dostupné."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "Odhlášení Storm Alert selhalo pro {count} výstrahy."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "Aktualizace Storm Guard nejsou pro tento účet povoleny."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "Nastavení Storm Guard nejsou dostupná."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Aktualizace Storm Guard byla zamítnuta Enphase (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "Aktualizaci Storm Guard nebylo možné ověřit. Znovu se ověřte a zkuste to znovu."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "Vybraný systémový profil není k dispozici."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Aktualizace systémového profilu byla zamítnuta Enphase (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Aktualizaci systémového profilu se nepodařilo ověřit. Znovu se ověřte a zkuste to znovu."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "Aktualizace systémového profilu se nezdařila."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "Aktualizace systémového profilu se nezdařila kvůli chybě sítě. Zkuste to znovu."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "Časový limit aktualizace systémového profilu vypršel. Zkuste to znovu."
     },
     "scheduler_service_unavailable": {
       "message": "Výběr režimu nabíjení není dostupný, pokud je služba plánovače Enphase mimo provoz."
     },
     "selected_ac_battery_target_state_of_charge_unavailable": {
-      "message": "Selected AC Battery target state of charge is not available."
+      "message": "Vybraný cílový stav nabití AC baterie není k dispozici."
     },
     "battery_schedule_day_required": {
       "message": "Vyberte pro rozvrh alespoň jeden den."
@@ -1420,7 +1420,7 @@
         "name": "Baterie - nový harmonogram sobota"
       },
       "battery_new_schedule_sun": {
-        "name": "Battery New Schedule Sunday"
+        "name": "Baterie Nový rozvrh neděle"
       },
       "battery_schedule_edit_mon": {
         "name": "Plán baterií v pondělí"
@@ -1441,7 +1441,7 @@
         "name": "Plán baterie na sobotu"
       },
       "battery_schedule_edit_sun": {
-        "name": "Battery Schedule Sunday"
+        "name": "Plán baterie v neděli"
       }
     },
     "select": {

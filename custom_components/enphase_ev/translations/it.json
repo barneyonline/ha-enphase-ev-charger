@@ -133,220 +133,220 @@
       "message": "La pianificazione si sovrappone alla {schedule_label} esistente. Regola o disattiva prima quella pianificazione."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Al momento non è disponibile alcun dispositivo batteria AC."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "Le impostazioni di autenticazione non sono disponibili mentre il servizio Enphase non è operativo."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Gli aggiornamenti del profilo batteria non sono consentiti per questo account."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Gli aggiornamenti delle impostazioni della batteria non sono consentiti per questo account."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "È già in corso un altro aggiornamento del profilo batteria."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "È già in corso un altro aggiornamento delle impostazioni della batteria."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Gli aggiornamenti del profilo batteria non sono disponibili."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Gli aggiornamenti delle impostazioni della batteria non sono disponibili."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Gli aggiornamenti della batteria non sono disponibili."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Gli aggiornamenti della batteria non sono consentiti per questo account."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "L'aggiornamento del profilo batteria è stato richiesto troppo rapidamente. Attendi e riprova."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "L'aggiornamento delle impostazioni della batteria è stato richiesto troppo rapidamente. Attendi e riprova."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Non è stato possibile confermare l'accesso in scrittura alla batteria. Aggiorna e riprova."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "L'aggiornamento della pianificazione è stato rifiutato da Enphase (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "Non è stato possibile autenticare l'aggiornamento della pianificazione. Esegui nuovamente l'autenticazione e riprova."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "La pianificazione è in conflitto con la pianificazione esistente di scarica verso la rete. Regola o disattiva prima quella pianificazione."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "La pianificazione è in conflitto con la pianificazione esistente di limitazione della scarica della batteria. Regola o disattiva prima quella pianificazione."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "La pianificazione è in conflitto con la pianificazione esistente di ricarica dalla rete. Regola o disattiva prima quella pianificazione."
     },
     "schedule_update_conflict": {
       "message": "L'aggiornamento della pianificazione è in conflitto con una pianificazione della batteria esistente."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Il profilo batteria non è disponibile."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "L'aggiornamento del profilo batteria è stato rifiutato da Enphase (HTTP 403 Forbidden)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Non è stato possibile autenticare l'aggiornamento del profilo batteria. Esegui nuovamente l'autenticazione e riprova."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "Il payload delle impostazioni della batteria non è disponibile."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "L'aggiornamento delle impostazioni della batteria è stato rifiutato da Enphase (HTTP 403 Forbidden)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "Non è stato possibile autenticare l'aggiornamento delle impostazioni della batteria. Esegui nuovamente l'autenticazione e riprova."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "La riserva Backup completo è fissata al 100%."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "La riserva della batteria non è disponibile."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "Il profilo Risparmio deve essere attivo."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "Le impostazioni del profilo Risparmio non sono disponibili."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "Il profilo batteria selezionato non è supportato."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "L'impostazione di ricarica dalla rete non è disponibile."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "Enphase non ha applicato l'attivazione o disattivazione della ricarica dalla rete."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "La pianificazione di ricarica dalla rete non è disponibile."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "L'ora di inizio e di fine della pianificazione di ricarica dalla rete devono essere diverse."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "Enphase non ha applicato l'attivazione o disattivazione della pianificazione di ricarica dalla rete."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "La ricarica dalla rete deve essere prima abilitata."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "Una modifica alla pianificazione è in attesa della sincronizzazione Envoy. Attendi."
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "L'orario della pianificazione di ricarica dalla rete non è valido."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "L'API delle pianificazioni non è disponibile in questa versione del client."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Non è disponibile alcuna pianificazione esistente di ricarica dalla rete."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Crea una {schedule_label} nel pianificatore IQ Battery prima di abilitarla."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "{schedule_label} al momento non è esposta da Enphase per questo sito. Attendi il completamento della sincronizzazione delle pianificazioni, poi aggiorna e riprova."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "Enphase non ha applicato l'attivazione o disattivazione di {schedule_label}."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "scrittura primaria rifiutata"
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "L'ora di inizio e di fine di {schedule_label} devono essere diverse."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "L'orario della pianificazione di scarica verso la rete non è valido."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Non è disponibile alcuna pianificazione esistente {schedule_label_lower}."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "La pianificazione {schedule_label} non è disponibile."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "L'orario della pianificazione {schedule_label} non è valido."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "L'orario attuale della pianificazione {schedule_label_lower} non è valido."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "Il limite della pianificazione {schedule_label} deve essere compreso tra {minimum} e {maximum}."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "Il limite della pianificazione {schedule_label} deve essere almeno {minimum}%."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "Gli orari attuali della pianificazione non sono disponibili."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "Il limite della pianificazione di ricarica dalla rete deve essere compreso tra {minimum} e {maximum}."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "Il limite della pianificazione di ricarica dalla rete deve essere almeno {minimum}%."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Il livello di arresto della batteria non è disponibile."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Il livello di arresto della batteria non è valido."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Il livello di arresto della batteria deve essere compreso tra {minimum} e {maximum}."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "La disattivazione di Storm Alert non è disponibile."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "La disattivazione di Storm Alert non è riuscita per {count} avviso/i."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "Gli aggiornamenti di Storm Guard non sono consentiti per questo account."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "Le impostazioni di Storm Guard non sono disponibili."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "L'aggiornamento di Storm Guard è stato rifiutato da Enphase (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "Non è stato possibile autenticare l'aggiornamento di Storm Guard. Esegui nuovamente l'autenticazione e riprova."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "Il profilo di sistema selezionato non è disponibile."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "L'aggiornamento del profilo di sistema è stato rifiutato da Enphase (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Non è stato possibile autenticare l'aggiornamento del profilo di sistema. Esegui nuovamente l'autenticazione e riprova."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "L'aggiornamento del profilo di sistema non è riuscito."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "L'aggiornamento del profilo di sistema non è riuscito a causa di un errore di rete. Riprova."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "L'aggiornamento del profilo di sistema è scaduto. Riprova."
     },
     "scheduler_service_unavailable": {
       "message": "La selezione della modalità di ricarica non è disponibile mentre il servizio di pianificazione Enphase non è disponibile."
     },
     "selected_ac_battery_target_state_of_charge_unavailable": {
-      "message": "Selected AC Battery target state of charge is not available."
+      "message": "Lo stato di carica target selezionato della batteria AC non è disponibile."
     },
     "battery_schedule_day_required": {
       "message": "Seleziona almeno un giorno per la pianificazione."
@@ -1826,17 +1826,17 @@
       "description": "Aggiorna immediatamente i dati delle pianificazioni della batteria dal cloud Enphase.",
       "sections": {
         "advanced": {
-          "name": "Advanced options"
+          "name": "Opzioni avanzate"
         }
       },
       "fields": {
         "site_id": {
-          "name": "Site ID",
-          "description": "Optional site identifier; detected automatically when a site device is selected."
+          "name": "ID sito",
+          "description": "Identificatore sito facoltativo; rilevato automaticamente quando viene selezionato un dispositivo del sito."
         },
         "config_entry_id": {
-          "name": "Config Entry ID",
-          "description": "Optional config entry identifier for a single Enphase site entry."
+          "name": "ID voce di configurazione",
+          "description": "Identificatore facoltativo della voce di configurazione per una singola voce sito Enphase."
         }
       }
     },

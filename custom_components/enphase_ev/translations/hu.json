@@ -133,220 +133,220 @@
       "message": "Az ütemezés átfedésben van a meglévő {schedule_label} elemmel. Először módosítsa vagy tiltsa le azt az ütemezést."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Jelenleg nem érhetők el AC akkumulátoros eszközök."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "A hitelesítési beállítások nem érhetők el, amíg az Enphase szolgáltatás nem működik."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Az akkumulátorprofil frissítése ennél a fióknál nem engedélyezett."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Az akkumulátorbeállítások frissítése ennél a fióknál nem engedélyezett."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "Már folyamatban van egy másik akkumulátorprofil-frissítés."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "Már folyamatban van egy másik akkumulátorbeállítás-frissítés."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Az akkumulátorprofil frissítése nem érhető el."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Az akkumulátorbeállítások frissítése nem érhető el."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Az akkumulátorfrissítések nem érhetők el."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Az akkumulátorfrissítések ennél a fióknál nem engedélyezettek."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "Az akkumulátorprofil frissítését túl gyorsan kérték. Kérjük, várjon, majd próbálja újra."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "Az akkumulátorbeállítások frissítését túl gyorsan kérték. Kérjük, várjon, majd próbálja újra."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Az akkumulátor írási hozzáférését nem sikerült megerősíteni. Frissítsen, majd próbálja újra."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Az Enphase elutasította az ütemezés frissítését (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "Az ütemezés frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "Az ütemezés ütközik a meglévő hálózatba táplálási ütemezéssel. Először módosítsa vagy tiltsa le azt az ütemezést."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "Az ütemezés ütközik a meglévő akkumulátorkisütés-korlátozó ütemezéssel. Először módosítsa vagy tiltsa le azt az ütemezést."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "Az ütemezés ütközik a meglévő hálózatról töltési ütemezéssel. Először módosítsa vagy tiltsa le azt az ütemezést."
     },
     "schedule_update_conflict": {
       "message": "Az ütemezési frissítés ütközik egy meglévő akkumulátorütemezéssel."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Az akkumulátorprofil nem érhető el."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Az Enphase elutasította az akkumulátorprofil frissítését (HTTP 403 Forbidden)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Az akkumulátorprofil frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "Az akkumulátorbeállítások adatterhe nem érhető el."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Az Enphase elutasította az akkumulátorbeállítások frissítését (HTTP 403 Forbidden)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "Az akkumulátorbeállítások frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "A teljes tartalék akkumulátorszint 100%-on rögzített."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "Az akkumulátortartalék nem érhető el."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "A Megtakarítások profilnak aktívnak kell lennie."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "A Megtakarítások profil beállításai nem érhetők el."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "A kiválasztott akkumulátorprofil nem támogatott."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "A hálózatról töltés beállítás nem érhető el."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "Az Enphase nem alkalmazta a hálózatról töltés kapcsolóállapotát."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "A hálózatról töltési ütemezés nem érhető el."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "A hálózatról töltési ütemezés kezdési és befejezési idejének különböznie kell."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "Az Enphase nem alkalmazta a hálózatról töltési ütemezés kapcsolóállapotát."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "Először engedélyezni kell a hálózatról töltést."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "Egy ütemezésmódosítás Envoy-szinkronizálásra vár. Kérjük, várjon."
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "A hálózatról töltési ütemezés ideje érvénytelen."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "Az ütemezési API ebben a kliensverzióban nem érhető el."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Nem érhető el meglévő hálózatról töltési ütemezés."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Hozzon létre egy {schedule_label} elemet az IQ Battery ütemezőben, mielőtt engedélyezné."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "A(z) {schedule_label} jelenleg nincs kitéve az Enphase által ehhez a helyszínhez. Várja meg, amíg az ütemezésszinkronizálás befejeződik, majd frissítsen és próbálja újra."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "Az Enphase nem alkalmazta a(z) {schedule_label} kapcsolóállapotát."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "elsődleges írás elutasítva"
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "A(z) {schedule_label} kezdési és befejezési idejének különböznie kell."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "A hálózatba táplálási ütemezés ideje érvénytelen."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Nem érhető el meglévő {schedule_label_lower} ütemezés."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "A(z) {schedule_label} ütemezés nem érhető el."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "A(z) {schedule_label} ütemezés ideje érvénytelen."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "A jelenlegi {schedule_label_lower} ütemezés ideje érvénytelen."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "A(z) {schedule_label} ütemezési korlátjának {minimum} és {maximum} között kell lennie."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "A(z) {schedule_label} ütemezési korlátjának legalább {minimum}%-nak kell lennie."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "A jelenlegi ütemezési idők nem érhetők el."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "A hálózatról töltési ütemezés korlátjának {minimum} és {maximum} között kell lennie."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "A hálózatról töltési ütemezés korlátjának legalább {minimum}%-nak kell lennie."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Az akkumulátor leállítási szintje nem érhető el."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Az akkumulátor leállítási szintje érvénytelen."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Az akkumulátor leállítási szintjének {minimum} és {maximum} között kell lennie."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "A Storm Alert letiltása nem érhető el."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "A Storm Alert letiltása {count} riasztásnál nem sikerült."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "A Storm Guard frissítése ennél a fióknál nem engedélyezett."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "A Storm Guard beállításai nem érhetők el."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Az Enphase elutasította a Storm Guard frissítését (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "A Storm Guard frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "A kiválasztott rendszerprofil nem érhető el."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Az Enphase elutasította a rendszerprofil frissítését (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "A rendszerprofil frissítését nem sikerült hitelesíteni. Hitelesítse újra magát, majd próbálja újra."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "A rendszerprofil frissítése nem sikerült."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "A rendszerprofil frissítése hálózati hiba miatt nem sikerült. Próbálja újra."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "A rendszerprofil frissítése időtúllépés miatt megszakadt. Próbálja újra."
     },
     "scheduler_service_unavailable": {
       "message": "A töltési mód kiválasztása nem érhető el, amíg az Enphase ütemező szolgáltatás nem működik."
     },
     "selected_ac_battery_target_state_of_charge_unavailable": {
-      "message": "Selected AC Battery target state of charge is not available."
+      "message": "A kiválasztott AC akkumulátor cél töltöttségi szintje nem érhető el."
     },
     "battery_schedule_day_required": {
       "message": "Válasszon legalább egy napot az ütemezéshez."
@@ -1826,17 +1826,17 @@
       "description": "Azonnal frissítse az akkumulátor-ütemezési adatokat az Enphase felhőből.",
       "sections": {
         "advanced": {
-          "name": "Advanced options"
+          "name": "Speciális beállítások"
         }
       },
       "fields": {
         "site_id": {
-          "name": "Site ID",
-          "description": "Optional site identifier; detected automatically when a site device is selected."
+          "name": "Helyszínazonosító",
+          "description": "Nem kötelező helyszínazonosító; a rendszer automatikusan felismeri, ha helyszíneszköz van kiválasztva."
         },
         "config_entry_id": {
-          "name": "Config Entry ID",
-          "description": "Optional config entry identifier for a single Enphase site entry."
+          "name": "Konfigurációs bejegyzés azonosítója",
+          "description": "Nem kötelező konfigurációsbejegyzés-azonosító egyetlen Enphase-helyszínbejegyzéshez."
         }
       }
     },

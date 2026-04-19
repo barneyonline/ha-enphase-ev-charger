@@ -133,220 +133,220 @@
       "message": "Tvarkaraštis persidengia su esamu {schedule_label}. Pirmiausia pakoreguokite arba išjunkite tą tvarkaraštį."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Šiuo metu nėra pasiekiamų AC baterijos įrenginių."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "Autentifikavimo nustatymai nepasiekiami, kol Enphase paslauga neveikia."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Šiai paskyrai akumuliatoriaus profilio atnaujinimai neleidžiami."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Šiai paskyrai akumuliatoriaus nustatymų atnaujinimai neleidžiami."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "Jau vykdomas kitas akumuliatoriaus profilio atnaujinimas."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "Jau vykdomas kitas akumuliatoriaus nustatymų atnaujinimas."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Akumuliatoriaus profilio atnaujinimai nepasiekiami."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Akumuliatoriaus nustatymų atnaujinimai nepasiekiami."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Akumuliatoriaus atnaujinimai nepasiekiami."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Šiai paskyrai akumuliatoriaus atnaujinimai neleidžiami."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "Akumuliatoriaus profilio atnaujinimo užklausa pateikta per greitai. Palaukite ir bandykite dar kartą."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "Akumuliatoriaus nustatymų atnaujinimo užklausa pateikta per greitai. Palaukite ir bandykite dar kartą."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Nepavyko patvirtinti rašymo prieigos prie akumuliatoriaus. Atnaujinkite ir bandykite dar kartą."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Enphase atmetė tvarkaraščio atnaujinimą (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "Nepavyko autentifikuoti tvarkaraščio atnaujinimo. Iš naujo autentifikuokitės ir bandykite dar kartą."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "Tvarkaraštis konfliktuoja su esamu iškrovimo į tinklą tvarkaraščiu. Pirmiausia pakoreguokite arba išjunkite tą tvarkaraštį."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "Tvarkaraštis konfliktuoja su esamu baterijos iškrovimo ribojimo tvarkaraščiu. Pirmiausia pakoreguokite arba išjunkite tą tvarkaraštį."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "Tvarkaraštis konfliktuoja su esamu įkrovimo iš tinklo tvarkaraščiu. Pirmiausia pakoreguokite arba išjunkite tą tvarkaraštį."
     },
     "schedule_update_conflict": {
       "message": "Tvarkaraščio atnaujinimas konfliktuoja su esamu baterijos tvarkaraščiu."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Akumuliatoriaus profilis nepasiekiamas."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Enphase atmetė akumuliatoriaus profilio atnaujinimą (HTTP 403 Forbidden)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Nepavyko autentifikuoti akumuliatoriaus profilio atnaujinimo. Iš naujo autentifikuokitės ir bandykite dar kartą."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "Akumuliatoriaus nustatymų apkrova nepasiekiama."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Enphase atmetė akumuliatoriaus nustatymų atnaujinimą (HTTP 403 Forbidden)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "Nepavyko autentifikuoti akumuliatoriaus nustatymų atnaujinimo. Iš naujo autentifikuokitės ir bandykite dar kartą."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "Pilnos atsargos rezervas nustatytas ties 100%."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "Akumuliatoriaus rezervas nepasiekiamas."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "Taupymo profilis turi būti aktyvus."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "Taupymo profilio nustatymai nepasiekiami."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "Pasirinktas akumuliatoriaus profilis nepalaikomas."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "Įkrovimo iš tinklo nustatymas nepasiekiamas."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "Enphase nepritaikė įkrovimo iš tinklo perjungimo."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "Įkrovimo iš tinklo tvarkaraštis nepasiekiamas."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "Įkrovimo iš tinklo tvarkaraščio pradžios ir pabaigos laikai turi skirtis."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "Enphase nepritaikė įkrovimo iš tinklo tvarkaraščio perjungimo."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "Pirmiausia turi būti įjungtas įkrovimas iš tinklo."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "Laukiama Envoy sinchronizavimo tvarkaraščio pakeitimui. Palaukite."
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "Įkrovimo iš tinklo tvarkaraščio laikas neteisingas."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "Šioje kliento versijoje tvarkaraščio API nepasiekiama."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Nėra pasiekiamo esamo įkrovimo iš tinklo tvarkaraščio."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Prieš įjungdami sukurkite {schedule_label} IQ Battery planuoklyje."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "{schedule_label} šiuo metu Enphase nepateikia šiai svetainei. Palaukite, kol bus baigta tvarkaraščio sinchronizacija, tada atnaujinkite ir bandykite dar kartą."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "Enphase nepritaikė {schedule_label} perjungimo."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "pagrindinis įrašymas atmestas"
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "{schedule_label} pradžios ir pabaigos laikai turi skirtis."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "Iškrovimo į tinklą tvarkaraščio laikas neteisingas."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Nėra pasiekiamo esamo {schedule_label_lower} tvarkaraščio."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "{schedule_label} tvarkaraštis nepasiekiamas."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "{schedule_label} tvarkaraščio laikas neteisingas."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "Dabartinis {schedule_label_lower} tvarkaraščio laikas neteisingas."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "{schedule_label} tvarkaraščio riba turi būti tarp {minimum} ir {maximum}."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "{schedule_label} tvarkaraščio riba turi būti bent {minimum}%."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "Dabartiniai tvarkaraščio laikai nepasiekiami."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "Įkrovimo iš tinklo tvarkaraščio riba turi būti tarp {minimum} ir {maximum}."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "Įkrovimo iš tinklo tvarkaraščio riba turi būti bent {minimum}%."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Akumuliatoriaus išjungimo lygis nepasiekiamas."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Akumuliatoriaus išjungimo lygis neteisingas."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Akumuliatoriaus išjungimo lygis turi būti tarp {minimum} ir {maximum}."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "Storm Alert atsisakymas nepasiekiamas."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "Storm Alert atsisakymas nepavyko {count} įspėjimui(-ams)."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "Šiai paskyrai Storm Guard atnaujinimai neleidžiami."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "Storm Guard nustatymai nepasiekiami."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Enphase atmetė Storm Guard atnaujinimą (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "Nepavyko autentifikuoti Storm Guard atnaujinimo. Iš naujo autentifikuokitės ir bandykite dar kartą."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "Pasirinktas sistemos profilis nepasiekiamas."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Enphase atmetė sistemos profilio atnaujinimą (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Nepavyko autentifikuoti sistemos profilio atnaujinimo. Iš naujo autentifikuokitės ir bandykite dar kartą."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "Sistemos profilio atnaujinimas nepavyko."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "Sistemos profilio atnaujinimas nepavyko dėl tinklo klaidos. Bandykite dar kartą."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "Baigėsi sistemos profilio atnaujinimo laikas. Bandykite dar kartą."
     },
     "scheduler_service_unavailable": {
       "message": "Įkrovimo režimo pasirinkimas nepasiekiamas, kol Enphase planavimo paslauga neveikia."
     },
     "selected_ac_battery_target_state_of_charge_unavailable": {
-      "message": "Selected AC Battery target state of charge is not available."
+      "message": "Pasirinktas AC baterijos tikslinis įkrovos lygis nepasiekiamas."
     },
     "battery_schedule_day_required": {
       "message": "Pasirinkite bent vieną tvarkaraščio dieną."
@@ -1826,17 +1826,17 @@
       "description": "Nedelsdami atnaujinkite baterijos tvarkaraščių duomenis iš Enphase debesies.",
       "sections": {
         "advanced": {
-          "name": "Advanced options"
+          "name": "Išplėstinės parinktys"
         }
       },
       "fields": {
         "site_id": {
-          "name": "Site ID",
-          "description": "Optional site identifier; detected automatically when a site device is selected."
+          "name": "Svetainės ID",
+          "description": "Pasirenkamas svetainės identifikatorius; aptinkamas automatiškai, kai pasirenkamas svetainės įrenginys."
         },
         "config_entry_id": {
-          "name": "Config Entry ID",
-          "description": "Optional config entry identifier for a single Enphase site entry."
+          "name": "Konfigūracijos įrašo ID",
+          "description": "Pasirenkamas konfigūracijos įrašo identifikatorius vienam Enphase svetainės įrašui."
         }
       }
     },
