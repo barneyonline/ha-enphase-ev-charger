@@ -52,6 +52,53 @@ def _string_paths_under(data: dict, path: str) -> list[str]:
     return _walk(cur, path)
 
 
+def _battery_schedule_string_paths(data: dict) -> list[str]:
+    """Return the full battery-scheduler translation surface from the catalog."""
+
+    paths = [
+        "options.step.init.data.schedule_sync_enabled",
+        "options.step.init.data.battery_schedules_enabled",
+        "options.step.init.data_description.schedule_sync_enabled",
+        "options.step.init.data_description.battery_schedules_enabled",
+        "options.step.settings.data.battery_schedules_enabled",
+        "options.step.settings.data_description.battery_schedules_enabled",
+    ]
+
+    scheduler_entity_prefixes = (
+        "battery_new_schedule_",
+        "battery_schedule_",
+        "battery_cfg_schedules",
+        "battery_dtg_schedules",
+        "battery_rbd_schedules",
+    )
+    for platform, platform_entries in data["entity"].items():
+        if not isinstance(platform_entries, dict):
+            continue
+        for entity_id in platform_entries:
+            if entity_id.startswith(scheduler_entity_prefixes):
+                paths.extend(
+                    _string_paths_under(data, f"entity.{platform}.{entity_id}")
+                )
+
+    for exception_key in data["exceptions"]:
+        if exception_key.startswith("battery_schedule_") or exception_key in {
+            "scheduler_service_unavailable",
+            "schedule_update_conflict_detail",
+        }:
+            paths.extend(_string_paths_under(data, f"exceptions.{exception_key}"))
+
+    for service_key in (
+        "force_refresh",
+        "add_schedule",
+        "update_schedule",
+        "delete_schedule",
+        "validate_schedule",
+    ):
+        paths.extend(_string_paths_under(data, f"services.{service_key}"))
+
+    return sorted(set(paths))
+
+
 def test_battery_profile_strings_localized_for_non_english_locales() -> None:
     """Guard against English fallback regressions for battery profile features."""
 
@@ -252,65 +299,10 @@ def test_battery_schedule_editor_strings_localized_for_non_english_locales() -> 
         / "translations"
     )
     en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
-    paths = [
-        "options.step.init.data.schedule_sync_enabled",
-        "options.step.init.data.battery_schedules_enabled",
-        "options.step.init.data_description.schedule_sync_enabled",
-        "options.step.init.data_description.battery_schedules_enabled",
-        "options.step.settings.data.battery_schedules_enabled",
-        "options.step.settings.data_description.battery_schedules_enabled",
-        "entity.sensor.battery_cfg_schedules.name",
-        "entity.sensor.battery_dtg_schedules.name",
-        "entity.sensor.battery_rbd_schedules.name",
-        "entity.sensor.battery_schedule_summary.name",
-        "entity.number.battery_new_schedule_limit.name",
-        "entity.number.battery_schedule_edit_limit.name",
-        "entity.select.battery_new_schedule_type.name",
-        "entity.select.battery_schedule_selected.name",
-        "entity.button.battery_schedule_refresh.name",
-        "entity.button.battery_schedule_save.name",
-        "entity.button.battery_schedule_delete.name",
-        "entity.button.battery_schedule_add.name",
-        "entity.time.battery_new_schedule_start_time.name",
-        "entity.time.battery_new_schedule_end_time.name",
-        "entity.time.battery_schedule_edit_start_time.name",
-        "entity.time.battery_schedule_edit_end_time.name",
-        "services.force_refresh.name",
-        "services.force_refresh.description",
-        "services.add_schedule.name",
-        "services.add_schedule.description",
-        "services.update_schedule.name",
-        "services.update_schedule.description",
-        "services.delete_schedule.name",
-        "services.delete_schedule.description",
-        "services.validate_schedule.name",
-        "services.validate_schedule.description",
-        "exceptions.scheduler_service_unavailable.message",
-        "exceptions.battery_schedule_day_required.message",
-        "exceptions.battery_schedule_times_different.message",
-        "exceptions.battery_schedule_limit_range.message",
-        "exceptions.battery_schedule_validation_rejected.message",
-        "exceptions.battery_schedule_validation_rejected_detail.message",
-        "exceptions.battery_schedule_editing_unavailable.message",
-        "exceptions.battery_schedule_api_unavailable.message",
-        "exceptions.battery_schedule_update_confirm_required.message",
-        "exceptions.battery_schedule_delete_confirm_required.message",
-        "exceptions.battery_schedule_id_invalid.message",
-        "exceptions.battery_schedule_id_not_found.message",
-        "exceptions.battery_schedule_ids_required.message",
-        "exceptions.battery_schedule_ids_invalid.message",
-        "exceptions.battery_schedule_ids_not_found.message",
-        "exceptions.schedule_update_conflict_detail.message",
-    ]
-    for subtree in (
-        "services.force_refresh",
-        "services.add_schedule",
-        "services.update_schedule",
-        "services.delete_schedule",
-        "services.validate_schedule",
-    ):
-        paths.extend(_string_paths_under(en_data, subtree))
-    paths = sorted(set(paths))
+    paths = _battery_schedule_string_paths(en_data)
+    assert "services.force_refresh.fields.config_entry_id.name" in paths
+    assert "exceptions.scheduler_service_unavailable.message" in paths
+    assert "entity.button.battery_schedule_add.name" in paths
     for locale in translations_dir.glob("*.json"):
         name = locale.name
         data = json.loads(locale.read_text(encoding="utf-8"))
