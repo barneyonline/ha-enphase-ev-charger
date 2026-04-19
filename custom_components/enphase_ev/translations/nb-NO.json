@@ -133,220 +133,220 @@
       "message": "Tidsplanen overlapper den eksisterende {schedule_label}. Juster eller deaktiver den tidsplanen først."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Ingen AC Battery-enheter er tilgjengelige for øyeblikket."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "Autentiseringsinnstillinger er ikke tilgjengelige mens Enphase-tjenesten er nede."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Oppdateringer av batteriprofil er ikke tillatt for denne kontoen."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Oppdateringer av batteriinnstillinger er ikke tillatt for denne kontoen."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "En annen oppdatering av batteriprofil pågår allerede."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "En annen oppdatering av batteriinnstillinger pågår allerede."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Oppdateringer av batteriprofil er ikke tilgjengelige."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Oppdateringer av batteriinnstillinger er ikke tilgjengelige."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Batterioppdateringer er ikke tilgjengelige."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Batterioppdateringer er ikke tillatt for denne kontoen."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "Oppdatering av batteriprofil ble forespurt for raskt. Vent litt og prøv igjen."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "Oppdatering av batteriinnstillinger ble forespurt for raskt. Vent litt og prøv igjen."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Skrivetilgang til batteriet kunne ikke bekreftes. Oppdater og prøv igjen."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Planoppdateringen ble avvist av Enphase (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "Planoppdateringen kunne ikke autentiseres. Autentiser på nytt og prøv igjen."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "Planen er i konflikt med den eksisterende utlading-til-nettet-planen. Juster eller deaktiver den planen først."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "Planen er i konflikt med den eksisterende begrens-batteriutlading-planen. Juster eller deaktiver den planen først."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "Planen er i konflikt med den eksisterende lading-fra-nettet-planen. Juster eller deaktiver den planen først."
     },
     "schedule_update_conflict": {
       "message": "Planoppdateringen er i konflikt med en eksisterende batteriplan."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Batteriprofil er ikke tilgjengelig."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Oppdatering av batteriprofil ble avvist av Enphase (HTTP 403 Forbidden)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Oppdatering av batteriprofil kunne ikke autentiseres. Autentiser på nytt og prøv igjen."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "Nyttelasten for batteriinnstillinger er ikke tilgjengelig."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Oppdatering av batteriinnstillinger ble avvist av Enphase (HTTP 403 Forbidden)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "Oppdatering av batteriinnstillinger kunne ikke autentiseres. Autentiser på nytt og prøv igjen."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "Full Backup-reserven er låst til 100%."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "Batterireserven er ikke tilgjengelig."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "Spareprofilen må være aktiv."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "Innstillinger for spareprofil er ikke tilgjengelige."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "Valgt batteriprofil støttes ikke."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "Innstillingen for lading fra nettet er ikke tilgjengelig."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "Bryteren for lading fra nettet ble ikke brukt av Enphase."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "Planen for lading fra nettet er ikke tilgjengelig."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "Start- og sluttid for planen for lading fra nettet må være forskjellige."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "Bryteren for planen for lading fra nettet ble ikke brukt av Enphase."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "Lading fra nettet må aktiveres først."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "En planendring venter på Envoy-synkronisering. Vent litt."
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "Tidspunktet for planen for lading fra nettet er ugyldig."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "Plan-API er ikke tilgjengelig i denne klientversjonen."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Ingen eksisterende plan for lading fra nettet er tilgjengelig."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Opprett en {schedule_label} i IQ Battery-planleggeren før du aktiverer den."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "{schedule_label} er for øyeblikket ikke eksponert av Enphase for dette anlegget. Vent til plansynkroniseringen er fullført, oppdater deretter og prøv igjen."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "Bryteren for {schedule_label} ble ikke brukt av Enphase."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "primærskriving avvist"
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "Start- og sluttid for {schedule_label} må være forskjellige."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "Tidspunktet for utlading til nettet-planen er ugyldig."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Ingen eksisterende {schedule_label_lower}-plan er tilgjengelig."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "{schedule_label}-planen er ikke tilgjengelig."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "Tidspunktet for {schedule_label}-planen er ugyldig."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "Gjeldende tidspunkt for {schedule_label_lower}-planen er ugyldig."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "Grensen for {schedule_label}-planen må være mellom {minimum} og {maximum}."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "Grensen for {schedule_label}-planen må være minst {minimum}%."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "Gjeldende plantider er ikke tilgjengelige."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "Grensen for planen for lading fra nettet må være mellom {minimum} og {maximum}."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "Grensen for planen for lading fra nettet må være minst {minimum}%."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Batteriets avstengningsnivå er ikke tilgjengelig."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Batteriets avstengningsnivå er ugyldig."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Batteriets avstengningsnivå må være mellom {minimum} og {maximum}."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "Fravalg av Storm Alert er ikke tilgjengelig."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "Fravalg av Storm Alert mislyktes for {count} varsel(er)."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "Storm Guard-oppdateringer er ikke tillatt for denne kontoen."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "Storm Guard-innstillinger er ikke tilgjengelige."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Storm Guard-oppdateringen ble avvist av Enphase (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "Storm Guard-oppdateringen kunne ikke autentiseres. Autentiser på nytt og prøv igjen."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "Valgt systemprofil er ikke tilgjengelig."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Oppdatering av systemprofil ble avvist av Enphase (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Oppdatering av systemprofil kunne ikke autentiseres. Autentiser på nytt og prøv igjen."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "Oppdatering av systemprofil mislyktes."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "Oppdatering av systemprofil mislyktes på grunn av en nettverksfeil. Prøv igjen."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "Oppdatering av systemprofil fikk tidsavbrudd. Prøv igjen."
     },
     "scheduler_service_unavailable": {
       "message": "Valg av lademodus er ikke tilgjengelig mens Enphase-planleggingstjenesten er nede."
     },
     "selected_ac_battery_target_state_of_charge_unavailable": {
-      "message": "Selected AC Battery target state of charge is not available."
+      "message": "Valgt målladenivå for AC Battery er ikke tilgjengelig."
     },
     "battery_schedule_day_required": {
       "message": "Velg minst én dag for planen."

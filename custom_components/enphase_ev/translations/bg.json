@@ -133,220 +133,220 @@
       "message": "Графикът се припокрива със съществуващия {schedule_label}. Коригирайте го или го деактивирайте първо."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Понастоящем няма налични устройства с AC батерия."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "Настройките за удостоверяване не са налични, докато услугата Enphase не работи."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Актуализациите на профила на батерията не са разрешени за този акаунт."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Актуализациите на настройките на батерията не са разрешени за този акаунт."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "Друга актуализация на профила на батерията вече е в ход."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "Друга актуализация на настройките на батерията вече е в ход."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Актуализациите на профила на батерията не са налични."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Не са налични актуализации на настройките на батерията."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Не са налични актуализации на батерията."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Актуализациите на батерията не са разрешени за този акаунт."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "Актуализацията на профила на батерията е заявена твърде бързо. Моля, изчакайте и опитайте отново."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "Актуализацията на настройките на батерията е заявена твърде бързо. Моля, изчакайте и опитайте отново."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Достъпът за запис на батерията не можа да бъде потвърден. Опреснете и опитайте отново."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Актуализацията на графика беше отхвърлена от Enphase (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "Актуализацията на графика не можа да бъде удостоверена. Повторно удостоверяване и опитайте отново."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "Графикът е в конфликт със съществуващия график за заустване към мрежата. Първо коригирайте или деактивирайте този график."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "Графикът е в конфликт със съществуващия график за ограничаване на разреждането на батерията. Първо коригирайте или деактивирайте този график."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "Графикът е в конфликт със съществуващия график за таксуване от мрежата. Първо коригирайте или деактивирайте този график."
     },
     "schedule_update_conflict": {
       "message": "Актуализацията на графика е в конфликт със съществуващ график на батерията."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Профилът на батерията не е наличен."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Актуализацията на профила на батерията беше отхвърлена от Enphase (HTTP 403 забранен)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Актуализацията на профила на батерията не може да бъде удостоверена. Повторно удостоверяване и опитайте отново."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "Полезният товар на настройките на батерията не е наличен."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Актуализацията на настройките на батерията беше отхвърлена от Enphase (HTTP 403 Forbidden)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "Актуализацията на настройките на батерията не може да бъде удостоверена. Повторно удостоверяване и опитайте отново."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "Пълният резервен резерв е фиксиран на 100%."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "Резервът на батерията не е наличен."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "Спестовният профил трябва да е активен."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "Настройките на профила за спестявания не са налични."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "Избраният профил на батерията не се поддържа."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "Настройката за зареждане от мрежата не е налична."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "Зареждането от превключване на мрежата не е приложено от Enphase."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "Таксуването от графика на мрежата не е налично."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "Началният и крайният час на графика за зареждане от мрежата трябва да са различни."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "Превключването на графика за таксуване от мрежата не е приложено от Enphase."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "Първо трябва да се активира таксуването от мрежата."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "Промяна в графика чака синхронизиране на Envoy. моля изчакайте"
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "Графикът за зареждане от мрежата е невалиден."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "API за график не е наличен за тази клиентска версия."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Няма съществуващ график за зареждане от мрежата."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Създайте {schedule_label} в планировчика на IQ Battery, преди да го активирате."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "{schedule_label} в момента не се излага от Enphase за този сайт. Изчакайте синхронизирането на графика да завърши, след това опреснете и опитайте отново."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "Превключването {schedule_label} не е приложено от Enphase."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "първичният запис е отхвърлен"
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "Началният и крайният час на {schedule_label} трябва да са различни."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "Графикът за изхвърляне към мрежата е невалиден."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Няма наличен съществуващ график за {schedule_label_lower}."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "Графикът на {schedule_label} не е наличен."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "Графикът на {schedule_label} е невалиден."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "Текущият график на {schedule_label_lower} е невалиден."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "Графикът на {schedule_label} трябва да бъде между {minimum} и {maximum}."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "Графикът за {schedule_label} трябва да бъде поне {minimum}%."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "Текущите часове по график не са налични."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "Графикът за таксуване от мрежата трябва да бъде между {minimum} и {maximum}."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "Графикът за таксуване от мрежата трябва да бъде поне {minimum}%."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Нивото на изключване на батерията не е налично."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Нивото на изключване на батерията е невалидно."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Нивото на изключване на батерията трябва да е между {minimum} и {maximum}."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "Отказът за предупреждение за буря не е наличен."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "Неуспешно отказване за предупреждение за буря за предупреждение(я) за {count}."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "Актуализациите на Storm Guard не са разрешени за този акаунт."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "Настройките на Storm Guard не са налични."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Актуализацията на Storm Guard беше отхвърлена от Enphase (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "Актуализацията на Storm Guard не можа да бъде удостоверена. Повторно удостоверяване и опитайте отново."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "Избраният системен профил не е наличен."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "Актуализацията на системния профил беше отхвърлена от Enphase (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "Актуализацията на системния профил не можа да бъде удостоверена. Повторно удостоверяване и опитайте отново."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "Неуспешна актуализация на системния профил."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "Актуализирането на системния профил не бе успешно поради мрежова грешка. Опитайте отново."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "Актуализацията на системния профил изтече. Опитайте отново."
     },
     "scheduler_service_unavailable": {
       "message": "Изборът на режим на зареждане не е наличен, докато услугата за планиране на Enphase не работи."
     },
     "selected_ac_battery_target_state_of_charge_unavailable": {
-      "message": "Selected AC Battery target state of charge is not available."
+      "message": "Избраното целево състояние на зареждане на променливотокова батерия не е налично."
     },
     "battery_schedule_day_required": {
       "message": "Изберете поне един ден за графика."

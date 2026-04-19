@@ -31,6 +31,27 @@ def _at_path(data: dict, path: str) -> str:
     return cur
 
 
+def _string_paths_under(data: dict, path: str) -> list[str]:
+    """Return every string leaf path beneath the given translation subtree."""
+
+    cur = data
+    for part in path.split("."):
+        cur = cur[part]
+
+    def _walk(node: object, prefix: str) -> list[str]:
+        if isinstance(node, dict):
+            paths: list[str] = []
+            for key, value in node.items():
+                child = f"{prefix}.{key}" if prefix else key
+                paths.extend(_walk(value, child))
+            return paths
+        if isinstance(node, str):
+            return [prefix]
+        return []
+
+    return _walk(cur, path)
+
+
 def test_battery_profile_strings_localized_for_non_english_locales() -> None:
     """Guard against English fallback regressions for battery profile features."""
 
@@ -281,6 +302,15 @@ def test_battery_schedule_editor_strings_localized_for_non_english_locales() -> 
         "exceptions.battery_schedule_ids_not_found.message",
         "exceptions.schedule_update_conflict_detail.message",
     ]
+    for subtree in (
+        "services.force_refresh",
+        "services.add_schedule",
+        "services.update_schedule",
+        "services.delete_schedule",
+        "services.validate_schedule",
+    ):
+        paths.extend(_string_paths_under(en_data, subtree))
+    paths = sorted(set(paths))
     for locale in translations_dir.glob("*.json"):
         name = locale.name
         data = json.loads(locale.read_text(encoding="utf-8"))

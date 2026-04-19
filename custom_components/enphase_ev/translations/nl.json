@@ -133,220 +133,220 @@
       "message": "Het schema overlapt met het bestaande {schedule_label}. Pas dat schema eerst aan of schakel het uit."
     },
     "ac_battery_unavailable": {
-      "message": "No AC Battery devices are currently available."
+      "message": "Er zijn momenteel geen AC Battery-apparaten beschikbaar."
     },
     "auth_settings_service_unavailable": {
-      "message": "Authentication settings are unavailable while the Enphase service is down."
+      "message": "Authenticatie-instellingen zijn niet beschikbaar zolang de Enphase-service niet beschikbaar is."
     },
     "battery_profile_update_not_permitted": {
-      "message": "Battery profile updates are not permitted for this account."
+      "message": "Updates van het batterijprofiel zijn niet toegestaan voor dit account."
     },
     "battery_settings_update_not_permitted": {
-      "message": "Battery settings updates are not permitted for this account."
+      "message": "Updates van batterij-instellingen zijn niet toegestaan voor dit account."
     },
     "battery_profile_update_in_progress": {
-      "message": "Another battery profile update is already in progress."
+      "message": "Er wordt al een andere update van het batterijprofiel uitgevoerd."
     },
     "battery_settings_update_in_progress": {
-      "message": "Another battery settings update is already in progress."
+      "message": "Er wordt al een andere update van de batterij-instellingen uitgevoerd."
     },
     "battery_profile_updates_unavailable": {
-      "message": "Battery profile updates are unavailable."
+      "message": "Updates van het batterijprofiel zijn niet beschikbaar."
     },
     "battery_settings_updates_unavailable": {
-      "message": "Battery settings updates are unavailable."
+      "message": "Updates van batterij-instellingen zijn niet beschikbaar."
     },
     "battery_updates_unavailable": {
-      "message": "Battery updates are unavailable."
+      "message": "Batterij-updates zijn niet beschikbaar."
     },
     "battery_updates_not_permitted": {
-      "message": "Battery updates are not permitted for this account."
+      "message": "Batterij-updates zijn niet toegestaan voor dit account."
     },
     "battery_profile_update_debounced": {
-      "message": "Battery profile update requested too quickly. Please wait and try again."
+      "message": "De update van het batterijprofiel is te snel opnieuw aangevraagd. Wacht even en probeer het opnieuw."
     },
     "battery_settings_update_debounced": {
-      "message": "Battery settings update requested too quickly. Please wait and try again."
+      "message": "De update van de batterij-instellingen is te snel opnieuw aangevraagd. Wacht even en probeer het opnieuw."
     },
     "battery_write_access_unconfirmed": {
-      "message": "Battery write access could not be confirmed. Refresh and try again."
+      "message": "Schrijftoegang voor de batterij kon niet worden bevestigd. Vernieuw en probeer het opnieuw."
     },
     "schedule_update_forbidden": {
-      "message": "Schedule update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "De schema-update is afgewezen door Enphase (HTTP 403 Forbidden)."
     },
     "schedule_update_unauthorized": {
-      "message": "Schedule update could not be authenticated. Reauthenticate and try again."
+      "message": "De schema-update kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
     },
     "schedule_conflict_dtg": {
-      "message": "Schedule conflicts with the existing discharge-to-grid schedule. Adjust or disable that schedule first."
+      "message": "Het schema conflicteert met het bestaande ontladen-naar-het-net-schema. Pas dat schema eerst aan of schakel het uit."
     },
     "schedule_conflict_rbd": {
-      "message": "Schedule conflicts with the existing restrict-battery-discharge schedule. Adjust or disable that schedule first."
+      "message": "Het schema conflicteert met het bestaande beperk-batterijontlading-schema. Pas dat schema eerst aan of schakel het uit."
     },
     "schedule_conflict_cfg": {
-      "message": "Schedule conflicts with the existing charge-from-grid schedule. Adjust or disable that schedule first."
+      "message": "Het schema conflicteert met het bestaande laden-vanaf-het-net-schema. Pas dat schema eerst aan of schakel het uit."
     },
     "schedule_update_conflict": {
       "message": "Geplande update conflicteert met een bestaand batterijschema."
     },
     "battery_profile_unavailable": {
-      "message": "Battery profile is unavailable."
+      "message": "Batterijprofiel is niet beschikbaar."
     },
     "battery_profile_update_forbidden": {
-      "message": "Battery profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "De update van het batterijprofiel is afgewezen door Enphase (HTTP 403 Forbidden)."
     },
     "battery_profile_update_unauthorized": {
-      "message": "Battery profile update could not be authenticated. Reauthenticate and try again."
+      "message": "De update van het batterijprofiel kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
     },
     "battery_settings_payload_unavailable": {
-      "message": "Battery settings payload is unavailable."
+      "message": "De payload voor batterij-instellingen is niet beschikbaar."
     },
     "battery_settings_update_forbidden": {
-      "message": "Battery settings update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "De update van de batterij-instellingen is afgewezen door Enphase (HTTP 403 Forbidden)."
     },
     "battery_settings_update_unauthorized": {
-      "message": "Battery settings update could not be authenticated. Reauthenticate and try again."
+      "message": "De update van de batterij-instellingen kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
     },
     "full_backup_reserve_fixed": {
-      "message": "Full Backup reserve is fixed at 100%."
+      "message": "De Full Backup-reserve is vastgesteld op 100%."
     },
     "battery_reserve_unavailable": {
-      "message": "Battery reserve is unavailable."
+      "message": "Batterijreserve is niet beschikbaar."
     },
     "savings_profile_required": {
-      "message": "Savings profile must be active."
+      "message": "Spaarprofiel moet actief zijn."
     },
     "savings_profile_settings_unavailable": {
-      "message": "Savings profile settings are unavailable."
+      "message": "Instellingen voor het spaarprofiel zijn niet beschikbaar."
     },
     "battery_profile_unsupported": {
-      "message": "Selected battery profile is not supported."
+      "message": "Het geselecteerde batterijprofiel wordt niet ondersteund."
     },
     "charge_from_grid_unavailable": {
-      "message": "Charge from grid setting is unavailable."
+      "message": "De instelling Laden vanaf het net is niet beschikbaar."
     },
     "charge_from_grid_toggle_not_applied": {
-      "message": "Charge from grid toggle was not applied by Enphase."
+      "message": "De schakelaar Laden vanaf het net is niet toegepast door Enphase."
     },
     "charge_from_grid_schedule_unavailable": {
-      "message": "Charge from grid schedule is unavailable."
+      "message": "Het laden-vanaf-het-net-schema is niet beschikbaar."
     },
     "charge_from_grid_schedule_times_different": {
-      "message": "Charge-from-grid schedule start and end times must be different."
+      "message": "De begin- en eindtijd van het laden-vanaf-het-net-schema moeten verschillend zijn."
     },
     "charge_from_grid_schedule_toggle_not_applied": {
-      "message": "Charge-from-grid schedule toggle was not applied by Enphase."
+      "message": "De schakelaar van het laden-vanaf-het-net-schema is niet toegepast door Enphase."
     },
     "charge_from_grid_required": {
-      "message": "Charge from grid must be enabled first."
+      "message": "Laden vanaf het net moet eerst worden ingeschakeld."
     },
     "schedule_change_pending": {
-      "message": "A schedule change is pending Envoy sync. Please wait."
+      "message": "Een schemawijziging wacht op Envoy-synchronisatie. Even geduld."
     },
     "charge_from_grid_schedule_time_invalid": {
-      "message": "Charge-from-grid schedule time is invalid."
+      "message": "De tijd van het laden-vanaf-het-net-schema is ongeldig."
     },
     "schedule_api_unavailable": {
-      "message": "Schedule API not available on this client version."
+      "message": "De schema-API is niet beschikbaar in deze clientversie."
     },
     "charge_from_grid_schedule_missing": {
-      "message": "No existing charge-from-grid schedule is available."
+      "message": "Er is geen bestaand laden-vanaf-het-net-schema beschikbaar."
     },
     "schedule_toggle_create_before_enable": {
-      "message": "Create a {schedule_label} in the IQ Battery scheduler before enabling it."
+      "message": "Maak eerst een {schedule_label} in de IQ Battery-planner voordat je die inschakelt."
     },
     "schedule_not_exposed": {
-      "message": "{schedule_label} is not currently exposed by Enphase for this site. Wait for the schedule sync to complete, then refresh and try again."
+      "message": "{schedule_label} wordt momenteel niet door Enphase voor deze site beschikbaar gesteld. Wacht tot de schemasynchronisatie is voltooid, vernieuw dan en probeer het opnieuw."
     },
     "schedule_toggle_not_applied": {
-      "message": "{schedule_label} toggle was not applied by Enphase."
+      "message": "De schakelaar voor {schedule_label} is niet toegepast door Enphase."
     },
     "schedule_primary_write_rejected": {
-      "message": "primary write rejected"
+      "message": "primaire schrijfactie afgewezen"
     },
     "schedule_family_times_different": {
-      "message": "{schedule_label} start and end times must be different."
+      "message": "De begin- en eindtijd van {schedule_label} moeten verschillend zijn."
     },
     "discharge_to_grid_schedule_time_invalid": {
-      "message": "Discharge to grid schedule time is invalid."
+      "message": "De tijd van het ontladen-naar-het-net-schema is ongeldig."
     },
     "schedule_missing": {
-      "message": "No existing {schedule_label_lower} schedule is available."
+      "message": "Er is geen bestaand {schedule_label_lower}-schema beschikbaar."
     },
     "schedule_unavailable": {
-      "message": "{schedule_label} schedule is unavailable."
+      "message": "Het schema {schedule_label} is niet beschikbaar."
     },
     "schedule_time_invalid": {
-      "message": "{schedule_label} schedule time is invalid."
+      "message": "De tijd van het schema {schedule_label} is ongeldig."
     },
     "current_schedule_time_invalid": {
-      "message": "Current {schedule_label_lower} schedule time is invalid."
+      "message": "De huidige tijd van het {schedule_label_lower}-schema is ongeldig."
     },
     "schedule_limit_range": {
-      "message": "{schedule_label} schedule limit must be between {minimum} and {maximum}."
+      "message": "De limiet van het schema {schedule_label} moet tussen {minimum} en {maximum} liggen."
     },
     "schedule_limit_minimum": {
-      "message": "{schedule_label} schedule limit must be at least {minimum}%."
+      "message": "De limiet van het schema {schedule_label} moet ten minste {minimum}% zijn."
     },
     "current_schedule_times_unavailable": {
-      "message": "Current schedule times are not available."
+      "message": "De huidige schematijden zijn niet beschikbaar."
     },
     "charge_from_grid_schedule_limit_range": {
-      "message": "Charge-from-grid schedule limit must be between {minimum} and {maximum}."
+      "message": "De limiet van het laden-vanaf-het-net-schema moet tussen {minimum} en {maximum} liggen."
     },
     "charge_from_grid_schedule_limit_minimum": {
-      "message": "Charge-from-grid schedule limit must be at least {minimum}%."
+      "message": "De limiet van het laden-vanaf-het-net-schema moet ten minste {minimum}% zijn."
     },
     "battery_shutdown_level_unavailable": {
-      "message": "Battery shutdown level is unavailable."
+      "message": "Het uitschakelniveau van de batterij is niet beschikbaar."
     },
     "battery_shutdown_level_invalid": {
-      "message": "Battery shutdown level is invalid."
+      "message": "Het uitschakelniveau van de batterij is ongeldig."
     },
     "battery_shutdown_level_range": {
-      "message": "Battery shutdown level must be between {minimum} and {maximum}."
+      "message": "Het uitschakelniveau van de batterij moet tussen {minimum} en {maximum} liggen."
     },
     "storm_alert_opt_out_unavailable": {
-      "message": "Storm Alert opt-out is unavailable."
+      "message": "Afmelden voor Storm Alert is niet beschikbaar."
     },
     "storm_alert_opt_out_failed": {
-      "message": "Storm Alert opt-out failed for {count} alert(s)."
+      "message": "Afmelden voor Storm Alert is mislukt voor {count} waarschuwing(en)."
     },
     "storm_guard_update_not_permitted": {
-      "message": "Storm Guard updates are not permitted for this account."
+      "message": "Storm Guard-updates zijn niet toegestaan voor dit account."
     },
     "storm_guard_settings_unavailable": {
-      "message": "Storm Guard settings are unavailable."
+      "message": "Storm Guard-instellingen zijn niet beschikbaar."
     },
     "storm_guard_update_forbidden": {
-      "message": "Storm Guard update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "De Storm Guard-update is afgewezen door Enphase (HTTP 403 Forbidden)."
     },
     "storm_guard_update_unauthorized": {
-      "message": "Storm Guard update could not be authenticated. Reauthenticate and try again."
+      "message": "De Storm Guard-update kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
     },
     "selected_system_profile_unavailable": {
-      "message": "Selected system profile is not available."
+      "message": "Het geselecteerde systeemprofiel is niet beschikbaar."
     },
     "system_profile_update_forbidden": {
-      "message": "System profile update was rejected by Enphase (HTTP 403 Forbidden)."
+      "message": "De update van het systeemprofiel is afgewezen door Enphase (HTTP 403 Forbidden)."
     },
     "system_profile_update_unauthorized": {
-      "message": "System profile update could not be authenticated. Reauthenticate and try again."
+      "message": "De update van het systeemprofiel kon niet worden geauthenticeerd. Verifieer opnieuw en probeer het opnieuw."
     },
     "system_profile_update_failed": {
-      "message": "System profile update failed."
+      "message": "De update van het systeemprofiel is mislukt."
     },
     "system_profile_update_network": {
-      "message": "System profile update failed due to a network error. Try again."
+      "message": "De update van het systeemprofiel is mislukt door een netwerkfout. Probeer het opnieuw."
     },
     "system_profile_update_timeout": {
-      "message": "System profile update timed out. Try again."
+      "message": "De update van het systeemprofiel heeft een time-out bereikt. Probeer het opnieuw."
     },
     "scheduler_service_unavailable": {
       "message": "Selectie van de oplaadmodus is niet beschikbaar terwijl de Enphase-plannerservice niet beschikbaar is."
     },
     "selected_ac_battery_target_state_of_charge_unavailable": {
-      "message": "Selected AC Battery target state of charge is not available."
+      "message": "De geselecteerde doel-laadtoestand voor AC Battery is niet beschikbaar."
     },
     "battery_schedule_day_required": {
       "message": "Selecteer minimaal één dag voor het schema."
