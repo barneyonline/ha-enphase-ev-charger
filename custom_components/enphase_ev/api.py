@@ -3488,81 +3488,148 @@ class EnphaseEVClient:
             raise last_error
         raise aiohttp.ClientError("BatteryConfig request exhausted variants")
 
+    @staticmethod
+    def _extract_xsrf_from_response_header(response: object) -> str | None:
+        """Return the XSRF token from a response's ``x-csrf-token`` header.
+
+        The Enphase BatteryConfig service emits ``x-csrf-token`` on every
+        response; the ``battery-profile-ui.enphaseenergy.com`` web UI relies
+        on this as its primary bootstrap mechanism (see PR description for
+        HAR evidence).
+        """
+
+        headers_get = getattr(getattr(response, "headers", None), "get", None)
+        if not callable(headers_get):
+            return None
+        token = headers_get("x-csrf-token") or headers_get("X-CSRF-Token")
+        if isinstance(token, str) and token.strip():
+            return token.strip()
+        return None
+
+    @staticmethod
+    def _extract_xsrf_from_response_cookies(response: object) -> str | None:
+        """Return the XSRF token from Set-Cookie headers or response cookies."""
+
+        header_values: list[str] = []
+        headers = getattr(response, "headers", None)
+        getall = getattr(headers, "getall", None)
+        headers_get = getattr(headers, "get", None)
+        if callable(getall):
+            header_values = list(getall("Set-Cookie", []))
+        elif callable(headers_get):
+            header_value = headers_get("Set-Cookie")
+            if isinstance(header_value, str) and header_value:
+                header_values = [header_value]
+        for value in header_values:
+            match = re.search(r"(?i)(?:^|;\s*)(?:bp-)?xsrf-token=([^;]+)", value)
+            if match:
+                try:
+                    decoded = unquote(match.group(1))
+                except Exception:  # noqa: BLE001 - defensive decoding
+                    decoded = match.group(1)
+                if decoded:
+                    return decoded
+
+        response_cookie_token = _extract_xsrf_token(
+            _coerce_cookie_map(getattr(response, "cookies", None))
+        )
+        if response_cookie_token:
+            return response_cookie_token
+
+        return None
+
     async def _acquire_xsrf_token(
         self,
         schedule_type: str = "cfg",
         *,
         variant: str = _BATTERY_CONFIG_VARIANT_PRIMARY,
     ) -> str | None:
-        """Acquire a BP-XSRF-Token by POSTing to the schedules isValid endpoint.
+        """Acquire an XSRF token for BatteryConfig write operations.
 
-        The Enphase BatteryConfig API requires an XSRF token for write operations.
-        This token is obtained from the ``Set-Cookie`` header in the response to
-        a POST to ``/schedules/isValid``.
+        Tries two bootstrap shapes, in order:
+
+        1. **GET** ``siteSettings/{site}?userId={userId}`` and read the
+           ``x-csrf-token`` response header. This matches the Enphase web UI
+           (``battery-profile-ui.enphaseenergy.com``) and works on EMEA sites
+           that do not set a ``BP-XSRF-Token`` cookie.
+        2. **POST** ``schedules/isValid`` and read ``Set-Cookie`` /
+           ``response.cookies`` — the legacy bootstrap, kept as a fallback
+           for sites that still expose the token that way.
         """
 
-        url = (
-            f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
-            f"{self._site}/schedules/isValid"
-        )
         headers = self._battery_config_headers(
             include_xsrf=True,
             variant=variant,
         )
-        headers["Content-Type"] = "application/json"
         request_headers = self._merge_request_headers({}, headers)
-        payload = self._battery_schedule_validation_payload(schedule_type)
+
+        def _remember_xsrf(token: str, source: str) -> str:
+            self._bp_xsrf_token = token
+            _LOGGER.debug("Acquired BP-XSRF-Token from %s", source)
+            return token
 
         try:
             _seed_cookie_jar(self._s, _cookie_map_from_header(self._cookie))
 
-            def _remember_xsrf(token: str | None, source: str) -> str | None:
-                if not token:
-                    return None
-                self._bp_xsrf_token = token
-                _LOGGER.debug("Acquired BP-XSRF-Token from %s", source)
-                return token
+            # Preferred path: GET siteSettings. The response includes
+            # ``x-csrf-token`` on success without requiring an XSRF token
+            # itself, so this avoids the chicken-and-egg problem when the
+            # legacy POST bootstrap is rejected with 403.
+            user_id = self._battery_config_user_id_for_token() or ""
+            site_settings_url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/siteSettings/" f"{self._site}"
+            )
+            site_settings_params = {"userId": user_id} if user_id else None
+            async with asyncio.timeout(self._timeout):
+                async with self._s.request(
+                    "GET",
+                    site_settings_url,
+                    headers=request_headers,
+                    params=site_settings_params,
+                ) as r:
+                    if r.status < HTTPStatus.BAD_REQUEST:
+                        token = self._extract_xsrf_from_response_header(r)
+                        if token:
+                            return _remember_xsrf(token, "siteSettings response header")
+                    else:
+                        _LOGGER.debug(
+                            "BatteryConfig GET bootstrap returned %s for %s; "
+                            "falling back to POST isValid",
+                            r.status,
+                            _request_label("GET", site_settings_url),
+                        )
+
+            # Legacy fallback: POST /schedules/isValid and parse Set-Cookie.
+            isvalid_url = (
+                f"{BASE_URL}/service/batteryConfig/api/v1/battery/sites/"
+                f"{self._site}/schedules/isValid"
+            )
+            isvalid_headers = dict(request_headers)
+            isvalid_headers["Content-Type"] = "application/json"
+            payload = self._battery_schedule_validation_payload(schedule_type)
 
             async with asyncio.timeout(self._timeout):
                 async with self._s.request(
-                    "POST", url, json=payload, headers=request_headers
+                    "POST", isvalid_url, json=payload, headers=isvalid_headers
                 ) as r:
                     if r.status >= HTTPStatus.BAD_REQUEST:
                         _LOGGER.debug(
                             "BatteryConfig bootstrap returned %s for %s; "
                             "keeping existing XSRF token",
                             r.status,
-                            _request_label("POST", url),
+                            _request_label("POST", isvalid_url),
                         )
                         return None
 
-                    header_values: list[str] = []
-                    getall = getattr(r.headers, "getall", None)
-                    if callable(getall):
-                        header_values = list(getall("Set-Cookie", []))
-                    else:
-                        header_value = getattr(
-                            r.headers, "get", lambda *_a, **_k: None
-                        )("Set-Cookie")
-                        if isinstance(header_value, str) and header_value:
-                            header_values = [header_value]
-                    for value in header_values:
-                        match = re.search(
-                            r"(?i)(?:^|;\s*)(?:bp-)?xsrf-token=([^;]+)", value
-                        )
-                        if match:
-                            return _remember_xsrf(
-                                unquote(match.group(1)), "Set-Cookie header"
-                            )
-
-                    response_cookie_token = _extract_xsrf_token(
-                        _coerce_cookie_map(getattr(r, "cookies", None))
-                    )
-                    if response_cookie_token:
-                        return _remember_xsrf(response_cookie_token, "response cookies")
+                    token = self._extract_xsrf_from_response_header(r)
+                    if token:
+                        return _remember_xsrf(token, "isValid response header")
+                    cookie_token = self._extract_xsrf_from_response_cookies(r)
+                    if cookie_token:
+                        return _remember_xsrf(cookie_token, "isValid Set-Cookie")
 
                     cookie_header, cookie_map = _serialize_cookie_jar(
-                        self._s.cookie_jar, (url, BASE_URL, ENTREZ_URL)
+                        self._s.cookie_jar, (isvalid_url, BASE_URL, ENTREZ_URL)
                     )
                     session_cookie_token = _extract_xsrf_token(cookie_map)
                     if session_cookie_token:
