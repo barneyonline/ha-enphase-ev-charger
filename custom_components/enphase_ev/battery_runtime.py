@@ -15,6 +15,10 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
 from .ac_battery_runtime import AcBatteryRuntime
+from .battery_schedule_editor import (
+    battery_schedule_overlap_message,
+    battery_schedule_overlap_record,
+)
 from .const import (
     BATTERY_BACKUP_HISTORY_CACHE_TTL,
     BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
@@ -1323,6 +1327,61 @@ class BatteryRuntime:
             return current
         return dt_util.utcnow().isoformat()
 
+    def _schedule_overlap_record(
+        self,
+        *,
+        start_time: object,
+        end_time: object,
+        days: list[int],
+        exclude_schedule_id: str | None = None,
+    ):
+        return battery_schedule_overlap_record(
+            self.coordinator,
+            start_time=start_time,
+            end_time=end_time,
+            days=days,
+            exclude_schedule_id=exclude_schedule_id,
+        )
+
+    def _raise_schedule_overlap_validation_error(
+        self,
+        *,
+        start_time: object,
+        end_time: object,
+        days: list[int],
+        exclude_schedule_id: str | None = None,
+    ) -> None:
+        overlapping = self._schedule_overlap_record(
+            start_time=start_time,
+            end_time=end_time,
+            days=days,
+            exclude_schedule_id=exclude_schedule_id,
+        )
+        if overlapping is not None:
+            raise ServiceValidationError(battery_schedule_overlap_message(overlapping))
+
+    @staticmethod
+    def _is_already_processed_profile_cancel_error(
+        err: aiohttp.ClientResponseError,
+    ) -> bool:
+        if err.status != HTTPStatus.CONFLICT:
+            return False
+        raw_message = getattr(err, "message", None)
+        if not isinstance(raw_message, str) or not raw_message.strip():
+            return False
+        try:
+            parsed = json.loads(raw_message)
+        except ValueError:
+            return "ALREADY_PROCESSED" in raw_message.upper()
+        error_block = parsed.get("error")
+        if not isinstance(error_block, dict):
+            return False
+        status_value = error_block.get("status")
+        return (
+            isinstance(status_value, str)
+            and status_value.strip().upper() == "ALREADY_PROCESSED"
+        )
+
     def raise_schedule_update_validation_error(
         self, err: aiohttp.ClientResponseError
     ) -> None:
@@ -1389,6 +1448,12 @@ class BatteryRuntime:
         is_enabled: bool | None = None,
         is_deleted: bool | None = None,
     ) -> None:
+        self._raise_schedule_overlap_validation_error(
+            start_time=start_time,
+            end_time=end_time,
+            days=days,
+            exclude_schedule_id=str(schedule_id),
+        )
         try:
             await self.coordinator.client.update_battery_schedule(
                 schedule_id,
@@ -2099,6 +2164,17 @@ class BatteryRuntime:
 
     def parse_battery_schedules_payload(self, payload: object) -> None:
         state = self.battery_state
+        coord = self.coordinator
+
+        def _control_enabled(schedule_type: str) -> bool | None:
+            normalized = str(schedule_type).lower()
+            attr_name = {
+                "cfg": "battery_charge_from_grid_schedule_enabled",
+                "dtg": "battery_dtg_control_enabled",
+                "rbd": "battery_rbd_control_enabled",
+            }.get(normalized, "")
+            value = getattr(coord, attr_name, None)
+            return value if isinstance(value, bool) else None
 
         def _reset_family(schedule_type: str) -> None:
             setattr(state, self._battery_schedule_limit_attr(schedule_type), None)
@@ -2126,12 +2202,19 @@ class BatteryRuntime:
             details = family_payload.get("details")
             if not isinstance(details, list) or not details:
                 return
+            preferred_enabled = _control_enabled(schedule_type)
             chosen = None
             for entry in details:
                 if not isinstance(entry, dict):
                     continue
                 if chosen is None:
                     chosen = entry
+                entry_enabled = self._coerce_optional_bool(entry.get("isEnabled"))
+                if preferred_enabled is not None:
+                    if entry_enabled is preferred_enabled:
+                        chosen = entry
+                        break
+                    continue
                 if entry.get("isEnabled") is True:
                     chosen = entry
                     break
@@ -2192,7 +2275,7 @@ class BatteryRuntime:
                     int(limit),
                 )
             enabled = self._coerce_optional_bool(chosen.get("isEnabled"))
-            if enabled is not None:
+            if enabled is not None and _control_enabled(schedule_type) is None:
                 setattr(
                     state,
                     self._battery_schedule_enabled_attr(schedule_type),
@@ -3221,7 +3304,15 @@ class BatteryRuntime:
         await self.async_assert_battery_profile_write_allowed()
         async with state._battery_profile_write_lock:
             state._battery_profile_last_write_mono = time.monotonic()
-            await coord.client.cancel_battery_profile_update()
+            try:
+                await coord.client.cancel_battery_profile_update()
+            except aiohttp.ClientResponseError as err:
+                if not self._is_already_processed_profile_cancel_error(err):
+                    raise
+                _LOGGER.debug(
+                    "Ignoring already-processed battery profile cancel on site %s",
+                    redact_site_id(coord.site_id),
+                )
         self.clear_battery_pending()
         state._storm_guard_cache_until = None
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
@@ -3408,6 +3499,11 @@ class BatteryRuntime:
                     end_hhmm,
                     tz,
                 )
+                self._raise_schedule_overlap_validation_error(
+                    start_time=start_hhmm,
+                    end_time=end_hhmm,
+                    days=days,
+                )
                 await coord.client.create_battery_schedule(
                     schedule_type="CFG",
                     start_time=start_hhmm,
@@ -3415,6 +3511,11 @@ class BatteryRuntime:
                     limit=100,
                     days=days,
                     timezone=tz,
+                    is_enabled=bool(
+                        getattr(
+                            coord, "_battery_charge_from_grid_schedule_enabled", None
+                        )
+                    ),
                 )
             state._battery_charge_begin_time = next_start
             state._battery_charge_end_time = next_end
@@ -3806,7 +3907,6 @@ class BatteryRuntime:
                 limit=limit,
                 days=days,
                 timezone=timezone,
-                is_enabled=is_enabled,
             )
             return
         if not self._schedule_create_supported():
@@ -3816,6 +3916,11 @@ class BatteryRuntime:
         create_limit = limit
         if create_limit is None:
             create_limit = self._schedule_default_limit_for_create(schedule_type)
+        self._raise_schedule_overlap_validation_error(
+            start_time=start_time,
+            end_time=end_time,
+            days=days,
+        )
         try:
             await coord.client.create_battery_schedule(
                 schedule_type=str(schedule_type).upper(),
@@ -3843,6 +3948,20 @@ class BatteryRuntime:
         if not getattr(coord, self._schedule_supported_property_name(schedule_type)):
             raise ServiceValidationError(f"{label} schedule is unavailable.")
         await self.async_assert_battery_settings_write_allowed()
+        if normalized_schedule_type == "cfg":
+            if getattr(coord, self._schedule_pending_property_name(schedule_type)):
+                raise ServiceValidationError(
+                    "A schedule change is pending Envoy sync. Please wait."
+                )
+            current_start, current_end = self._current_battery_schedule_window_for_type(
+                schedule_type,
+            )
+            if current_start == current_end:
+                raise ServiceValidationError(
+                    f"{label} schedule start and end times must be different."
+                )
+            await self.async_set_charge_from_grid_schedule_enabled(enabled)
+            return
         schedule_id = getattr(
             state, self._battery_schedule_id_attr(schedule_type), None
         )
@@ -3853,12 +3972,6 @@ class BatteryRuntime:
         if use_battery_settings_toggle:
             self._set_schedule_family_toggle_target(schedule_type, enabled)
         try:
-            if not use_battery_settings_toggle and getattr(
-                coord, self._schedule_pending_property_name(schedule_type)
-            ):
-                raise ServiceValidationError(
-                    "A schedule change is pending Envoy sync. Please wait."
-                )
             current_start, current_end = self._current_battery_schedule_window_for_type(
                 schedule_type,
             )
@@ -3924,36 +4037,11 @@ class BatteryRuntime:
                     )
                 self.clear_battery_settings_write_pending()
                 await coord.async_request_refresh()
-            else:
-                if current_start == current_end:
-                    raise ServiceValidationError(
-                        f"{label} schedule start and end times must be different."
-                    )
-                current_limit = getattr(
-                    state, self._battery_schedule_limit_attr(schedule_type), None
-                )
-                next_limit = (
-                    int(current_limit)
-                    if current_limit is not None
-                    else self._schedule_default_limit_for_create(schedule_type)
-                )
-                async with state._battery_settings_write_lock:
-                    state._battery_settings_last_write_mono = time.monotonic()
-                    await self._async_create_or_update_schedule_family(
-                        schedule_type,
-                        start_minutes=current_start,
-                        end_minutes=current_end,
-                        limit=next_limit,
-                        is_enabled=enabled,
-                    )
-                state._battery_settings_cache_until = None
-                coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
-                await coord.async_request_refresh()
             setattr(state, self._battery_schedule_enabled_attr(schedule_type), enabled)
         finally:
             if use_battery_settings_toggle:
                 self._clear_schedule_family_toggle_target(schedule_type)
-        if schedule_id is not None or not use_battery_settings_toggle:
+        if schedule_id is not None:
             setattr(
                 state, self._battery_schedule_start_attr(schedule_type), current_start
             )

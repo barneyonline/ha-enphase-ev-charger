@@ -13,9 +13,14 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers import service as ha_service
 
-from .battery_schedule_editor import battery_schedule_inventory
+from .battery_schedule_editor import (
+    battery_schedule_inventory,
+    battery_schedule_overlap_message,
+    battery_schedule_overlap_record,
+)
 from .const import DOMAIN, ISSUE_AUTH_BLOCKED, ISSUE_REAUTH_REQUIRED
 from .device_types import parse_type_identifier
+from .parsing_helpers import coerce_optional_bool
 from .runtime_data import EnphaseRuntimeData, iter_coordinators
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -258,7 +263,12 @@ def async_setup_services(
                 )
                 return {}
             raise
-        if isinstance(result, dict) and result.get("valid") is False:
+        if not isinstance(result, dict):
+            return {}
+        valid = coerce_optional_bool(result.get("valid"))
+        if valid is None and "isValid" in result:
+            valid = coerce_optional_bool(result.get("isValid"))
+        if valid is False:
             raise ServiceValidationError(
                 str(
                     result.get(
@@ -267,7 +277,9 @@ def async_setup_services(
                     )
                 )
             )
-        return result if isinstance(result, dict) else {}
+        if valid is not None and "valid" not in result:
+            return {**result, "valid": bool(valid)}
+        return result
 
     def _known_schedule_ids(coord: EnphaseCoordinator) -> set[str]:
         return {schedule.schedule_id for schedule in battery_schedule_inventory(coord)}
@@ -277,6 +289,26 @@ def async_setup_services(
             schedule.schedule_id: schedule
             for schedule in battery_schedule_inventory(coord)
         }
+
+    def _validate_schedule_overlap(
+        coord: EnphaseCoordinator,
+        *,
+        start_time: str,
+        end_time: str,
+        days: list[int],
+        exclude_schedule_id: str | None = None,
+    ) -> None:
+        overlapping = battery_schedule_overlap_record(
+            coord,
+            start_time=start_time,
+            end_time=end_time,
+            days=days,
+            exclude_schedule_id=exclude_schedule_id,
+        )
+        if overlapping is not None:
+            raise ServiceValidationError(
+                battery_schedule_overlap_message(overlapping, hass=hass)
+            )
 
     def _validate_cfg_schedule(data: dict) -> dict:
         if not any(k in data for k in ("start_time", "end_time", "limit")):
@@ -489,6 +521,12 @@ def async_setup_services(
             days=days,
             limit=limit,
         )
+        _validate_schedule_overlap(
+            coord,
+            start_time=start_str,
+            end_time=end_str,
+            days=days,
+        )
         await _validate_schedule_with_api(coord, schedule_type)
         creator = getattr(coord.client, "create_battery_schedule", None)
         if not callable(creator):
@@ -542,6 +580,13 @@ def async_setup_services(
             days=days,
             limit=limit,
         )
+        _validate_schedule_overlap(
+            coord,
+            start_time=start_str,
+            end_time=end_str,
+            days=days,
+            exclude_schedule_id=schedule_id,
+        )
         await _validate_schedule_with_api(coord, schedule_type)
         updater = getattr(coord.client, "update_battery_schedule", None)
         if not callable(updater):
@@ -562,9 +607,6 @@ def async_setup_services(
                     )
                     or hass.config.time_zone
                     or "UTC"
-                ),
-                is_enabled=(
-                    existing_schedule.enabled if existing_schedule is not None else True
                 ),
             )
         except aiohttp.ClientResponseError as err:

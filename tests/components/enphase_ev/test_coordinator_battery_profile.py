@@ -213,6 +213,54 @@ async def test_cancel_pending_profile_change(
     assert (DOMAIN, ISSUE_BATTERY_PROFILE_PENDING) in mock_issue_registry.deleted
 
 
+@pytest.mark.asyncio
+async def test_cancel_pending_profile_change_ignores_already_processed_conflict(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.client.cancel_battery_profile_update = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=409,
+            message='{"error":{"status":"ALREADY_PROCESSED","message":"Changes already processed."}}',
+        )
+    )
+
+    await coord.async_cancel_pending_profile_change()
+
+    coord.client.cancel_battery_profile_update.assert_awaited_once()
+    assert coord.battery_profile_pending is False
+
+
+@pytest.mark.asyncio
+async def test_cancel_pending_profile_change_reraises_non_benign_conflict(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+    coord.client.cancel_battery_profile_update = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=409,
+            message='{"error":{"status":"NOT_ALLOWED","message":"Denied."}}',
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.async_cancel_pending_profile_change()
+
+
 def test_pending_profile_timeout_issue_lifecycle(
     coordinator_factory, mock_issue_registry
 ) -> None:
