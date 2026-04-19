@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Enphase lükkas ajakava muudatuse tagasi."
+    },
+    "battery_schedule_overlap": {
+      "message": "Ajakava kattub olemasoleva {schedule_label}-ga. Kohanda või keela see ajakava enne."
     }
   },
   "options": {

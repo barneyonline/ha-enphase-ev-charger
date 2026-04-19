@@ -16,12 +16,14 @@ from homeassistant.helpers import service as ha_service
 from .battery_schedule_editor import (
     battery_schedule_inventory,
     battery_schedule_overlap_message,
+    battery_schedule_overlap_placeholders,
     battery_schedule_overlap_record,
 )
 from .const import DOMAIN, ISSUE_AUTH_BLOCKED, ISSUE_REAUTH_REQUIRED
 from .device_types import parse_type_identifier
 from .parsing_helpers import coerce_optional_bool
 from .runtime_data import EnphaseRuntimeData, iter_coordinators
+from .service_validation import raise_translated_service_validation
 
 if TYPE_CHECKING:  # pragma: no cover
     from .coordinator import EnphaseCoordinator
@@ -306,8 +308,13 @@ def async_setup_services(
             exclude_schedule_id=exclude_schedule_id,
         )
         if overlapping is not None:
-            raise ServiceValidationError(
-                battery_schedule_overlap_message(overlapping, hass=hass)
+            raise_translated_service_validation(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.battery_schedule_overlap",
+                translation_placeholders=battery_schedule_overlap_placeholders(
+                    overlapping, hass=hass
+                ),
+                message=battery_schedule_overlap_message(overlapping, hass=hass),
             )
 
     def _validate_cfg_schedule(data: dict) -> dict:

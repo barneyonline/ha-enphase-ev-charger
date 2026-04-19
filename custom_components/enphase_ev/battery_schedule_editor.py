@@ -161,16 +161,22 @@ def battery_schedule_overlap_record(
 def battery_schedule_overlap_message(
     schedule: BatteryScheduleRecord, *, hass: object | None = None
 ) -> str:
-    schedule_type = battery_schedule_type_label(schedule.schedule_type, hass=hass)
-    if not schedule_type:
-        schedule_type = str(schedule.schedule_type).strip() or "Battery"
-    label = schedule_type.lower()
+    label = battery_schedule_overlap_placeholders(schedule, hass=hass)["schedule_label"]
     if not label.endswith("schedule"):
         label = f"{label} schedule"
     return (
         f"Schedule overlaps with the existing {label}. "
         "Adjust or disable that schedule first."
     )
+
+
+def battery_schedule_overlap_placeholders(
+    schedule: BatteryScheduleRecord, *, hass: object | None = None
+) -> dict[str, str]:
+    schedule_type = battery_schedule_type_label(schedule.schedule_type, hass=hass)
+    if not schedule_type:
+        schedule_type = str(schedule.schedule_type).strip() or "battery"
+    return {"schedule_label": schedule_type.lower()}
 
 
 def editor_days_from_list(days: list[int]) -> dict[str, bool]:

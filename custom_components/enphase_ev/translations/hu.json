@@ -128,6 +128,9 @@
     },
     "evse_schedule_change_rejected": {
       "message": "Az Enphase elutasította az ütemezés módosítását."
+    },
+    "battery_schedule_overlap": {
+      "message": "Az ütemezés átfedésben van a meglévő {schedule_label} elemmel. Először módosítsa vagy tiltsa le azt az ütemezést."
     }
   },
   "options": {
