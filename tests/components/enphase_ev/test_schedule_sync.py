@@ -567,6 +567,53 @@ async def test_schedule_sync_listener_notified_on_refresh(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_schedule_sync_refresh_fetches_serials_concurrently(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    client = SimpleNamespace()
+    client._bearer = lambda: "token"
+    release = asyncio.Event()
+    both_started = asyncio.Event()
+    started: list[str] = []
+
+    async def _get_schedules(sn: str):
+        started.append(sn)
+        if len(started) == 2:
+            both_started.set()
+        await release.wait()
+        return {
+            "meta": {"serverTimeStamp": f"{sn}-ts"},
+            "config": {},
+            "slots": [_slot(f"{sn}:slot-1")],
+        }
+
+    client.get_schedules = AsyncMock(side_effect=_get_schedules)
+    coord = DummyCoordinator(
+        hass,
+        client,
+        entry,
+        data={
+            RANDOM_SERIAL: {"display_name": "Garage Charger"},
+            "SECONDARY": {"display_name": "Driveway Charger"},
+        },
+    )
+    coord.iter_serials = lambda: [RANDOM_SERIAL, "SECONDARY"]  # type: ignore[assignment]
+    sync = ScheduleSync(hass, coord, entry)
+
+    refresh_task = asyncio.create_task(sync.async_refresh(reason="manual"))
+    await asyncio.wait_for(both_started.wait(), timeout=1)
+    release.set()
+    await refresh_task
+
+    assert set(started) == {RANDOM_SERIAL, "SECONDARY"}
+    assert set(sync._slot_cache) == {RANDOM_SERIAL, "SECONDARY"}
+    assert sync._last_status == "ok:manual"
+
+
+@pytest.mark.asyncio
 async def test_schedule_sync_removes_helper_when_slot_removed(hass) -> None:
     slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-3"
     payload = {
