@@ -172,6 +172,12 @@ class EvseRuntime:
     ) -> dict[str, list[dict]]:
         manager = getattr(self.coordinator, "session_history", None)
         if manager is not None:
+            if max_cache_age is None:
+                return await manager.async_enrich(
+                    serials,
+                    day_local,
+                    in_background=in_background,
+                )
             return await manager.async_enrich(
                 serials,
                 day_local,

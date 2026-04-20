@@ -211,6 +211,81 @@ async def test_evse_runtime_resolvers_use_runtime_methods(
 
 
 @pytest.mark.asyncio
+async def test_evse_runtime_session_history_helpers_pass_max_cache_age(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.evse_runtime
+    manager = SimpleNamespace(
+        async_enrich=AsyncMock(return_value={"EV1": [{"energy_kwh": 1.0}]}),
+        _async_fetch_sessions_today=AsyncMock(return_value=[{"energy_kwh": 1.0}]),
+        schedule_enrichment=MagicMock(),
+        schedule_enrichment_with_options=MagicMock(),
+    )
+    coord.session_history = manager
+    day = datetime(2025, 1, 1, tzinfo=UTC)
+
+    runtime.schedule_session_enrichment(["EV1"], day, max_cache_age=120.0)
+    result = await runtime.async_enrich_sessions(
+        ["EV1"],
+        day,
+        in_background=True,
+        max_cache_age=120.0,
+    )
+    sessions = await runtime.async_fetch_sessions_today(
+        "EV1",
+        day_local=day,
+        max_cache_age=120.0,
+    )
+
+    manager.schedule_enrichment_with_options.assert_called_once_with(
+        ["EV1"],
+        day_local=day,
+        max_cache_age=120.0,
+    )
+    manager.async_enrich.assert_awaited_once_with(
+        ["EV1"],
+        day,
+        in_background=True,
+        max_cache_age=120.0,
+    )
+    manager._async_fetch_sessions_today.assert_awaited_once_with(
+        "EV1",
+        day_local=day,
+        max_cache_age=120.0,
+    )
+    assert result == {"EV1": [{"energy_kwh": 1.0}]}
+    assert sessions == [{"energy_kwh": 1.0}]
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_async_fetch_sessions_today_ignores_invalid_max_cache_age(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.evse_runtime
+    manager = SimpleNamespace(
+        _async_fetch_sessions_today=AsyncMock(return_value=[{"energy_kwh": 2.0}]),
+        cache_ttl=600,
+    )
+    coord.session_history = manager
+    day = datetime(2025, 1, 2, tzinfo=UTC)
+
+    sessions = await runtime.async_fetch_sessions_today(
+        "EV1",
+        day_local=day,
+        max_cache_age="bad",
+    )
+
+    manager._async_fetch_sessions_today.assert_awaited_once_with(
+        "EV1",
+        day_local=day,
+        max_cache_age="bad",
+    )
+    assert sessions == [{"energy_kwh": 2.0}]
+
+
+@pytest.mark.asyncio
 async def test_evse_runtime_run_lookup_tasks_handles_empty_input(
     coordinator_factory,
 ) -> None:

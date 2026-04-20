@@ -2694,6 +2694,56 @@ async def test_active_session_history_refreshes_early_in_background(
 
 
 @pytest.mark.asyncio
+async def test_first_refresh_with_cached_active_session_defers_in_background(
+    hass, monkeypatch
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.data = {RANDOM_SERIAL: {"display_name": "Garage EV"}}
+
+    now_local = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: now_local)
+
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": True,
+                    "pluggedIn": True,
+                }
+            ]
+        }
+    )
+    coord.client.summary_v2 = AsyncMock(
+        return_value=[{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+    )
+    coord.client.charge_mode = AsyncMock(return_value=None)
+
+    day_key = now_local.strftime("%Y-%m-%d")
+    cached_sessions = [{"session_id": "cached", "energy_kwh": 1.25}]
+    coord.session_history._cache[(RANDOM_SERIAL, day_key)] = (  # noqa: SLF001
+        time.monotonic() - 180,
+        cached_sessions,
+    )
+    coord._async_enrich_sessions = AsyncMock(return_value={})  # type: ignore[assignment]  # noqa: SLF001
+    coord._schedule_session_enrichment = MagicMock()  # type: ignore[assignment]  # noqa: SLF001
+
+    data = await coord._async_update_data()
+
+    assert data[RANDOM_SERIAL]["energy_today_sessions"] == cached_sessions
+    coord._async_enrich_sessions.assert_not_awaited()  # type: ignore[attr-defined]
+    coord._schedule_session_enrichment.assert_called_once()  # type: ignore[attr-defined]
+    assert (
+        coord._schedule_session_enrichment.call_args.kwargs["max_cache_age"] == 120.0
+    )  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
 async def test_active_session_history_hard_ttl_refreshes_inline(
     hass, monkeypatch
 ) -> None:
@@ -2747,14 +2797,32 @@ async def test_active_session_history_hard_ttl_refreshes_inline(
 
 
 def test_session_history_adaptive_ttl_helpers(hass, monkeypatch) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+
     coord = _make_coordinator(hass, monkeypatch)
     monkeypatch.setattr(time, "time", lambda: 1_000.0)
+    original_coerce_optional_int = coord_mod.helper_coerce_optional_int
+
+    class _BadAge:
+        def __float__(self) -> float:
+            raise ValueError("boom")
+
+    def _coerce_optional_int(value):
+        if value == "bad":
+            return _BadAge()
+        return original_coerce_optional_int(value)
+
+    monkeypatch.setattr(coord_mod, "helper_coerce_optional_int", _coerce_optional_int)
 
     assert coord._session_history_soft_ttl({"charging": True}) == 120.0  # noqa: SLF001
     assert coord._session_history_hard_ttl({"charging": True}) == 600.0  # noqa: SLF001
     assert (
         coord._session_history_soft_ttl({"charging": False, "session_end": 950})
         == 300.0
+    )  # noqa: SLF001
+    assert (
+        coord._session_history_soft_ttl({"charging": False, "session_end": "bad"})
+        == 600.0
     )  # noqa: SLF001
     assert coord._session_history_hard_ttl({"charging": False}) == 900.0  # noqa: SLF001
 

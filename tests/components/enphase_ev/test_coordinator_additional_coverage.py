@@ -900,6 +900,35 @@ async def test_async_enrich_sessions_invokes_history(coordinator_factory):
 
 
 @pytest.mark.asyncio
+async def test_async_enrich_sessions_invokes_history_with_max_cache_age(
+    coordinator_factory,
+):
+    coord = coordinator_factory()
+    serials = [SERIAL_ONE]
+    fake_history = SimpleNamespace(
+        async_enrich=AsyncMock(return_value={"123": []}),
+        cache_ttl=MIN_SESSION_HISTORY_CACHE_TTL,
+    )
+    coord.session_history = fake_history
+
+    day = datetime(2025, 5, 1, tzinfo=timezone.utc)
+    result = await coord._async_enrich_sessions(
+        serials,
+        day,
+        in_background=True,
+        max_cache_age=120.0,
+    )
+
+    assert result == {"123": []}
+    fake_history.async_enrich.assert_awaited_once_with(
+        serials,
+        day,
+        in_background=True,
+        max_cache_age=120.0,
+    )
+
+
+@pytest.mark.asyncio
 async def test_async_fetch_sessions_today_handles_timezone_error(
     monkeypatch, coordinator_factory
 ):
