@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Switched same-profile IQ Battery reserve changes to the BatteryConfig settings compatibility write path so reserve-only updates apply reliably on sites where the profile endpoint returns success without changing the effective reserve.
 
 ### 🔧 Improvements
 - Reduced EV charger refresh-path latency by fetching scheduler payloads concurrently across chargers during sync refreshes, and made session-history freshness adaptive so active/recently-ended sessions refresh sooner while idle chargers keep background refreshes off the main coordinator hot path.
