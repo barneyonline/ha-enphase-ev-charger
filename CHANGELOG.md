@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🔧 Improvements
-- None
+- Reduced EV charger refresh-path latency by fetching scheduler payloads concurrently across chargers during sync refreshes, and made session-history freshness adaptive so active/recently-ended sessions refresh sooner while idle chargers keep background refreshes off the main coordinator hot path.
 
 ### 🔄 Other changes
 - None

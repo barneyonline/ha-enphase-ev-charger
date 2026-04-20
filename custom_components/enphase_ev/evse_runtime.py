@@ -148,10 +148,19 @@ class EvseRuntime:
         self,
         serials: Iterable[str],
         day_local: datetime,
+        *,
+        max_cache_age: float | None = None,
     ) -> None:
         manager = getattr(self.coordinator, "session_history", None)
         if manager is not None:
-            manager.schedule_enrichment(serials, day_local)
+            if max_cache_age is None:
+                manager.schedule_enrichment(serials, day_local)
+                return
+            manager.schedule_enrichment_with_options(
+                serials,
+                day_local=day_local,
+                max_cache_age=max_cache_age,
+            )
 
     async def async_enrich_sessions(
         self,
@@ -159,11 +168,21 @@ class EvseRuntime:
         day_local: datetime,
         *,
         in_background: bool,
+        max_cache_age: float | None = None,
     ) -> dict[str, list[dict]]:
         manager = getattr(self.coordinator, "session_history", None)
         if manager is not None:
+            if max_cache_age is None:
+                return await manager.async_enrich(
+                    serials,
+                    day_local,
+                    in_background=in_background,
+                )
             return await manager.async_enrich(
-                serials, day_local, in_background=in_background
+                serials,
+                day_local,
+                in_background=in_background,
+                max_cache_age=max_cache_age,
             )
         return {}
 
@@ -213,6 +232,7 @@ class EvseRuntime:
         sn: str,
         *,
         day_local: datetime | None = None,
+        max_cache_age: float | None = None,
     ) -> list[dict]:
         if not sn:
             return []
@@ -235,13 +255,28 @@ class EvseRuntime:
         ttl = (
             self.coordinator._session_history_cache_ttl or MIN_SESSION_HISTORY_CACHE_TTL
         )
+        if max_cache_age is not None:
+            try:
+                ttl = max(MIN_SESSION_HISTORY_CACHE_TTL, min(ttl, float(max_cache_age)))
+            except (TypeError, ValueError):
+                pass
         if cached:
             cached_ts, cached_sessions = cached
             if time.monotonic() - cached_ts < ttl:
                 return cached_sessions
         manager = getattr(self.coordinator, "session_history", None)
         if manager is not None:
-            sessions = await manager._async_fetch_sessions_today(sn, day_local=local_dt)
+            if max_cache_age is None:
+                sessions = await manager._async_fetch_sessions_today(
+                    sn,
+                    day_local=local_dt,
+                )
+            else:
+                sessions = await manager._async_fetch_sessions_today(
+                    sn,
+                    day_local=local_dt,
+                    max_cache_age=max_cache_age,
+                )
         else:
             sessions = []
         self.set_session_history_cache_shim_entry(str(sn), day_key, sessions)
