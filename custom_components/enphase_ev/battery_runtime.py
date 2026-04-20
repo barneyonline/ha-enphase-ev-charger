@@ -1643,6 +1643,82 @@ class BatteryRuntime:
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()
 
+    async def async_apply_battery_reserve_only(
+        self,
+        *,
+        profile: str,
+        reserve: int,
+        require_exact_pending_match: bool = True,
+    ) -> None:
+        coord = self.coordinator
+        state = self.battery_state
+        normalized_profile = self.normalize_battery_profile_key(profile)
+        if not normalized_profile:
+            self._raise_validation(
+                "battery_profile_unavailable",
+                message="Battery profile is unavailable.",
+            )
+        normalized_reserve = self.normalize_battery_reserve_for_profile(
+            normalized_profile, reserve
+        )
+        normalized_sub_type = self.target_operation_mode_sub_type(normalized_profile)
+        payload = {"batteryBackupPercentage": normalized_reserve}
+        async with state._battery_profile_write_lock:
+            state._battery_profile_last_write_mono = time.monotonic()
+            state._battery_settings_last_write_mono = (
+                state._battery_profile_last_write_mono
+            )
+            try:
+                await coord.client.set_battery_settings_compat(
+                    payload,
+                    merged_payload=True,
+                    strip_devices=True,
+                )
+            except aiohttp.ClientResponseError as err:
+                if err.status == HTTPStatus.FORBIDDEN:
+                    owner = coord.battery_user_is_owner
+                    installer = coord.battery_user_is_installer
+                    if owner is False and installer is False:
+                        self._raise_validation(
+                            "battery_profile_update_not_permitted",
+                            message=(
+                                "Battery profile updates are not permitted for this "
+                                "account."
+                            ),
+                        )
+                    self._raise_validation(
+                        "battery_profile_update_forbidden",
+                        message=(
+                            "Battery profile update was rejected by Enphase "
+                            "(HTTP 403 Forbidden)."
+                        ),
+                    )
+                if err.status == HTTPStatus.UNAUTHORIZED:
+                    self._raise_validation(
+                        "battery_profile_update_unauthorized",
+                        message=(
+                            "Battery profile update could not be authenticated. "
+                            "Reauthenticate and try again."
+                        ),
+                    )
+                raise
+        self.parse_battery_settings_payload(
+            payload,
+            clear_missing_schedule_times=False,
+            clear_missing_reserve_bounds=False,
+        )
+        self.remember_battery_reserve(normalized_profile, normalized_reserve)
+        self.set_battery_pending(
+            profile=normalized_profile,
+            reserve=normalized_reserve,
+            sub_type=normalized_sub_type,
+            require_exact_settings=require_exact_pending_match,
+        )
+        state._storm_guard_cache_until = None
+        state._battery_settings_cache_until = None
+        coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
+        await coord.async_request_refresh()
+
     async def async_apply_battery_settings(self, payload: dict[str, object]) -> None:
         coord = self.coordinator
         state = self.battery_state
@@ -3394,11 +3470,9 @@ class BatteryRuntime:
                 message="Battery reserve is unavailable.",
             )
         normalized = self.normalize_battery_reserve_for_profile(profile, reserve)
-        sub_type = self.target_operation_mode_sub_type(profile)
-        await self.async_apply_battery_profile(
+        await self.async_apply_battery_reserve_only(
             profile=profile,
             reserve=normalized,
-            sub_type=sub_type,
         )
 
     async def async_set_savings_use_battery_after_peak(self, enabled: bool) -> None:
