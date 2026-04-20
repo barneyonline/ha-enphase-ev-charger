@@ -967,6 +967,65 @@ async def test_session_history_schedule_enrichment_runs(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_session_history_max_cache_age_forces_early_refresh(hass, monkeypatch):
+    """max_cache_age should bypass the default TTL when the caller wants fresher data."""
+    await hass.config.async_set_time_zone("UTC")
+    now = datetime(2025, 10, 16, tzinfo=timezone.utc)
+    client = _DummySessionClient()
+    manager = SessionHistoryManager(
+        hass,
+        lambda: client,
+        cache_ttl=600,
+        data_supplier=lambda: {"EV-01": {"sn": "EV-01"}},
+        publish_callback=lambda _: None,
+    )
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    day_key = now.strftime("%Y-%m-%d")
+    manager._cache[("EV-01", day_key)] = (time.monotonic() - 180, ["cached"])
+    sessions = await manager._async_fetch_sessions_today(
+        "EV-01",
+        day_local=now,
+        max_cache_age=120,
+    )
+
+    assert len(sessions) == 2
+    assert len(client.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_session_history_invalid_max_cache_age_falls_back_to_default_ttl(
+    hass, monkeypatch
+):
+    """Invalid max_cache_age values should preserve the default cache TTL."""
+    await hass.config.async_set_time_zone("UTC")
+    now = datetime(2025, 10, 16, tzinfo=timezone.utc)
+    client = _DummySessionClient()
+    manager = SessionHistoryManager(
+        hass,
+        lambda: client,
+        cache_ttl=600,
+        data_supplier=lambda: {"EV-01": {"sn": "EV-01"}},
+        publish_callback=lambda _: None,
+    )
+    monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
+    monkeypatch.setattr(sh_mod.dt_util, "as_local", lambda value: value)
+
+    day_key = now.strftime("%Y-%m-%d")
+    manager._cache[("EV-01", day_key)] = (time.monotonic() - 180, ["cached"])
+
+    sessions = await manager._async_fetch_sessions_today(
+        "EV-01",
+        day_local=now,
+        max_cache_age="bad",
+    )
+
+    assert sessions == ["cached"]
+    assert client.calls == []
+
+
+@pytest.mark.asyncio
 async def test_session_history_async_enrich_handles_failures(hass, monkeypatch) -> None:
     """Ensure async_enrich collects updates even when some refreshes fail."""
     await hass.config.async_set_time_zone("UTC")

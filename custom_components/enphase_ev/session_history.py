@@ -219,6 +219,16 @@ class SessionHistoryManager:
 
     def schedule_enrichment(self, serials: Iterable[str], day_local: datetime) -> None:
         """Launch a background enrichment task for the provided serials."""
+        self.schedule_enrichment_with_options(serials, day_local=day_local)
+
+    def schedule_enrichment_with_options(
+        self,
+        serials: Iterable[str],
+        *,
+        day_local: datetime,
+        max_cache_age: float | None = None,
+    ) -> None:
+        """Launch a background enrichment task for the provided serials."""
         candidates = [sn for sn in dict.fromkeys(serials) if sn]
         pending = [sn for sn in candidates if sn not in self._refresh_in_progress]
         if not pending:
@@ -228,7 +238,9 @@ class SessionHistoryManager:
         async def _run() -> None:
             try:
                 updates = await self._async_enrich_sessions(
-                    pending, day_local=day_local
+                    pending,
+                    day_local=day_local,
+                    max_cache_age=max_cache_age,
                 )
                 if updates:
                     self._apply_updates(updates)
@@ -249,9 +261,14 @@ class SessionHistoryManager:
         day_local: datetime,
         *,
         in_background: bool,
+        max_cache_age: float | None = None,
     ) -> dict[str, list[dict]]:
         """Fetch session history for the provided serials."""
-        updates = await self._async_enrich_sessions(serials, day_local=day_local)
+        updates = await self._async_enrich_sessions(
+            serials,
+            day_local=day_local,
+            max_cache_age=max_cache_age,
+        )
         if in_background and updates:
             self._apply_updates(updates)
         return updates
@@ -261,6 +278,7 @@ class SessionHistoryManager:
         serials: Iterable[str],
         *,
         day_local: datetime,
+        max_cache_age: float | None = None,
     ) -> dict[str, list[dict]]:
         serial_list = [sn for sn in dict.fromkeys(serials) if sn]
         if not serial_list:
@@ -270,9 +288,17 @@ class SessionHistoryManager:
         async def _refresh(sn: str) -> tuple[str, list[dict] | None]:
             async with semaphore:
                 try:
-                    sessions = await self._async_fetch_sessions_today(
-                        sn, day_local=day_local
-                    )
+                    if max_cache_age is None:
+                        sessions = await self._async_fetch_sessions_today(
+                            sn,
+                            day_local=day_local,
+                        )
+                    else:
+                        sessions = await self._async_fetch_sessions_today(
+                            sn,
+                            day_local=day_local,
+                            max_cache_age=max_cache_age,
+                        )
                 except asyncio.CancelledError as err:
                     self._logger.debug(
                         "Session history enrichment cancelled for %s: %s", sn, err
@@ -351,6 +377,7 @@ class SessionHistoryManager:
         sn: str,
         *,
         day_local: datetime | None = None,
+        max_cache_age: float | None = None,
     ) -> list[dict]:
         """Return session history for the provided day, caching results."""
         if self._fetch_override is not None:
@@ -374,7 +401,16 @@ class SessionHistoryManager:
             active_serials.add(sn)
         self.prune(active_serials=active_serials, keep_day_keys={day_key})
         cached = self._cache.get(cache_key)
-        if cached and (now_mono - cached[0] < self._cache_ttl):
+        refresh_after = self._cache_ttl
+        if max_cache_age is not None:
+            try:
+                refresh_after = max(
+                    MIN_SESSION_HISTORY_CACHE_TTL,
+                    min(self._cache_ttl, float(max_cache_age)),
+                )
+            except (TypeError, ValueError):
+                refresh_after = self._cache_ttl
+        if cached and (now_mono - cached[0] < refresh_after):
             return cached[1]
         if self._service_backoff_active():
             return cached[1] if cached else []

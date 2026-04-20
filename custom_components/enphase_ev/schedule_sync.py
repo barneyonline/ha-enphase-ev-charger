@@ -36,6 +36,7 @@ from .schedule import normalize_slot_payload
 _LOGGER = logging.getLogger(__name__)
 
 SYNC_INTERVAL = timedelta(minutes=5)
+SYNC_REFRESH_CONCURRENCY = 3
 PATCH_REFRESH_DELAY_S = 1.0
 SYNC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
 
@@ -415,8 +416,21 @@ class ScheduleSync:
                 if serials is not None
                 else self._coordinator.iter_serials()
             )
-            for sn in serial_list:
-                await self._sync_serial(sn)
+            unique_serials = [sn for sn in dict.fromkeys(serial_list) if sn]
+            if unique_serials:
+                semaphore = asyncio.Semaphore(SYNC_REFRESH_CONCURRENCY)
+
+                async def _fetch_one(
+                    sn: str,
+                ) -> tuple[str, dict[str, Any] | None, Exception | None]:
+                    async with semaphore:
+                        return (sn, *await self._async_fetch_serial_sync(sn))
+
+                results = await asyncio.gather(
+                    *(_fetch_one(sn) for sn in unique_serials)
+                )
+                for sn, response, err in results:
+                    self._apply_sync_serial_result(sn, response, err)
             self._last_sync = dt_util.utcnow()
             self._last_status = f"ok:{reason}"
 
@@ -534,10 +548,26 @@ class ScheduleSync:
         return True
 
     async def _sync_serial(self, sn: str) -> None:
+        response, err = await self._async_fetch_serial_sync(sn)
+        self._apply_sync_serial_result(sn, response, err)
+
+    async def _async_fetch_serial_sync(
+        self, sn: str
+    ) -> tuple[dict[str, Any] | None, Exception | None]:
         try:
-            response = await self._coordinator.client.get_schedules(sn)
+            return await self._coordinator.client.get_schedules(sn), None
+        except Exception as err:  # noqa: BLE001
+            return None, err
+
+    def _apply_sync_serial_result(
+        self,
+        sn: str,
+        response: dict[str, Any] | None,
+        err: Exception | None,
+    ) -> None:
+        if err is None:
             self._mark_scheduler_available()
-        except SchedulerUnavailable as err:
+        elif isinstance(err, SchedulerUnavailable):
             self._last_error = redact_text(
                 err,
                 site_ids=(getattr(self._coordinator, "site_id", None),),
@@ -546,7 +576,7 @@ class ScheduleSync:
             self._last_status = "scheduler_unavailable"
             self._note_scheduler_unavailable(err)
             return
-        except Exception as err:  # noqa: BLE001
+        else:
             self._last_error = redact_text(
                 err,
                 site_ids=(getattr(self._coordinator, "site_id", None),),
