@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, time as dt_time, timedelta
 from datetime import timezone as _tz
 from http import HTTPStatus
+from numbers import Real
 from typing import Callable, Iterable
 from zoneinfo import ZoneInfo
 
@@ -934,14 +935,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     @property
     def _session_history_cache_ttl(self) -> float | None:
         """Expose the session history TTL for diagnostics/tests."""
-        if hasattr(self, "session_history"):
-            return self.session_history.cache_ttl
-        return getattr(self, "_session_history_cache_ttl_value", None)
+        fallback = self.__dict__.get("_session_history_cache_ttl_value")
+        session_history = self.__dict__.get("session_history")
+        if session_history is None:
+            return fallback
+        return getattr(session_history, "cache_ttl", fallback)
 
     @_session_history_cache_ttl.setter
     def _session_history_cache_ttl(self, value: float | None) -> None:
         self._session_history_cache_ttl_value = value
-        if hasattr(self, "session_history"):
+        if hasattr(self, "session_history") and hasattr(
+            self.session_history, "cache_ttl"
+        ):
             self.session_history.cache_ttl = value
 
     @property
@@ -991,6 +996,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         *,
         max_cache_age: float | None = None,
     ) -> None:
+        if max_cache_age is None:
+            self.evse_runtime.schedule_session_enrichment(serials, day_local)
+            return
         self.evse_runtime.schedule_session_enrichment(
             serials,
             day_local,
@@ -1005,6 +1013,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         in_background: bool,
         max_cache_age: float | None = None,
     ) -> dict[str, list[dict]]:
+        if max_cache_age is None:
+            return await self.evse_runtime.async_enrich_sessions(
+                serials,
+                day_local,
+                in_background=in_background,
+            )
         return await self.evse_runtime.async_enrich_sessions(
             serials,
             day_local,
@@ -1020,9 +1034,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return EvseRuntime.session_history_day(payload, day_local_default)
 
     def _session_history_soft_ttl(self, payload: dict) -> float:
-        base_ttl = float(
-            self._session_history_cache_ttl or DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60
-        )
+        cache_ttl = self._session_history_cache_ttl
+        base_ttl = float(cache_ttl or DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60)
         if payload.get("actual_charging") or payload.get("charging"):
             return min(base_ttl, SESSION_HISTORY_ACTIVE_SOFT_TTL_S)
 
@@ -1040,9 +1053,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return base_ttl
 
     def _session_history_hard_ttl(self, payload: dict) -> float:
-        base_ttl = float(
-            self._session_history_cache_ttl or DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60
-        )
+        cache_ttl = self._session_history_cache_ttl
+        base_ttl = float(cache_ttl or DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60)
         soft_ttl = self._session_history_soft_ttl(payload)
         if soft_ttl < base_ttl:
             return base_ttl
@@ -3853,16 +3865,34 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             sessions_cached = view.sessions or []
             cur["energy_today_sessions"] = sessions_cached
             cur["energy_today_sessions_kwh"] = self._sum_session_energy(sessions_cached)
+            view_needs_refresh = bool(getattr(view, "needs_refresh", False))
+            view_blocked = bool(getattr(view, "blocked", False))
             soft_ttl = self._session_history_soft_ttl(cur)
             hard_ttl = self._session_history_hard_ttl(cur)
-            max_cache_age = (
-                soft_ttl
-                if soft_ttl < float(self.session_history.cache_ttl)
+            session_cache_ttl = float(
+                self._session_history_cache_ttl
+                or DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60
+            )
+            max_cache_age = soft_ttl if soft_ttl < session_cache_ttl else None
+            cache_age_raw = getattr(view, "cache_age", None)
+            cache_age = (
+                float(cache_age_raw)
+                if isinstance(cache_age_raw, Real)
+                and not isinstance(cache_age_raw, bool)
                 else None
             )
-            cache_age = view.cache_age
-            needs_refresh = cache_age is None or cache_age >= soft_ttl
-            if not needs_refresh or view.blocked:
+            needs_refresh = (
+                cache_age >= soft_ttl if cache_age is not None else view_needs_refresh
+            )
+            if not needs_refresh or view_blocked:
+                continue
+            if cache_age is None:
+                if first_refresh:
+                    background_by_day.setdefault((day_key, max_cache_age), []).append(
+                        sn
+                    )
+                    continue
+                immediate_by_day.setdefault((day_key, max_cache_age), []).append(sn)
                 continue
             if first_refresh:
                 background_by_day.setdefault((day_key, max_cache_age), []).append(sn)
