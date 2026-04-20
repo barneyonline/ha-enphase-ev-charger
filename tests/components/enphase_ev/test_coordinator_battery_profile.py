@@ -450,16 +450,18 @@ async def test_battery_profile_write_blocked_for_read_only_user(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_user_is_owner = False  # noqa: SLF001
     coord._battery_user_is_installer = False  # noqa: SLF001
-    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
 
     assert coord.battery_reserve_editable is False
     with pytest.raises(ServiceValidationError, match="not permitted"):
         await coord.async_set_battery_reserve(30)
-    coord.client.set_battery_profile.assert_not_awaited()
+    coord.client.set_battery_settings_compat.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_battery_profile_write_refreshes_permission_when_role_unknown(
+async def test_battery_reserve_write_succeeds_when_role_unknown(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -468,19 +470,19 @@ async def test_battery_profile_write_refreshes_permission_when_role_unknown(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_user_is_owner = None  # noqa: SLF001
     coord._battery_user_is_installer = None  # noqa: SLF001
-    coord.client.battery_site_settings = AsyncMock(
-        side_effect=lambda: {
-            "data": {"userDetails": {"isOwner": True, "isInstaller": False}}
-        }
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
     )
-    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
     await coord.async_set_battery_reserve(30)
 
-    coord.client.battery_site_settings.assert_awaited_once()
-    coord.client.set_battery_profile.assert_awaited_once()
+    coord.client.set_battery_settings_compat.assert_awaited_once_with(
+        {"batteryBackupPercentage": 30},
+        merged_payload=True,
+        strip_devices=True,
+    )
 
 
 @pytest.mark.asyncio
@@ -493,7 +495,7 @@ async def test_battery_profile_forbidden_translates_to_validation_error(
     coord._battery_profile = "self-consumption"  # noqa: SLF001
     coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
-    coord.client.set_battery_profile = AsyncMock(
+    coord.client.set_battery_settings_compat = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
             history=(),
@@ -569,7 +571,7 @@ async def test_battery_profile_forbidden_after_permission_change_returns_permiss
 
 
 @pytest.mark.asyncio
-async def test_battery_profile_write_calls_client_set_battery_profile(
+async def test_battery_reserve_write_calls_client_set_battery_settings_compat(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -583,22 +585,16 @@ async def test_battery_profile_write_calls_client_set_battery_profile(
     ]
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
-    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
 
     await coord.async_set_battery_reserve(30)
 
-    coord.client.set_battery_profile.assert_awaited_once_with(
-        profile="self-consumption",
-        battery_backup_percentage=30,
-        operation_mode_sub_type=None,
-        devices=[
-            {
-                "uuid": "evse-1",
-                "deviceType": "iqEvse",
-                "enable": False,
-                "chargeMode": "MANUAL",
-            }
-        ],
+    coord.client.set_battery_settings_compat.assert_awaited_once_with(
+        {"batteryBackupPercentage": 30},
+        merged_payload=True,
+        strip_devices=True,
     )
 
 
@@ -614,7 +610,7 @@ async def test_battery_profile_write_forbidden_translates_from_client_call(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_user_is_owner = True  # noqa: SLF001
     coord._battery_user_is_installer = False  # noqa: SLF001
-    coord.client.set_battery_profile = AsyncMock(
+    coord.client.set_battery_settings_compat = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
             history=(),
@@ -639,7 +635,7 @@ async def test_battery_profile_write_read_only_user_translates_permission_error(
     coord._battery_show_charge_from_grid = True  # noqa: SLF001
     coord._battery_user_is_owner = False  # noqa: SLF001
     coord._battery_user_is_installer = False  # noqa: SLF001
-    coord.client.set_battery_profile = AsyncMock(
+    coord.client.set_battery_settings_compat = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
             history=(),
@@ -650,6 +646,86 @@ async def test_battery_profile_write_read_only_user_translates_permission_error(
 
     with pytest.raises(ServiceValidationError, match="not permitted"):
         await coord.async_set_battery_reserve(30)
+
+
+@pytest.mark.asyncio
+async def test_battery_reserve_write_direct_helper_rejects_missing_profile(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+
+    with pytest.raises(ServiceValidationError, match="Battery profile is unavailable"):
+        await coord.battery_runtime.async_apply_battery_reserve_only(
+            profile="",
+            reserve=30,
+        )
+
+
+@pytest.mark.asyncio
+async def test_battery_reserve_write_direct_helper_forbidden_read_only_user(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = False  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord.client.set_battery_settings_compat = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="not permitted"):
+        await coord.battery_runtime.async_apply_battery_reserve_only(
+            profile="self-consumption",
+            reserve=30,
+        )
+
+
+@pytest.mark.asyncio
+async def test_battery_reserve_write_direct_helper_translates_auth_and_reraises(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.set_battery_settings_compat = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=401,
+            message="Unauthorized",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="Reauthenticate"):
+        await coord.battery_runtime.async_apply_battery_reserve_only(
+            profile="self-consumption",
+            reserve=30,
+        )
+
+    coord.client.set_battery_settings_compat = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError) as err:
+        await coord.battery_runtime.async_apply_battery_reserve_only(
+            profile="self-consumption",
+            reserve=30,
+        )
+    assert err.value.status == 500
+    assert err.value.message == "boom"
 
 
 @pytest.mark.asyncio
@@ -1182,6 +1258,7 @@ async def test_battery_profile_setter_validation_and_fallbacks(
 
     coord = coordinator_factory()
     coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(return_value={})
     coord.client.battery_site_settings = AsyncMock(return_value={"data": {}})
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
@@ -1210,9 +1287,11 @@ async def test_battery_profile_setter_validation_and_fallbacks(
     coord._battery_backup_percentage = 25  # noqa: SLF001
     coord._battery_operation_mode_sub_type = "prioritize-energy"  # noqa: SLF001
     await coord.async_set_battery_reserve(5)
-    kwargs = coord.client.set_battery_profile.await_args.kwargs
-    assert kwargs["battery_backup_percentage"] == 5
-    assert kwargs["operation_mode_sub_type"] == "prioritize-energy"
+    args = coord.client.set_battery_settings_compat.await_args.args
+    kwargs = coord.client.set_battery_settings_compat.await_args.kwargs
+    assert args[0] == {"batteryBackupPercentage": 5}
+    assert kwargs == {"merged_payload": True, "strip_devices": True}
+    assert coord._battery_pending_sub_type == "prioritize-energy"  # noqa: SLF001
 
     coord._clear_battery_pending()  # noqa: SLF001
     coord._battery_profile = "self-consumption"  # noqa: SLF001
@@ -1223,11 +1302,13 @@ async def test_battery_profile_setter_validation_and_fallbacks(
     coord._battery_backup_percentage = 10  # noqa: SLF001
     coord._battery_operation_mode_sub_type = "prioritize-energy"  # noqa: SLF001
     coord._battery_profile_last_write_mono = time.monotonic() - 10  # noqa: SLF001
-    coord.client.set_battery_profile.reset_mock()
+    coord.client.set_battery_settings_compat.reset_mock()
     await coord.async_set_battery_reserve(5)
-    kwargs = coord.client.set_battery_profile.await_args.kwargs
-    assert kwargs["battery_backup_percentage"] == 5
-    assert kwargs["operation_mode_sub_type"] == "prioritize-energy"
+    args = coord.client.set_battery_settings_compat.await_args.args
+    kwargs = coord.client.set_battery_settings_compat.await_args.kwargs
+    assert args[0] == {"batteryBackupPercentage": 5}
+    assert kwargs == {"merged_payload": True, "strip_devices": True}
+    assert coord._battery_pending_sub_type == "prioritize-energy"  # noqa: SLF001
 
     coord._clear_battery_pending()  # noqa: SLF001
     coord._battery_profile = "cost_savings"  # noqa: SLF001
