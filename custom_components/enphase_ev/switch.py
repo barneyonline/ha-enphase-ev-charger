@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import STATE_ON
@@ -45,6 +46,93 @@ from .service_validation import raise_translated_service_validation
 PARALLEL_UPDATES = 0
 _LOGGER = logging.getLogger(__name__)
 _AUTO_SUFFIX_RE = re.compile(r"^\d+$")
+_EVSE_TOGGLE_PENDING_HOLD_S = 15.0
+
+
+def _write_state_if_available(entity: SwitchEntity) -> None:
+    """Push the local entity state when coordinator fields changed synchronously."""
+
+    if getattr(entity, "hass", None) is None or not getattr(entity, "entity_id", None):
+        return
+    entity.async_write_ha_state()
+
+
+def _set_evse_toggle_pending(
+    coord: EnphaseCoordinator, attr_name: str, serial: str, enabled: bool
+) -> None:
+    """Record a short-lived optimistic EVSE toggle target."""
+
+    pending = getattr(coord, attr_name, None)
+    if not isinstance(pending, dict):
+        pending = {}
+        setattr(coord, attr_name, pending)
+    pending[str(serial)] = (
+        bool(enabled),
+        time.monotonic() + _EVSE_TOGGLE_PENDING_HOLD_S,
+    )
+
+
+def _effective_evse_toggle_state(
+    coord: EnphaseCoordinator,
+    attr_name: str,
+    serial: str,
+    current_value: object,
+) -> bool | None:
+    """Return a short-lived effective EVSE toggle state while writes settle."""
+
+    effective = current_value if isinstance(current_value, bool) else None
+    pending = getattr(coord, attr_name, None)
+    if not isinstance(pending, dict):
+        return effective
+    serial_key = str(serial)
+    pending_entry = pending.get(serial_key)
+    if not pending_entry:
+        return effective
+    try:
+        pending_value, expires_at = pending_entry
+    except (TypeError, ValueError):
+        pending.pop(serial_key, None)
+        return effective
+    if effective is not None and effective == bool(pending_value):
+        pending.pop(serial_key, None)
+        return effective
+    try:
+        if time.monotonic() >= float(expires_at):
+            pending.pop(serial_key, None)
+            return effective
+    except Exception:  # noqa: BLE001
+        pending.pop(serial_key, None)
+        return effective
+    return bool(pending_value)
+
+
+def _pending_charging_state(coord: EnphaseCoordinator, serial: str) -> bool | None:
+    """Return an in-flight EVSE charging target while start/stop settles."""
+
+    pending = getattr(coord, "_pending_charging", {}).get(str(serial))
+    if not pending:
+        return None
+    try:
+        target_state, expires_at = pending
+    except (TypeError, ValueError):
+        return None
+    try:
+        if time.monotonic() > float(expires_at):
+            getattr(coord, "_pending_charging", {}).pop(str(serial), None)
+            return None
+    except Exception:  # noqa: BLE001
+        return None
+    return bool(target_state)
+
+
+def _effective_storm_guard_state(coord: EnphaseCoordinator) -> str | None:
+    """Return the effective Storm Guard state, including pending writes."""
+
+    if getattr(coord, "storm_guard_update_pending", False):
+        pending_state = getattr(coord, "_storm_guard_pending_state", None)
+        if isinstance(pending_state, str) and pending_state:
+            return pending_state
+    return getattr(coord, "storm_guard_state", None)
 
 
 def _is_disabled_by_integration(disabled_by: object) -> bool:
@@ -501,15 +589,17 @@ class StormGuardSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return self._coord.storm_guard_state == "enabled"
+        return _effective_storm_guard_state(self._coord) == "enabled"
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._coord.async_set_storm_guard_enabled(True)
+        _write_state_if_available(self)
         self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self._coord.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         await self._coord.async_set_storm_guard_enabled(False)
+        _write_state_if_available(self)
         self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self._coord.async_request_refresh()
 
@@ -859,6 +949,9 @@ class ChargingSwitch(EnphaseBaseEntity, RestoreEntity, SwitchEntity):
     def is_on(self) -> bool:
         if not self.available and self._restored_state is not None:
             return self._restored_state
+        pending_state = _pending_charging_state(self._coord, self._sn)
+        if pending_state is not None:
+            return pending_state
         return bool(self.data.get("charging"))
 
     async def async_turn_on(self, **kwargs) -> None:
@@ -871,9 +964,12 @@ class ChargingSwitch(EnphaseBaseEntity, RestoreEntity, SwitchEntity):
         if isinstance(result, dict) and result.get("status") == "not_ready":
             self._schedule_failure_refresh()
             self._force_write_state()
+            return
+        _write_state_if_available(self)
 
     async def async_turn_off(self, **kwargs) -> None:
         await self._coord.async_stop_charging(self._sn)
+        _write_state_if_available(self)
 
     def _schedule_failure_refresh(self) -> None:
         self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
@@ -917,16 +1013,26 @@ class GreenBatterySwitch(EnphaseBaseEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return bool(self.data.get("green_battery_enabled"))
+        effective = _effective_evse_toggle_state(
+            self._coord,
+            "_green_battery_pending",
+            self._sn,
+            self.data.get("green_battery_enabled"),
+        )
+        return bool(effective)
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._coord.client.set_green_battery_setting(self._sn, enabled=True)
         self._coord.set_green_battery_cache(self._sn, True)
+        _set_evse_toggle_pending(self._coord, "_green_battery_pending", self._sn, True)
+        _write_state_if_available(self)
         await self._coord.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         await self._coord.client.set_green_battery_setting(self._sn, enabled=False)
         self._coord.set_green_battery_cache(self._sn, False)
+        _set_evse_toggle_pending(self._coord, "_green_battery_pending", self._sn, False)
+        _write_state_if_available(self)
         await self._coord.async_request_refresh()
 
 
@@ -948,7 +1054,13 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return bool(self.data.get("app_auth_enabled"))
+        effective = _effective_evse_toggle_state(
+            self._coord,
+            "_app_auth_pending",
+            self._sn,
+            self.data.get("app_auth_enabled"),
+        )
+        return bool(effective)
 
     async def async_turn_on(self, **kwargs) -> None:
         try:
@@ -965,6 +1077,8 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
                 ),
             )
         self._coord.set_app_auth_cache(self._sn, True)
+        _set_evse_toggle_pending(self._coord, "_app_auth_pending", self._sn, True)
+        _write_state_if_available(self)
         await self._coord.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
@@ -982,6 +1096,8 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
                 ),
             )
         self._coord.set_app_auth_cache(self._sn, False)
+        _set_evse_toggle_pending(self._coord, "_app_auth_pending", self._sn, False)
+        _write_state_if_available(self)
         await self._coord.async_request_refresh()
 
 
@@ -1007,15 +1123,20 @@ class StormGuardEvseSwitch(EnphaseBaseEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return bool(self.data.get("storm_evse_enabled"))
+        value = self._coord.storm_evse_enabled
+        if value is None:
+            value = self.data.get("storm_evse_enabled")
+        return bool(value)
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._coord.async_set_storm_evse_enabled(True)
+        _write_state_if_available(self)
         self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self._coord.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         await self._coord.async_set_storm_evse_enabled(False)
+        _write_state_if_available(self)
         self._coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await self._coord.async_request_refresh()
 

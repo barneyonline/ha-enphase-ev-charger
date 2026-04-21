@@ -10,6 +10,7 @@ from homeassistant.core import State
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
+from custom_components.enphase_ev import switch as switch_mod
 from custom_components.enphase_ev.api import AuthSettingsUnavailable
 from custom_components.enphase_ev.const import OPT_SCHEDULE_SYNC_ENABLED
 from custom_components.enphase_ev.coordinator import EnphaseCoordinator
@@ -1286,6 +1287,31 @@ def test_green_battery_switch_availability(coordinator_factory) -> None:
     assert sw_updated.is_on is False
 
 
+def test_green_battery_switch_ignores_long_lived_cache_without_pending(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": False}
+    )
+    coord.set_green_battery_cache(RANDOM_SERIAL, True)
+
+    assert GreenBatterySwitch(coord, RANDOM_SERIAL).is_on is False
+
+
+def test_green_battery_switch_is_on_prefers_short_pending_override(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": False}
+    )
+    coord._green_battery_pending[RANDOM_SERIAL] = (  # noqa: SLF001
+        True,
+        switch_mod.time.monotonic() + 10,
+    )
+
+    assert GreenBatterySwitch(coord, RANDOM_SERIAL).is_on is True
+
+
 def test_green_battery_switch_unavailable_without_data(coordinator_factory) -> None:
     coord = coordinator_factory(
         {"green_battery_supported": True, "green_battery_enabled": True}
@@ -1383,6 +1409,27 @@ def test_app_auth_switch_unavailable_when_service_down(coordinator_factory) -> N
     assert sw.available is False
 
 
+def test_app_auth_switch_ignores_long_lived_cache_without_pending(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
+    coord.set_app_auth_cache(RANDOM_SERIAL, True)
+
+    assert AppAuthenticationSwitch(coord, RANDOM_SERIAL).is_on is False
+
+
+def test_app_auth_switch_is_on_prefers_short_pending_override(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
+    coord._app_auth_pending[RANDOM_SERIAL] = (
+        True,
+        switch_mod.time.monotonic() + 10,
+    )  # noqa: SLF001
+
+    assert AppAuthenticationSwitch(coord, RANDOM_SERIAL).is_on is True
+
+
 @pytest.mark.asyncio
 async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
     coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
@@ -1462,6 +1509,17 @@ def test_storm_guard_switch_hidden_by_site_settings(coordinator_factory) -> None
     coord._storm_evse_enabled = True  # noqa: SLF001
     sw = StormGuardSwitch(coord)
     assert sw.available is False
+
+
+def test_storm_guard_switch_is_on_prefers_pending_state(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._storm_guard_state = "disabled"  # noqa: SLF001
+    coord._storm_guard_pending_state = "enabled"  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = (
+        switch_mod.time.monotonic() + 60
+    )  # noqa: SLF001
+
+    assert StormGuardSwitch(coord).is_on is True
 
 
 def test_storm_guard_switch_unavailable_without_confirmed_write_access(
@@ -2023,6 +2081,13 @@ async def test_storm_guard_switch_turn_on_off(coordinator_factory) -> None:
     coord.async_request_refresh.assert_awaited_once()
 
 
+def test_charging_switch_is_on_prefers_pending_expectation(coordinator_factory) -> None:
+    coord = coordinator_factory({"charging": False})
+    coord.evse_runtime.set_charging_expectation(RANDOM_SERIAL, True, hold_for=60)
+
+    assert ChargingSwitch(coord, RANDOM_SERIAL).is_on is True
+
+
 def test_storm_guard_evse_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory({"storm_guard_state": None, "storm_evse_enabled": None})
     coord._battery_user_is_owner = True  # noqa: SLF001
@@ -2078,6 +2143,15 @@ def test_storm_guard_evse_switch_ignores_feature_flag_for_availability(
     coord._battery_user_is_installer = False  # noqa: SLF001
     sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
     assert sw.available is True
+
+
+def test_storm_guard_evse_switch_is_on_prefers_site_state(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"storm_guard_state": "enabled", "storm_evse_enabled": False}
+    )
+    coord._storm_evse_enabled = True  # noqa: SLF001
+
+    assert StormGuardEvseSwitch(coord, RANDOM_SERIAL).is_on is True
 
 
 @pytest.mark.asyncio
