@@ -82,6 +82,10 @@ def _prepare_battery_schedule_coord(coord) -> dict[str, object]:
     coord.client.update_battery_schedule = AsyncMock(return_value={"status": "ok"})
     coord.client.delete_battery_schedule = AsyncMock(return_value={"status": "ok"})
     coord.client.validate_battery_schedule = AsyncMock(return_value={"valid": True})
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
     coord.async_request_refresh = AsyncMock()
     coord._battery_schedules_payload = payload  # noqa: SLF001
     coord.parse_battery_schedules_payload(payload)
@@ -1583,6 +1587,8 @@ async def test_battery_schedule_services_support_crud_and_validation(
         limit=91,
         days=[1, 5],
         timezone="Australia/Melbourne",
+        is_enabled=None,
+        is_deleted=None,
     )
     assert coord.client.delete_battery_schedule.await_count == 2
     assert coord.client.delete_battery_schedule.await_args_list[0].kwargs == {
@@ -1590,6 +1596,30 @@ async def test_battery_schedule_services_support_crud_and_validation(
     }
     assert coord.client.delete_battery_schedule.await_args_list[1].kwargs == {
         "schedule_type": "dtg"
+    }
+    assert coord.client.set_battery_settings.await_count == 4
+    create_payload = coord.client.set_battery_settings.await_args_list[0].args[0]
+    assert create_payload["chargeFromGrid"] is True
+    assert create_payload["chargeFromGridScheduleEnabled"] is True
+    assert create_payload["chargeBeginTime"] == 300
+    assert create_payload["chargeEndTime"] == 420
+    update_payload = coord.client.set_battery_settings.await_args_list[1].args[0]
+    assert update_payload["chargeFromGrid"] is True
+    assert update_payload["chargeFromGridScheduleEnabled"] is True
+    assert update_payload["chargeBeginTime"] == 360
+    assert update_payload["chargeEndTime"] == 480
+    delete_cfg_payload = coord.client.set_battery_settings.await_args_list[2].args[0]
+    assert delete_cfg_payload["chargeFromGridScheduleEnabled"] is False
+    assert delete_cfg_payload["chargeBeginTime"] == 60
+    assert delete_cfg_payload["chargeEndTime"] == 210
+    delete_dtg_payload = coord.client.set_battery_settings.await_args_list[3].args[0]
+    assert delete_dtg_payload == {
+        "dtgControl": {
+            "enabled": False,
+            "scheduleSupported": True,
+            "startTime": 1080,
+            "endTime": 1260,
+        }
     }
     assert result == {"valid": True}
 
@@ -1682,6 +1712,382 @@ async def test_battery_schedule_services_update_uses_inventory_schedule_family(
         limit=41,
         days=[2, 4],
         timezone="UTC",
+        is_enabled=None,
+        is_deleted=None,
+    )
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": False,
+                "scheduleSupported": True,
+                "startTime": 1140,
+                "endTime": 1320,
+            }
+        },
+        schedule_type="dtg",
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_services_delete_uses_enabled_remaining_schedule(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    payload = _prepare_battery_schedule_coord(coord)
+    payload["dtg"] = {
+        "scheduleStatus": "active",
+        "details": [
+            {
+                "scheduleId": "def456",
+                "startTime": "18:00",
+                "endTime": "21:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": False,
+            },
+            {
+                "scheduleId": "ghi789",
+                "startTime": "21:30",
+                "endTime": "23:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": True,
+            },
+        ],
+    }
+    coord._battery_schedules_payload = payload  # noqa: SLF001
+    coord.parse_battery_schedules_payload(payload)
+    coord._battery_dtg_schedule_id = None  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {"handler": handler}
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    delete_schedule = registered[(DOMAIN, "delete_schedule")]["handler"]
+
+    await delete_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_id": "def456",
+                "confirm": True,
+            }
+        )
+    )
+
+    coord.client.delete_battery_schedule.assert_awaited_once_with(
+        "def456",
+        schedule_type="dtg",
+    )
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": True,
+                "scheduleSupported": True,
+                "startTime": 1290,
+                "endTime": 1380,
+            }
+        },
+        schedule_type="dtg",
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_services_delete_prefers_selected_remaining_schedule(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    payload = _prepare_battery_schedule_coord(coord)
+    coord._battery_dtg_control = (
+        coord.battery_runtime._parse_battery_control_capability(  # noqa: SLF001
+            {
+                "show": True,
+                "enabled": False,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+            }
+        )
+    )
+    payload["dtg"] = {
+        "scheduleStatus": "active",
+        "details": [
+            {
+                "scheduleId": "def456",
+                "startTime": "18:00",
+                "endTime": "21:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": False,
+            },
+            {
+                "scheduleId": "ghi789",
+                "startTime": "21:30",
+                "endTime": "23:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": True,
+            },
+            {
+                "scheduleId": "jkl012",
+                "startTime": "23:15",
+                "endTime": "23:45",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": False,
+            },
+        ],
+    }
+    coord._battery_schedules_payload = payload  # noqa: SLF001
+    coord.parse_battery_schedules_payload(payload)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {"handler": handler}
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    delete_schedule = registered[(DOMAIN, "delete_schedule")]["handler"]
+
+    await delete_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_id": "jkl012",
+                "confirm": True,
+            }
+        )
+    )
+
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": False,
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 1080,
+                "endTime": 1260,
+            }
+        },
+        schedule_type="dtg",
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_services_delete_falls_back_to_first_remaining_schedule(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    payload = _prepare_battery_schedule_coord(coord)
+    payload["dtg"] = {
+        "scheduleStatus": "active",
+        "details": [
+            {
+                "scheduleId": "def456",
+                "startTime": "18:00",
+                "endTime": "21:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": False,
+            },
+            {
+                "scheduleId": "ghi789",
+                "startTime": "21:30",
+                "endTime": "23:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": False,
+            },
+        ],
+    }
+    coord._battery_schedules_payload = payload  # noqa: SLF001
+    coord.parse_battery_schedules_payload(payload)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {"handler": handler}
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    delete_schedule = registered[(DOMAIN, "delete_schedule")]["handler"]
+
+    await delete_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_id": "def456",
+                "confirm": True,
+            }
+        )
+    )
+
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": False,
+                "scheduleSupported": True,
+                "startTime": 1290,
+                "endTime": 1380,
+            }
+        },
+        schedule_type="dtg",
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_services_update_preserves_selected_family_window(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    payload = _prepare_battery_schedule_coord(coord)
+    payload["dtg"] = {
+        "scheduleStatus": "active",
+        "details": [
+            {
+                "scheduleId": "def456",
+                "startTime": "18:00",
+                "endTime": "21:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": False,
+            },
+            {
+                "scheduleId": "ghi789",
+                "startTime": "21:30",
+                "endTime": "23:00",
+                "limit": 40,
+                "days": [2, 4],
+                "timezone": "UTC",
+                "isEnabled": True,
+            },
+        ],
+    }
+    coord._battery_schedules_payload = payload  # noqa: SLF001
+    coord.parse_battery_schedules_payload(payload)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {"handler": handler}
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    update_schedule = registered[(DOMAIN, "update_schedule")]["handler"]
+
+    await update_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_id": "def456",
+                "schedule_type": "dtg",
+                "start_time": dt_time(17, 0),
+                "end_time": dt_time(17, 30),
+                "limit": 41,
+                "days": [2, 4],
+                "confirm": True,
+            }
+        )
+    )
+
+    coord.client.update_battery_schedule.assert_awaited_once_with(
+        "def456",
+        schedule_type="DTG",
+        start_time="17:00",
+        end_time="17:30",
+        limit=41,
+        days=[2, 4],
+        timezone="UTC",
+        is_enabled=None,
+        is_deleted=None,
+    )
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": True,
+                "scheduleSupported": True,
+                "startTime": 1290,
+                "endTime": 1380,
+            }
+        },
+        schedule_type="dtg",
+    )
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_services_update_falls_back_when_selected_schedule_missing(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev.services import async_setup_services
+
+    coord = coordinator_factory()
+    _prepare_battery_schedule_coord(coord)
+    coord._battery_dtg_schedule_id = "missing-id"  # noqa: SLF001
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {"handler": handler}
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+
+    update_schedule = registered[(DOMAIN, "update_schedule")]["handler"]
+
+    await update_schedule(
+        SimpleNamespace(
+            data={
+                "config_entry_id": config_entry.entry_id,
+                "schedule_id": "def456",
+                "schedule_type": "dtg",
+                "start_time": dt_time(19, 0),
+                "end_time": dt_time(22, 0),
+                "limit": 41,
+                "days": [2, 4],
+                "confirm": True,
+            }
+        )
+    )
+
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": False,
+                "scheduleSupported": True,
+                "startTime": 1140,
+                "endTime": 1320,
+            }
+        },
+        schedule_type="dtg",
     )
 
 
@@ -1769,6 +2175,8 @@ async def test_battery_schedule_services_reject_local_overlaps_before_client_cal
         limit=90,
         days=[1, 3, 5],
         timezone="Australia/Melbourne",
+        is_enabled=None,
+        is_deleted=None,
     )
 
 
