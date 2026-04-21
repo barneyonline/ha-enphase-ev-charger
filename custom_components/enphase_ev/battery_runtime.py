@@ -1663,45 +1663,48 @@ class BatteryRuntime:
         )
         normalized_sub_type = self.target_operation_mode_sub_type(normalized_profile)
         payload = {"batteryBackupPercentage": normalized_reserve}
+        await self.async_assert_battery_profile_write_allowed()
+        self.assert_battery_settings_write_allowed()
         async with state._battery_profile_write_lock:
-            state._battery_profile_last_write_mono = time.monotonic()
-            state._battery_settings_last_write_mono = (
-                state._battery_profile_last_write_mono
-            )
-            try:
-                await coord.client.set_battery_settings_compat(
-                    payload,
-                    merged_payload=True,
-                    strip_devices=True,
+            async with state._battery_settings_write_lock:
+                state._battery_profile_last_write_mono = time.monotonic()
+                state._battery_settings_last_write_mono = (
+                    state._battery_profile_last_write_mono
                 )
-            except aiohttp.ClientResponseError as err:
-                if err.status == HTTPStatus.FORBIDDEN:
-                    owner = coord.battery_user_is_owner
-                    installer = coord.battery_user_is_installer
-                    if owner is False and installer is False:
+                try:
+                    await coord.client.set_battery_settings_compat(
+                        payload,
+                        merged_payload=True,
+                        strip_devices=True,
+                    )
+                except aiohttp.ClientResponseError as err:
+                    if err.status == HTTPStatus.FORBIDDEN:
+                        owner = coord.battery_user_is_owner
+                        installer = coord.battery_user_is_installer
+                        if owner is False and installer is False:
+                            self._raise_validation(
+                                "battery_profile_update_not_permitted",
+                                message=(
+                                    "Battery profile updates are not permitted for this "
+                                    "account."
+                                ),
+                            )
                         self._raise_validation(
-                            "battery_profile_update_not_permitted",
+                            "battery_profile_update_forbidden",
                             message=(
-                                "Battery profile updates are not permitted for this "
-                                "account."
+                                "Battery profile update was rejected by Enphase "
+                                "(HTTP 403 Forbidden)."
                             ),
                         )
-                    self._raise_validation(
-                        "battery_profile_update_forbidden",
-                        message=(
-                            "Battery profile update was rejected by Enphase "
-                            "(HTTP 403 Forbidden)."
-                        ),
-                    )
-                if err.status == HTTPStatus.UNAUTHORIZED:
-                    self._raise_validation(
-                        "battery_profile_update_unauthorized",
-                        message=(
-                            "Battery profile update could not be authenticated. "
-                            "Reauthenticate and try again."
-                        ),
-                    )
-                raise
+                    if err.status == HTTPStatus.UNAUTHORIZED:
+                        self._raise_validation(
+                            "battery_profile_update_unauthorized",
+                            message=(
+                                "Battery profile update could not be authenticated. "
+                                "Reauthenticate and try again."
+                            ),
+                        )
+                    raise
         self.parse_battery_settings_payload(
             payload,
             clear_missing_schedule_times=False,
