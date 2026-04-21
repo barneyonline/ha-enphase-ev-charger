@@ -10,8 +10,15 @@ from homeassistant.core import State
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
+from custom_components.enphase_ev.battery_schedule_editor import (
+    BatteryScheduleEditorManager,
+)
+from custom_components.enphase_ev import switch as switch_mod
 from custom_components.enphase_ev.api import AuthSettingsUnavailable
-from custom_components.enphase_ev.const import OPT_SCHEDULE_SYNC_ENABLED
+from custom_components.enphase_ev.const import (
+    OPT_BATTERY_SCHEDULES_ENABLED,
+    OPT_SCHEDULE_SYNC_ENABLED,
+)
 from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 from custom_components.enphase_ev.entity import EnphaseBaseEntity
 from custom_components.enphase_ev.evse_schedule_editor import EvseScheduleEditorManager
@@ -24,6 +31,7 @@ from custom_components.enphase_ev.switch import (
     _migrate_storm_guard_evse_entity_id,
     _reenable_integration_disabled_entity,
     AppAuthenticationSwitch,
+    BatteryScheduleEditorDaySwitch,
     ChargeFromGridScheduleSwitch,
     ChargeFromGridSwitch,
     ChargingSwitch,
@@ -70,6 +78,45 @@ def _attach_evse_editor_runtime(config_entry, coord) -> EvseScheduleEditorManage
     config_entry.runtime_data = EnphaseRuntimeData(
         coordinator=coord,
         evse_schedule_editor=editor,
+    )
+    return editor
+
+
+def _attach_battery_editor_runtime(config_entry, coord) -> BatteryScheduleEditorManager:
+    payload = {
+        "cfg": {
+            "scheduleStatus": "active",
+            "details": [
+                {
+                    "scheduleId": "cfg-1",
+                    "startTime": "02:00:00",
+                    "endTime": "05:00:00",
+                    "limit": 80,
+                    "days": [1, 3],
+                    "timezone": "Australia/Melbourne",
+                    "isEnabled": True,
+                }
+            ],
+        }
+    }
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_write_access_confirmed = True  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.client.battery_schedules = AsyncMock(return_value=payload)
+    coord.client.create_battery_schedule = AsyncMock(return_value={"status": "ok"})
+    coord.client.update_battery_schedule = AsyncMock(return_value={"status": "ok"})
+    coord.client.delete_battery_schedule = AsyncMock(return_value={"status": "ok"})
+    coord._battery_schedules_payload = payload  # noqa: SLF001
+    coord.parse_battery_schedules_payload(payload)
+    config_entry.__dict__["options"] = MappingProxyType(
+        {**config_entry.options, OPT_BATTERY_SCHEDULES_ENABLED: True}
+    )
+    editor = BatteryScheduleEditorManager(coord)
+    editor.sync_from_coordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(
+        coordinator=coord,
+        battery_schedule_editor=editor,
     )
     return editor
 
@@ -221,6 +268,86 @@ def test_switch_battery_write_access_confirmed_falls_back_to_false() -> None:
     assert switch_mod._battery_write_access_confirmed(coord) is False
 
 
+def test_switch_pending_helper_edge_paths() -> None:
+    entity = SimpleNamespace(
+        hass=object(),
+        entity_id="switch.test",
+        async_write_ha_state=MagicMock(),
+    )
+    switch_mod._write_state_if_available(entity)
+    entity.async_write_ha_state.assert_called_once()
+
+    coord = SimpleNamespace()
+    switch_mod._set_evse_toggle_pending(
+        coord, "_green_battery_pending", RANDOM_SERIAL, True
+    )
+    assert coord._green_battery_pending[RANDOM_SERIAL][0] is True  # noqa: SLF001
+
+    assert (
+        switch_mod._effective_evse_toggle_state(
+            SimpleNamespace(_green_battery_pending=True),  # type: ignore[arg-type]
+            "_green_battery_pending",
+            RANDOM_SERIAL,
+            False,
+        )
+        is False
+    )
+
+    coord._green_battery_pending[RANDOM_SERIAL] = ("bad",)  # noqa: SLF001
+    assert (
+        switch_mod._effective_evse_toggle_state(
+            coord, "_green_battery_pending", RANDOM_SERIAL, False
+        )
+        is False
+    )
+    assert RANDOM_SERIAL not in coord._green_battery_pending  # noqa: SLF001
+
+    coord._green_battery_pending[RANDOM_SERIAL] = (
+        False,
+        switch_mod.time.monotonic() + 10,
+    )  # noqa: SLF001
+    assert (
+        switch_mod._effective_evse_toggle_state(
+            coord, "_green_battery_pending", RANDOM_SERIAL, False
+        )
+        is False
+    )
+    assert RANDOM_SERIAL not in coord._green_battery_pending  # noqa: SLF001
+
+    coord._green_battery_pending[RANDOM_SERIAL] = (
+        True,
+        switch_mod.time.monotonic() - 1,
+    )  # noqa: SLF001
+    assert (
+        switch_mod._effective_evse_toggle_state(
+            coord, "_green_battery_pending", RANDOM_SERIAL, False
+        )
+        is False
+    )
+    assert RANDOM_SERIAL not in coord._green_battery_pending  # noqa: SLF001
+
+    coord._green_battery_pending[RANDOM_SERIAL] = (True, object())  # noqa: SLF001
+    assert (
+        switch_mod._effective_evse_toggle_state(
+            coord, "_green_battery_pending", RANDOM_SERIAL, False
+        )
+        is False
+    )
+    assert RANDOM_SERIAL not in coord._green_battery_pending  # noqa: SLF001
+
+    coord._pending_charging = {RANDOM_SERIAL: ("bad",)}  # noqa: SLF001
+    assert switch_mod._pending_charging_state(coord, RANDOM_SERIAL) is None
+
+    coord._pending_charging = {
+        RANDOM_SERIAL: (True, switch_mod.time.monotonic() - 1)
+    }  # noqa: SLF001
+    assert switch_mod._pending_charging_state(coord, RANDOM_SERIAL) is None
+    assert RANDOM_SERIAL not in coord._pending_charging  # noqa: SLF001
+
+    coord._pending_charging = {RANDOM_SERIAL: (True, object())}  # noqa: SLF001
+    assert switch_mod._pending_charging_state(coord, RANDOM_SERIAL) is None
+
+
 def test_ac_battery_sleep_mode_switch_state_and_attributes(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord._battery_user_is_owner = True  # noqa: SLF001
@@ -300,6 +427,25 @@ async def test_async_setup_entry_adds_ac_battery_sleep_mode_switch(
     await async_setup_entry(hass, config_entry, _capture)
 
     assert any(isinstance(entity, AcBatterySleepModeSwitch) for entity in added)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_adds_battery_schedule_day_switches(
+    hass, config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    _attach_battery_editor_runtime(config_entry, coord)
+
+    added: list = []
+
+    def _capture(entities, update_before_add=False):
+        added.extend(entities)
+
+    await async_setup_entry(hass, config_entry, _capture)
+
+    assert (
+        sum(isinstance(entity, BatteryScheduleEditorDaySwitch) for entity in added) == 7
+    )
 
 
 @pytest.fixture
@@ -1259,6 +1405,21 @@ async def test_async_turn_off_triggers_stop(coordinator_factory) -> None:
     coord.client.stop_charging.assert_awaited_once_with(RANDOM_SERIAL)
 
 
+@pytest.mark.asyncio
+async def test_async_turn_on_success_writes_local_state_when_attached(
+    hass, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    sw = ChargingSwitch(coord, RANDOM_SERIAL)
+    sw.hass = hass
+    sw.entity_id = "switch.enphase_ev_charging"
+    sw.async_write_ha_state = MagicMock()
+
+    await sw.async_turn_on()
+
+    sw.async_write_ha_state.assert_called_once()
+
+
 def test_handle_coordinator_update_clears_restored_state(coordinator_factory) -> None:
     coord = coordinator_factory()
     sw = ChargingSwitch(coord, RANDOM_SERIAL)
@@ -1284,6 +1445,31 @@ def test_green_battery_switch_availability(coordinator_factory) -> None:
     sw_updated = GreenBatterySwitch(coord, RANDOM_SERIAL)
     assert sw_updated.available is True
     assert sw_updated.is_on is False
+
+
+def test_green_battery_switch_ignores_long_lived_cache_without_pending(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": False}
+    )
+    coord.set_green_battery_cache(RANDOM_SERIAL, True)
+
+    assert GreenBatterySwitch(coord, RANDOM_SERIAL).is_on is False
+
+
+def test_green_battery_switch_is_on_prefers_short_pending_override(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(
+        {"green_battery_supported": True, "green_battery_enabled": False}
+    )
+    coord._green_battery_pending[RANDOM_SERIAL] = (  # noqa: SLF001
+        True,
+        switch_mod.time.monotonic() + 10,
+    )
+
+    assert GreenBatterySwitch(coord, RANDOM_SERIAL).is_on is True
 
 
 def test_green_battery_switch_unavailable_without_data(coordinator_factory) -> None:
@@ -1383,6 +1569,27 @@ def test_app_auth_switch_unavailable_when_service_down(coordinator_factory) -> N
     assert sw.available is False
 
 
+def test_app_auth_switch_ignores_long_lived_cache_without_pending(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
+    coord.set_app_auth_cache(RANDOM_SERIAL, True)
+
+    assert AppAuthenticationSwitch(coord, RANDOM_SERIAL).is_on is False
+
+
+def test_app_auth_switch_is_on_prefers_short_pending_override(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
+    coord._app_auth_pending[RANDOM_SERIAL] = (
+        True,
+        switch_mod.time.monotonic() + 10,
+    )  # noqa: SLF001
+
+    assert AppAuthenticationSwitch(coord, RANDOM_SERIAL).is_on is True
+
+
 @pytest.mark.asyncio
 async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
     coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
@@ -1440,6 +1647,99 @@ async def test_app_auth_switch_turn_off_handles_auth_settings_unavailable(
         await sw.async_turn_off()
 
 
+def test_battery_schedule_editor_day_switch_without_editor(
+    config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    sw = BatteryScheduleEditorDaySwitch(coord, config_entry, day_key="mon")
+
+    assert sw.available is False
+    assert sw.is_on is False
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_editor_day_switch_uses_editor_state_and_actions(
+    config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    editor = _attach_battery_editor_runtime(config_entry, coord)
+    sw = BatteryScheduleEditorDaySwitch(coord, config_entry, day_key="mon")
+
+    assert sw.available is True
+    assert sw.is_on is True
+
+    await sw.async_turn_off()
+    assert editor.edit.days["mon"] is False
+
+    await sw.async_turn_on()
+    assert editor.edit.days["mon"] is True
+
+
+def test_battery_schedule_editor_day_switch_uses_inventory_device_info(
+    config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    _attach_battery_editor_runtime(config_entry, coord)
+    sw = BatteryScheduleEditorDaySwitch(coord, config_entry, day_key="mon")
+
+    assert sw.device_info["name"] == "IQ Battery"
+
+
+@pytest.mark.asyncio
+async def test_battery_schedule_editor_day_switch_fallback_device_info_and_guard_paths(
+    config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    _attach_battery_editor_runtime(config_entry, coord)
+    coord.inventory_view.type_device_info = lambda *_args: None
+    sw = BatteryScheduleEditorDaySwitch(coord, config_entry, day_key="sun")
+
+    assert sw.device_info["manufacturer"] == "Enphase"
+    assert sw.device_info["identifiers"] == {
+        ("enphase_ev", f"type:{coord.site_id}:encharge")
+    }
+
+    runtime = config_entry.runtime_data
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    no_editor = BatteryScheduleEditorDaySwitch(coord, config_entry, day_key="sun")
+    await no_editor.async_turn_on()
+    await no_editor.async_turn_off()
+    config_entry.runtime_data = runtime
+
+
+@pytest.mark.asyncio
+async def test_evse_schedule_editor_day_switch_uses_editor_state_and_actions(
+    config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    editor = _attach_evse_editor_runtime(config_entry, coord)
+    sw = EvseScheduleEditorDaySwitch(coord, config_entry, RANDOM_SERIAL, "mon")
+
+    assert sw.available is True
+    assert sw.is_on is True
+
+    sw._editor.set_edit_day(RANDOM_SERIAL, "mon", False)  # noqa: SLF001
+    assert sw.is_on is False
+
+    await sw.async_turn_on()
+    assert editor.form_state(RANDOM_SERIAL).days["mon"] is True
+
+    await sw.async_turn_off()
+    assert editor.form_state(RANDOM_SERIAL).days["mon"] is False
+
+
+def test_evse_schedule_editor_day_switch_without_editor(
+    config_entry, coordinator_factory
+) -> None:
+    coord = coordinator_factory()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    sw = EvseScheduleEditorDaySwitch(coord, config_entry, RANDOM_SERIAL, "mon")
+
+    assert sw.available is False
+    assert sw.is_on is False
+
+
 def test_storm_guard_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory()
     coord._battery_user_is_owner = True  # noqa: SLF001
@@ -1462,6 +1762,17 @@ def test_storm_guard_switch_hidden_by_site_settings(coordinator_factory) -> None
     coord._storm_evse_enabled = True  # noqa: SLF001
     sw = StormGuardSwitch(coord)
     assert sw.available is False
+
+
+def test_storm_guard_switch_is_on_prefers_pending_state(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._storm_guard_state = "disabled"  # noqa: SLF001
+    coord._storm_guard_pending_state = "enabled"  # noqa: SLF001
+    coord._storm_guard_pending_expires_mono = (
+        switch_mod.time.monotonic() + 60
+    )  # noqa: SLF001
+
+    assert StormGuardSwitch(coord).is_on is True
 
 
 def test_storm_guard_switch_unavailable_without_confirmed_write_access(
@@ -2023,6 +2334,13 @@ async def test_storm_guard_switch_turn_on_off(coordinator_factory) -> None:
     coord.async_request_refresh.assert_awaited_once()
 
 
+def test_charging_switch_is_on_prefers_pending_expectation(coordinator_factory) -> None:
+    coord = coordinator_factory({"charging": False})
+    coord.evse_runtime.set_charging_expectation(RANDOM_SERIAL, True, hold_for=60)
+
+    assert ChargingSwitch(coord, RANDOM_SERIAL).is_on is True
+
+
 def test_storm_guard_evse_switch_availability(coordinator_factory) -> None:
     coord = coordinator_factory({"storm_guard_state": None, "storm_evse_enabled": None})
     coord._battery_user_is_owner = True  # noqa: SLF001
@@ -2078,6 +2396,15 @@ def test_storm_guard_evse_switch_ignores_feature_flag_for_availability(
     coord._battery_user_is_installer = False  # noqa: SLF001
     sw = StormGuardEvseSwitch(coord, RANDOM_SERIAL)
     assert sw.available is True
+
+
+def test_storm_guard_evse_switch_is_on_prefers_site_state(coordinator_factory) -> None:
+    coord = coordinator_factory(
+        {"storm_guard_state": "enabled", "storm_evse_enabled": False}
+    )
+    coord._storm_evse_enabled = True  # noqa: SLF001
+
+    assert StormGuardEvseSwitch(coord, RANDOM_SERIAL).is_on is True
 
 
 @pytest.mark.asyncio
