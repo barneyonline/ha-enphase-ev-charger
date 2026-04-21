@@ -11,10 +11,11 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Hardened the firmware catalog build workflow so dead regional release-notes routes degrade to global metadata instead of aborting the catalog publish job on a single `404` response.
+- Refreshed the firmware catalog’s authoritative region routing to cover current public Chile and Jamaica sites and to use Swiss locale-specific documentation URLs for German and Italian.
 
 ### 🔧 Improvements
-- None
+- Enabled advisory firmware update entities for IQ Gateway, IQ Microinverters, and IQ EV Chargers, including region-specific release-note links and charger rollout gating from Enphase feature flags.
 
 ### 🔄 Other changes
 - None

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import logging
 import re
 import sys
 from dataclasses import dataclass, field
@@ -19,6 +20,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
+
+_LOGGER = logging.getLogger(__name__)
 
 BASE_URL = "https://enphase.com"
 ROOT_PATH = "/installers/resources/documentation"
@@ -160,6 +163,12 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "site_url": "https://enphase.com/es-lac/",
     },
     {
+        "label": "Chile",
+        "country_code": "CL",
+        "locale": "es-lac",
+        "site_url": "https://enphase.com/es-lac/",
+    },
+    {
         "label": "Costa Rica",
         "country_code": "CR",
         "locale": "es-lac",
@@ -170,6 +179,12 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "country_code": "DO",
         "locale": "es-do",
         "site_url": "https://enphase.com/es-do/",
+    },
+    {
+        "label": "Jamaica",
+        "country_code": "JM",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
     },
     {
         "label": "Mexico",
@@ -403,7 +418,7 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "label": "Switzerland - Deutsch",
         "country_code": "CH",
         "locale": "de-ch",
-        "site_url": "https://enphase.com/de-de/",
+        "site_url": "https://enphase.com/de-ch/",
     },
     {
         "label": "Switzerland - Francais",
@@ -415,7 +430,7 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "label": "Switzerland - Italiano",
         "country_code": "CH",
         "locale": "it-ch",
-        "site_url": "https://enphase.com/it-it/",
+        "site_url": "https://enphase.com/it-ch/",
     },
     {
         "label": "Turkiye",
@@ -1320,6 +1335,46 @@ def fetch_previous_runtime_catalog(
     return payload
 
 
+def _bootstrap_target(target: dict[str, Any], *, timeout: int) -> dict[str, Any]:
+    root_url = urljoin(str(target["site_url"]), ROOT_PATH.lstrip("/"))
+    root_html = fetch_text(root_url, timeout=timeout)
+    docs_path, discovered_product_type = discover_apps_entrypoint(root_html)
+
+    apps_url = urljoin(str(target["site_url"]), docs_path.lstrip("/"))
+    apps_bootstrap_url = _with_query(
+        apps_url, {"product_type": discovered_product_type}
+    )
+    apps_html = fetch_text(apps_bootstrap_url, timeout=timeout)
+
+    product_type = (
+        parse_product_type_from_apps_page(apps_html) or discovered_product_type
+    )
+    product_facets = parse_facet_values(apps_html, "product_media_name")
+    topic_facets = parse_facet_values(apps_html, "document")
+    topic_id = _resolve_release_notes_topic_id(topic_facets)
+    if topic_id is None:
+        raise RuntimeError(
+            f"Could not discover release-notes topic id from apps page: {apps_bootstrap_url}"
+        )
+
+    product_ids = {
+        device_key: product_facets.get(product_label)
+        for device_key, product_label in TARGET_PRODUCTS.items()
+    }
+    return {
+        "root_url": root_url,
+        "docs_path": docs_path,
+        "apps_url": apps_url,
+        "apps_html": apps_html,
+        "apps_bootstrap_url": apps_bootstrap_url,
+        "product_type": product_type,
+        "topic_id": int(topic_id),
+        "topic_facets": topic_facets,
+        "product_facets": product_facets,
+        "product_ids": product_ids,
+    }
+
+
 def catalogs_equal_ignoring_generated_at(
     current_catalog: dict[str, Any],
     previous_catalog: dict[str, Any] | None,
@@ -1364,49 +1419,43 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         str(routes[0]["target_key"]),
     )
 
-    targets_by_key: dict[str, dict[str, Any]] = {}
-    for target in crawl_targets:
-        root_url = urljoin(str(target["site_url"]), ROOT_PATH.lstrip("/"))
-        root_html = fetch_text(root_url, timeout=timeout)
-        docs_path, discovered_product_type = discover_apps_entrypoint(root_html)
-
-        apps_url = urljoin(str(target["site_url"]), docs_path.lstrip("/"))
-        apps_bootstrap_url = _with_query(
-            apps_url, {"product_type": discovered_product_type}
-        )
-        apps_html = fetch_text(apps_bootstrap_url, timeout=timeout)
-
-        product_type = (
-            parse_product_type_from_apps_page(apps_html) or discovered_product_type
-        )
-        product_facets = parse_facet_values(apps_html, "product_media_name")
-        topic_facets = parse_facet_values(apps_html, "document")
-        topic_id = _resolve_release_notes_topic_id(topic_facets)
-        if topic_id is None:
-            raise RuntimeError(
-                f"Could not discover release-notes topic id from apps page: {apps_bootstrap_url}"
-            )
-
-        product_ids = {
-            device_key: product_facets.get(product_label)
-            for device_key, product_label in TARGET_PRODUCTS.items()
-        }
-
-        target["root_url"] = root_url
-        target["docs_path"] = docs_path
-        target["apps_url"] = apps_url
-        target["apps_html"] = apps_html
-        target["apps_bootstrap_url"] = apps_bootstrap_url
-        target["product_type"] = product_type
-        target["topic_id"] = int(topic_id)
-        target["topic_facets"] = topic_facets
-        target["product_facets"] = product_facets
-        target["product_ids"] = product_ids
-        targets_by_key[str(target["key"])] = target
-
+    targets_by_key: dict[str, dict[str, Any]] = {
+        str(target["key"]): target for target in crawl_targets
+    }
     global_target = targets_by_key.get(global_target_key)
     if not isinstance(global_target, dict):
         raise RuntimeError("Global routing target is missing")
+
+    global_target.update(_bootstrap_target(global_target, timeout=timeout))
+    global_target["bootstrap_error"] = None
+
+    for target in crawl_targets:
+        if str(target["key"]) == global_target_key:
+            continue
+        try:
+            target.update(_bootstrap_target(target, timeout=timeout))
+            target["bootstrap_error"] = None
+        except Exception as err:  # noqa: BLE001
+            target.update(
+                {
+                    "root_url": global_target["root_url"],
+                    "docs_path": global_target["docs_path"],
+                    "apps_url": global_target["apps_url"],
+                    "apps_html": global_target["apps_html"],
+                    "apps_bootstrap_url": global_target["apps_bootstrap_url"],
+                    "product_type": global_target["product_type"],
+                    "topic_id": global_target["topic_id"],
+                    "topic_facets": dict(global_target["topic_facets"]),
+                    "product_facets": dict(global_target["product_facets"]),
+                    "product_ids": dict(global_target["product_ids"]),
+                    "bootstrap_error": str(err),
+                }
+            )
+            _LOGGER.warning(
+                "Firmware catalog bootstrap failed for target %s; falling back to global metadata: %s",
+                target.get("key"),
+                err,
+            )
 
     global_product_ids = {
         device_key: global_target["product_ids"].get(device_key)
@@ -1446,6 +1495,8 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         missing_product_ids: list[str] = []
         fallback_id_targets: list[str] = []
         empty_release_targets: list[str] = []
+        bootstrap_error_targets: list[str] = []
+        crawl_error_targets: list[str] = []
 
         for target in crawl_targets:
             target_product_id = target["product_ids"].get(device_key)
@@ -1460,15 +1511,29 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             if used_global_product_id and str(target["key"]) != global_target_key:
                 fallback_id_targets.append(str(target["key"]))
 
-            cards, visited_pages = crawl_release_cards(
-                apps_url=str(target["apps_url"]),
-                product_type=str(target["product_type"]),
-                topic_id=int(target["topic_id"]),
-                product_media_name_id=product_id,
-                search_locale=str(target["query_locale"]),
-                timeout=timeout,
-                max_pages=max_pages,
-            )
+            if target.get("bootstrap_error"):
+                bootstrap_error_targets.append(str(target["key"]))
+            try:
+                cards, visited_pages = crawl_release_cards(
+                    apps_url=str(target["apps_url"]),
+                    product_type=str(target["product_type"]),
+                    topic_id=int(target["topic_id"]),
+                    product_media_name_id=product_id,
+                    search_locale=str(target["query_locale"]),
+                    timeout=timeout,
+                    max_pages=max_pages,
+                )
+                crawl_error: str | None = None
+            except Exception as err:  # noqa: BLE001
+                cards, visited_pages = [], []
+                crawl_error = str(err)
+                crawl_error_targets.append(str(target["key"]))
+                _LOGGER.warning(
+                    "Firmware catalog crawl failed for target %s device %s; treating as empty result: %s",
+                    target.get("key"),
+                    device_key,
+                    err,
+                )
             total_count += len(cards)
             target_crawl[str(target["key"])] = {
                 "site_url": target["site_url"],
@@ -1478,6 +1543,8 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                 "count": len(cards),
                 "product_media_name_id": product_id,
                 "used_global_product_media_name_id": used_global_product_id,
+                "bootstrap_error": target.get("bootstrap_error"),
+                "crawl_error": crawl_error,
             }
             if len(cards) == 0:
                 empty_release_targets.append(str(target["key"]))
@@ -1562,6 +1629,8 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             "missing_product_media_id_targets": sorted(set(missing_product_ids)),
             "used_global_product_media_id_targets": sorted(set(fallback_id_targets)),
             "empty_release_targets": sorted(set(empty_release_targets)),
+            "bootstrap_error_targets": sorted(set(bootstrap_error_targets)),
+            "crawl_error_targets": sorted(set(crawl_error_targets)),
         }
 
     runtime_catalog = {

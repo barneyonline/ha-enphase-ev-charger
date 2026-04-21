@@ -13,6 +13,7 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 import custom_components.enphase_ev as enphase_init
 from custom_components.enphase_ev import (
+    PLATFORMS,
     DOMAIN,
     _async_update_listener,
     _complete_startup_migrations_if_ready,
@@ -992,7 +993,7 @@ async def test_async_unload_entry_stops_schedule_sync(
     assert await async_unload_entry(hass, config_entry)
     schedule_sync.async_stop.assert_awaited_once()
     coord.cleanup_runtime_state.assert_called_once()
-    assert unload.await_count == 8
+    assert unload.await_count == len(PLATFORMS)
     assert config_entry.runtime_data is None
 
 
@@ -1026,7 +1027,7 @@ async def test_async_unload_entry_handles_missing_runtime_data(
     monkeypatch.setattr(hass.config_entries, "async_forward_entry_unload", unload)
 
     assert await async_unload_entry(hass, config_entry)
-    assert unload.await_count == 8
+    assert unload.await_count == len(PLATFORMS)
 
 
 @pytest.mark.asyncio
