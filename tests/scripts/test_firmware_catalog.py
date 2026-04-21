@@ -926,6 +926,30 @@ def test_route_helper_edge_branches(firmware_catalog_module) -> None:
     )
 
 
+def test_authoritative_region_routes_cover_current_public_sites(
+    firmware_catalog_module,
+) -> None:
+    routes = firmware_catalog_module.build_region_site_routes(
+        firmware_catalog_module.REGION_SITE_ROUTE_ROWS
+    )
+    route_by_country_and_locale = {
+        (route["country_code"], route["locale"]): route for route in routes
+    }
+
+    assert route_by_country_and_locale[("CL", "es-lac")]["site_url"] == (
+        "https://enphase.com/es-lac/"
+    )
+    assert route_by_country_and_locale[("JM", "en-lac")]["site_url"] == (
+        "https://enphase.com/en-lac/"
+    )
+    assert route_by_country_and_locale[("CH", "de-ch")]["site_url"] == (
+        "https://enphase.com/de-ch/"
+    )
+    assert route_by_country_and_locale[("CH", "it-ch")]["site_url"] == (
+        "https://enphase.com/it-ch/"
+    )
+
+
 def test_build_catalog_edge_error_and_degradation_paths(
     firmware_catalog_module,
     monkeypatch,
@@ -950,6 +974,131 @@ def test_build_catalog_edge_error_and_degradation_paths(
     with pytest.raises(RuntimeError, match="Global routing target is missing"):
         firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
 
+    routes = [
+        {
+            "label": "United States",
+            "country_code": "US",
+            "locale": "en",
+            "site_url": "https://global.example/",
+            "query_locale": "en",
+            "target_key": "https://global.example/|en",
+        },
+        {
+            "label": "Australia",
+            "country_code": "AU",
+            "locale": "en-au",
+            "site_url": "https://regional.example/",
+            "query_locale": "en-au",
+            "target_key": "https://regional.example/|en-au",
+        },
+    ]
+    targets = [
+        {
+            "key": "https://global.example/|en",
+            "site_url": "https://global.example/",
+            "query_locale": "en",
+            "locales": ["en"],
+            "countries": ["US"],
+            "labels": ["United States"],
+        },
+        {
+            "key": "https://regional.example/|en-au",
+            "site_url": "https://regional.example/",
+            "query_locale": "en-au",
+            "locales": ["en-au"],
+            "countries": ["AU"],
+            "labels": ["Australia"],
+        },
+    ]
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "build_region_site_routes", lambda _rows: routes
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module, "build_crawl_targets", lambda _routes: targets
+    )
+
+    def _fake_fetch_text(url: str, timeout: int = 30) -> str:  # noqa: ARG001
+        if "regional.example" in url:
+            raise RuntimeError("HTTP Error 404: Not Found")
+        return "GLOBAL"
+
+    monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "discover_apps_entrypoint",
+        lambda _html: ("/installers/resources/documentation/apps", "216"),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_product_type_from_apps_page",
+        lambda _html: "216",
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda html, alias: (
+            {"Release notes": 217}
+            if alias == "document"
+            else (
+                {"IQ Gateway software": 5002, "IQ Microinverter software": 7738}
+                if html == "GLOBAL"
+                else {"IQ Gateway software": 5002}
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module, "parse_language_options", lambda _html, _name: {}
+    )
+
+    def _fake_crawl_release_cards(**kwargs):
+        if kwargs["search_locale"] == "en-au":
+            raise RuntimeError("HTTP Error 404: Not Found")
+        return [], ["https://example.test/p0"]
+
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "crawl_release_cards",
+        _fake_crawl_release_cards,
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: None,
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z"
+    )
+
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime = json.loads(
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert runtime["devices"]["envoy"]["latest_global"] is None
+    assert runtime["devices"]["envoy"]["latest_by_country"] == {}
+    micro_meta = runtime["source"]["crawl"]["microinverter"]
+    envoy_meta = runtime["source"]["crawl"]["envoy"]
+    assert micro_meta["missing_product_media_id_targets"] == []
+    assert micro_meta["used_global_product_media_id_targets"] == []
+    assert envoy_meta["bootstrap_error_targets"] == ["https://regional.example/|en-au"]
+    assert micro_meta["crawl_error_targets"] == ["https://regional.example/|en-au"]
+    assert (
+        envoy_meta["targets"]["https://regional.example/|en-au"]["bootstrap_error"]
+        == "HTTP Error 404: Not Found"
+    )
+    assert (
+        micro_meta["targets"]["https://regional.example/|en-au"]["crawl_error"]
+        == "HTTP Error 404: Not Found"
+    )
+
+
+def test_build_catalog_tracks_missing_regional_product_ids(
+    firmware_catalog_module,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
     routes = [
         {
             "label": "United States",
@@ -1027,7 +1176,7 @@ def test_build_catalog_edge_error_and_degradation_paths(
     monkeypatch.setattr(
         firmware_catalog_module,
         "crawl_release_cards",
-        lambda **kwargs: ([], ["https://example.test/p0"]),
+        lambda **kwargs: ([], [f"https://example.test/{kwargs['search_locale']}"]),
     )
     monkeypatch.setattr(
         firmware_catalog_module,
@@ -1044,8 +1193,6 @@ def test_build_catalog_edge_error_and_degradation_paths(
             encoding="utf-8"
         )
     )
-    assert runtime["devices"]["envoy"]["latest_global"] is None
-    assert runtime["devices"]["envoy"]["latest_by_country"] == {}
     micro_meta = runtime["source"]["crawl"]["microinverter"]
     assert micro_meta["missing_product_media_id_targets"] == [
         "https://regional.example/|en-au"

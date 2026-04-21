@@ -42,10 +42,6 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-# Keep firmware catalog/update implementation in-tree, but disable exposing
-# firmware version checks in the integration for now.
-_ENABLE_FIRMWARE_VERSION_CHECKS = False
-
 PLATFORMS: list[str] = [
     "sensor",
     "binary_sensor",
@@ -55,7 +51,7 @@ PLATFORMS: list[str] = [
     "switch",
     "time",
     "calendar",
-    *(["update"] if _ENABLE_FIRMWARE_VERSION_CHECKS else []),
+    "update",
 ]
 
 _LEGACY_GATEWAY_TYPE_KEYS: tuple[str, ...] = ("meter", "enpower")

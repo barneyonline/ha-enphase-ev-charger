@@ -4,7 +4,12 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from homeassistant.components.update import UpdateEntity, UpdateEntityDescription
+from homeassistant.components.update import (
+    UpdateDeviceClass,
+    UpdateEntity,
+    UpdateEntityDescription,
+)
+from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
@@ -55,6 +60,7 @@ async def async_setup_entry(
                 translation_key="gateway_firmware",
                 description=UpdateEntityDescription(
                     key="gateway_firmware",
+                    device_class=UpdateDeviceClass.FIRMWARE,
                     entity_category=EntityCategory.DIAGNOSTIC,
                 ),
                 installed_version_getter=_gateway_installed_version,
@@ -69,6 +75,7 @@ async def async_setup_entry(
                 translation_key="microinverter_firmware",
                 description=UpdateEntityDescription(
                     key="microinverter_firmware",
+                    device_class=UpdateDeviceClass.FIRMWARE,
                     entity_category=EntityCategory.DIAGNOSTIC,
                 ),
                 installed_version_getter=_microinverter_installed_version,
@@ -101,9 +108,11 @@ async def async_setup_entry(
             ChargerFirmwareUpdateEntity(
                 coordinator=coord,
                 manager=evse_manager,
+                catalog_manager=catalog_manager,
                 serial=sn,
                 description=UpdateEntityDescription(
                     key="charger_firmware",
+                    device_class=UpdateDeviceClass.FIRMWARE,
                     entity_category=EntityCategory.DIAGNOSTIC,
                 ),
             )
@@ -244,6 +253,7 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
             self._attr_latest_version = None
             self._attr_release_url = None
             self._attr_release_summary = None
+            _reconcile_skipped_version(self)
             return
 
         raw_latest = _text(entry.get("version"))
@@ -271,6 +281,7 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
 
         self._attr_release_url = release_url
         self._attr_release_summary = _text(entry.get("summary"))
+        _reconcile_skipped_version(self)
 
 
 class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
@@ -282,6 +293,7 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
         *,
         coordinator: EnphaseCoordinator,
         manager: EvseFirmwareDetailsManager,
+        catalog_manager: FirmwareCatalogManager,
         serial: str,
         description: UpdateEntityDescription,
     ) -> None:
@@ -289,6 +301,7 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
         self.entity_description = description
         self._coord = coordinator
         self._manager = manager
+        self._catalog_manager = catalog_manager
         self._serial = str(serial)
         self._refresh_task = None
 
@@ -302,8 +315,14 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
         self._last_successful_upgrade_date: str | None = None
         self._last_updated_at: str | None = None
         self._is_auto_ota: bool | None = None
+        self._firmware_rollout_enabled: bool | None = None
+        self._country_used: str | None = None
+        self._locale_used: str = "en"
+        self._source_scope: str | None = None
+        self._catalog_generated_at: str | None = None
 
         self._refresh_from_details(self._manager.cached_details)
+        self._refresh_from_catalog(self._catalog_manager.cached_catalog)
 
     @property
     def available(self) -> bool:
@@ -318,14 +337,31 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
         return DeviceInfo(identifiers={(DOMAIN, self._serial)})
 
     @property
+    def state(self) -> str | None:
+        state = super().state
+        if state != STATE_ON:
+            return state
+        if self._firmware_rollout_enabled is False:
+            return STATE_OFF
+        return state
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any]:
         status = self._manager.status_snapshot()
+        catalog_status = self._catalog_manager.status_snapshot()
         return {
             "upgrade_status": self._upgrade_status,
             "status_detail": self._status_detail,
             "last_successful_upgrade_date": self._last_successful_upgrade_date,
             "last_updated_at": self._last_updated_at,
             "is_auto_ota": self._is_auto_ota,
+            "firmware_rollout_enabled": self._firmware_rollout_enabled,
+            "country_used": self._country_used,
+            "locale_used": self._locale_used,
+            "catalog_source_scope": self._source_scope,
+            "catalog_generated_at": self._catalog_generated_at,
+            "catalog_last_fetch_utc": catalog_status.get("last_fetch_utc"),
+            "catalog_last_error": catalog_status.get("last_error"),
             "details_last_fetch_utc": status.get("last_fetch_utc"),
             "details_last_success_utc": status.get("last_success_utc"),
             "details_last_error": status.get("last_error"),
@@ -335,11 +371,12 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        await self._async_refresh_details()
+        await self._async_refresh_state()
 
     @callback
     def _handle_coordinator_update(self) -> None:
         self._refresh_from_details(self._manager.cached_details)
+        self._refresh_from_catalog(self._catalog_manager.cached_catalog)
         self._schedule_details_refresh()
         super()._handle_coordinator_update()
 
@@ -348,7 +385,7 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
             return
         if self._refresh_task is not None and not self._refresh_task.done():
             return
-        self._refresh_task = self.hass.async_create_task(self._async_refresh_details())
+        self._refresh_task = self.hass.async_create_task(self._async_refresh_state())
 
     async def _async_refresh_details(self) -> None:
         try:
@@ -366,7 +403,29 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
             return
 
         self._refresh_from_details(details)
-        self.async_write_ha_state()
+
+    async def _async_refresh_state(self) -> None:
+        await self._async_refresh_details()
+        await self._async_refresh_catalog()
+        if self.hass is not None and self.entity_id is not None:
+            self.async_write_ha_state()
+
+    async def _async_refresh_catalog(self) -> None:
+        try:
+            catalog = await self._catalog_manager.async_get_catalog()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Firmware catalog refresh failed for charger %s: %s",
+                redact_identifier(self._serial),
+                redact_text(
+                    err,
+                    site_ids=(self._coord.site_id,),
+                    identifiers=(self._serial,),
+                ),
+            )
+            return
+
+        self._refresh_from_catalog(catalog)
 
     def _refresh_from_details(
         self, details_by_serial: dict[str, dict[str, Any]] | None
@@ -402,6 +461,52 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
         )
         self._last_updated_at = _text(details.get("lastUpdatedAt")) if details else None
         self._is_auto_ota = _as_bool(details.get("isAutoOta")) if details else None
+        self._firmware_rollout_enabled = _evse_firmware_rollout_enabled(
+            self._coord, self._serial
+        )
+        _reconcile_skipped_version(self)
+
+    def _refresh_from_catalog(self, catalog: dict[str, Any] | None) -> None:
+        country, locale = resolve_country_and_locale(self._coord, self.hass)
+        normalized_locale = normalize_locale(locale)
+
+        self._country_used = country
+        self._locale_used = normalized_locale
+
+        selected = select_catalog_entry(
+            catalog,
+            device_type="iqevse",
+            country=country,
+            locale=normalized_locale,
+        )
+        self._source_scope = selected.source_scope
+        self._locale_used = selected.locale_used or normalized_locale
+        self._catalog_generated_at = (
+            str(catalog.get("generated_at"))
+            if isinstance(catalog, dict) and catalog.get("generated_at") is not None
+            else None
+        )
+
+        entry = selected.entry if isinstance(selected.entry, dict) else None
+        if entry is None:
+            self._attr_release_url = None
+            self._attr_release_summary = None
+            return
+
+        urls = entry.get("urls_by_locale")
+        release_url = None
+        if isinstance(urls, dict):
+            chosen_key = (
+                self._locale_used
+                if self._locale_used in urls
+                else (str(next(iter(urls.keys()))) if urls else None)
+            )
+            if chosen_key is not None:
+                release_url = _text(urls.get(chosen_key))
+                self._locale_used = chosen_key
+
+        self._attr_release_url = release_url
+        self._attr_release_summary = _text(entry.get("summary"))
 
 
 def _charger_serials(coord: EnphaseCoordinator) -> list[str]:
@@ -508,3 +613,20 @@ def _as_int(value: Any) -> int | None:
         return int(str(value))
     except Exception:  # noqa: BLE001
         return None
+
+
+def _evse_firmware_rollout_enabled(
+    coord: EnphaseCoordinator, serial: str
+) -> bool | None:
+    feature_flag_enabled = getattr(coord, "evse_feature_flag_enabled", None)
+    if not callable(feature_flag_enabled):
+        return None
+    try:
+        return feature_flag_enabled("iqevse_itk_fw_upgrade_status", serial)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _reconcile_skipped_version(entity: UpdateEntity) -> None:
+    """Force Home Assistant to clear stale skipped firmware versions immediately."""
+    entity.state_attributes
