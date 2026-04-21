@@ -11,14 +11,32 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.8.6 - 2026-04-21
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
 - Switched same-profile IQ Battery reserve changes to the BatteryConfig settings compatibility write path so reserve-only updates apply reliably on sites where the profile endpoint returns success without changing the effective reserve.
 - Restored the normal battery write-access refresh, debounce checks, and settings-write lock for same-profile reserve-only updates so the new compatibility write path preserves the existing guard rails.
+- Kept EV charger charging, app-auth, green-charging, and Storm Guard switch states sticky while Enphase writes settle so Home Assistant toggles no longer snap back briefly after a successful command.
 
 ### 🔧 Improvements
 - Reduced EV charger refresh-path latency by fetching scheduler payloads concurrently across chargers during sync refreshes, and made session-history freshness adaptive so active/recently-ended sessions refresh sooner while idle chargers keep background refreshes off the main coordinator hot path.
 
 ### 🔄 Other changes
-- None
+- Bumped the integration manifest version to `2.8.6`.
 
 ## v2.8.5 - 2026-04-19
 
