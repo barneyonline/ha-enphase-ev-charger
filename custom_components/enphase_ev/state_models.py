@@ -256,6 +256,7 @@ class EVSEState:
     _green_battery_cache: dict[str, tuple[bool | None, bool, float]] = field(
         default_factory=dict
     )
+    _green_battery_pending: dict[str, tuple[bool, float]] = field(default_factory=dict)
     _charger_config_cache: dict[str, tuple[dict[str, object], float]] = field(
         default_factory=dict
     )
@@ -263,6 +264,7 @@ class EVSEState:
     _auth_settings_cache: dict[
         str, tuple[bool | None, bool | None, bool, bool, float]
     ] = field(default_factory=dict)
+    _app_auth_pending: dict[str, tuple[bool, float]] = field(default_factory=dict)
     _evse_feature_flags_cache_until: float | None = None
     _evse_feature_flags_payload: dict[str, object] | None = None
     _evse_site_feature_flags: dict[str, object] = field(default_factory=dict)
