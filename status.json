@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-04-21T12:13:11.138585Z",
+  "checked_at": "2026-04-21T14:14:56.621774Z",
   "checks": [
     {
       "affects": true,
@@ -21,7 +21,7 @@
       ],
       "group": "other",
       "name": "discovery",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -43,7 +43,7 @@
       ],
       "group": "degraded",
       "name": "evse_scheduler",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -64,7 +64,7 @@
       ],
       "group": "degraded",
       "name": "site_energy",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -75,7 +75,7 @@
       ],
       "group": "degraded",
       "name": "site_live",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -122,7 +122,7 @@
       ],
       "group": "degraded",
       "name": "inventory",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -167,7 +167,7 @@
       ],
       "group": "degraded",
       "name": "battery_runtime",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -179,7 +179,7 @@
       ],
       "group": "degraded",
       "name": "microinverters",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -224,12 +224,12 @@
       "category": "discovery",
       "check_group": "discovery",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "other",
       "method": "GET",
       "name": "site_discovery_1",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/search_sites.json?searchText=&favourite=false"
     },
     {
@@ -263,12 +263,12 @@
       "category": "evse_scheduler",
       "check_group": "evse_scheduler",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_charge_mode",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
     },
     {
@@ -308,7 +308,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=aee7a279-7bcf-4ab3-ac50-da79e9eaaa78&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=8916b705-e530-45fa-a87e-654b81f8577f&username=2999024"
     },
     {
       "affects_status": true,
@@ -328,12 +328,12 @@
       "category": "site_energy",
       "check_group": "site_energy",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "site_energy",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/pv/systems/{site_id}/lifetime_energy"
     },
     {
@@ -341,12 +341,12 @@
       "category": "site_live",
       "check_group": "site_live",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "site_latest_power",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/get_latest_power"
     },
     {
@@ -354,12 +354,12 @@
       "category": "site_live",
       "check_group": "site_live",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "site_show_livestream",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/show_livestream"
     },
     {
@@ -373,7 +373,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=aee7a279-7bcf-4ab3-ac50-da79e9eaaa78&start_date=2026-04-21&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=8916b705-e530-45fa-a87e-654b81f8577f&start_date=2026-04-21&username=2999024"
     },
     {
       "affects_status": false,
@@ -386,7 +386,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=aee7a279-7bcf-4ab3-ac50-da79e9eaaa78&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=8916b705-e530-45fa-a87e-654b81f8577f&username=2999024"
     },
     {
       "affects_status": false,
@@ -419,12 +419,12 @@
       "category": "battery_config",
       "check_group": "battery_config",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_site_settings",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/batteryConfig/api/v1/siteSettings/{site_id}?userId=2999024"
     },
     {
@@ -432,12 +432,12 @@
       "category": "battery_config",
       "check_group": "battery_config",
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_profile",
-      "ok": false,
-      "status": 500,
+      "ok": true,
+      "status": 200,
       "url": "/service/batteryConfig/api/v1/profile/{site_id}?userId=2999024&source=enho&locale=en-AU"
     },
     {
@@ -445,12 +445,12 @@
       "category": "battery_config",
       "check_group": "battery_config",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_settings",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/batteryConfig/api/v1/batterySettings/{site_id}?userId=2999024&source=enho"
     },
     {
@@ -497,12 +497,12 @@
       "category": "inventory",
       "check_group": "inventory",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "devices_inventory",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/devices.json"
     },
     {
@@ -575,12 +575,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "grid_control_check",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/grid_control_check.json"
     },
     {
@@ -588,12 +588,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_backup_history",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/battery_backup_history.json"
     },
     {
@@ -627,12 +627,12 @@
       "category": "microinverters",
       "check_group": "microinverters",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "inverters_inventory",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/inverters.json?limit=1000&offset=0&search="
     },
     {
@@ -675,13 +675,13 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 8,
-    "checks_ok": 9,
+    "checks_failed": 1,
+    "checks_ok": 16,
     "checks_total": 17,
-    "endpoints_failed": 13,
-    "endpoints_ok": 24,
+    "endpoints_failed": 1,
+    "endpoints_ok": 36,
     "endpoints_total": 37
   }
 }
