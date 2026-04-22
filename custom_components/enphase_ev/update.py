@@ -29,7 +29,10 @@ from .firmware_catalog import (
 )
 from .log_redaction import redact_identifier, redact_text
 from .parsing_helpers import coerce_optional_text as _text
-from .runtime_helpers import inventory_type_available as _type_available
+from .runtime_helpers import (
+    inventory_type_available as _type_available,
+    inventory_type_device_info as _type_device_info,
+)
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 PARALLEL_UPDATES = 0
@@ -64,21 +67,6 @@ async def async_setup_entry(
                     entity_category=EntityCategory.DIAGNOSTIC,
                 ),
                 installed_version_getter=_gateway_installed_version,
-            )
-        )
-    if _type_available(coord, "microinverter"):
-        entities.append(
-            FirmwareUpdateEntity(
-                coordinator=coord,
-                manager=catalog_manager,
-                device_type="microinverter",
-                translation_key="microinverter_firmware",
-                description=UpdateEntityDescription(
-                    key="microinverter_firmware",
-                    device_class=UpdateDeviceClass.FIRMWARE,
-                    entity_category=EntityCategory.DIAGNOSTIC,
-                ),
-                installed_version_getter=_microinverter_installed_version,
             )
         )
 
@@ -171,10 +159,15 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
         return super().available and _type_available(self._coord, self._device_type)
 
     @property
-    def device_info(self):
-        info = self._coord.inventory_view.type_device_info(self._device_type)
+    def device_info(self) -> DeviceInfo | None:
+        info = _type_device_info(self._coord, self._device_type)
         if info is not None:
             return info
+        if self._device_type == "envoy":
+            return DeviceInfo(
+                identifiers={(DOMAIN, f"type:{self._coord.site_id}:envoy")},
+                manufacturer="Enphase",
+            )
         return None
 
     @property
@@ -555,19 +548,6 @@ def _async_prune_removed_charger_updates(
 
 def _gateway_installed_version(coord: EnphaseCoordinator) -> str | None:
     return _text(coord.inventory_view.type_device_sw_version("envoy"))
-
-
-def _microinverter_installed_version(coord: EnphaseCoordinator) -> str | None:
-    version = _text(coord.inventory_view.type_device_sw_version("microinverter"))
-    if version:
-        return version
-
-    bucket = coord.inventory_view.type_bucket("microinverter")
-    if isinstance(bucket, dict):
-        firmware_summary = _text(bucket.get("firmware_summary"))
-        if firmware_summary:
-            return firmware_summary
-    return None
 
 
 def _charger_installed_version(coord: EnphaseCoordinator, serial: str) -> str | None:

@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Firmware gateway"
       },
-      "microinverter_firmware": {
-        "name": "Firmware microinvertor"
-      },
       "charger_firmware": {
         "name": "Versiune firmware"
       }

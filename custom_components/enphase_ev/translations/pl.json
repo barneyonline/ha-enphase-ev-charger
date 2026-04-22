@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Oprogramowanie sprzętowe bramki"
       },
-      "microinverter_firmware": {
-        "name": "Oprogramowanie sprzętowe mikroinwertera"
-      },
       "charger_firmware": {
         "name": "Oprogramowanie sprzętowe"
       }
