@@ -27,6 +27,7 @@ from custom_components.enphase_ev import (
     _migrate_cloud_entity_unique_ids,
     _migrate_cloud_entities_to_cloud_device,
     _migrate_legacy_gateway_type_devices,
+    _migrate_orphaned_update_entities_to_type_devices,
     _normalize_selected_type_keys,
     _normalize_evse_model_name,
     _registry_charger_metadata_signature,
@@ -147,9 +148,14 @@ def test_complete_startup_migrations_if_ready_ignores_failing_readiness_check(
 
     migrate_gateway = MagicMock()
     migrate_cloud = MagicMock()
+    migrate_updates = MagicMock()
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
         migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_orphaned_update_entities_to_type_devices",
+        migrate_updates,
     )
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
@@ -161,6 +167,7 @@ def test_complete_startup_migrations_if_ready_ignores_failing_readiness_check(
     )
 
     migrate_gateway.assert_not_called()
+    migrate_updates.assert_not_called()
     migrate_cloud.assert_not_called()
     assert "startup_migration_version" not in config_entry.data
 
@@ -189,6 +196,170 @@ def test_iter_device_registry_entries_handles_edge_paths() -> None:
         )
         == []
     )
+
+
+@pytest.mark.asyncio
+async def test_migrate_orphaned_update_entities_to_type_devices_removes_site_updates(
+    hass: HomeAssistant, config_entry
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    ent_reg = er.async_get(hass)
+    owned_gateway = ent_reg.async_get_or_create(
+        "update",
+        DOMAIN,
+        f"{DOMAIN}_site_{site_id}_envoy_firmware",
+        config_entry=config_entry,
+        original_name="Gateway Firmware",
+    )
+    owned_micro = ent_reg.async_get_or_create(
+        "update",
+        DOMAIN,
+        f"{DOMAIN}_site_{site_id}_microinverter_firmware",
+        config_entry=config_entry,
+        original_name="Microinverter Firmware",
+    )
+    kept_charger = ent_reg.async_get_or_create(
+        "update",
+        DOMAIN,
+        f"{DOMAIN}_site_{site_id}_iqevse_firmware",
+        config_entry=config_entry,
+        original_name="Charger Firmware",
+    )
+
+    _migrate_orphaned_update_entities_to_type_devices(hass, config_entry, site_id)
+
+    assert ent_reg.async_get(owned_gateway.entity_id) is None
+    assert ent_reg.async_get(owned_micro.entity_id) is None
+    assert ent_reg.async_get(kept_charger.entity_id) is not None
+
+
+def test_migrate_orphaned_update_entities_to_type_devices_handles_edge_paths(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    _migrate_orphaned_update_entities_to_type_devices(hass, config_entry, "   ")
+
+    class _BadSiteId:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    _migrate_orphaned_update_entities_to_type_devices(hass, config_entry, _BadSiteId())
+
+    monkeypatch.setattr("custom_components.enphase_ev.er", None)
+    _migrate_orphaned_update_entities_to_type_devices(
+        hass, config_entry, config_entry.data[CONF_SITE_ID]
+    )
+
+    class _BrokenEntityRegistryModule:
+        @staticmethod
+        def async_get(_hass):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr("custom_components.enphase_ev.er", _BrokenEntityRegistryModule)
+    _migrate_orphaned_update_entities_to_type_devices(
+        hass, config_entry, config_entry.data[CONF_SITE_ID]
+    )
+
+    removed: list[str] = []
+    fake_registry = SimpleNamespace(
+        entities={
+            "foreign_owner": SimpleNamespace(
+                entity_id="update.foreign_owner",
+                platform=DOMAIN,
+                domain="update",
+                device_id=None,
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_envoy_firmware",
+                config_entry_id="other-entry",
+            ),
+            "wrong_platform": SimpleNamespace(
+                entity_id="update.wrong_platform",
+                platform="other_platform",
+                domain="update",
+                device_id=None,
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_envoy_firmware",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "wrong_domain": SimpleNamespace(
+                entity_id="sensor.wrong_domain",
+                platform=DOMAIN,
+                domain="sensor",
+                device_id=None,
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_envoy_firmware",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "has_device": SimpleNamespace(
+                entity_id="update.has_device",
+                platform=DOMAIN,
+                domain="update",
+                device_id="device-1",
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_envoy_firmware",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "gateway_missing_entity_id": SimpleNamespace(
+                entity_id=None,
+                platform=DOMAIN,
+                domain="update",
+                device_id=None,
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_envoy_firmware",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "wrong_unique": SimpleNamespace(
+                entity_id="update.wrong_unique",
+                platform=DOMAIN,
+                domain="update",
+                device_id=None,
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_iqevse_firmware",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "missing_entity_id": SimpleNamespace(
+                entity_id=None,
+                platform=DOMAIN,
+                domain="update",
+                device_id=None,
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_microinverter_firmware",
+                config_entry_id=config_entry.entry_id,
+            ),
+            "micro_with_device": SimpleNamespace(
+                entity_id="update.micro_with_device",
+                platform=DOMAIN,
+                domain=None,
+                device_id="device-1",
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_microinverter_firmware",
+                config_entry_id=config_entry.entry_id,
+            ),
+        },
+        async_remove=lambda entity_id: removed.append(entity_id),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er",
+        SimpleNamespace(async_get=lambda _hass: fake_registry),
+    )
+    _migrate_orphaned_update_entities_to_type_devices(
+        hass, config_entry, config_entry.data[CONF_SITE_ID]
+    )
+    assert removed == ["update.micro_with_device"]
+
+    wrong_platform_registry = SimpleNamespace(
+        entities={
+            "wrong_platform": SimpleNamespace(
+                entity_id="update.wrong_platform",
+                platform="other_platform",
+                domain="update",
+                device_id=None,
+                unique_id=f"{DOMAIN}_site_{config_entry.data[CONF_SITE_ID]}_envoy_firmware",
+                config_entry_id=config_entry.entry_id,
+            )
+        },
+        async_remove=lambda entity_id: removed.append(entity_id),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.er",
+        SimpleNamespace(async_get=lambda _hass: wrong_platform_registry),
+    )
+    removed.clear()
+    _migrate_orphaned_update_entities_to_type_devices(
+        hass, config_entry, config_entry.data[CONF_SITE_ID]
+    )
+    assert removed == []
 
 
 @pytest.mark.asyncio
@@ -496,6 +667,7 @@ async def test_async_setup_entry_records_startup_migration_version(
     dummy_coord = _with_inventory_view(DummyCoordinator())
     migrate_gateway = MagicMock()
     migrate_cloud = MagicMock()
+    migrate_updates = MagicMock()
     monkeypatch.setattr(
         "custom_components.enphase_ev.coordinator.EnphaseCoordinator",
         lambda hass_, entry_data, config_entry=None: dummy_coord,
@@ -503,6 +675,10 @@ async def test_async_setup_entry_records_startup_migration_version(
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
         migrate_gateway,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_orphaned_update_entities_to_type_devices",
+        migrate_updates,
     )
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
@@ -513,8 +689,9 @@ async def test_async_setup_entry_records_startup_migration_version(
     assert await async_setup_entry(hass, config_entry)
 
     migrate_gateway.assert_called_once()
+    assert migrate_updates.call_count == 2
     migrate_cloud.assert_called_once()
-    assert config_entry.data["startup_migration_version"] == 3
+    assert config_entry.data["startup_migration_version"] == 5
 
 
 @pytest.mark.asyncio
@@ -2016,6 +2193,10 @@ async def test_startup_migration_removes_evse_type_device_and_inventory_entity(
     )
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        Mock(),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_orphaned_update_entities_to_type_devices",
         Mock(),
     )
     monkeypatch.setattr(
@@ -3705,6 +3886,11 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_legacy_gateway_type_devices", migrate
     )
+    migrate_updates = Mock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_orphaned_update_entities_to_type_devices",
+        migrate_updates,
+    )
     migrate_cloud = Mock()
     monkeypatch.setattr(
         "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
@@ -3715,6 +3901,7 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     assert topology_listeners, "expected setup to register a topology listener"
     assert state_listeners, "expected setup to register a state listener"
     assert migrate.call_count == 0
+    assert migrate_updates.call_count == 1
     assert migrate_cloud.call_count == 0
     assert "startup_migration_version" not in config_entry.data
     assert sync_registry_devices.call_count == 1
@@ -3724,8 +3911,9 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
 
     assert sync_registry_devices.call_count == 1
     assert migrate.call_count == 1
+    assert migrate_updates.call_count == 2
     assert migrate_cloud.call_count == 1
-    assert config_entry.data["startup_migration_version"] == 3
+    assert config_entry.data["startup_migration_version"] == 5
 
     for listener in state_listeners[:-1]:
         listener()
@@ -3734,6 +3922,7 @@ async def test_async_setup_entry_registry_sync_listener_only_resyncs_devices_on_
     dummy_coord.data[RANDOM_SERIAL]["sw_version"] = "1.2.3"
     state_listeners[-1]()
     assert sync_registry_devices.call_count == 2
+    assert migrate_updates.call_count == 3
 
 
 @pytest.mark.asyncio

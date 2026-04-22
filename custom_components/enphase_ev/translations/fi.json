@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Yhdyskäytävän laiteohjelmisto"
       },
-      "microinverter_firmware": {
-        "name": "Mikroinvertterin laiteohjelmisto"
-      },
       "charger_firmware": {
         "name": "Laiteohjelmisto"
       }

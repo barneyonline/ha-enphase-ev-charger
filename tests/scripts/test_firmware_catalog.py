@@ -158,9 +158,10 @@ def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
 
     urls = firmware_catalog_module.build_release_urls_by_locale(
         locales=["en", "fr-fr", "en-au"],
-        media_id="22469",
-        langcode="und",
         apps_url="https://enphase.com/en-au/installers/resources/documentation/apps",
+        product_type="216",
+        topic_id=217,
+        product_media_name_id=5002,
     )
     assert urls["en"].startswith(
         "https://enphase.com/en-au/installers/resources/documentation/apps?"
@@ -168,7 +169,11 @@ def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
     assert urls["fr-fr"].startswith(
         "https://enphase.com/en-au/installers/resources/documentation/apps?"
     )
-    assert "media_id=22469" in urls["en-au"]
+    assert "product_type=216" in urls["en-au"]
+    assert "f%5B0%5D=document%3A217" in urls["en-au"]
+    assert "f%5B1%5D=product_media_name%3A5002" in urls["en-au"]
+    assert "search_api_language=en-au" in urls["en-au"]
+    assert "field_alternative_language=en-au" in urls["en-au"]
 
 
 def test_catalogs_equal_ignoring_generated_at(firmware_catalog_module) -> None:
@@ -387,7 +392,9 @@ def test_helper_edge_branches(
 
     entry = firmware_catalog_module.card_to_runtime_entry(
         card=no_date,
+        product_type="216",
         topic_id=217,
+        product_media_name_id=5002,
         locales=["en"],
         apps_url="https://enphase.com/installers/resources/documentation/apps",
     )
@@ -530,14 +537,14 @@ def test_build_catalog_success_and_error_paths(
             countries_text="All countries except Ireland",
         ),
     ]
-    micro_cards = [
+    charger_cards = [
         firmware_catalog_module.ReleaseCard(
-            title="IQ8 Series Microinverters firmware version release notes (2.48.01)",
-            version="2.48.01",
-            release_date="2025-11-20",
-            media_id="33001",
-            langcode="en",
-            summary="Micro release",
+            title="IQ EV Charger software release notes (25.37.1.14)",
+            version="25.37.1.14",
+            release_date="2025-11-22",
+            media_id="33002",
+            langcode="und",
+            summary="Charger release",
             countries_text=None,
         )
     ]
@@ -545,8 +552,8 @@ def test_build_catalog_success_and_error_paths(
     def _fake_crawl_release_cards(**kwargs):
         if kwargs["product_media_name_id"] == 5002:
             return gateway_cards, ["https://example.com/p0", "https://example.com/p1"]
-        if kwargs["product_media_name_id"] == 7738 and kwargs["search_locale"] == "en":
-            return micro_cards, ["https://example.com/p0"]
+        if kwargs["product_media_name_id"] == 6001:
+            return charger_cards, ["https://example.com/p0"]
         return [], ["https://example.com/p0"]
 
     monkeypatch.setattr(
@@ -578,13 +585,32 @@ def test_build_catalog_success_and_error_paths(
         ],
     )
     monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
+    original_parse_facet_values = firmware_catalog_module.parse_facet_values
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda html, alias: (
+            {
+                **original_parse_facet_values(html, alias),
+                "IQ EV Charger software": 6001,
+            }
+            if alias == "product_media_name"
+            else original_parse_facet_values(html, alias)
+        ),
+    )
     monkeypatch.setattr(
         firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
     )
-    call_log: list[tuple[int, str]] = []
+    call_log: list[tuple[int, str, str]] = []
 
     def _logged_crawl_release_cards(**kwargs):
-        call_log.append((kwargs["product_media_name_id"], kwargs["search_locale"]))
+        call_log.append(
+            (
+                kwargs["product_media_name_id"],
+                kwargs["search_locale"],
+                kwargs["apps_url"],
+            )
+        )
         return _fake_crawl_release_cards(**kwargs)
 
     monkeypatch.setattr(
@@ -608,7 +634,7 @@ def test_build_catalog_success_and_error_paths(
                         "pages": ["https://example.com/p0", "https://example.com/p1"],
                         "count": 2,
                     },
-                    "microinverter": {"pages": ["https://example.com/p0"], "count": 0},
+                    "iqevse": {"pages": ["https://example.com/p0"], "count": 1},
                 },
             },
             "devices": {
@@ -618,8 +644,8 @@ def test_build_catalog_success_and_error_paths(
                     "latest_by_country": {},
                     "latest_global": None,
                 },
-                "microinverter": {
-                    "product_media_name_id": 7738,
+                "iqevse": {
+                    "product_media_name_id": 6001,
                     "document_topic_id": 217,
                     "latest_by_country": {},
                     "latest_global": None,
@@ -634,6 +660,7 @@ def test_build_catalog_success_and_error_paths(
     runtime_payload = json.loads(runtime_path.read_text(encoding="utf-8"))
     assert runtime_payload["schema_version"] == 1
     assert runtime_payload["devices"]["envoy"]["product_media_name_id"] == 5002
+    assert runtime_payload["devices"]["iqevse"]["product_media_name_id"] == 6001
     assert (
         runtime_payload["devices"]["envoy"]["latest_by_country"]["PR"]["version"]
         == "8.2.4401"
@@ -643,18 +670,23 @@ def test_build_catalog_success_and_error_paths(
         == "8.2.4401"
     )
     assert (
-        runtime_payload["devices"]["microinverter"]["latest_by_country"]["AU"][
-            "version"
-        ]
-        == "2.48.01"
+        runtime_payload["devices"]["iqevse"]["latest_by_country"]["AU"]["version"]
+        == "25.37.1.14"
     )
     envoy_crawl = runtime_payload["source"]["crawl"]["envoy"]
-    micro_crawl = runtime_payload["source"]["crawl"]["microinverter"]
-    assert (5002, "en-au") in call_log
-    assert (7738, "en-au") in call_log
+    charger_crawl = runtime_payload["source"]["crawl"]["iqevse"]
+    assert (
+        5002,
+        "en-au",
+        "https://enphase.com/en-au/installers/resources/documentation/communication",
+    ) in call_log
+    assert (
+        6001,
+        "en-au",
+        "https://enphase.com/en-au/installers/resources/documentation/apps",
+    ) in call_log
     assert envoy_crawl["used_global_product_media_id_targets"] == []
-    assert "https://enphase.com/en-au/|en-au" in micro_crawl["empty_release_targets"]
-    assert "https://enphase.com/|es-pr" in micro_crawl["empty_release_targets"]
+    assert charger_crawl["used_global_product_media_id_targets"] == []
     assert (tmp_path / "sources" / "enphase_doc_center" / "entrypoints.json").exists()
     assert (tmp_path / "data" / "PR" / "catalog.json").exists()
     assert (
@@ -667,7 +699,11 @@ def test_build_catalog_success_and_error_paths(
         lambda _apps_html, alias: (
             {}
             if alias == "document"
-            else {"IQ Gateway software": 5002, "IQ Microinverter software": 7738}
+            else {
+                "IQ Gateway software": 5002,
+                "IQ EV Charger software": 6001,
+                "IQ Microinverter software": 7738,
+            }
         ),
     )
     with pytest.raises(RuntimeError, match="release-notes topic id"):
@@ -677,12 +713,10 @@ def test_build_catalog_success_and_error_paths(
         firmware_catalog_module,
         "parse_facet_values",
         lambda _apps_html, alias: (
-            {"Release notes": 217}
-            if alias == "document"
-            else {"IQ Gateway software": 5002}
+            {"Release notes": 217} if alias == "document" else {}
         ),
     )
-    with pytest.raises(RuntimeError, match="IQ Microinverter software"):
+    with pytest.raises(RuntimeError, match="IQ Gateway software"):
         firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
 
 
@@ -719,6 +753,53 @@ def test_country_entry_prefers_non_global_over_global_fallback(
     )
 
 
+def test_bootstrap_target_discovers_apps_entrypoint_for_apps_docs(
+    firmware_catalog_module,
+    monkeypatch,
+) -> None:
+    target = {
+        "site_url": "https://enphase.com/en-au/",
+        "query_locale": "en-au",
+        "key": "https://enphase.com/en-au/|en-au",
+    }
+
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_text",
+        lambda url, timeout=30: "ROOT" if url.endswith("/documentation") else "APPS",
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "discover_apps_entrypoint",
+        lambda html: ("/installers/resources/documentation/apps", "216"),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_product_type_from_apps_page",
+        lambda html: "216",
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda html, alias: (
+            {"Release notes": 217}
+            if alias == "document"
+            else {"IQ Gateway software": 5002, "IQ EV Charger software": 6001}
+        ),
+    )
+
+    bootstrap = firmware_catalog_module._bootstrap_target(
+        target,
+        timeout=5,
+        docs_path=firmware_catalog_module.TARGET_CATEGORY_PATH,
+    )
+
+    assert bootstrap["docs_path"] == "/installers/resources/documentation/apps"
+    assert bootstrap["apps_bootstrap_url"].endswith("product_type=216")
+    assert bootstrap["product_ids"]["envoy"] == 5002
+    assert bootstrap["product_ids"]["iqevse"] == 6001
+
+
 def test_locale_fallback_uses_best_country_entry_not_global(
     firmware_catalog_module,
     fixture_dir: Path,
@@ -751,15 +832,6 @@ def test_locale_fallback_uses_best_country_entry_not_global(
         summary="Belgium envoy release",
         countries_text=None,
     )
-    global_micro = firmware_catalog_module.ReleaseCard(
-        title="IQ8 Series Microinverters firmware version release notes (2.48.01)",
-        version="2.48.01",
-        release_date="2025-11-20",
-        media_id="global-micro",
-        langcode="und",
-        summary="Global micro release",
-        countries_text=None,
-    )
 
     def _fake_crawl_release_cards(**kwargs):
         product_media_name_id = kwargs["product_media_name_id"]
@@ -768,8 +840,6 @@ def test_locale_fallback_uses_best_country_entry_not_global(
             return [global_envoy], ["https://example.test/envoy/global"]
         if product_media_name_id == 5002 and search_locale == "nl-be":
             return [be_regional_envoy], ["https://example.test/envoy/nl-be"]
-        if product_media_name_id == 7738 and search_locale == "en":
-            return [global_micro], ["https://example.test/micro/global"]
         return [], [
             f"https://example.test/empty/{product_media_name_id}/{search_locale}"
         ]
@@ -815,6 +885,19 @@ def test_locale_fallback_uses_best_country_entry_not_global(
         ],
     )
     monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
+    original_parse_facet_values = firmware_catalog_module.parse_facet_values
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda html, alias: (
+            {
+                **original_parse_facet_values(html, alias),
+                "IQ EV Charger software": 6001,
+            }
+            if alias == "product_media_name"
+            else original_parse_facet_values(html, alias)
+        ),
+    )
     monkeypatch.setattr(
         firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
     )
@@ -1041,9 +1124,12 @@ def test_build_catalog_edge_error_and_degradation_paths(
             {"Release notes": 217}
             if alias == "document"
             else (
-                {"IQ Gateway software": 5002, "IQ Microinverter software": 7738}
+                {
+                    "IQ Gateway software": 5002,
+                    "IQ EV Charger software": 6001,
+                }
                 if html == "GLOBAL"
-                else {"IQ Gateway software": 5002}
+                else {}
             )
         ),
     )
@@ -1078,18 +1164,15 @@ def test_build_catalog_edge_error_and_degradation_paths(
     )
     assert runtime["devices"]["envoy"]["latest_global"] is None
     assert runtime["devices"]["envoy"]["latest_by_country"] == {}
-    micro_meta = runtime["source"]["crawl"]["microinverter"]
     envoy_meta = runtime["source"]["crawl"]["envoy"]
-    assert micro_meta["missing_product_media_id_targets"] == []
-    assert micro_meta["used_global_product_media_id_targets"] == []
     assert envoy_meta["bootstrap_error_targets"] == ["https://regional.example/|en-au"]
-    assert micro_meta["crawl_error_targets"] == ["https://regional.example/|en-au"]
+    assert envoy_meta["crawl_error_targets"] == ["https://regional.example/|en-au"]
     assert (
         envoy_meta["targets"]["https://regional.example/|en-au"]["bootstrap_error"]
         == "HTTP Error 404: Not Found"
     )
     assert (
-        micro_meta["targets"]["https://regional.example/|en-au"]["crawl_error"]
+        envoy_meta["targets"]["https://regional.example/|en-au"]["crawl_error"]
         == "HTTP Error 404: Not Found"
     )
 
@@ -1164,9 +1247,12 @@ def test_build_catalog_tracks_missing_regional_product_ids(
             {"Release notes": 217}
             if alias == "document"
             else (
-                {"IQ Gateway software": 5002, "IQ Microinverter software": 7738}
+                {
+                    "IQ Gateway software": 5002,
+                    "IQ EV Charger software": 6001,
+                }
                 if html == "GLOBAL"
-                else {"IQ Gateway software": 5002}
+                else {}
             )
         ),
     )
@@ -1193,11 +1279,11 @@ def test_build_catalog_tracks_missing_regional_product_ids(
             encoding="utf-8"
         )
     )
-    micro_meta = runtime["source"]["crawl"]["microinverter"]
-    assert micro_meta["missing_product_media_id_targets"] == [
+    envoy_meta = runtime["source"]["crawl"]["envoy"]
+    assert envoy_meta["missing_product_media_id_targets"] == [
         "https://regional.example/|en-au"
     ]
-    assert micro_meta["used_global_product_media_id_targets"] == [
+    assert envoy_meta["used_global_product_media_id_targets"] == [
         "https://regional.example/|en-au"
     ]
 

@@ -23,7 +23,6 @@ from custom_components.enphase_ev.update import (
     _charger_update_unique_id,
     _evse_firmware_rollout_enabled,
     _gateway_installed_version,
-    _microinverter_installed_version,
     _text,
     _type_available,
     async_setup_entry,
@@ -76,7 +75,6 @@ class DummyCoordinator:
         self.battery_country_code = "AU"
         self.battery_locale = "fr-fr"
         self._gateway_version = "8.2.4300"
-        self._micro_version = "v04.30.31"
         self._iqevse_version = "25.37.1.13"
         self._listeners = []
         self._available_types = {"envoy", "microinverter", "iqevse"}
@@ -115,20 +113,12 @@ class DummyCoordinator:
     def type_device_sw_version(self, type_key: str) -> str | None:
         if type_key == "envoy":
             return self._gateway_version
-        if type_key == "microinverter":
-            return self._micro_version
         if type_key == "iqevse":
             return self._iqevse_version
         return None
 
     def type_bucket(self, type_key: str):
-        if type_key != "microinverter":
-            return None
-        return {
-            "firmware_summary": self._micro_version,
-            "count": 1,
-            "devices": [{}],
-        }
+        return None
 
     def type_device_info(self, type_key: str):
         return {
@@ -174,30 +164,6 @@ def _catalog_payload() -> dict:
                     "version": "8.2.4400",
                     "summary": "Gateway global",
                     "urls_by_locale": {"en": "https://example.test/envoy/global"},
-                },
-            },
-            "microinverter": {
-                "latest_by_locale": {
-                    "fr-fr": {
-                        "version": "04.30.32",
-                        "summary": "Micro firmware update",
-                        "urls_by_locale": {"fr-fr": "https://example.test/micro/fr"},
-                    }
-                },
-                "latest_by_country": {
-                    "AU": {
-                        "version": "04.30.32",
-                        "summary": "Micro firmware update",
-                        "urls_by_locale": {
-                            "en": "https://example.test/micro/en",
-                            "fr-fr": "https://example.test/micro/fr",
-                        },
-                    }
-                },
-                "latest_global": {
-                    "version": "04.30.30",
-                    "summary": "Micro global",
-                    "urls_by_locale": {"en": "https://example.test/micro/global"},
                 },
             },
             "iqevse": {
@@ -268,10 +234,9 @@ async def test_async_setup_entry_adds_firmware_update_entities(
 
     await async_setup_entry(hass, config_entry, _capture)
 
-    assert len(added) == 3
+    assert len(added) == 2
     unique_ids = {entity.unique_id for entity in added}
     assert f"enphase_ev_site_{coord.site_id}_envoy_firmware" in unique_ids
-    assert f"enphase_ev_site_{coord.site_id}_microinverter_firmware" in unique_ids
     assert f"enphase_ev_{TEST_EVSE_SERIAL}_charger_firmware" in unique_ids
 
 
@@ -417,6 +382,10 @@ async def test_gateway_update_entity_states_and_release_url_selection(hass) -> N
     coord._gateway_version = "8.2.4401"
     entity._refresh_from_catalog(manager.cached_catalog)
     assert entity.state == "off"
+    assert entity.latest_version == "8.2.4401"
+    assert entity.release_url == "https://example.test/envoy/fr"
+    assert entity.release_summary == "Gateway firmware update"
+    assert entity.state_attributes["release_url"] == "https://example.test/envoy/fr"
     assert entity.state_attributes["skipped_version"] is None
 
     coord._gateway_version = "8.2.4300"
@@ -437,33 +406,29 @@ async def test_gateway_update_entity_states_and_release_url_selection(hass) -> N
     assert entity.available is False
 
 
-@pytest.mark.asyncio
-async def test_microinverter_update_entity_uses_normalized_versions(hass) -> None:
+def test_firmware_update_entities_fall_back_to_type_device_identifiers() -> None:
     coord = DummyCoordinator()
+    coord.inventory_view = SimpleNamespace(
+        has_type_for_entities=coord.has_type_for_entities,
+        has_type=coord.has_type,
+        type_bucket=coord.type_bucket,
+        type_device_info=lambda _type: None,
+        type_device_sw_version=coord.type_device_sw_version,
+    )
     manager = DummyCatalogManager(_catalog_payload())
 
-    entity = FirmwareUpdateEntity(
+    gateway = FirmwareUpdateEntity(
         coordinator=coord,
         manager=manager,
-        device_type="microinverter",
-        translation_key="microinverter_firmware",
-        description=UpdateEntityDescription(key="microinverter_firmware"),
-        installed_version_getter=_microinverter_installed_version,
+        device_type="envoy",
+        translation_key="gateway_firmware",
+        description=UpdateEntityDescription(key="gateway_firmware"),
+        installed_version_getter=_gateway_installed_version,
     )
-    entity.hass = hass
-
-    entity._refresh_from_catalog(manager.cached_catalog)
-    assert entity.installed_version == "04.30.31"
-    assert entity.latest_version == "04.30.32"
-    assert entity.state == "on"
-    assert entity.supported_features == 0
-    assert entity.release_url == "https://example.test/micro/fr"
-
-    attrs = entity.extra_state_attributes
-    assert attrs["country_used"] == "AU"
-    assert attrs["locale_used"] == "fr-fr"
-    assert attrs["catalog_source_scope"] == "locale"
-    assert attrs["catalog_generated_at"] == "2026-03-01T00:00:00Z"
+    assert gateway.device_info == {
+        "identifiers": {(DOMAIN, f"type:{coord.site_id}:envoy")},
+        "manufacturer": "Enphase",
+    }
 
 
 @pytest.mark.asyncio
@@ -514,6 +479,10 @@ async def test_charger_update_entity_uses_fw_details_payload(hass) -> None:
     manager.cached_details[TEST_EVSE_SERIAL]["currentFwVersion"] = "25.37.1.14"
     entity._refresh_from_details(manager.cached_details)
     assert entity.state == "off"
+    assert entity.latest_version == "25.37.1.14"
+    assert entity.release_url == "https://example.test/charger/fr"
+    assert entity.release_summary == "Charger firmware update"
+    assert entity.state_attributes["release_url"] == "https://example.test/charger/fr"
     assert entity.state_attributes["skipped_version"] is None
 
     manager.cached_details[TEST_EVSE_SERIAL]["currentFwVersion"] = "25.37.1.13"
@@ -818,20 +787,8 @@ def test_helper_functions_cover_edge_paths() -> None:
         data={"SN1": {"firmware_version": "1.2.3"}},
         inventory_view=SimpleNamespace(
             type_device_sw_version=lambda _type: None,
-            type_bucket=lambda _type: {"firmware_summary": "v1.2.3"},
+            type_bucket=lambda _type: None,
         ),
-    )
-    assert _microinverter_installed_version(coord) == "v1.2.3"
-    assert (
-        _microinverter_installed_version(
-            SimpleNamespace(
-                inventory_view=SimpleNamespace(
-                    type_device_sw_version=lambda _type: None,
-                    type_bucket=lambda _type: None,
-                )
-            )
-        )
-        is None
     )
     assert _charger_serials(SimpleNamespace()) == []
     assert _charger_installed_version(coord, "SN1") == "1.2.3"
@@ -885,7 +842,7 @@ def test_helper_functions_cover_edge_paths() -> None:
     assert _as_bool(_BadStr()) is None
 
 
-def test_device_info_none_when_coordinator_does_not_supply_info() -> None:
+def test_device_info_falls_back_when_coordinator_does_not_supply_info() -> None:
     coord = DummyCoordinator()
     coord.inventory_view.type_device_info = lambda _type: None
     entity = FirmwareUpdateEntity(
@@ -896,7 +853,20 @@ def test_device_info_none_when_coordinator_does_not_supply_info() -> None:
         description=UpdateEntityDescription(key="gateway_firmware"),
         installed_version_getter=_gateway_installed_version,
     )
-    assert entity.device_info is None
+    assert entity.device_info == {
+        "identifiers": {(DOMAIN, f"type:{coord.site_id}:envoy")},
+        "manufacturer": "Enphase",
+    }
+
+    other = FirmwareUpdateEntity(
+        coordinator=coord,
+        manager=DummyCatalogManager(_catalog_payload()),
+        device_type="other",
+        translation_key="gateway_firmware",
+        description=UpdateEntityDescription(key="gateway_firmware"),
+        installed_version_getter=_gateway_installed_version,
+    )
+    assert other.device_info is None
 
 
 def test_prune_removed_charger_updates_covers_registry_filters() -> None:

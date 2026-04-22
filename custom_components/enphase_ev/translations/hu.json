@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Átjáró firmware"
       },
-      "microinverter_firmware": {
-        "name": "Mikroinverter firmware"
-      },
       "charger_firmware": {
         "name": "Firmware-verzió"
       }

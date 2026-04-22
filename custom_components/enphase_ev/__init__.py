@@ -83,7 +83,7 @@ _LEGACY_CLOUD_ENTITY_SUFFIX_ALIASES_BY_DOMAIN: dict[str, tuple[str, ...]] = {
         "cloud_last_error_code",
     ),
 }
-_STARTUP_MIGRATION_VERSION = 3
+_STARTUP_MIGRATION_VERSION = 5
 _STARTUP_MIGRATION_VERSION_KEY = "startup_migration_version"
 
 _TYPE_DEVICE_KEYS_WITH_DIRECT_CHILD_DEVICES: tuple[str, ...] = ("iqevse",)
@@ -928,6 +928,64 @@ def _migrate_legacy_gateway_type_devices(
         )
 
 
+def _migrate_orphaned_update_entities_to_type_devices(
+    hass: HomeAssistant, entry: EnphaseConfigEntry, site_id: object
+) -> None:
+    if er is None:
+        return
+    try:
+        site_id_text = str(site_id).strip()
+    except Exception:  # noqa: BLE001
+        site_id_text = ""
+    if not site_id_text:
+        return
+
+    try:
+        ent_reg = er.async_get(hass)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug(
+            "Skipping orphaned update-entity migration for site %s: %s",
+            redact_site_id(site_id_text),
+            redact_text(err, site_ids=(site_id_text,)),
+        )
+        return
+
+    entry_id = getattr(entry, "entry_id", None)
+    gateway_unique_id = f"{DOMAIN}_site_{site_id_text}_envoy_firmware"
+    microinverter_unique_id = f"{DOMAIN}_site_{site_id_text}_microinverter_firmware"
+    removed_gateway_orphans = 0
+    removed_microinverter_updates = 0
+
+    for reg_entry in iter_entity_registry_entries(ent_reg):
+        if not is_owned_entity(reg_entry, entry_id, "update"):
+            continue
+        unique_id = getattr(reg_entry, "unique_id", None)
+        if unique_id == gateway_unique_id:
+            if getattr(reg_entry, "device_id", None) is not None:
+                continue
+            entity_id = getattr(reg_entry, "entity_id", None)
+            if not entity_id:
+                continue
+            ent_reg.async_remove(entity_id)
+            removed_gateway_orphans += 1
+            continue
+        if unique_id != microinverter_unique_id:
+            continue
+        entity_id = getattr(reg_entry, "entity_id", None)
+        if not entity_id:
+            continue
+        ent_reg.async_remove(entity_id)
+        removed_microinverter_updates += 1
+
+    if removed_gateway_orphans or removed_microinverter_updates:
+        _LOGGER.debug(
+            "Removed %s orphaned gateway firmware entities and %s deprecated microinverter firmware entities for site %s",
+            removed_gateway_orphans,
+            removed_microinverter_updates,
+            redact_site_id(site_id_text),
+        )
+
+
 def _remove_evse_type_device_and_entities(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -1027,6 +1085,7 @@ def _complete_startup_migrations_if_ready(
         return
     _migrate_cloud_entity_unique_ids(hass, entry, site_id)
     _migrate_legacy_gateway_type_devices(hass, entry, coord, dev_reg, site_id)
+    _migrate_orphaned_update_entities_to_type_devices(hass, entry, site_id)
     _remove_evse_type_device_and_entities(hass, entry, dev_reg, site_id)
     _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
     runtime_data = getattr(entry, "runtime_data", None)
@@ -1090,6 +1149,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     dev_reg = dr.async_get(hass)
     _sync_registry_devices(entry, coord, dev_reg, site_id)
     _remove_evse_type_device_and_entities(hass, entry, dev_reg, site_id)
+    _migrate_orphaned_update_entities_to_type_devices(hass, entry, site_id)
     _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
     last_registry_signature = _registry_metadata_signature(coord)
 
@@ -1101,6 +1161,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
             if current_signature != last_registry_signature:
                 _sync_registry_devices(entry, coord, dev_reg, site_id)
                 _remove_evse_type_device_and_entities(hass, entry, dev_reg, site_id)
+                _migrate_orphaned_update_entities_to_type_devices(hass, entry, site_id)
                 last_registry_signature = current_signature
             _complete_startup_migrations_if_ready(hass, entry, coord, dev_reg, site_id)
         except Exception as err:  # noqa: BLE001

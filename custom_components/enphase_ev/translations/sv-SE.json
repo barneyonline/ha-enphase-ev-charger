@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Gateway-fastvara"
       },
-      "microinverter_firmware": {
-        "name": "Mikroväxelriktarens fastvara"
-      },
       "charger_firmware": {
         "name": "Inbyggd programvara"
       }

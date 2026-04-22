@@ -388,6 +388,12 @@ class InventoryView:
                 return member
         return None
 
+    def _envoy_preferred_member(self) -> dict[str, object] | None:
+        gateway = self._envoy_primary_gateway_member()
+        if gateway is not None:
+            return gateway
+        return self._envoy_system_controller_member()
+
     def _heatpump_primary_member(self) -> dict[str, object] | None:
         return self.heatpump_runtime._heatpump_primary_member()
 
@@ -411,9 +417,7 @@ class InventoryView:
         if not normalized:
             return None
         if normalized == "envoy":
-            member = self._envoy_system_controller_member()
-            if member is None:
-                member = self._envoy_primary_gateway_member()
+            member = self._envoy_preferred_member()
             controller_name = self._type_member_text(
                 member,
                 "name",
@@ -476,10 +480,8 @@ class InventoryView:
             return None
         if normalized == "envoy":
             serial_keys = ("serial_number", "serial", "serialNumber", "device_sn")
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
-            return self._type_member_text(controller, *serial_keys)
+            member = self._envoy_preferred_member()
+            return self._type_member_text(member, *serial_keys)
         if normalized == "heatpump":
             primary = self._heatpump_primary_member()
             serial = self._type_member_text(
@@ -525,10 +527,8 @@ class InventoryView:
             "part_number",
         )
         if normalized == "envoy":
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
-            model_id = self._type_member_text(controller, *model_id_keys)
+            member = self._envoy_preferred_member()
+            model_id = self._type_member_text(member, *model_id_keys)
         elif normalized == "heatpump":
             primary = self._heatpump_primary_member()
             model_id = self._type_member_text(
@@ -574,10 +574,16 @@ class InventoryView:
             "application_version",
         )
         if normalized == "envoy":
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
-            return self._type_member_text(controller, *sw_keys)
+            member = self._envoy_preferred_member()
+            sw_version = self._type_member_text(member, *sw_keys)
+            if sw_version:
+                return sw_version
+            other_member = (
+                self._envoy_system_controller_member()
+                if member is self._envoy_primary_gateway_member()
+                else self._envoy_primary_gateway_member()
+            )
+            return self._type_member_text(other_member, *sw_keys)
         if normalized == "heatpump":
             primary = self._heatpump_primary_member()
             sw_version = self._type_member_text(primary, *sw_keys)
@@ -612,11 +618,9 @@ class InventoryView:
         if not normalized:
             return None
         if normalized == "envoy":
-            controller = self._envoy_system_controller_member()
-            if controller is None:
-                controller = self._envoy_primary_gateway_member()
+            member = self._envoy_preferred_member()
             return self._type_member_text(
-                controller,
+                member,
                 "hw_version",
                 "hardware_version",
                 "hardwareVersion",
