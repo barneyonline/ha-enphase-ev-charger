@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Fixed IQ Battery schedule create, save, and delete flows so CFG/DTG/RBD changes now send the follow-up `batterySettings` apply write Enphase requires before the schedule family leaves the cloud-side `pending` state.
 
 ### 🔧 Improvements
 - None

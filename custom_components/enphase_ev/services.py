@@ -325,6 +325,60 @@ def async_setup_services(
             for schedule in battery_schedule_inventory(coord)
         }
 
+    def _remaining_schedule_for_delete_family(
+        coord: EnphaseCoordinator,
+        schedule_type: str,
+        deleted_schedule_ids: set[str],
+    ) -> object | None:
+        normalized_schedule_type = str(schedule_type).lower()
+        selected_schedule_id = getattr(
+            coord, f"_battery_{normalized_schedule_type}_schedule_id", None
+        )
+        remaining = [
+            schedule
+            for schedule in battery_schedule_inventory(coord)
+            if schedule.schedule_type == normalized_schedule_type
+            and schedule.schedule_id not in deleted_schedule_ids
+        ]
+        if not remaining:
+            return None
+        if selected_schedule_id is not None:
+            for schedule in remaining:
+                if schedule.schedule_id == selected_schedule_id:
+                    return schedule
+        for schedule in remaining:
+            if schedule.enabled is True:
+                return schedule
+        return remaining[0]
+
+    def _apply_schedule_for_update(
+        coord: EnphaseCoordinator,
+        *,
+        schedule_inventory: dict[str, object],
+        schedule_id: str,
+        schedule_type: str,
+        start_time: str,
+        end_time: str,
+        enabled: bool | None,
+    ) -> tuple[str, str, bool | None]:
+        normalized_schedule_type = str(schedule_type).lower()
+        selected_schedule_id = getattr(
+            coord, f"_battery_{normalized_schedule_type}_schedule_id", None
+        )
+        if selected_schedule_id is None or selected_schedule_id == schedule_id:
+            return start_time, end_time, enabled
+        selected_schedule = schedule_inventory.get(str(selected_schedule_id))
+        if (
+            selected_schedule is not None
+            and selected_schedule.schedule_type == normalized_schedule_type
+        ):
+            return (
+                selected_schedule.start_time,
+                selected_schedule.end_time,
+                selected_schedule.enabled,
+            )
+        return start_time, end_time, enabled
+
     def _validate_schedule_overlap(
         coord: EnphaseCoordinator,
         *,
@@ -578,7 +632,7 @@ def async_setup_services(
                 message="Battery schedule API is unavailable.",
             )
         try:
-            await creator(
+            await coord.battery_runtime.async_create_battery_schedule(
                 schedule_type=str(schedule_type).upper(),
                 start_time=start_str,
                 end_time=end_str,
@@ -652,8 +706,19 @@ def async_setup_services(
                 "battery_schedule_api_unavailable",
                 message="Battery schedule API is unavailable.",
             )
+        apply_start_str, apply_end_str, apply_enabled = _apply_schedule_for_update(
+            coord,
+            schedule_inventory=schedule_inventory,
+            schedule_id=schedule_id,
+            schedule_type=schedule_type,
+            start_time=start_str,
+            end_time=end_str,
+            enabled=(
+                existing_schedule.enabled if existing_schedule is not None else None
+            ),
+        )
         try:
-            await updater(
+            await coord.battery_runtime.async_update_battery_schedule(
                 schedule_id,
                 schedule_type=str(schedule_type).upper(),
                 start_time=start_str,
@@ -669,6 +734,13 @@ def async_setup_services(
                     or hass.config.time_zone
                     or "UTC"
                 ),
+                apply_settings=False,
+            )
+            await coord.battery_runtime.async_apply_schedule_family_settings(
+                schedule_type,
+                start_time=apply_start_str,
+                end_time=apply_end_str,
+                enabled=apply_enabled,
             )
         except aiohttp.ClientResponseError as err:
             coord.battery_runtime.raise_schedule_update_validation_error(err)
@@ -731,6 +803,7 @@ def async_setup_services(
             )
         schedule_inventory = _schedule_inventory_by_id(coord)
         requested_schedule_type = call.data.get("schedule_type")
+        deleted_schedule_ids_by_family: dict[str, set[str]] = {}
         for schedule_id in schedule_ids:
             schedule = schedule_inventory.get(schedule_id)
             schedule_type = (
@@ -743,13 +816,35 @@ def async_setup_services(
                 )
             )
             try:
-                await deleter(
-                    schedule_id,
-                    schedule_type=schedule_type,
-                )
+                await deleter(schedule_id, schedule_type=schedule_type)
             except aiohttp.ClientResponseError as err:
                 coord.battery_runtime.raise_schedule_update_validation_error(err)
                 raise
+            deleted_schedule_ids_by_family.setdefault(
+                str(schedule_type).lower(), set()
+            ).add(schedule_id)
+        for schedule_type, deleted_ids in deleted_schedule_ids_by_family.items():
+            remaining_schedule = _remaining_schedule_for_delete_family(
+                coord, schedule_type, deleted_ids
+            )
+            await coord.battery_runtime.async_apply_schedule_family_settings(
+                schedule_type,
+                start_time=(
+                    remaining_schedule.start_time
+                    if remaining_schedule is not None
+                    else None
+                ),
+                end_time=(
+                    remaining_schedule.end_time
+                    if remaining_schedule is not None
+                    else None
+                ),
+                enabled=(
+                    remaining_schedule.enabled
+                    if remaining_schedule is not None
+                    else False
+                ),
+            )
         await coord.async_request_refresh()
 
     async def _svc_validate_schedule(call: ServiceCall) -> dict[str, object]:
