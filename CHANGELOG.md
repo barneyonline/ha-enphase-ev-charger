@@ -11,17 +11,31 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Hardened the firmware catalog build workflow so dead regional release-notes routes degrade to global metadata instead of aborting the catalog publish job on a single `404` response.
-- Refreshed the firmware catalog’s authoritative region routing to cover current public Chile and Jamaica sites and to use Swiss locale-specific documentation URLs for German and Italian.
-- Removed advisory IQ Microinverter firmware update entities and catalog crawling now that Enphase does not expose a reliable public microinverter firmware release source comparable to gateway and EV charger firmware.
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.9.0 - 2026-04-23
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added advisory firmware update entities for IQ Gateway and IQ EV Chargers, including region-specific release-note links and charger rollout gating from Enphase feature flags.
+
+### 🐛 Bug fixes
 - Fixed IQ Battery schedule create, save, and delete flows so CFG/DTG/RBD changes now send the follow-up `batterySettings` apply write Enphase requires before the schedule family leaves the cloud-side `pending` state.
 - Enabled the "Store password for automatic reauthentication" checkbox by default when the Enphase sign-in form opens during initial setup, reconfigure, and reauthentication flows.
 
 ### 🔧 Improvements
-- Enabled advisory firmware update entities for IQ Gateway and IQ EV Chargers, including region-specific release-note links and charger rollout gating from Enphase feature flags.
+- None
 
 ### 🔄 Other changes
-- None
+- Bumped the integration manifest version to `2.9.0`.
 
 ## v2.8.6 - 2026-04-21
 
