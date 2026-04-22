@@ -203,6 +203,16 @@ def test_normalize_schedule_minutes_falls_back_without_coordinator_helpers(
     assert runtime._normalize_schedule_minutes("abc") is None  # noqa: SLF001
     assert runtime._normalize_schedule_minutes(1440) is None  # noqa: SLF001
     assert runtime._normalize_schedule_minutes("75") == 75  # noqa: SLF001
+    assert runtime._normalize_schedule_minutes("01:15") == 75  # noqa: SLF001
+
+
+def test_normalize_schedule_minutes_rejects_bad_hhmm_values(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory().battery_runtime
+
+    assert runtime._normalize_schedule_minutes("aa:15") is None  # noqa: SLF001
+    assert runtime._normalize_schedule_minutes("24:00") is None  # noqa: SLF001
 
 
 def test_schedule_family_helper_defaults_and_cfg_window(coordinator_factory) -> None:
@@ -343,6 +353,10 @@ async def test_rbd_schedule_time_uses_default_window_when_missing(
         schedule_supported=True,
     )
     coord.client.create_battery_schedule = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
     coord.client.battery_schedules = AsyncMock(return_value={})
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
@@ -359,7 +373,22 @@ async def test_rbd_schedule_time_uses_default_window_when_missing(
         timezone="UTC",
         is_enabled=None,
     )
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "rbdControl": {
+                "enabled": False,
+                "show": True,
+                "locked": False,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 120,
+                "endTime": 960,
+            }
+        },
+        schedule_type="rbd",
+    )
     coord.client.create_battery_schedule.reset_mock()
+    coord.client.set_battery_settings.reset_mock()
     coord = coordinator_factory()
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_user_is_owner = True  # noqa: SLF001
@@ -370,6 +399,10 @@ async def test_rbd_schedule_time_uses_default_window_when_missing(
         schedule_supported=True,
     )
     coord.client.create_battery_schedule = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
     coord.client.battery_schedules = AsyncMock(return_value={})
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
@@ -385,6 +418,20 @@ async def test_rbd_schedule_time_uses_default_window_when_missing(
         days=[1, 2, 3, 4, 5, 6, 7],
         timezone="UTC",
         is_enabled=None,
+    )
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "rbdControl": {
+                "enabled": False,
+                "show": True,
+                "locked": False,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 60,
+                "endTime": 900,
+            }
+        },
+        schedule_type="rbd",
     )
 
 
@@ -2325,6 +2372,9 @@ def _seed_cfg_schedule(coord):
     coord.client.update_battery_schedule = AsyncMock(return_value={})
     coord.client._bp_xsrf_token = "tok"  # noqa: SLF001
     coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
@@ -2358,6 +2408,10 @@ def _seed_schedule_family(coord, schedule_type: str) -> None:
         coord._battery_rbd_schedule_timezone = "Europe/London"  # noqa: SLF001
         coord._battery_rbd_schedule_enabled = True  # noqa: SLF001
     coord.client.update_battery_schedule = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
@@ -2396,6 +2450,10 @@ def _seed_no_schedule_family(coord, schedule_type: str) -> None:
         )
     coord._battery_schedules_payload = {schedule_type: {"details": []}}  # noqa: SLF001
     coord.client.create_battery_schedule = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
@@ -2476,6 +2534,12 @@ async def test_cfg_schedule_time_update_uses_in_place_put(
     # delete+create should NOT be used.
     coord.client.delete_battery_schedule.assert_not_awaited()
     coord.client.create_battery_schedule.assert_not_awaited()
+    coord.client.set_battery_settings.assert_awaited_once()
+    payload = coord.client.set_battery_settings.await_args.args[0]
+    assert payload["chargeFromGrid"] is True
+    assert payload["chargeFromGridScheduleEnabled"] is False
+    assert payload["chargeBeginTime"] == 1380
+    assert payload["chargeEndTime"] == 360
 
 
 @pytest.mark.asyncio
@@ -2841,6 +2905,7 @@ async def test_atomic_cfg_schedule_update_updates_state_on_success(
     assert coord._battery_charge_end_time == 360  # noqa: SLF001
     assert coord._battery_cfg_schedule_limit == 95  # noqa: SLF001
     assert coord._battery_settings_cache_until is None  # noqa: SLF001
+    coord.client.set_battery_settings.assert_awaited_once()
     coord.async_request_refresh.assert_awaited_once()
     coord.kick_fast.assert_called_once()
 
@@ -2920,6 +2985,19 @@ async def test_dtg_schedule_time_update_omits_enabled_flag(
     assert call.kwargs["start_time"] == "17:30"
     assert call.kwargs["end_time"] == "23:00"
     assert call.kwargs["is_enabled"] is None
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": True,
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 1050,
+                "endTime": 1380,
+            }
+        },
+        schedule_type="dtg",
+    )
     assert coord._battery_dtg_begin_time == 1050  # noqa: SLF001
 
 
@@ -2954,7 +3032,292 @@ async def test_rbd_schedule_limit_update_uses_in_place_put(
     assert call.kwargs["limit"] == 80
     assert call.kwargs["timezone"] == "Europe/London"
     assert call.kwargs["is_enabled"] is None
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "rbdControl": {
+                "enabled": True,
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 60,
+                "endTime": 960,
+            }
+        },
+        schedule_type="rbd",
+    )
     assert coord._battery_rbd_schedule_limit == 80  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_rbd_schedule_update_uses_compat_apply_after_forbidden_primary_write(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "rbd")
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    await coord.battery_runtime.async_update_battery_schedule(
+        "sched-rbd",
+        schedule_type="RBD",
+        start_time="01:15",
+        end_time="16:15",
+        limit=100,
+        days=[1, 2, 3, 4, 5, 6, 7],
+        timezone="Europe/London",
+    )
+
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "rbdControl": {
+                "enabled": True,
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 75,
+                "endTime": 975,
+            }
+        },
+        schedule_type="rbd",
+    )
+    coord.client.set_battery_settings_compat.assert_awaited_once_with(
+        {
+            "rbdControl": {
+                "enabled": True,
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 75,
+                "endTime": 975,
+            }
+        },
+        schedule_type="rbd",
+        include_source=False,
+        merged_payload=True,
+        strip_devices=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_update_uses_compat_apply_after_forbidden_primary_write(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_cfg_schedule(coord)
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    await coord.battery_runtime.async_update_battery_schedule(
+        "sched-1",
+        schedule_type="CFG",
+        start_time="23:00",
+        end_time="06:00",
+        limit=95,
+        days=[1, 2, 3, 4, 5, 6, 7],
+        timezone="Europe/Lisbon",
+    )
+
+    coord.client.set_battery_settings.assert_awaited_once()
+    payload = coord.client.set_battery_settings.await_args.args[0]
+    assert payload["chargeFromGrid"] is True
+    assert payload["chargeFromGridScheduleEnabled"] is False
+    assert payload["chargeBeginTime"] == 1380
+    assert payload["chargeEndTime"] == 360
+    coord.client.set_battery_settings_compat.assert_awaited_once_with(
+        payload,
+        schedule_type="cfg",
+        include_source=False,
+        merged_payload=True,
+        strip_devices=True,
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_schedule_family_applies_disabled_family_settings(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord.client.delete_battery_schedule = AsyncMock(return_value={})
+
+    await coord.battery_runtime.async_delete_battery_schedule(
+        "sched-dtg",
+        schedule_type="dtg",
+        enabled=False,
+    )
+
+    coord.client.delete_battery_schedule.assert_awaited_once_with(
+        "sched-dtg",
+        schedule_type="dtg",
+    )
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "dtgControl": {
+                "enabled": False,
+                "show": True,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 1080,
+                "endTime": 1380,
+            }
+        },
+        schedule_type="dtg",
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_schedule_family_translates_client_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    coord.client.delete_battery_schedule = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=403,
+            message="Forbidden",
+        )
+    )
+
+    with pytest.raises(ServiceValidationError, match="403 Forbidden"):
+        await coord.battery_runtime.async_delete_battery_schedule(
+            "sched-dtg",
+            schedule_type="dtg",
+        )
+
+
+@pytest.mark.asyncio
+async def test_delete_schedule_family_reraises_client_error_when_helper_does_not(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    _seed_schedule_family(coord, "dtg")
+    err = aiohttp.ClientResponseError(
+        request_info=None,
+        history=(),
+        status=500,
+        message="boom",
+    )
+    coord.client.delete_battery_schedule = AsyncMock(side_effect=err)
+    coord.battery_runtime.raise_schedule_update_validation_error = (
+        MagicMock()
+    )  # noqa: SLF001
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.battery_runtime.async_delete_battery_schedule(
+            "sched-dtg",
+            schedule_type="dtg",
+        )
+
+
+def test_schedule_family_settings_payload_cfg_guard_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = True  # noqa: SLF001
+    coord._battery_cfg_control = BatteryControlCapability(
+        show=True,
+        enabled=True,
+        locked=False,
+        show_day_schedule=True,
+        schedule_supported=True,
+        force_schedule_supported=True,
+    )
+    runtime = coord.battery_runtime
+
+    assert (
+        runtime._schedule_family_settings_payload(  # noqa: SLF001
+            "cfg",
+            start_minutes=None,
+            end_minutes=120,
+            enabled=False,
+        )
+        is None
+    )
+    with pytest.raises(ServiceValidationError, match="must be different"):
+        runtime._schedule_family_settings_payload(  # noqa: SLF001
+            "cfg",
+            start_minutes=120,
+            end_minutes=120,
+            enabled=False,
+        )
+
+    payload = runtime._schedule_family_settings_payload(  # noqa: SLF001
+        "cfg",
+        start_minutes=120,
+        end_minutes=180,
+        enabled=False,
+    )
+    assert payload["chargeFromGrid"] is True
+    assert payload["cfgControl"] == {
+        "show": True,
+        "enabled": True,
+        "locked": False,
+        "showDaySchedule": True,
+        "scheduleSupported": True,
+        "forceScheduleSupported": True,
+        "forceScheduleOpted": False,
+    }
+    assert (
+        runtime._schedule_family_settings_payload(  # noqa: SLF001
+            "unknown",
+            start_minutes=120,
+            end_minutes=180,
+            enabled=False,
+        )
+        is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_apply_schedule_family_settings_handles_noop_and_non_forbidden_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+
+    await runtime.async_apply_schedule_family_settings("unknown")
+    coord.client.set_battery_settings.assert_not_awaited()
+
+    runtime._schedule_family_settings_payload = MagicMock(  # noqa: SLF001
+        return_value=None
+    )
+    await runtime.async_apply_schedule_family_settings("cfg", enabled=False)
+    coord.client.set_battery_settings.assert_not_awaited()
+
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+    runtime.raise_schedule_update_validation_error = MagicMock()  # noqa: SLF001
+    coord.client.set_battery_settings = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+    with pytest.raises(aiohttp.ClientResponseError):
+        await runtime.async_apply_schedule_family_settings(
+            "cfg",
+            start_time="02:00",
+            end_time="05:00",
+            enabled=False,
+        )
+    runtime.raise_schedule_update_validation_error.assert_called_once()  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -4044,6 +4407,20 @@ async def test_rbd_schedule_time_create_omits_limit_when_unknown(
     assert call.kwargs["end_time"] == "15:00"
     assert call.kwargs["limit"] is None
     assert call.kwargs["is_enabled"] is False
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "rbdControl": {
+                "enabled": False,
+                "show": True,
+                "locked": False,
+                "showDaySchedule": True,
+                "scheduleSupported": True,
+                "startTime": 60,
+                "endTime": 900,
+            }
+        },
+        schedule_type="rbd",
+    )
 
 
 async def test_async_update_data_site_only_ignores_battery_schedule_refresh_errors(
@@ -4162,6 +4539,9 @@ def _seed_no_cfg_schedule(coord):
     coord._battery_schedules_payload = {"cfg": {"details": []}}  # noqa: SLF001
     coord.client.create_battery_schedule = AsyncMock(return_value={})
     coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
@@ -4187,8 +4567,12 @@ async def test_cfg_schedule_creates_when_none_exists(
         timezone="UTC",
         is_enabled=False,
     )
-    # Legacy set_battery_settings should NOT have been called.
-    coord.client.set_battery_settings.assert_not_awaited()
+    coord.client.set_battery_settings.assert_awaited_once()
+    payload = coord.client.set_battery_settings.await_args.args[0]
+    assert payload["chargeFromGrid"] is True
+    assert payload["chargeFromGridScheduleEnabled"] is False
+    assert payload["chargeBeginTime"] == 1320
+    assert payload["chargeEndTime"] == 480
     coord.async_request_refresh.assert_awaited_once()
 
 
