@@ -221,7 +221,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._type_keys_loaded = False
         self._inventory_unknown = False
         self._email: str | None = None
-        self._remember_password = False
+        self._remember_password = True
         self._password: str | None = None
         self._reconfigure_entry: ConfigEntry | None = None
         self._reauth_entry: ConfigEntry | None = None
@@ -974,15 +974,18 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not has_email:
             return self.async_abort(reason="manual_mode_removed")
         self._email = self._reconfigure_entry.data.get(CONF_EMAIL)
-        self._remember_password = bool(
+        stored_remember_password = bool(
             self._reconfigure_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
+        self._remember_password = True
         self._site_only = bool(self._reconfigure_entry.data.get(CONF_SITE_ONLY, False))
         self._include_inverters = bool(
             self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True)
         )
-        if self._remember_password:
+        if stored_remember_password:
             self._password = self._reconfigure_entry.data.get(CONF_PASSWORD)
+        else:
+            self._password = None
         return await self.async_step_user()
 
     async def async_step_reauth(
@@ -997,15 +1000,18 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not has_email:
             return self.async_abort(reason="manual_mode_removed")
         self._email = self._reauth_entry.data.get(CONF_EMAIL)
-        self._remember_password = bool(
+        stored_remember_password = bool(
             self._reauth_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
+        self._remember_password = True
         self._site_only = bool(self._reauth_entry.data.get(CONF_SITE_ONLY, False))
         self._include_inverters = bool(
             self._reauth_entry.data.get(CONF_INCLUDE_INVERTERS, True)
         )
-        if self._remember_password:
+        if stored_remember_password:
             self._password = self._reauth_entry.data.get(CONF_PASSWORD)
+        else:
+            self._password = None
         return await self.async_step_user()
 
     @staticmethod

@@ -642,6 +642,23 @@ async def test_site_step_prefills_selected_site(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_user_step_remember_password_defaults_enabled(hass) -> None:
+    flow = _make_flow(hass)
+
+    result = await flow.async_step_user()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_REMEMBER_PASSWORD
+    )
+    default = key.default() if callable(key.default) else key.default
+    assert default is True
+
+
+@pytest.mark.asyncio
 async def test_site_step_requires_selection(hass) -> None:
     flow = _make_flow(hass)
     flow._sites = {"1001": "Existing"}
@@ -1215,6 +1232,68 @@ async def test_finalize_login_entry_reauth_updates_entry(hass) -> None:
     assert CONF_AUTH_BLOCKED_UNTIL not in entry.data
     assert CONF_AUTH_BLOCK_REASON not in entry.data
     mock_reload.assert_awaited_once_with(entry.entry_id)
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_step_remember_password_defaults_enabled(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EMAIL: "user@example.com",
+            CONF_REMEMBER_PASSWORD: False,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    flow = _make_flow(hass)
+    flow.context = {
+        "source": config_entries.SOURCE_RECONFIGURE,
+        "entry_id": entry.entry_id,
+    }
+
+    result = await flow.async_step_reconfigure()
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_REMEMBER_PASSWORD
+    )
+    default = key.default() if callable(key.default) else key.default
+    assert default is True
+
+
+@pytest.mark.asyncio
+async def test_reauth_step_remember_password_defaults_enabled(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EMAIL: "user@example.com",
+            CONF_REMEMBER_PASSWORD: False,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    flow = _make_flow(hass)
+    flow.context = {
+        "source": config_entries.SOURCE_REAUTH,
+        "entry_id": entry.entry_id,
+    }
+
+    result = await flow.async_step_reauth({})
+
+    assert result["type"] is FlowResultType.FORM
+    schema_keys = list(result["data_schema"].schema.keys())
+    key = next(
+        item
+        for item in schema_keys
+        if isinstance(item, VolOptional) and item.schema == CONF_REMEMBER_PASSWORD
+    )
+    default = key.default() if callable(key.default) else key.default
+    assert default is True
 
 
 @pytest.mark.asyncio
