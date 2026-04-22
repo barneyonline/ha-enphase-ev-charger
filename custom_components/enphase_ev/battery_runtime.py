@@ -1317,7 +1317,21 @@ class BatteryRuntime:
         if not callable(normalize):
             normalize = getattr(self.coordinator, "_normalize_minutes_of_day", None)
         if callable(normalize):
-            return normalize(value)
+            normalized = normalize(value)
+            if normalized is not None:
+                return normalized
+        if isinstance(value, str):
+            text = value.strip()
+            if ":" in text:
+                hour_text, minute_text, *_rest = text.split(":")
+                try:
+                    hours = int(hour_text)
+                    minutes = int(minute_text)
+                except ValueError:
+                    return None
+                if 0 <= hours < 24 and 0 <= minutes < 60:
+                    return hours * 60 + minutes
+                return None
         if value is None:
             return None
         try:
@@ -1541,7 +1555,9 @@ class BatteryRuntime:
         timezone: str,
         is_enabled: bool | None = None,
         is_deleted: bool | None = None,
+        apply_settings: bool = True,
     ) -> None:
+        normalized_schedule_type = str(schedule_type).lower()
         self._raise_schedule_overlap_validation_error(
             start_time=start_time,
             end_time=end_time,
@@ -1563,6 +1579,237 @@ class BatteryRuntime:
         except aiohttp.ClientResponseError as err:
             self.raise_schedule_update_validation_error(err)
             raise
+        if (
+            apply_settings
+            and normalized_schedule_type in {"cfg", "dtg", "rbd"}
+            and not is_deleted
+        ):
+            await self.async_apply_schedule_family_settings(
+                normalized_schedule_type,
+                start_time=start_time,
+                end_time=end_time,
+                enabled=is_enabled,
+            )
+
+    async def async_create_battery_schedule(
+        self,
+        *,
+        schedule_type: str,
+        start_time: str,
+        end_time: str,
+        limit: int | None,
+        days: list[int],
+        timezone: str,
+        is_enabled: bool | None = None,
+    ) -> None:
+        normalized_schedule_type = str(schedule_type).lower()
+        self._raise_schedule_overlap_validation_error(
+            start_time=start_time,
+            end_time=end_time,
+            days=days,
+        )
+        try:
+            await self.coordinator.client.create_battery_schedule(
+                schedule_type=schedule_type,
+                start_time=start_time,
+                end_time=end_time,
+                limit=limit,
+                days=days,
+                timezone=timezone,
+                is_enabled=is_enabled,
+            )
+        except aiohttp.ClientResponseError as err:
+            self.raise_schedule_update_validation_error(err)
+            raise
+        if normalized_schedule_type in {"cfg", "dtg", "rbd"}:
+            await self.async_apply_schedule_family_settings(
+                normalized_schedule_type,
+                start_time=start_time,
+                end_time=end_time,
+                enabled=is_enabled,
+            )
+
+    async def async_delete_battery_schedule(
+        self,
+        schedule_id: str,
+        *,
+        schedule_type: str = "cfg",
+        start_time: object | None = None,
+        end_time: object | None = None,
+        enabled: bool | None = None,
+    ) -> None:
+        normalized_schedule_type = str(schedule_type).lower()
+        try:
+            await self.coordinator.client.delete_battery_schedule(
+                schedule_id,
+                schedule_type=normalized_schedule_type,
+            )
+        except aiohttp.ClientResponseError as err:
+            self.raise_schedule_update_validation_error(err)
+            raise
+        if normalized_schedule_type in {"cfg", "dtg", "rbd"}:
+            await self.async_apply_schedule_family_settings(
+                normalized_schedule_type,
+                start_time=start_time,
+                end_time=end_time,
+                enabled=enabled,
+            )
+
+    def _schedule_family_effective_enabled(
+        self, schedule_type: str, enabled: bool | None
+    ) -> bool:
+        if enabled is not None:
+            return bool(enabled)
+
+        coord = self.coordinator
+        effective = getattr(coord, "_battery_schedule_effective_enabled", None)
+        if callable(effective):
+            resolved = effective(schedule_type)
+            if resolved is not None:
+                return bool(resolved)
+
+        state = self.battery_state
+        normalized_schedule_type = str(schedule_type).lower()
+        if normalized_schedule_type == "cfg":
+            resolved = getattr(coord, "battery_charge_from_grid_schedule_enabled", None)
+            if resolved is None:
+                resolved = getattr(
+                    state, "_battery_charge_from_grid_schedule_enabled", None
+                )
+            if resolved is None:
+                resolved = getattr(
+                    coord, "battery_cfg_control_force_schedule_opted", None
+                )
+        else:
+            resolved = getattr(
+                state,
+                self._battery_schedule_enabled_attr(normalized_schedule_type),
+                None,
+            )
+            if resolved is None:
+                control = getattr(
+                    coord, f"battery_{normalized_schedule_type}_control", None
+                )
+                if isinstance(control, dict):
+                    resolved = self._coerce_optional_bool(control.get("enabled"))
+        return bool(resolved) if resolved is not None else False
+
+    def _schedule_family_settings_payload(
+        self,
+        schedule_type: str,
+        *,
+        start_minutes: int | None,
+        end_minutes: int | None,
+        enabled: bool,
+    ) -> dict[str, object] | None:
+        normalized_schedule_type = str(schedule_type).lower()
+        coord = self.coordinator
+        if normalized_schedule_type == "cfg":
+            if start_minutes is None or end_minutes is None:
+                return None
+            if start_minutes == end_minutes:
+                self._raise_validation(
+                    "charge_from_grid_schedule_times_different",
+                    message=(
+                        "Charge-from-grid schedule start and end times must be "
+                        "different."
+                    ),
+                )
+            charge_from_grid_enabled = getattr(
+                coord, "battery_charge_from_grid_enabled", None
+            )
+            if charge_from_grid_enabled is None:
+                charge_from_grid_enabled = getattr(
+                    self.battery_state, "_battery_charge_from_grid", None
+                )
+            payload: dict[str, object] = {
+                "chargeFromGrid": (True if enabled else bool(charge_from_grid_enabled)),
+                "chargeFromGridScheduleEnabled": bool(enabled),
+                "chargeBeginTime": start_minutes,
+                "chargeEndTime": end_minutes,
+                "acceptedItcDisclaimer": self.battery_itc_disclaimer_value(),
+            }
+            cfg_control = coord.battery_cfg_control
+            if isinstance(cfg_control, dict):
+                cfg_payload: dict[str, object] = {}
+                field_map = {
+                    "show": "show",
+                    "enabled": "enabled",
+                    "locked": "locked",
+                    "show_day_schedule": "showDaySchedule",
+                    "schedule_supported": "scheduleSupported",
+                    "force_schedule_supported": "forceScheduleSupported",
+                }
+                for source_key, target_key in field_map.items():
+                    value = cfg_control.get(source_key)
+                    if value is not None:
+                        cfg_payload[target_key] = value
+                cfg_payload["forceScheduleOpted"] = bool(enabled)
+                payload["cfgControl"] = cfg_payload
+            return payload
+
+        if normalized_schedule_type not in {"dtg", "rbd"}:
+            return None
+        return {
+            f"{normalized_schedule_type}Control": self._schedule_family_control_payload(
+                normalized_schedule_type,
+                enabled=enabled,
+                current_start=start_minutes,
+                current_end=end_minutes,
+            )
+        }
+
+    async def async_apply_schedule_family_settings(
+        self,
+        schedule_type: str,
+        *,
+        start_time: object | None = None,
+        end_time: object | None = None,
+        enabled: bool | None = None,
+    ) -> None:
+        normalized_schedule_type = str(schedule_type).lower()
+        if normalized_schedule_type not in {"cfg", "dtg", "rbd"}:
+            return
+
+        coord = self.coordinator
+        start_minutes = self._normalize_schedule_minutes(start_time)
+        end_minutes = self._normalize_schedule_minutes(end_time)
+        if start_minutes is None or end_minutes is None:
+            current_start, current_end = self._current_battery_schedule_window_for_type(
+                normalized_schedule_type
+            )
+            if start_minutes is None:
+                start_minutes = current_start
+            if end_minutes is None:
+                end_minutes = current_end
+
+        payload = self._schedule_family_settings_payload(
+            normalized_schedule_type,
+            start_minutes=start_minutes,
+            end_minutes=end_minutes,
+            enabled=self._schedule_family_effective_enabled(
+                normalized_schedule_type, enabled
+            ),
+        )
+        if payload is None:
+            return
+
+        try:
+            await coord.client.set_battery_settings(
+                payload,
+                schedule_type=normalized_schedule_type,
+            )
+        except aiohttp.ClientResponseError as err:
+            if err.status != HTTPStatus.FORBIDDEN:
+                self.raise_schedule_update_validation_error(err)
+                raise
+            await coord.client.set_battery_settings_compat(
+                payload,
+                schedule_type=normalized_schedule_type,
+                include_source=False,
+                merged_payload=True,
+                strip_devices=True,
+            )
 
     async def async_apply_battery_profile(
         self,
@@ -3767,7 +4014,7 @@ class BatteryRuntime:
                     end_time=end_hhmm,
                     days=days,
                 )
-                await coord.client.create_battery_schedule(
+                await self.async_create_battery_schedule(
                     schedule_type="CFG",
                     start_time=start_hhmm,
                     end_time=end_hhmm,
@@ -4233,19 +4480,15 @@ class BatteryRuntime:
             end_time=end_time,
             days=days,
         )
-        try:
-            await coord.client.create_battery_schedule(
-                schedule_type=str(schedule_type).upper(),
-                start_time=start_time,
-                end_time=end_time,
-                limit=create_limit,
-                days=days,
-                timezone=timezone,
-                is_enabled=is_enabled,
-            )
-        except aiohttp.ClientResponseError as err:
-            self.raise_schedule_update_validation_error(err)
-            raise
+        await self.async_create_battery_schedule(
+            schedule_type=str(schedule_type).upper(),
+            start_time=start_time,
+            end_time=end_time,
+            limit=create_limit,
+            days=days,
+            timezone=timezone,
+            is_enabled=is_enabled,
+        )
 
     async def _async_set_schedule_family_enabled(
         self, schedule_type: str, enabled: bool
