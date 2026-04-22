@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Fixed IQ Battery schedule create, save, and delete flows so CFG/DTG/RBD changes now send the follow-up `batterySettings` apply write Enphase requires before the schedule family leaves the cloud-side `pending` state.
+- Enabled the "Store password for automatic reauthentication" checkbox by default when the Enphase sign-in form opens during initial setup, reconfigure, and reauthentication flows.
 
 ### 🔧 Improvements
 - None
