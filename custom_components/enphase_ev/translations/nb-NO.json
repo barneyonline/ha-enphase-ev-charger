@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Gateway-fastvare"
       },
-      "microinverter_firmware": {
-        "name": "Mikroinverter-fastvare"
-      },
       "charger_firmware": {
         "name": "Fastvare"
       }

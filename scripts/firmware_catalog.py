@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import logging
 import re
 import sys
 from dataclasses import dataclass, field
@@ -20,14 +21,24 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
+_LOGGER = logging.getLogger(__name__)
+
 BASE_URL = "https://enphase.com"
 ROOT_PATH = "/installers/resources/documentation"
 TARGET_CATEGORY_LABEL = "Apps and software"
 TARGET_CATEGORY_PATH = "/installers/resources/documentation/apps"
+COMMUNICATION_CATEGORY_PATH = "/installers/resources/documentation/communication"
+DEFAULT_PRODUCT_TYPE = "216"
 
-TARGET_PRODUCTS: dict[str, str] = {
-    "envoy": "IQ Gateway software",
-    "microinverter": "IQ Microinverter software",
+TARGET_PRODUCTS: dict[str, dict[str, str]] = {
+    "envoy": {
+        "label": "IQ Gateway software",
+        "docs_path": COMMUNICATION_CATEGORY_PATH,
+    },
+    "iqevse": {
+        "label": "IQ EV Charger software",
+        "docs_path": TARGET_CATEGORY_PATH,
+    },
 }
 
 DEFAULT_TIMEOUT = 30
@@ -160,6 +171,12 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "site_url": "https://enphase.com/es-lac/",
     },
     {
+        "label": "Chile",
+        "country_code": "CL",
+        "locale": "es-lac",
+        "site_url": "https://enphase.com/es-lac/",
+    },
+    {
         "label": "Costa Rica",
         "country_code": "CR",
         "locale": "es-lac",
@@ -170,6 +187,12 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "country_code": "DO",
         "locale": "es-do",
         "site_url": "https://enphase.com/es-do/",
+    },
+    {
+        "label": "Jamaica",
+        "country_code": "JM",
+        "locale": "en-lac",
+        "site_url": "https://enphase.com/en-lac/",
     },
     {
         "label": "Mexico",
@@ -403,7 +426,7 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "label": "Switzerland - Deutsch",
         "country_code": "CH",
         "locale": "de-ch",
-        "site_url": "https://enphase.com/de-de/",
+        "site_url": "https://enphase.com/de-ch/",
     },
     {
         "label": "Switzerland - Francais",
@@ -415,7 +438,7 @@ REGION_SITE_ROUTE_ROWS: list[dict[str, str | None]] = [
         "label": "Switzerland - Italiano",
         "country_code": "CH",
         "locale": "it-ch",
-        "site_url": "https://enphase.com/it-it/",
+        "site_url": "https://enphase.com/it-ch/",
     },
     {
         "label": "Turkiye",
@@ -1211,16 +1234,23 @@ def pick_latest_release(releases: list[ReleaseCard]) -> ReleaseCard | None:
 def build_release_urls_by_locale(
     *,
     locales: list[str],
-    media_id: str,
-    langcode: str,
     apps_url: str,
+    product_type: str,
+    topic_id: int,
+    product_media_name_id: int,
 ) -> dict[str, str]:
     urls: dict[str, str] = {}
     for locale in locales:
         normalized = _normalize_locale(locale)
         urls[normalized] = _with_query(
             apps_url,
-            {"media_id": media_id, "langcode": langcode or "und"},
+            {
+                "product_type": product_type,
+                "f[0]": f"document:{topic_id}",
+                "f[1]": f"product_media_name:{product_media_name_id}",
+                "search_api_language": normalized,
+                "field_alternative_language": normalized,
+            },
         )
     return urls
 
@@ -1228,18 +1258,20 @@ def build_release_urls_by_locale(
 def card_to_runtime_entry(
     *,
     card: ReleaseCard,
+    product_type: str,
     topic_id: int,
+    product_media_name_id: int,
     locales: list[str],
     apps_url: str,
 ) -> dict[str, Any]:
     media_id = card.media_id or ""
-    langcode = card.langcode or "und"
     urls_by_locale = (
         build_release_urls_by_locale(
             locales=locales,
-            media_id=media_id,
-            langcode=langcode,
             apps_url=apps_url,
+            product_type=product_type,
+            topic_id=topic_id,
+            product_media_name_id=product_media_name_id,
         )
         if media_id
         else {}
@@ -1248,7 +1280,9 @@ def card_to_runtime_entry(
         "version": card.version,
         "release_date": card.release_date,
         "media_id": media_id or None,
+        "product_type": product_type,
         "document_topic_id": topic_id,
+        "product_media_name_id": product_media_name_id,
         "countries_text": card.countries_text,
         "urls_by_locale": urls_by_locale,
         "summary": card.summary,
@@ -1320,6 +1354,55 @@ def fetch_previous_runtime_catalog(
     return payload
 
 
+def _bootstrap_target(
+    target: dict[str, Any], *, timeout: int, docs_path: str
+) -> dict[str, Any]:
+    root_url = urljoin(str(target["site_url"]), ROOT_PATH.lstrip("/"))
+    root_html = fetch_text(root_url, timeout=timeout)
+    discovered_product_type = DEFAULT_PRODUCT_TYPE
+    if docs_path == TARGET_CATEGORY_PATH:
+        discovered_docs_path, discovered_product_type = discover_apps_entrypoint(
+            root_html
+        )
+        docs_path = discovered_docs_path
+
+    apps_url = urljoin(str(target["site_url"]), docs_path.lstrip("/"))
+    apps_bootstrap_url = (
+        _with_query(apps_url, {"product_type": discovered_product_type})
+        if docs_path == TARGET_CATEGORY_PATH
+        else apps_url
+    )
+    apps_html = fetch_text(apps_bootstrap_url, timeout=timeout)
+
+    product_type = (
+        parse_product_type_from_apps_page(apps_html) or discovered_product_type
+    )
+    product_facets = parse_facet_values(apps_html, "product_media_name")
+    topic_facets = parse_facet_values(apps_html, "document")
+    topic_id = _resolve_release_notes_topic_id(topic_facets)
+    if topic_id is None:
+        raise RuntimeError(
+            f"Could not discover release-notes topic id from apps page: {apps_bootstrap_url}"
+        )
+
+    product_ids = {
+        device_key: product_facets.get(product_meta["label"])
+        for device_key, product_meta in TARGET_PRODUCTS.items()
+    }
+    return {
+        "root_url": root_url,
+        "docs_path": docs_path,
+        "apps_url": apps_url,
+        "apps_html": apps_html,
+        "apps_bootstrap_url": apps_bootstrap_url,
+        "product_type": product_type,
+        "topic_id": int(topic_id),
+        "topic_facets": topic_facets,
+        "product_facets": product_facets,
+        "product_ids": product_ids,
+    }
+
+
 def catalogs_equal_ignoring_generated_at(
     current_catalog: dict[str, Any],
     previous_catalog: dict[str, Any] | None,
@@ -1364,90 +1447,104 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         str(routes[0]["target_key"]),
     )
 
-    targets_by_key: dict[str, dict[str, Any]] = {}
-    for target in crawl_targets:
-        root_url = urljoin(str(target["site_url"]), ROOT_PATH.lstrip("/"))
-        root_html = fetch_text(root_url, timeout=timeout)
-        docs_path, discovered_product_type = discover_apps_entrypoint(root_html)
-
-        apps_url = urljoin(str(target["site_url"]), docs_path.lstrip("/"))
-        apps_bootstrap_url = _with_query(
-            apps_url, {"product_type": discovered_product_type}
-        )
-        apps_html = fetch_text(apps_bootstrap_url, timeout=timeout)
-
-        product_type = (
-            parse_product_type_from_apps_page(apps_html) or discovered_product_type
-        )
-        product_facets = parse_facet_values(apps_html, "product_media_name")
-        topic_facets = parse_facet_values(apps_html, "document")
-        topic_id = _resolve_release_notes_topic_id(topic_facets)
-        if topic_id is None:
-            raise RuntimeError(
-                f"Could not discover release-notes topic id from apps page: {apps_bootstrap_url}"
-            )
-
-        product_ids = {
-            device_key: product_facets.get(product_label)
-            for device_key, product_label in TARGET_PRODUCTS.items()
-        }
-
-        target["root_url"] = root_url
-        target["docs_path"] = docs_path
-        target["apps_url"] = apps_url
-        target["apps_html"] = apps_html
-        target["apps_bootstrap_url"] = apps_bootstrap_url
-        target["product_type"] = product_type
-        target["topic_id"] = int(topic_id)
-        target["topic_facets"] = topic_facets
-        target["product_facets"] = product_facets
-        target["product_ids"] = product_ids
-        targets_by_key[str(target["key"])] = target
-
-    global_target = targets_by_key.get(global_target_key)
-    if not isinstance(global_target, dict):
-        raise RuntimeError("Global routing target is missing")
-
-    global_product_ids = {
-        device_key: global_target["product_ids"].get(device_key)
-        for device_key in TARGET_PRODUCTS
+    targets_by_key: dict[str, dict[str, Any]] = {
+        str(target["key"]): target for target in crawl_targets
     }
-    for device_key, product_label in TARGET_PRODUCTS.items():
-        if global_product_ids.get(device_key) is None:
-            raise RuntimeError(f"Could not discover product id for '{product_label}'")
-
-    global_topic_id = int(global_target["topic_id"])
-    global_product_type = str(global_target["product_type"])
-    global_root_url = str(global_target["root_url"])
-    global_apps_url = str(global_target["apps_url"])
-    global_topic_facets = dict(global_target["topic_facets"])
-    global_product_facets = dict(global_target["product_facets"])
-    global_apps_html = str(global_target["apps_html"])
-
-    language_options = parse_language_options(global_apps_html, "search_api_language")
-    alt_language_options = parse_language_options(
-        global_apps_html, "field_alternative_language"
-    )
-    locale_options = dict(language_options)
-    locale_options.update(alt_language_options)
-    locale_options.setdefault("en", "United States (EN)")
-    region_mapping = build_region_country_mapping(locale_options)
+    global_base_target = targets_by_key.get(global_target_key)
+    if not isinstance(global_base_target, dict):
+        raise RuntimeError("Global routing target is missing")
 
     all_country_codes: set[str] = {
         str(route["country_code"]) for route in routes if route.get("country_code")
     }
     devices_catalog: dict[str, Any] = {}
     crawl_meta: dict[str, Any] = {}
-    for device_key in TARGET_PRODUCTS:
-        global_product_id = int(global_product_ids[device_key])
+    source_devices: dict[str, Any] = {}
+    global_root_url = urljoin(
+        str(global_base_target["site_url"]), ROOT_PATH.lstrip("/")
+    )
+    global_apps_url = ""
+    global_product_type = DEFAULT_PRODUCT_TYPE
+    global_topic_facets: dict[str, Any] = {}
+    global_product_facets: dict[str, Any] = {}
+    language_options: dict[str, str] = {}
+    alt_language_options: dict[str, str] = {}
+
+    for device_key, product_meta in TARGET_PRODUCTS.items():
+        device_targets = [dict(target) for target in crawl_targets]
+        device_targets_by_key: dict[str, dict[str, Any]] = {
+            str(target["key"]): target for target in device_targets
+        }
+        global_target = device_targets_by_key[global_target_key]
+
+        docs_path = str(product_meta["docs_path"])
+        global_target.update(
+            _bootstrap_target(global_target, timeout=timeout, docs_path=docs_path)
+        )
+        global_target["bootstrap_error"] = None
+
+        for target in device_targets:
+            if str(target["key"]) == global_target_key:
+                continue
+            try:
+                target.update(
+                    _bootstrap_target(target, timeout=timeout, docs_path=docs_path)
+                )
+                target["bootstrap_error"] = None
+            except Exception as err:  # noqa: BLE001
+                target.update(
+                    {
+                        "root_url": global_target["root_url"],
+                        "docs_path": global_target["docs_path"],
+                        "apps_url": global_target["apps_url"],
+                        "apps_html": global_target["apps_html"],
+                        "apps_bootstrap_url": global_target["apps_bootstrap_url"],
+                        "product_type": global_target["product_type"],
+                        "topic_id": global_target["topic_id"],
+                        "topic_facets": dict(global_target["topic_facets"]),
+                        "product_facets": dict(global_target["product_facets"]),
+                        "product_ids": dict(global_target["product_ids"]),
+                        "bootstrap_error": str(err),
+                    }
+                )
+                _LOGGER.warning(
+                    "Firmware catalog bootstrap failed for target %s device %s; falling back to global metadata: %s",
+                    target.get("key"),
+                    device_key,
+                    err,
+                )
+
+        global_product_id_raw = global_target["product_ids"].get(device_key)
+        if global_product_id_raw is None:
+            raise RuntimeError(
+                f"Could not discover product id for '{product_meta['label']}'"
+            )
+        global_product_id = int(global_product_id_raw)
+        global_topic_id = int(global_target["topic_id"])
+        global_product_type = str(global_target["product_type"])
+        global_apps_url = str(global_target["apps_url"])
+        global_topic_facets = dict(global_target["topic_facets"])
+        global_product_facets = dict(global_target["product_facets"])
+
+        if not language_options:
+            global_apps_html = str(global_target["apps_html"])
+            language_options = parse_language_options(
+                global_apps_html, "search_api_language"
+            )
+            alt_language_options = parse_language_options(
+                global_apps_html, "field_alternative_language"
+            )
+
         target_entries: dict[str, dict[str, Any] | None] = {}
         target_crawl: dict[str, Any] = {}
         total_count = 0
         missing_product_ids: list[str] = []
         fallback_id_targets: list[str] = []
         empty_release_targets: list[str] = []
+        bootstrap_error_targets: list[str] = []
+        crawl_error_targets: list[str] = []
 
-        for target in crawl_targets:
+        for target in device_targets:
             target_product_id = target["product_ids"].get(device_key)
             used_global_product_id = target_product_id is None
             if used_global_product_id:
@@ -1460,15 +1557,29 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             if used_global_product_id and str(target["key"]) != global_target_key:
                 fallback_id_targets.append(str(target["key"]))
 
-            cards, visited_pages = crawl_release_cards(
-                apps_url=str(target["apps_url"]),
-                product_type=str(target["product_type"]),
-                topic_id=int(target["topic_id"]),
-                product_media_name_id=product_id,
-                search_locale=str(target["query_locale"]),
-                timeout=timeout,
-                max_pages=max_pages,
-            )
+            if target.get("bootstrap_error"):
+                bootstrap_error_targets.append(str(target["key"]))
+            try:
+                cards, visited_pages = crawl_release_cards(
+                    apps_url=str(target["apps_url"]),
+                    product_type=str(target["product_type"]),
+                    topic_id=int(target["topic_id"]),
+                    product_media_name_id=product_id,
+                    search_locale=str(target["query_locale"]),
+                    timeout=timeout,
+                    max_pages=max_pages,
+                )
+                crawl_error: str | None = None
+            except Exception as err:  # noqa: BLE001
+                cards, visited_pages = [], []
+                crawl_error = str(err)
+                crawl_error_targets.append(str(target["key"]))
+                _LOGGER.warning(
+                    "Firmware catalog crawl failed for target %s device %s; treating as empty result: %s",
+                    target.get("key"),
+                    device_key,
+                    err,
+                )
             total_count += len(cards)
             target_crawl[str(target["key"])] = {
                 "site_url": target["site_url"],
@@ -1478,6 +1589,8 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                 "count": len(cards),
                 "product_media_name_id": product_id,
                 "used_global_product_media_name_id": used_global_product_id,
+                "bootstrap_error": target.get("bootstrap_error"),
+                "crawl_error": crawl_error,
             }
             if len(cards) == 0:
                 empty_release_targets.append(str(target["key"]))
@@ -1486,7 +1599,9 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             target_entries[str(target["key"])] = (
                 card_to_runtime_entry(
                     card=latest_card,
+                    product_type=str(target["product_type"]),
                     topic_id=int(target["topic_id"]),
+                    product_media_name_id=product_id,
                     locales=list(target["locales"]),
                     apps_url=str(target["apps_url"]),
                 )
@@ -1556,13 +1671,27 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             "latest_by_country": latest_by_country,
             "latest_global": latest_global,
         }
+        source_devices[device_key] = {
+            "docs_url": global_apps_url,
+            "docs_path": str(global_target["docs_path"]),
+            "product_type": int(global_product_type),
+            "document_topic_id": global_topic_id,
+            "product_media_name_id": global_product_id,
+        }
         crawl_meta[device_key] = {
             "count": total_count,
             "targets": target_crawl,
             "missing_product_media_id_targets": sorted(set(missing_product_ids)),
             "used_global_product_media_id_targets": sorted(set(fallback_id_targets)),
             "empty_release_targets": sorted(set(empty_release_targets)),
+            "bootstrap_error_targets": sorted(set(bootstrap_error_targets)),
+            "crawl_error_targets": sorted(set(crawl_error_targets)),
         }
+
+    locale_options = dict(language_options)
+    locale_options.update(alt_language_options)
+    locale_options.setdefault("en", "United States (EN)")
+    region_mapping = build_region_country_mapping(locale_options)
 
     runtime_catalog = {
         "schema_version": SCHEMA_VERSION,
@@ -1572,6 +1701,7 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             "entrypoint": global_root_url,
             "apps_url": global_apps_url,
             "product_type": int(global_product_type),
+            "devices": source_devices,
             "routing": "authoritative_region_site_routes",
             "target_count": len(crawl_targets),
             "crawl": crawl_meta,
@@ -1595,13 +1725,12 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             "root": global_root_url,
             "apps": global_apps_url,
             "product_type": int(global_product_type),
+            "devices": source_devices,
             "targets": [
                 {
                     "key": target["key"],
                     "site_url": target["site_url"],
                     "query_locale": target["query_locale"],
-                    "apps": target["apps_url"],
-                    "product_type": int(target["product_type"]),
                 }
                 for target in crawl_targets
             ],
@@ -1622,8 +1751,10 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             "products": global_product_facets,
             "targets": {
                 key: {
-                    "label": TARGET_PRODUCTS[key],
-                    "product_media_name_id": int(global_product_ids[key]),
+                    "label": TARGET_PRODUCTS[key]["label"],
+                    "product_media_name_id": int(
+                        devices_catalog[key]["product_media_name_id"]
+                    ),
                 }
                 for key in TARGET_PRODUCTS
             },

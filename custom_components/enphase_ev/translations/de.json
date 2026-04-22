@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Gateway-Firmware"
       },
-      "microinverter_firmware": {
-        "name": "Mikrowechselrichter-Firmware"
-      },
       "charger_firmware": {
         "name": "Firmware-Version"
       }

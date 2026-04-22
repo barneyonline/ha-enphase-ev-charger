@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Firmware de la passerelle"
       },
-      "microinverter_firmware": {
-        "name": "Firmware du micro-onduleur"
-      },
       "charger_firmware": {
         "name": "Micrologiciel"
       }

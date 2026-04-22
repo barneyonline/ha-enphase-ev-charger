@@ -815,7 +815,6 @@ def test_update_entity_strings_localized_for_non_english_locales() -> None:
     en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
     paths = [
         "entity.update.gateway_firmware.name",
-        "entity.update.microinverter_firmware.name",
         "entity.update.charger_firmware.name",
     ]
     for locale in translations_dir.glob("*.json"):
