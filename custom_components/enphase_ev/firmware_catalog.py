@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import dt as dt_util
@@ -18,11 +20,13 @@ from .runtime_helpers import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_DOC_CENTER_PRODUCT_TYPE = "216"
 
-FIRMWARE_CATALOG_URL = (
+DEFAULT_FIRMWARE_CATALOG_URL = (
     "https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/"
     "firmware-catalog/catalog/v1/runtime_catalog.json"
 )
+FIRMWARE_CATALOG_URL_ENV = "ENPHASE_EV_FIRMWARE_CATALOG_URL"
 FIRMWARE_CATALOG_CACHE_TTL_SECONDS = 12 * 60 * 60
 FIRMWARE_CATALOG_RETRY_BACKOFF_SECONDS = 30 * 60
 FIRMWARE_CATALOG_FETCH_TIMEOUT_SECONDS = 20
@@ -43,13 +47,13 @@ class FirmwareCatalogManager:
         self,
         hass,
         *,
-        url: str = FIRMWARE_CATALOG_URL,
+        url: str | None = None,
         ttl_seconds: int = FIRMWARE_CATALOG_CACHE_TTL_SECONDS,
         retry_backoff_seconds: int = FIRMWARE_CATALOG_RETRY_BACKOFF_SECONDS,
         fetch_timeout_seconds: int = FIRMWARE_CATALOG_FETCH_TIMEOUT_SECONDS,
     ) -> None:
         self._hass = hass
-        self._url = str(url)
+        self._url = str(url or _firmware_catalog_url())
         self._ttl_seconds = max(300, int(ttl_seconds))
         self._retry_backoff_seconds = max(60, int(retry_backoff_seconds))
         self._fetch_timeout_seconds = max(5, int(fetch_timeout_seconds))
@@ -118,6 +122,13 @@ class FirmwareCatalogManager:
             "catalog_generated_at": generated_at,
             "catalog_source_age_seconds": source_age_seconds,
         }
+
+
+def _firmware_catalog_url() -> str:
+    override = os.getenv(FIRMWARE_CATALOG_URL_ENV)
+    if isinstance(override, str) and override.strip():
+        return override.strip()
+    return DEFAULT_FIRMWARE_CATALOG_URL
 
 
 def _validate_catalog(payload: Any) -> dict[str, Any]:
@@ -335,6 +346,8 @@ def select_catalog_entry(
     if entry is None:
         return CatalogSelection(None, normalized_locale, country_code, source_scope)
 
+    entry = _repair_legacy_release_urls(device_payload, entry)
+
     urls_by_locale = entry.get("urls_by_locale")
     locale_used = normalized_locale
     if isinstance(urls_by_locale, dict) and urls_by_locale:
@@ -360,3 +373,86 @@ def select_catalog_entry(
         locale_used = normalize_locale(locale)
 
     return CatalogSelection(entry, locale_used, country_code, source_scope)
+
+
+def _repair_legacy_release_urls(
+    device_payload: dict[str, Any], entry: dict[str, Any]
+) -> dict[str, Any]:
+    urls_by_locale = entry.get("urls_by_locale")
+    if not isinstance(urls_by_locale, dict) or not urls_by_locale:
+        return entry
+
+    if not any(_is_legacy_release_url(value) for value in urls_by_locale.values()):
+        return entry
+
+    topic_id = _as_int(entry.get("document_topic_id")) or _as_int(
+        device_payload.get("document_topic_id")
+    )
+    product_media_name_id = _as_int(entry.get("product_media_name_id")) or _as_int(
+        device_payload.get("product_media_name_id")
+    )
+    product_type = str(
+        entry.get("product_type")
+        or device_payload.get("product_type")
+        or _DOC_CENTER_PRODUCT_TYPE
+    )
+    if topic_id is None or product_media_name_id is None:
+        return entry
+
+    repaired_urls: dict[str, str] = {}
+    for locale_key, raw_url in urls_by_locale.items():
+        locale = normalize_locale(locale_key)
+        if not _is_legacy_release_url(raw_url):
+            repaired_urls[str(locale_key)] = str(raw_url)
+            continue
+        repaired_urls[str(locale_key)] = _build_release_url(
+            raw_url=str(raw_url),
+            locale=locale,
+            product_type=product_type,
+            topic_id=topic_id,
+            product_media_name_id=product_media_name_id,
+        )
+
+    cloned = dict(entry)
+    cloned["urls_by_locale"] = repaired_urls
+    return cloned
+
+
+def _is_legacy_release_url(value: Any) -> bool:
+    if value is None:
+        return False
+    try:
+        text = str(value)
+    except Exception:  # noqa: BLE001
+        return False
+    return "media_id=" in text and "langcode=" in text
+
+
+def _build_release_url(
+    *,
+    raw_url: str,
+    locale: str,
+    product_type: str,
+    topic_id: int,
+    product_media_name_id: int,
+) -> str:
+    split = urlsplit(raw_url)
+    query = urlencode(
+        {
+            "product_type": product_type,
+            "f[0]": f"document:{topic_id}",
+            "f[1]": f"product_media_name:{product_media_name_id}",
+            "search_api_language": locale,
+            "field_alternative_language": locale,
+        }
+    )
+    return urlunsplit((split.scheme, split.netloc, split.path, query, ""))
+
+
+def _as_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(str(value))
+    except Exception:  # noqa: BLE001
+        return None

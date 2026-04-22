@@ -406,6 +406,47 @@ def test_type_device_envoy_falls_back_to_gateway_member_metadata(
     assert info["sw_version"] == "D8.3.5167"
 
 
+def test_type_device_envoy_prefers_gateway_firmware_over_controller_version(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "envoy": {
+                "type_key": "envoy",
+                "type_label": "Gateway",
+                "count": 2,
+                "devices": [
+                    {
+                        "name": "IQ Gateway",
+                        "serial_number": "GW-123",
+                        "sku_id": "SC-IQG-PCBA-ROW",
+                        "envoy_sw_version": "D8.3.5232",
+                    },
+                    {
+                        "name": "IQ System Controller 3 INT",
+                        "serial_number": "SC-123",
+                        "channel_type": "IQ System Controller",
+                        "sw_version": "522-00003-01-v2.7.7054_rel/31.44",
+                    },
+                ],
+            }
+        },
+        ["envoy"],
+    )
+
+    assert coord.inventory_view.type_device_model("envoy") == "IQ Gateway"
+    assert coord.inventory_view.type_device_serial_number("envoy") == "GW-123"
+    assert coord.inventory_view.type_device_model_id("envoy") == "SC-IQG-PCBA-ROW"
+    assert coord.inventory_view.type_device_sw_version("envoy") == "D8.3.5232"
+    info = coord.inventory_view.type_device_info("envoy")
+    assert info is not None
+    assert info["model"] == "IQ Gateway"
+    assert info["serial_number"] == "GW-123"
+    assert info["model_id"] == "SC-IQG-PCBA-ROW"
+    assert info["sw_version"] == "D8.3.5232"
+
+
 def test_type_device_envoy_does_not_promote_localized_meters_to_gateway(
     hass, monkeypatch
 ) -> None:

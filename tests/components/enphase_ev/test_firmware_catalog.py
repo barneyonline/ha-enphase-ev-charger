@@ -42,7 +42,7 @@ async def test_catalog_manager_caches_and_uses_stale_on_error(monkeypatch) -> No
     payload = {
         "schema_version": 1,
         "generated_at": "2026-03-01T00:00:00Z",
-        "devices": {"envoy": {}, "microinverter": {}},
+        "devices": {"envoy": {}},
     }
     fake_session = _FakeSession(
         [
@@ -120,6 +120,19 @@ async def test_catalog_manager_cold_start_failure_honors_backoff(monkeypatch) ->
     assert manager.status_snapshot()["last_error"] == "email=[redacted]"
 
 
+def test_catalog_manager_uses_env_override(monkeypatch) -> None:
+    monkeypatch.setenv(
+        firmware_catalog.FIRMWARE_CATALOG_URL_ENV,
+        "http://127.0.0.1:8123/local/catalog/v1/runtime_catalog.json",
+    )
+
+    manager = firmware_catalog.FirmwareCatalogManager(SimpleNamespace())
+
+    assert manager.status_snapshot()["url"] == (
+        "http://127.0.0.1:8123/local/catalog/v1/runtime_catalog.json"
+    )
+
+
 @pytest.mark.asyncio
 async def test_catalog_manager_lock_recheck_returns_cached_without_fetch(
     monkeypatch,
@@ -127,7 +140,7 @@ async def test_catalog_manager_lock_recheck_returns_cached_without_fetch(
     payload = {
         "schema_version": 1,
         "generated_at": "2026-03-01T00:00:00Z",
-        "devices": {"envoy": {}, "microinverter": {}},
+        "devices": {"envoy": {}},
     }
     manager = firmware_catalog.FirmwareCatalogManager(SimpleNamespace())
 
@@ -328,6 +341,39 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
     assert legacy_selection.source_scope == "country"
     assert legacy_selection.entry and legacy_selection.entry["version"] == "8.2.4401"
 
+    repair_selection = firmware_catalog.select_catalog_entry(
+        {
+            "schema_version": 1,
+            "devices": {
+                "envoy": {
+                    "document_topic_id": 217,
+                    "product_media_name_id": 5002,
+                    "latest_by_country": {
+                        "AU": {
+                            "version": "8.2.4401",
+                            "urls_by_locale": {
+                                "en-au": (
+                                    "https://enphase.com/en-au/installers/resources/"
+                                    "documentation/apps?media_id=22469&langcode=und"
+                                )
+                            },
+                        }
+                    },
+                }
+            },
+        },
+        device_type="envoy",
+        country="AU",
+        locale="en-au",
+    )
+    assert repair_selection.entry is not None
+    assert repair_selection.entry["urls_by_locale"]["en-au"] == (
+        "https://enphase.com/en-au/installers/resources/documentation/apps?"
+        "product_type=216&f%5B0%5D=document%3A217&"
+        "f%5B1%5D=product_media_name%3A5002&"
+        "search_api_language=en-au&field_alternative_language=en-au"
+    )
+
 
 def test_source_age_seconds_handles_future_and_invalid() -> None:
     now = datetime.now(firmware_catalog.dt_util.UTC)
@@ -335,6 +381,40 @@ def test_source_age_seconds_handles_future_and_invalid() -> None:
     assert firmware_catalog._source_age_seconds(future) == 0.0
     assert firmware_catalog._source_age_seconds("not-a-date") is None
     assert firmware_catalog._source_age_seconds(None) is None
+
+
+def test_legacy_release_url_helper_edge_paths() -> None:
+    entry = {
+        "urls_by_locale": {
+            "en-au": "https://example.test/envoy?media_id=123&langcode=und",
+            "fr-fr": "https://example.test/envoy/fr",
+        }
+    }
+    device_payload = {"document_topic_id": None, "product_media_name_id": 5002}
+    assert firmware_catalog._repair_legacy_release_urls(device_payload, entry) is entry
+
+    device_payload = {"document_topic_id": 217, "product_media_name_id": 5002}
+    assert (
+        firmware_catalog._repair_legacy_release_urls(device_payload, entry) is not entry
+    )
+
+    non_legacy_entry = {
+        "document_topic_id": 217,
+        "product_media_name_id": 5002,
+        "urls_by_locale": {"en-au": "https://example.test/envoy/fr"},
+    }
+    assert (
+        firmware_catalog._repair_legacy_release_urls(device_payload, non_legacy_entry)
+        is non_legacy_entry
+    )
+
+    class _BadStr:
+        def __str__(self) -> str:
+            raise RuntimeError("boom")
+
+    assert firmware_catalog._is_legacy_release_url(None) is False
+    assert firmware_catalog._is_legacy_release_url(_BadStr()) is False
+    assert firmware_catalog._as_int(_BadStr()) is None
 
 
 def test_coordinator_metrics_include_firmware_catalog_status(

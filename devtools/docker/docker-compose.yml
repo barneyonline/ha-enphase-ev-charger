@@ -18,6 +18,7 @@ services:
       - "8123:8123"
     environment:
       - TZ=${TZ:-UTC}
+      - ENPHASE_EV_FIRMWARE_CATALOG_URL=http://127.0.0.1:8123/local/catalog/v1/runtime_catalog.json
     dns:
       - ${HA_RUNTIME_DNS_1:-1.1.1.1}
       - ${HA_RUNTIME_DNS_2:-8.8.8.8}

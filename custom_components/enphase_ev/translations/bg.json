@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Фърмуер на шлюза"
       },
-      "microinverter_firmware": {
-        "name": "Фърмуер на микроинвертора"
-      },
       "charger_firmware": {
         "name": "Фърмуер"
       }

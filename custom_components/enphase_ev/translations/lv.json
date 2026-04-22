@@ -1552,9 +1552,6 @@
       "gateway_firmware": {
         "name": "Vārtejas programmaparatūra"
       },
-      "microinverter_firmware": {
-        "name": "Mikroinvertora programmaparatūra"
-      },
       "charger_firmware": {
         "name": "Programmaparatūra"
       }
