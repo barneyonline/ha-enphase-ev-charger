@@ -243,6 +243,36 @@ class EVSETimeseriesManager:
         except Exception:
             return False
 
+    def refresh_due(
+        self,
+        *,
+        day_local: datetime | None = None,
+        force: bool = False,
+    ) -> bool:
+        """Return True when EVSE timeseries data should be refreshed."""
+
+        if day_local is None:
+            day_local = dt_util.as_local(dt_util.now())
+        day_key = self._day_key(day_local)
+        client = self._client_provider()
+        refresh_lifetime = (force or not self._lifetime_cache_fresh()) and (
+            force or not self.lifetime_backoff_active
+        )
+        refresh_daily = (force or not self._daily_cache_fresh(day_key)) and (
+            force or not self.daily_backoff_active
+        )
+        if not (refresh_lifetime or refresh_daily):
+            return False
+        if refresh_lifetime and not callable(
+            getattr(client, "evse_timeseries_lifetime_energy", None)
+        ):
+            refresh_lifetime = False
+        if refresh_daily and not callable(
+            getattr(client, "evse_timeseries_daily_energy", None)
+        ):
+            refresh_daily = False
+        return refresh_lifetime or refresh_daily
+
     async def async_refresh(
         self,
         *,

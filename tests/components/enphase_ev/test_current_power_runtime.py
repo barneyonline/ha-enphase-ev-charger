@@ -38,6 +38,16 @@ async def test_async_refresh_no_fetcher(coordinator_factory) -> None:
     assert coord._current_power_consumption_w is None
 
 
+def test_refresh_due_requests_cleanup_when_fetcher_missing_with_cached_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client = SimpleNamespace()
+    coord._current_power_consumption_w = 100.0
+
+    assert coord.current_power_runtime.refresh_due() is True
+
+
 @pytest.mark.asyncio
 async def test_async_refresh_fetcher_raises(coordinator_factory) -> None:
     coord = coordinator_factory()

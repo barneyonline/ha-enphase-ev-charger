@@ -798,15 +798,14 @@ async def test_async_update_data_site_only_refreshes_hems_before_heatpump_power(
     coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
         side_effect=lambda: order.append("heatpump_power")
     )
+    coord.heatpump_runtime.heatpump_runtime_state_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_daily_consumption_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_power_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.has_type = lambda _key: True  # type: ignore[method-assign]
+    coord.client._hems_site_supported = True  # noqa: SLF001
 
     assert await coord._async_update_data() == {}  # noqa: SLF001
-    assert order == [
-        "devices",
-        "hems",
-        "heatpump_runtime",
-        "heatpump_daily",
-        "heatpump_power",
-    ]
+    assert order == ["devices", "hems", "heatpump_power"]
 
 
 @pytest.mark.asyncio
@@ -851,6 +850,9 @@ async def test_async_update_data_site_only_ignores_runtime_and_daily_refresh_err
     coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
         side_effect=lambda: order.append("heatpump_power")
     )
+    coord.heatpump_runtime.heatpump_runtime_state_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_daily_consumption_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_power_refresh_due = lambda: True  # type: ignore[method-assign]
 
     assert await coord._async_update_data() == {}  # noqa: SLF001
     assert order == ["devices", "hems", "heatpump_power"]
@@ -902,7 +904,7 @@ async def test_async_update_data_continues_when_heatpump_refresh_raises(
 
 
 @pytest.mark.asyncio
-async def test_async_update_data_continues_when_runtime_and_daily_refresh_raise(
+async def test_async_update_data_prefers_heatpump_power_when_all_heatpump_refreshes_are_due(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -946,11 +948,16 @@ async def test_async_update_data_continues_when_runtime_and_daily_refresh_raise(
         side_effect=RuntimeError("daily")
     )
     coord._async_refresh_heatpump_power = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.heatpump_runtime.heatpump_runtime_state_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_daily_consumption_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_power_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.has_type = lambda _key: True  # type: ignore[method-assign]
+    coord.client._hems_site_supported = True  # noqa: SLF001
 
     result = await coord._async_update_data()  # noqa: SLF001
     assert RANDOM_SERIAL in result
-    coord._async_refresh_heatpump_runtime_state.assert_awaited_once_with()  # noqa: SLF001
-    coord._async_refresh_heatpump_daily_consumption.assert_awaited_once_with()  # noqa: SLF001
+    coord._async_refresh_heatpump_runtime_state.assert_not_awaited()  # noqa: SLF001
+    coord._async_refresh_heatpump_daily_consumption.assert_not_awaited()  # noqa: SLF001
     coord._async_refresh_heatpump_power.assert_awaited_once_with()  # noqa: SLF001
 
 
@@ -5279,6 +5286,7 @@ async def test_update_data_site_only_ignores_optional_refresh_failures(
     coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
         side_effect=RuntimeError("heatpump")
     )
+    coord.heatpump_runtime.heatpump_power_refresh_due = lambda: True  # type: ignore[method-assign]
 
     await coord._async_update_data()  # noqa: SLF001
 
@@ -5407,6 +5415,7 @@ async def test_update_data_normal_ignores_optional_refresh_failures(
     )  # noqa: SLF001
     coord.evse_runtime.async_resolve_auth_settings = AsyncMock(return_value={})  # type: ignore[method-assign]  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+    coord.heatpump_runtime.heatpump_power_refresh_due = lambda: True  # type: ignore[method-assign]
 
     await coord._async_update_data()  # noqa: SLF001
 
@@ -5561,6 +5570,11 @@ async def test_update_data_site_only_orders_topology_mutations_deterministically
     coord._async_refresh_heatpump_power = AsyncMock(
         side_effect=_record_heatpump_power
     )  # noqa: SLF001
+    coord.heatpump_runtime.heatpump_runtime_state_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_daily_consumption_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.heatpump_power_refresh_due = lambda: True  # type: ignore[method-assign]
+    coord.heatpump_runtime.has_type = lambda _key: True  # type: ignore[method-assign]
+    coord.client._hems_site_supported = True  # noqa: SLF001
 
     await coord._async_update_data()  # noqa: SLF001
 
@@ -5569,8 +5583,6 @@ async def test_update_data_site_only_orders_topology_mutations_deterministically
         "devices_inventory",
         "hems_devices",
         "inverters",
-        "heatpump_runtime",
-        "heatpump_daily",
         "heatpump_power",
     ]
 

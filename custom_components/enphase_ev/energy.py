@@ -108,6 +108,27 @@ class EnergyManager:
         """Drop the cached site energy payload."""
         self._site_energy_cache_ts = None
 
+    def site_energy_refresh_due(self, *, force: bool = False) -> bool:
+        """Return True when the site-energy cache should be refreshed."""
+
+        if not hasattr(self, "_site_energy_cache_ts"):
+            self._site_energy_cache_ts = None
+        if not hasattr(self, "_site_energy_cache_ttl"):
+            self._site_energy_cache_ttl = SITE_ENERGY_CACHE_TTL
+        force_refresh = force or self._site_energy_force_refresh
+        if self._service_backoff_active():
+            return False
+        now_mono = time.monotonic()
+        if (
+            not force_refresh
+            and self._site_energy_cache_ts is not None
+            and (now_mono - self._site_energy_cache_ts) < self._site_energy_cache_ttl
+        ):
+            return False
+        client = self._client_provider()
+        fetcher = getattr(client, "lifetime_energy", None)
+        return callable(fetcher)
+
     @property
     def service_available(self) -> bool:
         """Return True when site energy service is available."""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -10,8 +11,14 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from custom_components.enphase_ev.refresh_plan import (
     FOLLOWUP_STAGE,
     FOLLOWUP_PLAN,
+    HEATPUMP_FOLLOWUP_PLAN,
+    SITE_ONLY_FOLLOWUP_PLAN,
     bind_refresh_stage,
     bind_refresh_plan,
+    build_followup_plan,
+    build_heatpump_followup_plan,
+    build_post_session_followup_plan,
+    build_site_only_followup_plan,
     post_session_followup_plan,
     warmup_plan,
 )
@@ -272,17 +279,45 @@ class _RefreshOwner:
         self.evse_timeseries.async_refresh.side_effect = (
             lambda *, day_local: self._record(f"evse_timeseries:{day_local}")
         )
+        self.evse_timeseries.refresh_due = MagicMock(return_value=True)
         self.energy = MagicMock()
         self.energy._async_refresh_site_energy.side_effect = lambda: self._record(
             "site_energy"
         )
+        self.energy.site_energy_refresh_due = MagicMock(return_value=True)
+        self.evse_feature_flags_runtime = SimpleNamespace(
+            refresh_due=lambda: True,
+        )
         self.battery_runtime = SimpleNamespace(
             async_refresh_grid_control_check=self._async_refresh_grid_control_check,
             async_refresh_battery_status=self._async_refresh_battery_status,
+            battery_site_settings_refresh_due=lambda: True,
+            battery_backup_history_refresh_due=lambda: True,
+            battery_settings_refresh_due=lambda: True,
+            battery_schedules_refresh_due=lambda: True,
+            storm_guard_refresh_due=lambda: True,
+            storm_alert_refresh_due=lambda: True,
+            grid_control_check_refresh_due=lambda: True,
+            dry_contact_settings_refresh_due=lambda: True,
+            battery_status_refresh_due=lambda: True,
+            ac_battery_devices_refresh_due=lambda: True,
         )
         self.inventory_runtime = SimpleNamespace(
             _async_refresh_devices_inventory=self._async_refresh_devices_inventory,
             _async_refresh_hems_devices=self._async_refresh_hems_devices,
+            devices_inventory_refresh_due=lambda: True,
+            hems_devices_refresh_due=lambda: True,
+            inverters_refresh_due=lambda: True,
+        )
+        self.current_power_runtime = SimpleNamespace(
+            refresh_due=lambda: True,
+        )
+        self.heatpump_runtime = SimpleNamespace(
+            heatpump_runtime_state_refresh_due=lambda: True,
+            heatpump_daily_consumption_refresh_due=lambda: True,
+            heatpump_power_refresh_due=lambda: True,
+            has_type=lambda key: key == "heatpump",
+            client=SimpleNamespace(hems_site_supported=True),
         )
         self.refresh_runner = SimpleNamespace(
             async_refresh_site_energy_for_warmup=self.async_refresh_site_energy_for_warmup,
@@ -330,6 +365,10 @@ class _RefreshOwner:
     def _async_refresh_current_power_consumption(self) -> str:
         self.calls.append("current_power")
         return "current-power"
+
+    def _async_refresh_evse_feature_flags(self) -> str:
+        self.calls.append("evse_feature_flags")
+        return "evse-feature-flags"
 
     def _async_refresh_battery_status(self) -> str:
         self.calls.append("battery_status")
@@ -443,6 +482,178 @@ def test_refresh_plans_bind_dynamic_followup_and_warmup_calls() -> None:
     assert bound_post.stages[0].parallel_calls[2][2]() == "inverters"
 
 
+def test_dynamic_followup_plan_skips_up_to_date_tasks() -> None:
+    owner = _RefreshOwner()
+    owner.battery_runtime.battery_site_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_backup_history_refresh_due = lambda: False
+    owner.battery_runtime.battery_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_schedules_refresh_due = lambda: False
+    owner.battery_runtime.storm_guard_refresh_due = lambda: False
+    owner.battery_runtime.storm_alert_refresh_due = lambda: False
+    owner.battery_runtime.grid_control_check_refresh_due = lambda: False
+    owner.battery_runtime.dry_contact_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_status_refresh_due = lambda: False
+    owner.battery_runtime.ac_battery_devices_refresh_due = lambda: False
+    owner.inventory_runtime.devices_inventory_refresh_due = lambda: False
+    owner.inventory_runtime.hems_devices_refresh_due = lambda: False
+    owner.current_power_runtime.refresh_due = lambda: False
+    owner.evse_feature_flags_runtime.refresh_due = lambda: False
+
+    assert build_followup_plan(owner).stages == ()
+
+
+def test_dynamic_followup_plan_selects_due_subset() -> None:
+    owner = _RefreshOwner()
+    owner.battery_runtime.battery_backup_history_refresh_due = lambda: False
+    owner.battery_runtime.battery_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_schedules_refresh_due = lambda: False
+    owner.battery_runtime.storm_guard_refresh_due = lambda: False
+    owner.battery_runtime.storm_alert_refresh_due = lambda: False
+    owner.battery_runtime.grid_control_check_refresh_due = lambda: False
+    owner.battery_runtime.dry_contact_settings_refresh_due = lambda: False
+    owner.battery_runtime.ac_battery_devices_refresh_due = lambda: False
+    owner.inventory_runtime.devices_inventory_refresh_due = lambda: False
+    owner.current_power_runtime.refresh_due = lambda: False
+    owner.evse_feature_flags_runtime.refresh_due = lambda: False
+
+    plan = build_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    stage = plan.stages[0]
+    assert [task.timing_key for task in stage.parallel_tasks] == [
+        "battery_site_settings_s",
+    ]
+    assert [task.timing_key for task in stage.ordered_tasks] == [
+        "battery_status_s",
+        "hems_devices_s",
+    ]
+
+
+def test_dynamic_site_only_followup_plan_keeps_due_inverters() -> None:
+    owner = _RefreshOwner()
+    owner.inventory_runtime.inverters_refresh_due = lambda: True
+    owner.heatpump_runtime.heatpump_power_refresh_due = lambda: False
+    owner.heatpump_runtime.heatpump_runtime_state_refresh_due = lambda: False
+    owner.heatpump_runtime.heatpump_daily_consumption_refresh_due = lambda: False
+
+    plan = build_site_only_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].ordered_tasks][
+        -1
+    ] == "inverters_s"
+
+
+def test_dynamic_followup_plan_includes_due_evse_feature_flags() -> None:
+    owner = _RefreshOwner()
+    owner.battery_runtime.battery_site_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_backup_history_refresh_due = lambda: False
+    owner.battery_runtime.battery_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_schedules_refresh_due = lambda: False
+    owner.battery_runtime.storm_guard_refresh_due = lambda: False
+    owner.battery_runtime.storm_alert_refresh_due = lambda: False
+    owner.battery_runtime.grid_control_check_refresh_due = lambda: False
+    owner.battery_runtime.dry_contact_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_status_refresh_due = lambda: False
+    owner.battery_runtime.ac_battery_devices_refresh_due = lambda: False
+    owner.inventory_runtime.devices_inventory_refresh_due = lambda: False
+    owner.inventory_runtime.hems_devices_refresh_due = lambda: False
+    owner.current_power_runtime.refresh_due = lambda: False
+
+    plan = build_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].parallel_tasks] == [
+        "evse_feature_flags_s",
+    ]
+
+
+def test_dynamic_plan_builders_force_full_plans() -> None:
+    owner = _RefreshOwner()
+
+    assert build_followup_plan(owner, force_full=True) == FOLLOWUP_PLAN
+    assert (
+        build_site_only_followup_plan(owner, force_full=True) == SITE_ONLY_FOLLOWUP_PLAN
+    )
+    assert (
+        build_heatpump_followup_plan(owner, force_full=True) == HEATPUMP_FOLLOWUP_PLAN
+    )
+    built = build_post_session_followup_plan(owner, "today", force_full=True)
+    static = post_session_followup_plan("today")
+    assert len(built.stages) == len(static.stages) == 1
+    assert built.stages[0].defer_topology is static.stages[0].defer_topology is True
+    assert [task.timing_key for task in built.stages[0].parallel_tasks] == [
+        task.timing_key for task in static.stages[0].parallel_tasks
+    ]
+
+
+def test_dynamic_heatpump_followup_prefers_power() -> None:
+    owner = _RefreshOwner()
+
+    plan = build_heatpump_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].ordered_tasks] == [
+        "heatpump_power_s",
+    ]
+
+
+def test_dynamic_heatpump_followup_uses_runtime_and_daily_when_power_not_due() -> None:
+    owner = _RefreshOwner()
+    owner.heatpump_runtime.heatpump_power_refresh_due = lambda: False
+
+    plan = build_heatpump_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].ordered_tasks] == [
+        "heatpump_runtime_s",
+        "heatpump_daily_s",
+    ]
+
+
+def test_dynamic_heatpump_followup_includes_cleanup_when_power_cannot_cover_deps() -> (
+    None
+):
+    owner = _RefreshOwner()
+    owner.heatpump_runtime.has_type = lambda _key: False
+
+    plan = build_heatpump_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].ordered_tasks] == [
+        "heatpump_runtime_s",
+        "heatpump_daily_s",
+        "heatpump_power_s",
+    ]
+
+
+def test_dynamic_heatpump_followup_includes_cleanup_when_hems_support_unknown() -> None:
+    owner = _RefreshOwner()
+    owner.heatpump_runtime.client.hems_site_supported = None
+
+    plan = build_heatpump_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].ordered_tasks] == [
+        "heatpump_runtime_s",
+        "heatpump_daily_s",
+        "heatpump_power_s",
+    ]
+
+
+def test_dynamic_post_session_followup_only_includes_due_tasks() -> None:
+    owner = _RefreshOwner()
+    owner.energy.site_energy_refresh_due = MagicMock(return_value=False)
+    owner.inventory_runtime.inverters_refresh_due = lambda: False
+
+    plan = build_post_session_followup_plan(owner, "today")
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].parallel_tasks] == [
+        "evse_timeseries_s",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_coordinator_refresh_plan_runner_executes_each_stage(
     coordinator_factory,
@@ -550,6 +761,113 @@ async def test_refresh_runner_login_wall_raises_auth_failed_with_block_message(
 
     with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
         await coord.refresh_runner.async_run_refresh_call("k", "label", _raise)
+
+
+@pytest.mark.asyncio
+async def test_post_status_evse_enrichments_run_concurrently(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    phase_timings: dict[str, float] = {}
+    release = asyncio.Event()
+    started: list[str] = []
+    all_started = asyncio.Event()
+
+    async def _gate(name: str, result):
+        started.append(name)
+        if len(started) == 4:
+            all_started.set()
+        await release.wait()
+        return result
+
+    async def _charge_modes(_serials):
+        return await _gate("charge_modes", {"SERIAL-1": "SMART_CHARGING"})
+
+    async def _green_settings(_serials):
+        return await _gate("green_settings", {"SERIAL-1": (True, True)})
+
+    async def _auth_settings(_serials):
+        return await _gate("auth_settings", {"SERIAL-1": (True, False, True, True)})
+
+    async def _charger_config(_serials, *, keys):
+        assert keys
+        return await _gate("charger_config", {"SERIAL-1": {"foo": "bar"}})
+
+    coord.evse_runtime.async_resolve_charge_modes = AsyncMock(side_effect=_charge_modes)
+    coord._async_resolve_green_battery_settings = AsyncMock(  # noqa: SLF001
+        side_effect=_green_settings
+    )
+    coord._async_resolve_auth_settings = AsyncMock(  # noqa: SLF001
+        side_effect=_auth_settings
+    )
+    coord._async_resolve_charger_config = AsyncMock(  # noqa: SLF001
+        side_effect=_charger_config
+    )
+
+    task = asyncio.create_task(
+        coord._async_resolve_post_status_evse_enrichments(
+            phase_timings,
+            records=[("SERIAL-1", {"sn": "SERIAL-1"})],
+            charge_mode_candidates=["SERIAL-1"],
+            first_refresh=False,
+        )
+    )
+
+    await asyncio.wait_for(all_started.wait(), timeout=1)
+    assert started == [
+        "charge_modes",
+        "green_settings",
+        "auth_settings",
+        "charger_config",
+    ]
+    release.set()
+    result = await asyncio.wait_for(task, timeout=1)
+
+    assert result == (
+        {"SERIAL-1": "SMART_CHARGING"},
+        {"SERIAL-1": (True, True)},
+        {"SERIAL-1": (True, False, True, True)},
+        {"SERIAL-1": {"foo": "bar"}},
+    )
+    assert "charge_mode_s" in phase_timings
+    assert "green_settings_s" in phase_timings
+    assert "auth_settings_s" in phase_timings
+    assert "charger_config_s" in phase_timings
+
+
+@pytest.mark.asyncio
+async def test_update_data_raises_when_parallel_evse_lookup_fails(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.refresh_runner.async_run_refresh_plan = AsyncMock()  # type: ignore[method-assign]
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": "SERIAL-1",
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": False,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+    )
+    coord.evse_runtime.async_resolve_charge_modes = AsyncMock(
+        return_value={"SERIAL-1": "IMMEDIATE"}
+    )
+    coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(return_value={})
+    coord.evse_runtime.async_resolve_auth_settings = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )
+    coord.evse_runtime.async_resolve_charger_config = AsyncMock(return_value={})
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await coord._async_update_data()
 
 
 @pytest.mark.asyncio

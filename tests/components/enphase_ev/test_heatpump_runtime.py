@@ -2203,6 +2203,34 @@ def test_heatpump_runtime_additional_helper_edge_cases(
         runtime._heatpump_daily_split_available({"daily_grid_wh": 0.0})  # noqa: SLF001
         is True
     )
+
+
+def test_heatpump_runtime_refresh_due_requests_cleanup_when_type_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    coord.inventory_runtime._set_type_device_buckets({}, [])  # noqa: SLF001
+    coord._heatpump_runtime_state = {"source": "cached"}  # noqa: SLF001
+    coord._heatpump_daily_consumption = {"daily_energy_wh": 12.0}  # noqa: SLF001
+    coord._heatpump_power_w = 500.5  # noqa: SLF001
+
+    assert runtime.heatpump_runtime_state_refresh_due() is True
+    assert runtime.heatpump_daily_consumption_refresh_due() is True
+    assert runtime.heatpump_power_refresh_due() is True
+
+
+def test_heatpump_runtime_refresh_due_skips_when_type_missing_and_no_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    assert runtime.has_type("heatpump") is False
+    assert runtime.heatpump_runtime_state_refresh_due() is False
+    assert runtime.heatpump_daily_consumption_refresh_due() is False
+    assert runtime.heatpump_power_refresh_due() is False
     target = {"split_source": "keep"}
     assert (
         runtime._heatpump_copy_daily_split_fields(

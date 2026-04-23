@@ -1780,6 +1780,17 @@ class InventoryRuntime:
         )
         coord._note_endpoint_family_success(family)
 
+    def devices_inventory_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        now = time.monotonic()
+        if not coord._endpoint_family_should_run("inventory_topology", force=force):
+            return False
+        if not force and self._devices_inventory_cache_until:
+            if now < self._devices_inventory_cache_until:
+                return False
+        fetcher = getattr(self.client, "devices_inventory", None)
+        return callable(fetcher)
+
     async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
         now = time.monotonic()
         if not force and self._hems_devices_cache_until:
@@ -1922,6 +1933,14 @@ class InventoryRuntime:
             "HEMS discovery summary",
             self._debug_hems_inventory_summary(),
         )
+
+    def hems_devices_refresh_due(self, *, force: bool = False) -> bool:
+        now = time.monotonic()
+        if not force and self._hems_devices_cache_until:
+            if now < self._hems_devices_cache_until:
+                return False
+        fetcher = getattr(self.client, "hems_devices", None)
+        return callable(fetcher)
 
     def _system_dashboard_detail_records(
         self,
@@ -2746,6 +2765,64 @@ class InventoryRuntime:
         )
         self._merge_microinverter_type_bucket()
         self._merge_heatpump_type_bucket()
+
+    def inverters_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        now = time.monotonic()
+        if not self.include_inverters:
+            return False
+        fetch_inventory = getattr(self.client, "inverters_inventory", None)
+        fetch_status = getattr(self.client, "inverter_status", None)
+        if not callable(fetch_inventory) or not callable(fetch_status):
+            return False
+        inventory_cache_until = getattr(self, "_inverters_inventory_cache_until", None)
+        inventory_due = True
+        if isinstance(inventory_cache_until, (int, float)) and now < float(
+            inventory_cache_until
+        ):
+            inventory_due = False
+        else:
+            inventory_due = coord._endpoint_family_should_run(
+                "inverter_inventory", force=force
+            )
+        status_cache_until = getattr(self, "_inverter_status_cache_until", None)
+        status_due = False
+        if isinstance(status_cache_until, (int, float)) and now < float(
+            status_cache_until
+        ):
+            status_due = False
+        else:
+            status_due = coord._endpoint_family_should_run(
+                "inverter_status", force=force
+            )
+        start_date = self._inverter_start_date()
+        production_due = False
+        if start_date is not None:
+            end_date = self._site_local_current_date()
+            current_key = (start_date, end_date)
+            cached_payload = getattr(self, "_inverter_production_payload", None)
+            cached_matches = (
+                getattr(self, "_inverter_production_cache_key", None) == current_key
+                and isinstance(cached_payload, dict)
+                and bool(cached_payload)
+            )
+            production_cache_until = getattr(
+                self,
+                "_inverter_production_cache_until",
+                None,
+            )
+            if not (
+                cached_matches
+                and isinstance(production_cache_until, (int, float))
+                and now < float(production_cache_until)
+            ):
+                production_fetcher = getattr(self.client, "inverter_production", None)
+                production_due = callable(
+                    production_fetcher
+                ) and coord._endpoint_family_should_run(
+                    "inverter_production", force=force
+                )
+        return inventory_due or status_due or production_due
 
     def iter_inverter_serials(self) -> list[str]:
         """Return currently active inverter serials in a stable order."""
