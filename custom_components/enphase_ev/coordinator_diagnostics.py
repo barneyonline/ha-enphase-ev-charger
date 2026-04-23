@@ -997,6 +997,13 @@ class CoordinatorDiagnostics:
                         None,
                     )
                 ),
+                "cache_state_counts": _signature_copy(
+                    getattr(
+                        session_history,
+                        "cache_state_counts",
+                        lambda: None,
+                    )()
+                ),
             }
         evse_timeseries = getattr(coord, "evse_timeseries", None)
         if evse_timeseries is not None:
@@ -1051,7 +1058,41 @@ class CoordinatorDiagnostics:
         if manager is None:
             return
         available = getattr(manager, "service_available", True)
-        if available:
+        has_current_day_unavailable = False
+        if available and hasattr(manager, "get_cache_view"):
+            data = getattr(coord, "data", None)
+            if isinstance(data, dict) and data:
+                try:
+                    day_ref = dt_util.now()
+                except Exception:
+                    day_ref = datetime.now()
+                try:
+                    day_local_default = dt_util.as_local(day_ref)
+                except Exception:
+                    if day_ref.tzinfo is None:
+                        day_ref = day_ref.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+                    day_local_default = day_ref
+                for sn, payload in data.items():
+                    if not isinstance(payload, dict):
+                        continue
+                    try:
+                        history_day = coord._session_history_day(
+                            payload, day_local_default
+                        )
+                    except Exception:
+                        history_day = day_local_default
+                    try:
+                        view = manager.get_cache_view(
+                            sn, history_day.strftime("%Y-%m-%d")
+                        )
+                    except Exception:
+                        continue
+                    if bool(getattr(view, "has_valid_cache", False)):
+                        continue
+                    if getattr(view, "state", None) == "unavailable":
+                        has_current_day_unavailable = True
+                        break
+        if available and not has_current_day_unavailable:
             self._clear_reported_issue(
                 "_session_history_issue_reported",
                 ISSUE_SESSION_HISTORY_UNAVAILABLE,

@@ -33,6 +33,25 @@ class SessionCacheView:
     cache_age: float | None
     needs_refresh: bool
     blocked: bool
+    state: str
+    has_valid_cache: bool
+    last_error: str | None
+
+
+SESSION_CACHE_STATE_VALID = "valid"
+SESSION_CACHE_STATE_STALE_REUSED = "stale_reused"
+SESSION_CACHE_STATE_UNAVAILABLE = "unavailable"
+
+
+@dataclass(slots=True)
+class SessionCacheEntry:
+    """Structured cache entry for a serial/day session-history result."""
+
+    cached_at_mono: float | None
+    sessions: list[dict]
+    state: str
+    last_error: str | None
+    has_valid_cache: bool
 
 
 class SessionHistoryManager:
@@ -59,7 +78,9 @@ class SessionHistoryManager:
         )
         self._concurrency = max(1, int(concurrency))
         self._cache_day_retention = max(1, int(cache_day_retention))
-        self._cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+        self._cache: dict[
+            tuple[str, str], SessionCacheEntry | tuple[float, list[dict]]
+        ] = {}
         self._block_until: dict[str, float] = {}
         self._refresh_in_progress: set[str] = set()
         self._criteria_checked_mono: float | None = None
@@ -101,6 +122,20 @@ class SessionHistoryManager:
     def cache_key_count(self) -> int:
         """Return the number of cached serial/day entries."""
         return len(self._cache)
+
+    def cache_state_counts(self) -> dict[str, int]:
+        """Return counts of cache entries by tri-state."""
+        counts = {
+            SESSION_CACHE_STATE_VALID: 0,
+            SESSION_CACHE_STATE_STALE_REUSED: 0,
+            SESSION_CACHE_STATE_UNAVAILABLE: 0,
+        }
+        for cache_key in list(self._cache):
+            entry = self._get_cache_entry(cache_key)
+            if entry is None:
+                continue
+            counts[entry.state] = counts.get(entry.state, 0) + 1
+        return counts
 
     @property
     def in_progress(self) -> int:
@@ -187,6 +222,83 @@ class SessionHistoryManager:
         except Exception:
             return None
 
+    @staticmethod
+    def _entry_error_text(err: Exception | str | None) -> str | None:
+        if err is None:
+            return None
+        reason = redact_text(err)
+        if reason:
+            return reason
+        if isinstance(err, str):
+            cleaned = err.strip()
+            return cleaned or None
+        return err.__class__.__name__
+
+    def _coerce_cache_entry(
+        self,
+        value: SessionCacheEntry | tuple[float, list[dict]] | None,
+    ) -> SessionCacheEntry | None:
+        if isinstance(value, SessionCacheEntry):
+            return value
+        if isinstance(value, tuple) and len(value) == 2 and isinstance(value[1], list):
+            cached_at_mono = value[0]
+            if not isinstance(cached_at_mono, (int, float)):
+                cached_at_mono = None
+            return SessionCacheEntry(
+                cached_at_mono=(
+                    float(cached_at_mono) if cached_at_mono is not None else None
+                ),
+                sessions=value[1],
+                state=SESSION_CACHE_STATE_VALID,
+                last_error=None,
+                has_valid_cache=True,
+            )
+        return None
+
+    def _get_cache_entry(self, cache_key: tuple[str, str]) -> SessionCacheEntry | None:
+        cached = self._coerce_cache_entry(self._cache.get(cache_key))
+        if cached is not None:
+            self._cache[cache_key] = cached
+        return cached
+
+    def _set_unavailable_entry(
+        self,
+        serial: str,
+        day_key: str,
+        now_mono: float,
+        err: Exception | str | None,
+    ) -> None:
+        self._set_cache_entry(
+            serial,
+            day_key,
+            SessionCacheEntry(
+                cached_at_mono=now_mono,
+                sessions=[],
+                state=SESSION_CACHE_STATE_UNAVAILABLE,
+                last_error=self._entry_error_text(err),
+                has_valid_cache=False,
+            ),
+        )
+
+    def _set_stale_reused_entry(
+        self,
+        serial: str,
+        day_key: str,
+        cached: SessionCacheEntry,
+        err: Exception | str | None,
+    ) -> None:
+        self._set_cache_entry(
+            serial,
+            day_key,
+            SessionCacheEntry(
+                cached_at_mono=cached.cached_at_mono,
+                sessions=list(cached.sessions),
+                state=SESSION_CACHE_STATE_STALE_REUSED,
+                last_error=self._entry_error_text(err),
+                has_valid_cache=True,
+            ),
+        )
+
     def get_cache_view(
         self,
         serial: str,
@@ -196,14 +308,15 @@ class SessionHistoryManager:
         """Return the cache state for a serial/day pair."""
         now = now_mono or time.monotonic()
         cache_key = (serial, day_key)
-        cached = self._cache.get(cache_key)
+        cached = self._get_cache_entry(cache_key)
         sessions: list[dict] = []
         cache_age: float | None = None
         if cached:
-            cached_ts, cached_sessions = cached
-            cache_age = now - cached_ts
-            sessions = cached_sessions
-        needs_refresh = cached is None or (
+            cached_ts = cached.cached_at_mono
+            cache_age = None if cached_ts is None else now - cached_ts
+            sessions = cached.sessions if cached.has_valid_cache else []
+        has_valid_cache = bool(cached and cached.has_valid_cache)
+        needs_refresh = not has_valid_cache or (
             cache_age is not None and cache_age >= self._cache_ttl
         )
         block_until = self._block_until.get(serial)
@@ -215,6 +328,11 @@ class SessionHistoryManager:
             cache_age=cache_age,
             needs_refresh=needs_refresh,
             blocked=blocked,
+            state=(
+                cached.state if cached is not None else SESSION_CACHE_STATE_UNAVAILABLE
+            ),
+            has_valid_cache=has_valid_cache,
+            last_error=cached.last_error if cached is not None else None,
         )
 
     def schedule_enrichment(self, serials: Iterable[str], day_local: datetime) -> None:
@@ -400,7 +518,7 @@ class SessionHistoryManager:
         if active_serials is not None:
             active_serials.add(sn)
         self.prune(active_serials=active_serials, keep_day_keys={day_key})
-        cached = self._cache.get(cache_key)
+        cached = self._get_cache_entry(cache_key)
         refresh_after = self._cache_ttl
         if max_cache_age is not None:
             try:
@@ -410,13 +528,18 @@ class SessionHistoryManager:
                 )
             except (TypeError, ValueError):
                 refresh_after = self._cache_ttl
-        if cached and (now_mono - cached[0] < refresh_after):
-            return cached[1]
+        if (
+            cached is not None
+            and cached.has_valid_cache
+            and cached.cached_at_mono is not None
+            and (now_mono - cached.cached_at_mono) < refresh_after
+        ):
+            return cached.sessions
         if self._service_backoff_active():
-            return cached[1] if cached else []
+            return cached.sessions if cached and cached.has_valid_cache else []
         block_until = self._block_until.get(sn)
         if block_until and now_mono < block_until:
-            return cached[1] if cached else []
+            return cached.sessions if cached and cached.has_valid_cache else []
 
         api_day = local_dt.strftime("%d-%m-%Y")
         client = self._client_getter()
@@ -433,17 +556,18 @@ class SessionHistoryManager:
                 self._logger.debug(
                     "Session history criteria unavailable for %s: %s", sn, err
                 )
-                if cached:
+                if cached and cached.has_valid_cache:
                     self._note_service_unavailable(err, using_stale=True)
-                    return cached[1]
+                    self._set_stale_reused_entry(sn, day_key, cached, err)
+                    return cached.sessions
                 self._note_service_unavailable(err)
-                self._set_cache_entry(sn, day_key, now_mono, [])
+                self._set_unavailable_entry(sn, day_key, now_mono, err)
                 return []
             except Unauthorized as err:
                 self._logger.debug(
                     "Session history criteria unauthorized for %s: %s", sn, err
                 )
-                self._set_cache_entry(sn, day_key, now_mono, [])
+                self._set_unavailable_entry(sn, day_key, now_mono, err)
                 return []
             except aiohttp.ClientResponseError as err:
                 self._logger.debug(
@@ -454,16 +578,17 @@ class SessionHistoryManager:
                 )
                 if err.status in (500, 502, 503, 504, 550):
                     self._block_until[sn] = now_mono + self._failure_backoff
-                self._set_cache_entry(sn, day_key, now_mono, [])
+                self._set_unavailable_entry(sn, day_key, now_mono, err)
                 return []
             except Exception as err:  # noqa: BLE001
                 self._logger.debug(
                     "Session history criteria failed for %s: %s", sn, err
                 )
-                if cached:
+                if cached and cached.has_valid_cache:
                     self._note_service_unavailable(err, using_stale=True)
-                    return cached[1]
-                self._set_cache_entry(sn, day_key, now_mono, [])
+                    self._set_stale_reused_entry(sn, day_key, cached, err)
+                    return cached.sessions
+                self._set_unavailable_entry(sn, day_key, now_mono, err)
                 return []
 
         async def _fetch_page(offset: int, limit: int) -> tuple[list[dict], bool]:
@@ -501,11 +626,12 @@ class SessionHistoryManager:
                 api_day,
                 err,
             )
-            if cached:
+            if cached and cached.has_valid_cache:
                 self._note_service_unavailable(err, using_stale=True)
-                return cached[1]
+                self._set_stale_reused_entry(sn, day_key, cached, err)
+                return cached.sessions
             self._note_service_unavailable(err)
-            self._set_cache_entry(sn, day_key, now_mono, [])
+            self._set_unavailable_entry(sn, day_key, now_mono, err)
             return []
         except Unauthorized as err:
             self._logger.debug(
@@ -514,7 +640,7 @@ class SessionHistoryManager:
                 api_day,
                 err,
             )
-            self._set_cache_entry(sn, day_key, now_mono, [])
+            self._set_unavailable_entry(sn, day_key, now_mono, err)
             return []
         except aiohttp.ClientResponseError as err:
             self._logger.debug(
@@ -526,22 +652,33 @@ class SessionHistoryManager:
             )
             if err.status in (500, 502, 503, 504, 550):
                 self._block_until[sn] = now_mono + self._failure_backoff
-            self._set_cache_entry(sn, day_key, now_mono, [])
+            self._set_unavailable_entry(sn, day_key, now_mono, err)
             return []
         except Exception as err:  # noqa: BLE001
             self._logger.debug(
                 "Session history fetch failed for %s on %s: %s", sn, api_day, err
             )
-            if cached:
+            if cached and cached.has_valid_cache:
                 self._note_service_unavailable(err, using_stale=True)
-                return cached[1]
-            self._set_cache_entry(sn, day_key, now_mono, [])
+                self._set_stale_reused_entry(sn, day_key, cached, err)
+                return cached.sessions
+            self._set_unavailable_entry(sn, day_key, now_mono, err)
             return []
 
         sessions = self._normalise_sessions_for_day(local_dt=local_dt, results=results)
         self._mark_service_available()
         self._block_until.pop(sn, None)
-        self._set_cache_entry(sn, day_key, now_mono, sessions)
+        self._set_cache_entry(
+            sn,
+            day_key,
+            SessionCacheEntry(
+                cached_at_mono=now_mono,
+                sessions=list(sessions),
+                state=SESSION_CACHE_STATE_VALID,
+                last_error=None,
+                has_valid_cache=True,
+            ),
+        )
         return sessions
 
     @staticmethod
@@ -589,10 +726,9 @@ class SessionHistoryManager:
         self,
         serial: str,
         day_key: str,
-        now_mono: float,
-        sessions: list[dict],
+        entry: SessionCacheEntry,
     ) -> None:
-        self._cache[(serial, day_key)] = (now_mono, sessions)
+        self._cache[(serial, day_key)] = entry
         active_serials = self._active_serials_from_data_supplier()
         if active_serials is not None:
             active_serials.add(serial)
