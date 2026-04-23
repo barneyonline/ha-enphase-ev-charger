@@ -10,8 +10,13 @@ from unittest.mock import AsyncMock
 import pytest
 from homeassistant.const import UnitOfPower
 
+from custom_components.enphase_ev import energy as energy_mod
 from custom_components.enphase_ev.api import SiteEnergyUnavailable
-from custom_components.enphase_ev.energy import LifetimeGuardState, SiteEnergyFlow
+from custom_components.enphase_ev.energy import (
+    SITE_ENERGY_CACHE_TTL,
+    LifetimeGuardState,
+    SiteEnergyFlow,
+)
 from custom_components.enphase_ev.sensor import (
     EnphaseBatteryPowerSensor,
     EnphaseGridPowerSensor,
@@ -66,6 +71,35 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
     assert isinstance(meta["last_report_date"], datetime)
     assert meta["update_pending"] is False
     assert meta["interval_minutes"] == pytest.approx(60.0)
+
+
+def test_site_energy_refresh_due_initializes_attrs_and_respects_backoff(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    manager = coord.energy
+    del manager._site_energy_cache_ts
+    del manager._site_energy_cache_ttl
+    manager._service_backoff_until = 150.0  # noqa: SLF001
+    monkeypatch.setattr(energy_mod.time, "monotonic", lambda: 100.0)
+
+    assert manager.site_energy_refresh_due() is False
+    assert manager._site_energy_cache_ts is None  # noqa: SLF001
+    assert manager._site_energy_cache_ttl == SITE_ENERGY_CACHE_TTL  # noqa: SLF001
+
+
+def test_site_energy_refresh_due_skips_when_cache_is_fresh(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    manager = coord.energy
+    manager._site_energy_cache_ts = 95.0  # noqa: SLF001
+    manager._site_energy_cache_ttl = 10.0  # noqa: SLF001
+    manager._service_backoff_until = None  # noqa: SLF001
+    coord.client.lifetime_energy = AsyncMock(return_value={})
+    monkeypatch.setattr(energy_mod.time, "monotonic", lambda: 100.0)
+
+    assert manager.site_energy_refresh_due() is False
 
 
 def test_site_energy_aggregation_includes_additional_device_channels(
