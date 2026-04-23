@@ -1381,7 +1381,7 @@ class BatteryRuntime:
         return dt_util.utcnow().isoformat()
 
     async def _async_validate_cfg_schedule_commit(self) -> None:
-        """Best-effort mirror of the web UI's CFG validation step."""
+        """Best-effort mirror of the current CFG validation step."""
 
         validator = getattr(self.coordinator.client, "validate_battery_schedule", None)
         if not callable(validator):
@@ -1420,7 +1420,7 @@ class BatteryRuntime:
             )
 
     async def _async_accept_charge_from_grid_disclaimer(self) -> None:
-        """Acknowledge the ITC disclaimer using the browser-observed flow."""
+        """Acknowledge the ITC disclaimer before enabling charge from grid."""
 
         accepter = getattr(
             self.coordinator.client, "accept_battery_settings_disclaimer", None
@@ -1444,7 +1444,7 @@ class BatteryRuntime:
     def _cfg_schedule_commit_payload(
         self, *, charge_from_grid_enabled: bool | None = None
     ) -> dict[str, object]:
-        """Return the lean CFG commit payload observed in Enlighten HAR captures."""
+        """Return the lean CFG commit payload used for schedule commits."""
 
         coord = self.coordinator
         if charge_from_grid_enabled is None:
@@ -1466,7 +1466,7 @@ class BatteryRuntime:
     async def _async_commit_cfg_schedule_write(
         self, *, charge_from_grid_enabled: bool | None = None
     ) -> None:
-        """Commit a pending CFG schedule change using the browser-observed sequence."""
+        """Commit a pending CFG schedule change after validation."""
 
         coord = self.coordinator
         payload = self._cfg_schedule_commit_payload(
