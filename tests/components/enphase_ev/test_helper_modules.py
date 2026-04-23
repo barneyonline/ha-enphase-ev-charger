@@ -24,6 +24,10 @@ from custom_components.enphase_ev.api import (
 from custom_components.enphase_ev.evse_timeseries import EVSETimeseriesManager
 from custom_components.enphase_ev.session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
+    SESSION_CACHE_STATE_STALE_REUSED,
+    SESSION_CACHE_STATE_UNAVAILABLE,
+    SESSION_CACHE_STATE_VALID,
+    SessionCacheEntry,
     SessionCacheView,
     SessionHistoryManager,
 )
@@ -770,6 +774,40 @@ async def test_session_history_fetch_calls_filter_criteria(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_session_history_valid_empty_results_cache_as_valid(hass) -> None:
+    await hass.config.async_set_time_zone("UTC")
+
+    class _EmptyClient:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def session_history(self, *_args, **_kwargs) -> dict:
+            self.calls += 1
+            return {"data": {"result": [], "hasMore": False}}
+
+    client = _EmptyClient()
+    manager = SessionHistoryManager(
+        hass,
+        lambda: client,
+        cache_ttl=600,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    day = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+
+    first = await manager._async_fetch_sessions_today("EV-EMPTY", day_local=day)
+    second = await manager._async_fetch_sessions_today("EV-EMPTY", day_local=day)
+    entry = manager._cache[("EV-EMPTY", "2025-10-16")]
+
+    assert first == []
+    assert second == []
+    assert client.calls == 1
+    assert entry.state == SESSION_CACHE_STATE_VALID
+    assert entry.has_valid_cache is True
+    assert entry.sessions == []
+
+
+@pytest.mark.asyncio
 async def test_session_history_fetch_shares_filter_criteria_across_serials(
     hass,
 ) -> None:
@@ -883,6 +921,9 @@ def test_session_history_cache_view_states(hass) -> None:
     fresh = manager.get_cache_view("EV-01", "2025-10-16", now_mono=time.monotonic())
     assert isinstance(fresh, SessionCacheView)
     assert fresh.needs_refresh is False
+    assert fresh.state == SESSION_CACHE_STATE_VALID
+    assert fresh.has_valid_cache is True
+    assert fresh.last_error is None
 
     # Force expiration and block
     manager._cache[cache_key] = (time.monotonic() - 120, [{"session_id": "old"}])
@@ -890,6 +931,70 @@ def test_session_history_cache_view_states(hass) -> None:
     blocked = manager.get_cache_view("EV-01", "2025-10-16")
     assert blocked.needs_refresh is True
     assert blocked.blocked is True
+    assert blocked.state == SESSION_CACHE_STATE_VALID
+    assert blocked.has_valid_cache is True
+
+
+def test_session_history_cache_view_marks_unavailable_without_valid_cache(hass) -> None:
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=10,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    manager._cache[("EV-01", "2025-10-16")] = SessionCacheEntry(
+        cached_at_mono=time.monotonic(),
+        sessions=[],
+        state=SESSION_CACHE_STATE_UNAVAILABLE,
+        last_error="down",
+        has_valid_cache=False,
+    )
+
+    view = manager.get_cache_view("EV-01", "2025-10-16")
+
+    assert view.sessions == []
+    assert view.needs_refresh is True
+    assert view.state == SESSION_CACHE_STATE_UNAVAILABLE
+    assert view.has_valid_cache is False
+    assert view.last_error == "down"
+
+
+def test_session_history_cache_state_counts_handles_legacy_and_invalid_entries(
+    hass,
+) -> None:
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=10,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    manager._cache[("EV-VALID", "2025-10-16")] = ("bad-ts", [{"session_id": "cached"}])
+    manager._cache[("EV-STALE", "2025-10-16")] = SessionCacheEntry(
+        cached_at_mono=time.monotonic(),
+        sessions=[{"session_id": "stale"}],
+        state=SESSION_CACHE_STATE_STALE_REUSED,
+        last_error="down",
+        has_valid_cache=True,
+    )
+    manager._cache[("EV-BAD", "2025-10-16")] = "invalid"
+
+    counts = manager.cache_state_counts()
+
+    assert counts == {
+        SESSION_CACHE_STATE_VALID: 1,
+        SESSION_CACHE_STATE_STALE_REUSED: 1,
+        SESSION_CACHE_STATE_UNAVAILABLE: 0,
+    }
+    coerced = manager._cache[("EV-VALID", "2025-10-16")]  # noqa: SLF001
+    assert isinstance(coerced, SessionCacheEntry)
+    assert coerced.cached_at_mono is None
+
+
+def test_session_history_entry_error_text_handles_empty_values() -> None:
+    assert SessionHistoryManager._entry_error_text(None) is None  # noqa: SLF001
+    assert SessionHistoryManager._entry_error_text("   ") is None  # noqa: SLF001
 
 
 def _make_request_info() -> RequestInfo:
@@ -916,9 +1021,14 @@ async def test_session_history_async_fetch_handles_errors(hass) -> None:
             data_supplier=lambda: {},
             publish_callback=lambda _: None,
         )
-        return await manager._async_fetch_sessions_today("EV-ERR", day_local=day)
+        sessions = await manager._async_fetch_sessions_today("EV-ERR", day_local=day)
+        return manager, sessions
 
-    assert await _invoke(Unauthorized("bad")) == []
+    manager, sessions = await _invoke(Unauthorized("bad"))
+    assert sessions == []
+    entry = manager._cache[("EV-ERR", day.strftime("%Y-%m-%d"))]
+    assert entry.state == SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
     response_error = aiohttp.ClientResponseError(
         _make_request_info(),
@@ -926,7 +1036,11 @@ async def test_session_history_async_fetch_handles_errors(hass) -> None:
         status=503,
         message="unavailable",
     )
-    assert await _invoke(response_error) == []
+    manager, sessions = await _invoke(response_error)
+    assert sessions == []
+    entry = manager._cache[("EV-ERR", day.strftime("%Y-%m-%d"))]
+    assert entry.state == SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
     assert (
         await SessionHistoryManager(
@@ -938,7 +1052,11 @@ async def test_session_history_async_fetch_handles_errors(hass) -> None:
         )._async_fetch_sessions_today("EV-NULL", day_local=day)
     ) == []
 
-    assert await _invoke(RuntimeError("boom")) == []
+    manager, sessions = await _invoke(RuntimeError("boom"))
+    assert sessions == []
+    entry = manager._cache[("EV-ERR", day.strftime("%Y-%m-%d"))]
+    assert entry.state == SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
 
 @pytest.mark.asyncio
@@ -1309,6 +1427,9 @@ async def test_session_history_reuses_cached_data_on_invalid_payload(hass) -> No
     assert manager.service_available is False
     assert manager.service_using_stale is True
     assert manager.service_last_error is not None
+    entry = manager._cache[("EV-BAD", day_key)]
+    assert entry.state == SESSION_CACHE_STATE_STALE_REUSED
+    assert entry.has_valid_cache is True
     assert manager._service_last_payload_signature == {
         "endpoint": "/session_history",
         "status": 200,
@@ -1349,6 +1470,9 @@ async def test_session_history_reuses_cached_data_when_criteria_unavailable(
 
     assert sessions == [{"session_id": "cached-criteria"}]
     assert manager.service_using_stale is True
+    entry = manager._cache[("EV-BAD", day_key)]
+    assert entry.state == SESSION_CACHE_STATE_STALE_REUSED
+    assert entry.has_valid_cache is True
 
 
 @pytest.mark.asyncio
@@ -1379,6 +1503,9 @@ async def test_session_history_reuses_cached_data_when_criteria_fails_genericall
 
     assert sessions == [{"session_id": "cached-criteria-generic"}]
     assert manager.service_using_stale is True
+    entry = manager._cache[("EV-BAD", day_key)]
+    assert entry.state == SESSION_CACHE_STATE_STALE_REUSED
+    assert entry.has_valid_cache is True
 
 
 @pytest.mark.asyncio
@@ -1412,6 +1539,9 @@ async def test_session_history_reuses_cached_data_when_service_unavailable(
 
     assert sessions == [{"session_id": "cached-page"}]
     assert manager.service_using_stale is True
+    entry = manager._cache[("EV-BAD", day_key)]
+    assert entry.state == SESSION_CACHE_STATE_STALE_REUSED
+    assert entry.has_valid_cache is True
 
 
 @pytest.mark.asyncio
@@ -1460,9 +1590,34 @@ async def test_session_history_fetch_handles_empty_serial_and_block(
     assert cached == ["cached"]
 
 
+def test_session_history_blocked_without_valid_cache_remains_unavailable(hass) -> None:
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=60,
+        data_supplier=lambda: {},
+        publish_callback=lambda _: None,
+    )
+    day_key = "2025-10-16"
+    manager._cache[("EV-ALPHA", day_key)] = SessionCacheEntry(
+        cached_at_mono=time.monotonic(),
+        sessions=[],
+        state=SESSION_CACHE_STATE_UNAVAILABLE,
+        last_error="down",
+        has_valid_cache=False,
+    )
+    manager._block_until["EV-ALPHA"] = time.monotonic() + 30
+
+    view = manager.get_cache_view("EV-ALPHA", day_key)
+
+    assert view.blocked is True
+    assert view.state == SESSION_CACHE_STATE_UNAVAILABLE
+    assert view.has_valid_cache is False
+
+
 @pytest.mark.asyncio
 async def test_session_history_fetch_handles_page_unauthorized(hass) -> None:
-    """Unauthorized responses during pagination should be cached as empty."""
+    """Unauthorized responses during pagination should mark the entry unavailable."""
 
     class FailingClient:
         async def session_history(self, *_args, **_kwargs):
@@ -1481,7 +1636,10 @@ async def test_session_history_fetch_handles_page_unauthorized(hass) -> None:
     sessions = await manager._async_fetch_sessions_today("EV-DENY", day_local=day)
     assert sessions == []
     day_key = day.strftime("%Y-%m-%d")
-    assert manager._cache[("EV-DENY", day_key)][1] == []
+    entry = manager._cache[("EV-DENY", day_key)]
+    assert entry.sessions == []
+    assert entry.state == SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
 
 def test_session_history_normalise_handles_parse_failures(hass, monkeypatch) -> None:

@@ -1926,6 +1926,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             ),
             "cache_ttl_seconds": session_manager.cache_ttl,
             "cache_keys": session_manager.cache_key_count,
+            "cache_state_counts": getattr(
+                session_manager,
+                "cache_state_counts",
+                lambda: None,
+            )(),
             "interval_minutes": getattr(self, "_session_history_interval_min", None),
             "in_progress": session_manager.in_progress,
         }
@@ -3932,6 +3937,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             cur["energy_today_sessions_kwh"] = self._sum_session_energy(sessions_cached)
             view_needs_refresh = bool(getattr(view, "needs_refresh", False))
             view_blocked = bool(getattr(view, "blocked", False))
+            view_has_valid_cache = bool(getattr(view, "has_valid_cache", False))
             soft_ttl = self._session_history_soft_ttl(cur)
             hard_ttl = self._session_history_hard_ttl(cur)
             session_cache_ttl = float(
@@ -3947,9 +3953,23 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 else None
             )
             needs_refresh = (
-                cache_age >= soft_ttl if cache_age is not None else view_needs_refresh
+                cache_age >= soft_ttl
+                if view_has_valid_cache and cache_age is not None
+                else view_needs_refresh
             )
             if not needs_refresh or view_blocked:
+                continue
+            if not view_has_valid_cache:
+                # Failed/no-cache lookups should retry on the session-history cadence,
+                # not on every fast coordinator poll.
+                if cache_age is not None and cache_age < session_cache_ttl:
+                    continue
+                if first_refresh:
+                    background_by_day.setdefault((day_key, max_cache_age), []).append(
+                        sn
+                    )
+                    continue
+                immediate_by_day.setdefault((day_key, max_cache_age), []).append(sn)
                 continue
             if cache_age is None:
                 if first_refresh:
