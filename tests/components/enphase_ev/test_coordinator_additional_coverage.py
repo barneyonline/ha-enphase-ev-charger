@@ -24,6 +24,7 @@ from http import HTTPStatus
 
 from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
 from custom_components.enphase_ev import coordinator as coord_mod
+from custom_components.enphase_ev import coordinator_diagnostics as coord_diag_mod
 from custom_components.enphase_ev.coordinator import (
     EnphaseCoordinator,
     ChargeModeStartPreferences,
@@ -247,6 +248,7 @@ def test_coordinator_public_diagnostics_helpers(coordinator_factory) -> None:
         "last_payload_signature": None,
         "cache_ttl_seconds": 300,
         "cache_keys": 2,
+        "cache_state_counts": None,
         "interval_minutes": 15,
         "in_progress": 1,
     }
@@ -775,6 +777,77 @@ def test_sync_session_history_issue_creates_and_clears(
     assert any(
         issue[1] == ISSUE_SESSION_HISTORY_UNAVAILABLE
         for issue in mock_issue_registry.deleted
+    )
+
+
+def test_sync_session_history_issue_uses_current_day_unavailable_view(
+    coordinator_factory, mock_issue_registry
+) -> None:
+    coord = coordinator_factory()
+    coord.data = {SERIAL_ONE: {"display_name": "Garage EV"}}
+    coord._session_history_day = lambda payload, default: default  # type: ignore[method-assign]  # noqa: SLF001
+    coord.session_history = SimpleNamespace(
+        service_available=True,
+        get_cache_view=lambda *_args, **_kwargs: SimpleNamespace(
+            has_valid_cache=False,
+            state="unavailable",
+        ),
+    )
+
+    coord._sync_session_history_issue()  # noqa: SLF001
+
+    assert coord._session_history_issue_reported is True  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SESSION_HISTORY_UNAVAILABLE
+        for issue in mock_issue_registry.created
+    )
+
+    coord.session_history.get_cache_view = lambda *_args, **_kwargs: SimpleNamespace(
+        has_valid_cache=True,
+        state="valid",
+    )
+    coord._sync_session_history_issue()  # noqa: SLF001
+
+    assert coord._session_history_issue_reported is False  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SESSION_HISTORY_UNAVAILABLE
+        for issue in mock_issue_registry.deleted
+    )
+
+
+def test_sync_session_history_issue_handles_fallback_day_resolution(
+    coordinator_factory, mock_issue_registry, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord.data = {
+        "bad": "skip-me",
+        SERIAL_ONE: {"display_name": "Garage EV"},
+    }
+    coord._session_history_day = MagicMock(side_effect=RuntimeError("boom"))  # type: ignore[assignment]  # noqa: SLF001
+    coord.session_history = SimpleNamespace(
+        service_available=True,
+        get_cache_view=lambda serial, _day_key: SimpleNamespace(
+            has_valid_cache=serial == "bad",
+            state="unavailable",
+        ),
+    )
+    monkeypatch.setattr(
+        coord_diag_mod.dt_util,
+        "now",
+        lambda: datetime(2025, 10, 16, 12, 0, 0),
+    )
+    monkeypatch.setattr(
+        coord_diag_mod.dt_util,
+        "as_local",
+        lambda _value: (_ for _ in ()).throw(ValueError("boom")),
+    )
+
+    coord._sync_session_history_issue()  # noqa: SLF001
+
+    assert coord._session_history_issue_reported is True  # noqa: SLF001
+    assert any(
+        issue[1] == ISSUE_SESSION_HISTORY_UNAVAILABLE
+        for issue in mock_issue_registry.created
     )
 
 
