@@ -11,6 +11,7 @@ from homeassistant.components.update import (
 )
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -185,6 +186,12 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         await self._async_refresh_catalog()
+
+    async def async_install(
+        self, version: str | None, backup: bool, **kwargs: Any
+    ) -> None:
+        """Reject install requests; these entities only advertise firmware status."""
+        raise HomeAssistantError("Firmware updates are advisory only")
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -365,6 +372,12 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         await self._async_refresh_state()
+
+    async def async_install(
+        self, version: str | None, backup: bool, **kwargs: Any
+    ) -> None:
+        """Reject install requests; these entities only advertise firmware status."""
+        raise HomeAssistantError("Firmware updates are advisory only")
 
     @callback
     def _handle_coordinator_update(self) -> None:

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from homeassistant.components.update import UpdateEntityDescription
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from unittest.mock import AsyncMock, MagicMock
@@ -406,6 +407,22 @@ async def test_gateway_update_entity_states_and_release_url_selection(hass) -> N
     assert entity.available is False
 
 
+@pytest.mark.asyncio
+async def test_gateway_update_entity_rejects_install_requests(hass) -> None:
+    entity = FirmwareUpdateEntity(
+        coordinator=DummyCoordinator(),
+        manager=DummyCatalogManager(_catalog_payload()),
+        device_type="envoy",
+        translation_key="gateway_firmware",
+        description=UpdateEntityDescription(key="gateway_firmware"),
+        installed_version_getter=_gateway_installed_version,
+    )
+    entity.hass = hass
+
+    with pytest.raises(HomeAssistantError, match="advisory only"):
+        await entity.async_install(version=None, backup=False)
+
+
 def test_firmware_update_entities_fall_back_to_type_device_identifiers() -> None:
     coord = DummyCoordinator()
     coord.inventory_view = SimpleNamespace(
@@ -572,6 +589,21 @@ async def test_charger_update_entity_clears_release_metadata_without_catalog_ent
     assert (
         entity.extra_state_attributes["catalog_generated_at"] == "2026-03-01T00:00:00Z"
     )
+
+
+@pytest.mark.asyncio
+async def test_charger_update_entity_rejects_install_requests(hass) -> None:
+    entity = ChargerFirmwareUpdateEntity(
+        coordinator=DummyCoordinator(),
+        manager=DummyEvseFirmwareManager(_evse_payload()),
+        catalog_manager=DummyCatalogManager(_catalog_payload()),
+        serial=TEST_EVSE_SERIAL,
+        description=UpdateEntityDescription(key="charger_firmware"),
+    )
+    entity.hass = hass
+
+    with pytest.raises(HomeAssistantError, match="advisory only"):
+        await entity.async_install(version=None, backup=False)
 
 
 @pytest.mark.asyncio
