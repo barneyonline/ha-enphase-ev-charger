@@ -43,6 +43,27 @@ class CurrentPowerRuntime:
 
         CurrentPowerSample().apply_to(self.coordinator)
 
+    def _cached_state_present(self) -> bool:
+        coord = self.coordinator
+        return any(
+            getattr(coord, attr, None) is not None
+            for attr in (
+                "_current_power_consumption_w",
+                "_current_power_consumption_sample_utc",
+                "_current_power_consumption_reported_units",
+                "_current_power_consumption_reported_precision",
+                "_current_power_consumption_source",
+            )
+        )
+
+    def refresh_due(self) -> bool:
+        """Return True when current-power data can be refreshed."""
+
+        fetcher = getattr(self.coordinator.client, "latest_power", None)
+        if callable(fetcher):
+            return True
+        return self._cached_state_present()
+
     async def async_refresh(self) -> None:
         """Refresh cached current power consumption from ``client.latest_power``."""
 

@@ -173,6 +173,26 @@ async def test_async_refresh_success(coordinator_factory, monkeypatch) -> None:
     assert coord.evse_feature_flags_runtime.feature_flag("site_flag") is True
 
 
+def test_refresh_due_uses_fetch_when_cache_expired(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord._evse_feature_flags_cache_until = None  # noqa: SLF001
+    coord.client = SimpleNamespace(evse_feature_flags=AsyncMock())
+
+    assert coord.evse_feature_flags_runtime.refresh_due() is True
+
+
+def test_refresh_due_requests_cleanup_when_fetcher_missing_with_cached_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._evse_feature_flags_cache_until = None  # noqa: SLF001
+    coord._evse_feature_flags_payload = {"meta": {}}  # noqa: SLF001
+    coord._evse_site_feature_flags = {"site_flag": True}  # noqa: SLF001
+    coord.client = SimpleNamespace()
+
+    assert coord.evse_feature_flags_runtime.refresh_due() is True
+
+
 def test_feature_flag_empty_key(coordinator_factory) -> None:
     coord = coordinator_factory()
     assert coord.evse_feature_flags_runtime.feature_flag("  ") is None

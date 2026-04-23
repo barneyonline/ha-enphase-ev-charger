@@ -723,6 +723,148 @@ class BatteryRuntime:
             return float(default_ttl)
         return min(float(default_ttl), current_interval)
 
+    def battery_status_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        now = time.monotonic()
+        if not force and state._battery_status_cache_until:
+            if now < state._battery_status_cache_until:
+                return False
+        fetcher = getattr(coord.client, "battery_status", None)
+        if not callable(fetcher):
+            return False
+        return coord._endpoint_family_should_run("battery_status", force=force)
+
+    def battery_backup_history_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        now = time.monotonic()
+        if not force and state._battery_backup_history_cache_until:
+            if now < state._battery_backup_history_cache_until:
+                return False
+        fetcher = getattr(coord.client, "battery_backup_history", None)
+        if not callable(fetcher):
+            return False
+        return coord._endpoint_family_should_run("battery_backup_history", force=force)
+
+    def battery_settings_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        pending_profile = getattr(state, "_battery_pending_profile", None)
+        now = time.monotonic()
+        if not force and not pending_profile and state._battery_settings_cache_until:
+            if now < state._battery_settings_cache_until:
+                return False
+        fetcher = getattr(coord.client, "battery_settings_details", None)
+        if not callable(fetcher):
+            return False
+        return coord._endpoint_family_should_run(
+            "battery_settings",
+            force=force or bool(pending_profile),
+        )
+
+    def battery_schedules_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        fetcher = getattr(coord.client, "battery_schedules", None)
+        if not callable(fetcher):
+            return False
+        return coord._endpoint_family_should_run("battery_schedules", force=force)
+
+    def battery_site_settings_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        now = time.monotonic()
+        if not force and state._battery_site_settings_cache_until:
+            if now < state._battery_site_settings_cache_until:
+                return False
+        fetcher = getattr(coord.client, "battery_site_settings", None)
+        if not callable(fetcher):
+            return False
+        return coord._endpoint_family_should_run("battery_site_settings", force=force)
+
+    def grid_control_check_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        now = time.monotonic()
+        if not force and state._grid_control_check_cache_until:
+            if now < state._grid_control_check_cache_until:
+                return False
+        state_present = any(
+            getattr(state, attr, None) is not None
+            for attr in (
+                "_grid_control_supported",
+                "_grid_control_disable",
+                "_grid_control_active_download",
+                "_grid_control_sunlight_backup_system_check",
+                "_grid_control_grid_outage_check",
+                "_grid_control_user_initiated_toggle",
+            )
+        )
+        fetcher = getattr(coord.client, "grid_control_check", None)
+        if not callable(fetcher):
+            return state_present
+        family = "grid_control_check"
+        if coord._endpoint_family_should_run(family, force=force):
+            return True
+        return (
+            state_present
+            and coord._endpoint_family_state(family).cooldown_active
+            and not coord._endpoint_family_can_use_stale(family)
+        )
+
+    def dry_contact_settings_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        now = time.monotonic()
+        if not force and state._dry_contact_settings_cache_until:
+            if now < state._dry_contact_settings_cache_until:
+                return False
+        state_present = (
+            getattr(state, "_dry_contact_settings_supported", None) is not None
+        )
+        fetcher = getattr(coord.client, "dry_contacts_settings", None)
+        if not callable(fetcher):
+            return state_present
+        family = "dry_contact_settings"
+        if coord._endpoint_family_should_run(family, force=force):
+            return True
+        return (
+            state_present
+            and coord._endpoint_family_state(family).cooldown_active
+            and not coord._endpoint_family_can_use_stale(family)
+        )
+
+    def storm_guard_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        pending_profile = getattr(state, "_battery_pending_profile", None)
+        now = time.monotonic()
+        if not force and not pending_profile and state._storm_guard_cache_until:
+            if now < state._storm_guard_cache_until:
+                return False
+        fetcher = getattr(coord.client, "storm_guard_profile", None)
+        if not callable(fetcher):
+            return False
+        return coord._endpoint_family_should_run(
+            "storm_guard",
+            force=force or bool(pending_profile),
+        )
+
+    def storm_alert_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
+        state = self.battery_state
+        now = time.monotonic()
+        if not force and state._storm_alert_cache_until:
+            if now < state._storm_alert_cache_until:
+                return False
+        fetcher = getattr(coord.client, "storm_guard_alert", None)
+        if not callable(fetcher):
+            return False
+        return coord._endpoint_family_should_run("storm_alert", force=force)
+
+    def ac_battery_devices_refresh_due(self, *, force: bool = False) -> bool:
+        return self._ac_battery_runtime.ac_battery_devices_refresh_due(force=force)
+
     def _battery_control_state_settling(self) -> bool:
         coord = self.coordinator
         state = self.battery_state

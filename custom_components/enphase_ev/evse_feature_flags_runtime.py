@@ -83,6 +83,27 @@ class EvseFeatureFlagsRuntime:
             EvseFeatureFlagsSnapshot.from_coordinator(self.coordinator)
         )
 
+    def _cached_state_present(self) -> bool:
+        coord = self.coordinator
+        return bool(
+            getattr(coord, "_evse_feature_flags_payload", None) is not None
+            or getattr(coord, "_evse_site_feature_flags", None)
+            or getattr(coord, "_evse_feature_flags_by_serial", None)
+        )
+
+    def refresh_due(self, *, force: bool = False) -> bool:
+        """Return True when feature flags should refresh or cached state should clear."""
+
+        coord = self.coordinator
+        now = time.monotonic()
+        if not force and coord._evse_feature_flags_cache_until:
+            if now < coord._evse_feature_flags_cache_until:
+                return False
+        fetcher = getattr(coord.client, "evse_feature_flags", None)
+        if not callable(fetcher):
+            return self._cached_state_present()
+        return True
+
     def feature_flag(self, key: str, sn: str | None = None) -> object | None:
         """Return a parsed EVSE feature flag for the site or charger."""
 

@@ -477,6 +477,37 @@ class AcBatteryRuntime:
         state._ac_battery_devices_cache_until = now + 300.0
         coord._note_endpoint_family_success(family, success_ttl_s=300.0)
 
+    def ac_battery_devices_refresh_due(self, *, force: bool = False) -> bool:
+        """Return True when AC Battery inventory should be refreshed."""
+
+        coord = self.coordinator
+        state = self.battery_state
+        has_cached_state = bool(
+            getattr(state, "_ac_battery_data", None)
+            or getattr(state, "_ac_battery_order", None)
+            or getattr(state, "_ac_battery_aggregate_status", None) is not None
+            or getattr(state, "_ac_battery_aggregate_status_details", None)
+            or getattr(state, "_ac_battery_sleep_state", None) is not None
+            or getattr(state, "_ac_battery_devices_payload", None) is not None
+            or getattr(state, "_ac_battery_devices_html_payload", None) is not None
+            or getattr(state, "_ac_battery_telemetry_payloads", None) is not None
+            or getattr(state, "_ac_battery_events_payloads", None) is not None
+            or getattr(state, "_ac_battery_power_w", None) is not None
+        )
+        if not coord.inventory_view.has_type_for_entities("ac_battery"):
+            return has_cached_state
+        if not force and state._ac_battery_devices_cache_until:
+            now = time.monotonic()
+            if now < state._ac_battery_devices_cache_until:
+                return False
+        family = "ac_battery_devices"
+        fetcher = getattr(coord.client, "ac_battery_devices_page", None)
+        if not callable(fetcher):
+            return has_cached_state
+        if coord._endpoint_family_should_run(family, force=force):
+            return True
+        return has_cached_state and not coord._endpoint_family_can_use_stale(family)
+
     async def async_refresh_ac_battery_telemetry(self, *, force: bool = False) -> None:
         coord = self.coordinator
         state = self.battery_state

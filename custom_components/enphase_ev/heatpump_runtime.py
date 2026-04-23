@@ -235,6 +235,17 @@ class HeatpumpRuntime:
         self._heatpump_power_last_error = error
         return False
 
+    def _heatpump_cleanup_due(self, *attrs: str) -> bool:
+        for attr in attrs:
+            value = getattr(self, attr, None)
+            if isinstance(value, bool):
+                if value:
+                    return True
+                continue
+            if value is not None:
+                return True
+        return False
+
     @staticmethod
     async def _async_call_refreshable_fetcher(
         fetcher, *, force: bool = False
@@ -586,6 +597,34 @@ class HeatpumpRuntime:
         self, *, force: bool = False
     ) -> None:
         await self._async_refresh_heatpump_runtime_state(force=force)
+
+    def heatpump_runtime_state_refresh_due(self, *, force: bool = False) -> bool:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            return self._heatpump_cleanup_due(
+                "_heatpump_known_present",
+                "_heatpump_runtime_state",
+                "_heatpump_runtime_state_cache_until",
+                "_heatpump_runtime_state_backoff_until",
+                "_heatpump_runtime_state_last_error",
+                "_heatpump_runtime_state_last_success_mono",
+                "_heatpump_runtime_state_last_success_utc",
+                "_heatpump_runtime_state_using_stale",
+            )
+        if (
+            not force
+            and self._heatpump_runtime_state_cache_until is not None
+            and now < self._heatpump_runtime_state_cache_until
+        ):
+            return False
+        if (
+            not force
+            and self._heatpump_runtime_state_backoff_until is not None
+            and now < self._heatpump_runtime_state_backoff_until
+        ):
+            return False
+        fetcher = getattr(self.client, "hems_heatpump_state", None)
+        return callable(fetcher)
 
     def _heatpump_daily_window(self) -> tuple[str, str, str, tuple[str, str]] | None:
         tz_name = self._site_timezone_name()
@@ -1245,6 +1284,46 @@ class HeatpumpRuntime:
         self, *, force: bool = False
     ) -> None:
         await self._async_refresh_heatpump_daily_consumption(force=force)
+
+    def heatpump_daily_consumption_refresh_due(self, *, force: bool = False) -> bool:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            return self._heatpump_cleanup_due(
+                "_heatpump_known_present",
+                "_heatpump_daily_consumption",
+                "_heatpump_daily_consumption_previous",
+                "_heatpump_daily_consumption_cache_until",
+                "_heatpump_daily_consumption_backoff_until",
+                "_heatpump_daily_consumption_last_error",
+                "_heatpump_daily_consumption_cache_key",
+                "_heatpump_daily_consumption_last_success_mono",
+                "_heatpump_daily_consumption_last_success_utc",
+                "_heatpump_daily_consumption_using_stale",
+                "_heatpump_daily_split_last_error",
+                "_heatpump_daily_split_last_success_mono",
+                "_heatpump_daily_split_last_success_utc",
+                "_heatpump_daily_split_using_stale",
+            )
+        window = self._heatpump_daily_window()
+        if window is None:
+            return False
+        _start_at, _end_at, _tz_name, marker = window
+        if (
+            not force
+            and self._heatpump_daily_consumption_cache_until is not None
+            and self._heatpump_daily_consumption_cache_key == marker
+            and now < self._heatpump_daily_consumption_cache_until
+        ):
+            return False
+        if (
+            not force
+            and self._heatpump_daily_consumption_backoff_until is not None
+            and self._heatpump_daily_consumption_cache_key == marker
+            and now < self._heatpump_daily_consumption_backoff_until
+        ):
+            return False
+        fetcher = getattr(self.client, "pv_system_today", None)
+        return callable(fetcher)
 
     def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
         candidates: list[str | None] = []
@@ -1957,6 +2036,34 @@ class HeatpumpRuntime:
 
     async def async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         await self._async_refresh_heatpump_power(force=force)
+
+    def heatpump_power_refresh_due(self, *, force: bool = False) -> bool:
+        now = time.monotonic()
+        if not self.has_type("heatpump"):
+            return self._heatpump_cleanup_due(
+                "_heatpump_known_present",
+                "_heatpump_power_w",
+                "_heatpump_power_sample_utc",
+                "_heatpump_power_start_utc",
+                "_heatpump_power_device_uid",
+                "_heatpump_power_source",
+                "_heatpump_power_snapshot",
+                "_heatpump_power_cache_until",
+                "_heatpump_power_backoff_until",
+                "_heatpump_power_last_error",
+                "_heatpump_power_last_success_mono",
+                "_heatpump_power_last_success_utc",
+                "_heatpump_power_using_stale",
+                "_heatpump_power_selection_marker",
+            )
+        if not force and self._heatpump_power_cache_until is not None:
+            if now < self._heatpump_power_cache_until:
+                return False
+        if not force and self._heatpump_power_backoff_until is not None:
+            if now < self._heatpump_power_backoff_until:
+                return False
+        fetcher = getattr(self.client, "pv_system_today", None)
+        return callable(fetcher)
 
     @staticmethod
     def _hems_event_entries(payload: object) -> list[dict[str, object]]:

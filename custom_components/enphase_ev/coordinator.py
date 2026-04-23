@@ -135,10 +135,10 @@ from .session_history import (
 from .summary import SummaryStore
 from . import system_dashboard_helpers as sd_helpers
 from .refresh_plan import (
-    FOLLOWUP_PLAN,
-    HEATPUMP_FOLLOWUP_PLAN,
-    SITE_ONLY_FOLLOWUP_PLAN,
-    post_session_followup_plan,
+    build_followup_plan,
+    build_heatpump_followup_plan,
+    build_post_session_followup_plan,
+    build_site_only_followup_plan,
 )
 from .refresh_runner import RefreshRunner
 from .service_validation import raise_translated_service_validation
@@ -2144,6 +2144,86 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def payload_health_diagnostics(self) -> dict[str, object]:
         return self.diagnostics.payload_health_diagnostics()
 
+    async def _async_run_timed_refresh_lookup(
+        self,
+        phase_timings: dict[str, float],
+        timing_key: str,
+        callback: Callable[[], object],
+    ) -> object:
+        started = time.monotonic()
+        result = callback()
+        if inspect.isawaitable(result):
+            result = await result
+        phase_timings[timing_key] = round(time.monotonic() - started, 3)
+        return result
+
+    async def _async_resolve_post_status_evse_enrichments(
+        self,
+        phase_timings: dict[str, float],
+        *,
+        records: list[tuple[str, dict]],
+        charge_mode_candidates: list[str],
+        first_refresh: bool,
+    ) -> tuple[
+        dict[str, str | None],
+        dict[str, tuple[bool | None, bool]],
+        dict[str, tuple[bool | None, bool | None, bool, bool]],
+        dict[str, dict[str, object]],
+    ]:
+        if first_refresh:
+            return {}, {}, {}, {}
+        tasks: dict[str, asyncio.Task[object]] = {}
+        unique_candidates = list(dict.fromkeys(charge_mode_candidates))
+        serials = [sn for sn, _obj in records]
+        if unique_candidates:
+            tasks["charge_modes"] = asyncio.create_task(
+                self._async_run_timed_refresh_lookup(
+                    phase_timings,
+                    "charge_mode_s",
+                    lambda: self.evse_runtime.async_resolve_charge_modes(
+                        unique_candidates
+                    ),
+                )
+            )
+        if serials:
+            tasks["green_settings"] = asyncio.create_task(
+                self._async_run_timed_refresh_lookup(
+                    phase_timings,
+                    "green_settings_s",
+                    lambda: self._async_resolve_green_battery_settings(serials),
+                )
+            )
+            tasks["auth_settings"] = asyncio.create_task(
+                self._async_run_timed_refresh_lookup(
+                    phase_timings,
+                    "auth_settings_s",
+                    lambda: self._async_resolve_auth_settings(serials),
+                )
+            )
+            tasks["charger_config"] = asyncio.create_task(
+                self._async_run_timed_refresh_lookup(
+                    phase_timings,
+                    "charger_config_s",
+                    lambda: self._async_resolve_charger_config(
+                        serials,
+                        keys=(
+                            DEFAULT_CHARGE_LEVEL_SETTING,
+                            PHASE_SWITCH_CONFIG_SETTING,
+                        ),
+                    ),
+                )
+            )
+        if not tasks:
+            return {}, {}, {}, {}
+        results = await asyncio.gather(*tasks.values())
+        resolved = dict(zip(tasks.keys(), results, strict=False))
+        return (
+            resolved.get("charge_modes", {}),
+            resolved.get("green_settings", {}),
+            resolved.get("auth_settings", {}),
+            resolved.get("charger_config", {}),
+        )
+
     async def _async_update_data(self) -> dict:
         t0 = time.monotonic()
         refresh_started_utc = dt_util.utcnow()
@@ -2182,10 +2262,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 time.monotonic() - site_energy_start, 3
             )
             if not first_refresh:
-                await self.refresh_runner.async_run_refresh_plan(
-                    phase_timings,
-                    plan=SITE_ONLY_FOLLOWUP_PLAN,
+                followup_plan = build_site_only_followup_plan(
+                    self,
+                    force_full=self.endpoint_manual_bypass_active(),
                 )
+                if followup_plan.stages:
+                    await self.refresh_runner.async_run_refresh_plan(
+                        phase_timings,
+                        plan=followup_plan,
+                    )
             if not self._auth_refresh_suspended_active():
                 self._clear_auth_refresh_rejection_state()
             self._prune_runtime_caches(active_serials=(), keep_day_keys=())
@@ -2582,10 +2667,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._last_error = self.last_failure_description
 
         if not first_refresh:
-            await self.refresh_runner.async_run_refresh_plan(
-                phase_timings,
-                plan=FOLLOWUP_PLAN,
+            followup_plan = build_followup_plan(
+                self,
+                force_full=self.endpoint_manual_bypass_active(),
             )
+            if followup_plan.stages:
+                await self.refresh_runner.async_run_refresh_plan(
+                    phase_timings,
+                    plan=followup_plan,
+                )
         if not self._auth_refresh_suspended_active():
             self._clear_auth_refresh_rejection_state()
 
@@ -2605,7 +2695,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not self._has_embedded_charge_mode(obj):
                 charge_mode_candidates.append(sn)
 
-        charge_modes: dict[str, str | None] = {}
         if (
             not first_refresh
             and not charge_mode_candidates
@@ -2617,41 +2706,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 await self._get_charge_mode(records[0][0])
             except Exception:
                 pass
-        if not first_refresh and charge_mode_candidates:
-            unique_candidates = list(dict.fromkeys(charge_mode_candidates))
-            charge_start = time.monotonic()
-            if unique_candidates:
-                charge_modes = await self.evse_runtime.async_resolve_charge_modes(
-                    unique_candidates
-                )
-            phase_timings["charge_mode_s"] = round(time.monotonic() - charge_start, 3)
-
-        green_settings: dict[str, tuple[bool | None, bool]] = {}
-        if not first_refresh and records:
-            green_start = time.monotonic()
-            green_settings = await self._async_resolve_green_battery_settings(
-                [sn for sn, _obj in records]
-            )
-            phase_timings["green_settings_s"] = round(time.monotonic() - green_start, 3)
-
-        auth_settings: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
-        if not first_refresh and records:
-            auth_serials = [sn for sn, _obj in records]
-            auth_start = time.monotonic()
-            if auth_serials:
-                auth_settings = await self._async_resolve_auth_settings(auth_serials)
-            phase_timings["auth_settings_s"] = round(time.monotonic() - auth_start, 3)
-
-        charger_config: dict[str, dict[str, object]] = {}
-        if not first_refresh and records:
-            config_start = time.monotonic()
-            charger_config = await self._async_resolve_charger_config(
-                [sn for sn, _obj in records],
-                keys=(DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING),
-            )
-            phase_timings["charger_config_s"] = round(
-                time.monotonic() - config_start, 3
-            )
+        (
+            charge_modes,
+            green_settings,
+            auth_settings,
+            charger_config,
+        ) = await self._async_resolve_post_status_evse_enrichments(
+            phase_timings,
+            records=records,
+            charge_mode_candidates=charge_mode_candidates,
+            first_refresh=first_refresh,
+        )
 
         def _as_bool(v):
             if isinstance(v, bool):
@@ -3943,10 +4008,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_session_history_issue()
 
         if not first_refresh:
-            await self.refresh_runner.async_run_refresh_plan(
-                phase_timings,
-                plan=post_session_followup_plan(day_local_default),
+            post_session_plan = build_post_session_followup_plan(
+                self,
+                day_local_default,
+                force_full=self.endpoint_manual_bypass_active(),
             )
+            if post_session_plan.stages:
+                await self.refresh_runner.async_run_refresh_plan(
+                    phase_timings,
+                    plan=post_session_plan,
+                )
             try:
                 self.evse_timeseries.merge_charger_payloads(
                     out, day_local=day_local_default
@@ -3956,10 +4027,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.discovery_snapshot.sync_site_energy_discovery_state()
             self._sync_site_energy_issue()
             self._sync_battery_profile_pending_issue()
-            await self.refresh_runner.async_run_refresh_plan(
-                phase_timings,
-                plan=HEATPUMP_FOLLOWUP_PLAN,
+            heatpump_plan = build_heatpump_followup_plan(
+                self,
+                force_full=self.endpoint_manual_bypass_active(),
             )
+            if heatpump_plan.stages:
+                await self.refresh_runner.async_run_refresh_plan(
+                    phase_timings,
+                    plan=heatpump_plan,
+                )
 
         # Dynamic poll rate: fast while any charging, within a fast window, or streaming
         if self.config_entry is not None:

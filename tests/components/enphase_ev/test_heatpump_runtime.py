@@ -2203,6 +2203,34 @@ def test_heatpump_runtime_additional_helper_edge_cases(
         runtime._heatpump_daily_split_available({"daily_grid_wh": 0.0})  # noqa: SLF001
         is True
     )
+
+
+def test_heatpump_runtime_refresh_due_requests_cleanup_when_type_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    coord.inventory_runtime._set_type_device_buckets({}, [])  # noqa: SLF001
+    coord._heatpump_runtime_state = {"source": "cached"}  # noqa: SLF001
+    coord._heatpump_daily_consumption = {"daily_energy_wh": 12.0}  # noqa: SLF001
+    coord._heatpump_power_w = 500.5  # noqa: SLF001
+
+    assert runtime.heatpump_runtime_state_refresh_due() is True
+    assert runtime.heatpump_daily_consumption_refresh_due() is True
+    assert runtime.heatpump_power_refresh_due() is True
+
+
+def test_heatpump_runtime_refresh_due_skips_when_type_missing_and_no_state(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+
+    assert runtime.has_type("heatpump") is False
+    assert runtime.heatpump_runtime_state_refresh_due() is False
+    assert runtime.heatpump_daily_consumption_refresh_due() is False
+    assert runtime.heatpump_power_refresh_due() is False
     target = {"split_source": "keep"}
     assert (
         runtime._heatpump_copy_daily_split_fields(
@@ -2246,6 +2274,118 @@ def test_heatpump_runtime_additional_helper_edge_cases(
     assert (
         runtime._site_today_heatpump_total_wh({"stats": ["bad"]}) is None
     )  # noqa: SLF001
+
+
+def test_heatpump_cleanup_due_treats_true_bool_as_cleanup_needed(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_known_present = True  # noqa: SLF001
+
+    assert (
+        runtime._heatpump_cleanup_due("_heatpump_known_present") is True
+    )  # noqa: SLF001
+
+
+def test_heatpump_runtime_state_refresh_due_covers_cache_backoff_and_fetcher(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {"heatpump": {"type_key": "heatpump", "count": 1, "devices": [{}]}},
+        ["heatpump"],
+    )
+    monkeypatch.setattr(heatpump_runtime_mod.time, "monotonic", lambda: 100.0)
+
+    runtime._heatpump_runtime_state_cache_until = 150.0  # noqa: SLF001
+    assert runtime.heatpump_runtime_state_refresh_due() is False
+
+    runtime._heatpump_runtime_state_cache_until = None  # noqa: SLF001
+    runtime._heatpump_runtime_state_backoff_until = 150.0  # noqa: SLF001
+    assert runtime.heatpump_runtime_state_refresh_due() is False
+
+    runtime._heatpump_runtime_state_backoff_until = None  # noqa: SLF001
+    coord.client.hems_heatpump_state = None
+    assert runtime.heatpump_runtime_state_refresh_due() is False
+
+    coord.client.hems_heatpump_state = AsyncMock(return_value={})
+    assert runtime.heatpump_runtime_state_refresh_due() is True
+
+
+def test_heatpump_daily_consumption_refresh_due_covers_window_cache_backoff_and_fetcher(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {"heatpump": {"type_key": "heatpump", "count": 1, "devices": [{}]}},
+        ["heatpump"],
+    )
+    monkeypatch.setattr(heatpump_runtime_mod.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(
+        runtime,
+        "_heatpump_daily_window",
+        lambda: ("start", "end", "UTC", ("2026-04-23", "UTC")),
+    )
+
+    runtime._heatpump_daily_consumption_cache_until = 150.0  # noqa: SLF001
+    runtime._heatpump_daily_consumption_cache_key = (
+        "2026-04-23",
+        "UTC",
+    )  # noqa: SLF001
+    assert runtime.heatpump_daily_consumption_refresh_due() is False
+
+    runtime._heatpump_daily_consumption_cache_until = None  # noqa: SLF001
+    runtime._heatpump_daily_consumption_backoff_until = 150.0  # noqa: SLF001
+    assert runtime.heatpump_daily_consumption_refresh_due() is False
+
+    runtime._heatpump_daily_consumption_backoff_until = None  # noqa: SLF001
+    coord.client.pv_system_today = None
+    assert runtime.heatpump_daily_consumption_refresh_due() is False
+
+    coord.client.pv_system_today = AsyncMock(return_value={})
+    assert runtime.heatpump_daily_consumption_refresh_due() is True
+
+
+def test_heatpump_daily_consumption_refresh_due_returns_false_without_window(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {"heatpump": {"type_key": "heatpump", "count": 1, "devices": [{}]}},
+        ["heatpump"],
+    )
+    monkeypatch.setattr(runtime, "_heatpump_daily_window", lambda: None)
+
+    assert runtime.heatpump_daily_consumption_refresh_due() is False
+
+
+def test_heatpump_power_refresh_due_covers_cache_backoff_and_fetcher(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {"heatpump": {"type_key": "heatpump", "count": 1, "devices": [{}]}},
+        ["heatpump"],
+    )
+    monkeypatch.setattr(heatpump_runtime_mod.time, "monotonic", lambda: 100.0)
+
+    runtime._heatpump_power_cache_until = 150.0  # noqa: SLF001
+    assert runtime.heatpump_power_refresh_due() is False
+
+    runtime._heatpump_power_cache_until = None  # noqa: SLF001
+    runtime._heatpump_power_backoff_until = 150.0  # noqa: SLF001
+    assert runtime.heatpump_power_refresh_due() is False
+
+    runtime._heatpump_power_backoff_until = None  # noqa: SLF001
+    coord.client.pv_system_today = None
+    assert runtime.heatpump_power_refresh_due() is False
+
+    coord.client.pv_system_today = AsyncMock(return_value={})
+    assert runtime.heatpump_power_refresh_due() is True
     assert (
         runtime._site_today_heatpump_total_wh({"stats": [{"other": 1}]}) is None
     )  # noqa: SLF001

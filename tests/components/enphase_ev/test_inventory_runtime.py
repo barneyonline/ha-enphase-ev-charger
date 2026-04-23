@@ -907,6 +907,37 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
     assert runtime._hems_devices_using_stale is False  # noqa: SLF001
 
 
+@pytest.mark.asyncio
+async def test_inventory_runtime_devices_inventory_early_return_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+
+    coord._endpoint_family_should_run = (  # type: ignore[method-assign]  # noqa: SLF001
+        lambda family, force=False: False if family == "inventory_topology" else True
+    )
+    coord.client.devices_inventory = AsyncMock(side_effect=AssertionError("unused"))
+    await runtime._async_refresh_devices_inventory()
+    coord.client.devices_inventory.assert_not_awaited()
+
+    coord._endpoint_family_should_run = lambda *args, **kwargs: True  # type: ignore[method-assign]  # noqa: SLF001
+    coord.client.devices_inventory = None
+    await runtime._async_refresh_devices_inventory()
+
+
+def test_inventory_runtime_devices_inventory_refresh_due_respects_cache(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._devices_inventory_cache_until = 150.0  # noqa: SLF001
+    coord.client.devices_inventory = AsyncMock(side_effect=AssertionError("unused"))
+    monkeypatch.setattr(inventory_runtime_mod.time, "monotonic", lambda: 100.0)
+
+    assert runtime.devices_inventory_refresh_due() is False
+
+
 def test_inventory_runtime_inverter_helper_paths(coordinator_factory) -> None:
     runtime = coordinator_factory().inventory_runtime
 
@@ -1092,6 +1123,46 @@ async def test_inventory_runtime_refresh_inverters_paths(coordinator_factory) ->
     await runtime._async_refresh_inverters()  # noqa: SLF001
     assert coord.iter_inverter_serials() == []
     assert coord.inventory_view.type_bucket("microinverter") is None
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_inverters_early_return_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+
+    coord.client.inverters_inventory = None
+    coord.client.inverter_status = AsyncMock(side_effect=AssertionError("unused"))
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+    coord.client.inverters_inventory = AsyncMock(return_value={})
+    coord.client.inverter_status = None
+    await runtime._async_refresh_inverters()  # noqa: SLF001
+
+
+def test_inventory_runtime_inverters_refresh_due_covers_include_flag_and_production_due(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    monkeypatch.setattr(inventory_runtime_mod.time, "monotonic", lambda: 100.0)
+
+    coord.include_inverters = False
+    assert runtime.inverters_refresh_due() is False
+
+    coord.include_inverters = True
+    coord.client.inverters_inventory = AsyncMock(return_value={})
+    coord.client.inverter_status = AsyncMock(return_value={})
+    coord.client.inverter_production = AsyncMock(return_value={})
+    runtime._inverters_inventory_cache_until = 150.0  # noqa: SLF001
+    runtime._inverter_status_cache_until = 150.0  # noqa: SLF001
+    runtime._inverter_production_cache_key = None  # noqa: SLF001
+    runtime._inverter_production_payload = None  # noqa: SLF001
+    runtime._inverter_production_cache_until = None  # noqa: SLF001
+    coord.energy._site_energy_meta = {"start_date": "2026-01-01"}  # noqa: SLF001
+
+    assert runtime.inverters_refresh_due() is True
 
 
 @pytest.mark.asyncio
