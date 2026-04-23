@@ -35,6 +35,11 @@ from custom_components.enphase_ev.evse_runtime import (
     FAST_TOGGLE_POLL_HOLD_S,
     ChargeModeResolution,
 )
+from custom_components.enphase_ev.session_history import (
+    SESSION_CACHE_STATE_UNAVAILABLE,
+    SessionCacheEntry,
+    SessionCacheView,
+)
 from custom_components.enphase_ev.voltage import resolve_nominal_voltage_for_hass
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL, RANDOM_SITE_ID
@@ -2835,6 +2840,225 @@ async def test_active_session_history_hard_ttl_refreshes_inline(
     coord._async_enrich_sessions.assert_awaited_once()  # type: ignore[attr-defined]
     assert coord._async_enrich_sessions.await_args.kwargs["max_cache_age"] == 120.0  # type: ignore[attr-defined]
     coord._schedule_session_enrichment.assert_not_called()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_recent_unavailable_session_history_without_valid_cache_defers_retry(
+    hass, monkeypatch
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.data = {RANDOM_SERIAL: {"display_name": "Garage EV"}}
+
+    now_local = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: now_local)
+
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": True,
+                    "pluggedIn": True,
+                }
+            ]
+        }
+    )
+    coord.client.summary_v2 = AsyncMock(
+        return_value=[{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+    )
+    coord.client.charge_mode = AsyncMock(return_value=None)
+
+    day_key = now_local.strftime("%Y-%m-%d")
+    coord.session_history._cache[(RANDOM_SERIAL, day_key)] = (
+        SessionCacheEntry(  # noqa: SLF001
+            cached_at_mono=time.monotonic(),
+            sessions=[],
+            state=SESSION_CACHE_STATE_UNAVAILABLE,
+            last_error="down",
+            has_valid_cache=False,
+        )
+    )
+    coord._async_enrich_sessions = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={RANDOM_SERIAL: [{"session_id": "fresh", "energy_kwh": 2.5}]}
+    )
+    coord._schedule_session_enrichment = MagicMock()  # type: ignore[assignment]  # noqa: SLF001
+
+    data = await coord._async_update_data()
+
+    assert data[RANDOM_SERIAL]["energy_today_sessions"] == []
+    coord._async_enrich_sessions.assert_not_awaited()  # type: ignore[attr-defined]
+    coord._schedule_session_enrichment.assert_not_called()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_aged_unavailable_session_history_without_valid_cache_refreshes_inline(
+    hass, monkeypatch
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.data = {RANDOM_SERIAL: {"display_name": "Garage EV"}}
+
+    now_local = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: now_local)
+
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": True,
+                    "pluggedIn": True,
+                }
+            ]
+        }
+    )
+    coord.client.summary_v2 = AsyncMock(
+        return_value=[{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+    )
+    coord.client.charge_mode = AsyncMock(return_value=None)
+
+    day_key = now_local.strftime("%Y-%m-%d")
+    coord.session_history._cache[(RANDOM_SERIAL, day_key)] = (
+        SessionCacheEntry(  # noqa: SLF001
+            cached_at_mono=time.monotonic()
+            - coord._session_history_cache_ttl
+            - 1,  # noqa: SLF001
+            sessions=[],
+            state=SESSION_CACHE_STATE_UNAVAILABLE,
+            last_error="down",
+            has_valid_cache=False,
+        )
+    )
+    coord._async_enrich_sessions = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={RANDOM_SERIAL: [{"session_id": "fresh", "energy_kwh": 2.5}]}
+    )
+    coord._schedule_session_enrichment = MagicMock()  # type: ignore[assignment]  # noqa: SLF001
+
+    data = await coord._async_update_data()
+
+    assert data[RANDOM_SERIAL]["energy_today_sessions"] == [
+        {"session_id": "fresh", "energy_kwh": 2.5}
+    ]
+    coord._async_enrich_sessions.assert_awaited_once()  # type: ignore[attr-defined]
+    coord._schedule_session_enrichment.assert_not_called()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_missing_session_cache_age_refreshes_inline_after_startup(
+    hass, monkeypatch
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    coord = _make_coordinator(hass, monkeypatch)
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord.data = {RANDOM_SERIAL: {"display_name": "Garage EV"}}
+
+    now_local = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: now_local)
+
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": False,
+                }
+            ]
+        }
+    )
+    coord.client.summary_v2 = AsyncMock(
+        return_value=[{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+    )
+    coord.client.charge_mode = AsyncMock(return_value=None)
+    coord.session_history.get_cache_view = MagicMock(  # type: ignore[assignment]
+        return_value=SessionCacheView(
+            sessions=[{"session_id": "cached", "energy_kwh": 1.0}],
+            cache_age=None,
+            needs_refresh=True,
+            blocked=False,
+            state="valid",
+            has_valid_cache=True,
+            last_error=None,
+        )
+    )
+    coord._async_enrich_sessions = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={RANDOM_SERIAL: [{"session_id": "fresh", "energy_kwh": 2.5}]}
+    )
+    coord._schedule_session_enrichment = MagicMock()  # type: ignore[assignment]  # noqa: SLF001
+
+    data = await coord._async_update_data()
+
+    assert data[RANDOM_SERIAL]["energy_today_sessions"] == [
+        {"session_id": "fresh", "energy_kwh": 2.5}
+    ]
+    coord._async_enrich_sessions.assert_awaited_once()  # type: ignore[attr-defined]
+    coord._schedule_session_enrichment.assert_not_called()  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_missing_session_cache_age_defers_in_background(
+    hass, monkeypatch
+) -> None:
+    await hass.config.async_set_time_zone("UTC")
+    coord = _make_coordinator(hass, monkeypatch)
+    coord.data = {RANDOM_SERIAL: {"display_name": "Garage EV"}}
+
+    now_local = datetime(2025, 10, 16, 12, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(dt_util, "now", lambda: now_local)
+
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": False,
+                }
+            ]
+        }
+    )
+    coord.client.summary_v2 = AsyncMock(
+        return_value=[{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+    )
+    coord.client.charge_mode = AsyncMock(return_value=None)
+    coord.session_history.get_cache_view = MagicMock(  # type: ignore[assignment]
+        return_value=SessionCacheView(
+            sessions=[{"session_id": "cached", "energy_kwh": 1.0}],
+            cache_age=None,
+            needs_refresh=True,
+            blocked=False,
+            state="valid",
+            has_valid_cache=True,
+            last_error=None,
+        )
+    )
+    coord._async_enrich_sessions = AsyncMock(return_value={})  # type: ignore[assignment]  # noqa: SLF001
+    coord._schedule_session_enrichment = MagicMock()  # type: ignore[assignment]  # noqa: SLF001
+
+    data = await coord._async_update_data()
+
+    assert data[RANDOM_SERIAL]["energy_today_sessions"] == [
+        {"session_id": "cached", "energy_kwh": 1.0}
+    ]
+    coord._async_enrich_sessions.assert_not_awaited()  # type: ignore[attr-defined]
+    coord._schedule_session_enrichment.assert_called_once()  # type: ignore[attr-defined]
 
 
 def test_session_history_adaptive_ttl_helpers(hass, monkeypatch) -> None:

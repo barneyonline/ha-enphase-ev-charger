@@ -184,6 +184,9 @@ async def test_fetch_sessions_criteria_unavailable(monkeypatch):
     result = await manager._async_fetch_sessions_today("SN", day_local=now)
     assert result == []
     assert manager.service_available is False
+    entry = manager._cache[("SN", now.strftime("%Y-%m-%d"))]
+    assert entry.state == sh_mod.SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
 
 @pytest.mark.asyncio
@@ -209,6 +212,9 @@ async def test_fetch_sessions_criteria_unauthorized(monkeypatch):
     result = await manager._async_fetch_sessions_today("SN", day_local=now)
     assert result == []
     assert manager.service_available is True
+    entry = manager._cache[("SN", now.strftime("%Y-%m-%d"))]
+    assert entry.state == sh_mod.SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
 
 @pytest.mark.asyncio
@@ -237,6 +243,9 @@ async def test_fetch_sessions_criteria_http_error(monkeypatch):
     result = await manager._async_fetch_sessions_today("SN", day_local=now)
     assert result == []
     assert "SN" in manager._block_until
+    entry = manager._cache[("SN", now.strftime("%Y-%m-%d"))]
+    assert entry.state == sh_mod.SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
 
 @pytest.mark.asyncio
@@ -259,6 +268,9 @@ async def test_fetch_sessions_marks_service_unavailable(monkeypatch):
     assert manager.service_available is False
     assert manager.service_backoff_active is True
     assert manager.service_last_error
+    entry = manager._cache[("SN", now.strftime("%Y-%m-%d"))]
+    assert entry.state == sh_mod.SESSION_CACHE_STATE_UNAVAILABLE
+    assert entry.has_valid_cache is False
 
 
 def test_mark_service_available_resets_state():
