@@ -176,6 +176,28 @@ async def test_evse_timeseries_endpoint_backoff_is_independent(hass) -> None:
     assert manager.service_available is True
 
 
+def test_evse_timeseries_refresh_due_defaults_day_and_skips_when_caches_are_fresh(
+    hass, monkeypatch
+) -> None:
+    client = SimpleNamespace(
+        evse_timeseries_daily_energy=AsyncMock(),
+        evse_timeseries_lifetime_energy=AsyncMock(),
+    )
+    manager = EVSETimeseriesManager(hass, lambda: client)
+    day_local = datetime(2026, 3, 11, 12, 0, 0, tzinfo=timezone.utc)
+    day_key = manager._day_key(day_local)  # noqa: SLF001
+    manager._daily_cache[day_key] = (
+        95.0,
+        {"EV-1": {"energy_kwh": 1.0}},
+    )  # noqa: SLF001
+    manager._lifetime_cache = (95.0, {"EV-1": {"energy_kwh": 2.0}})  # noqa: SLF001
+    monkeypatch.setattr(ts_mod.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(ts_mod.dt_util, "now", lambda: day_local)
+    monkeypatch.setattr(ts_mod.dt_util, "as_local", lambda value: value)
+
+    assert manager.refresh_due(day_local=None) is False
+
+
 def _request_info() -> aiohttp.RequestInfo:
     return aiohttp.RequestInfo(
         url=aiohttp.client.URL("https://example.com/evse"),

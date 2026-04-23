@@ -13,6 +13,7 @@ from custom_components.enphase_ev.refresh_plan import (
     FOLLOWUP_PLAN,
     HEATPUMP_FOLLOWUP_PLAN,
     SITE_ONLY_FOLLOWUP_PLAN,
+    _refresh_due,
     bind_refresh_stage,
     bind_refresh_plan,
     build_followup_plan,
@@ -502,6 +503,10 @@ def test_dynamic_followup_plan_skips_up_to_date_tasks() -> None:
     assert build_followup_plan(owner).stages == ()
 
 
+def test_refresh_due_returns_false_without_predicate_or_fallback() -> None:
+    assert _refresh_due(object(), "missing_predicate") is False
+
+
 def test_dynamic_followup_plan_selects_due_subset() -> None:
     owner = _RefreshOwner()
     owner.battery_runtime.battery_backup_history_refresh_due = lambda: False
@@ -542,6 +547,37 @@ def test_dynamic_site_only_followup_plan_keeps_due_inverters() -> None:
     assert [task.timing_key for task in plan.stages[0].ordered_tasks][
         -1
     ] == "inverters_s"
+
+
+def test_dynamic_site_only_followup_plan_creates_inverter_stage_without_base_followup() -> (
+    None
+):
+    owner = _RefreshOwner()
+    owner.battery_runtime.battery_site_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_backup_history_refresh_due = lambda: False
+    owner.battery_runtime.battery_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_schedules_refresh_due = lambda: False
+    owner.battery_runtime.storm_guard_refresh_due = lambda: False
+    owner.battery_runtime.storm_alert_refresh_due = lambda: False
+    owner.battery_runtime.grid_control_check_refresh_due = lambda: False
+    owner.battery_runtime.dry_contact_settings_refresh_due = lambda: False
+    owner.battery_runtime.battery_status_refresh_due = lambda: False
+    owner.battery_runtime.ac_battery_devices_refresh_due = lambda: False
+    owner.inventory_runtime.devices_inventory_refresh_due = lambda: False
+    owner.inventory_runtime.hems_devices_refresh_due = lambda: False
+    owner.current_power_runtime.refresh_due = lambda: False
+    owner.evse_feature_flags_runtime.refresh_due = lambda: False
+    owner.inventory_runtime.inverters_refresh_due = lambda: True
+    owner.heatpump_runtime.heatpump_runtime_state_refresh_due = lambda: False
+    owner.heatpump_runtime.heatpump_daily_consumption_refresh_due = lambda: False
+    owner.heatpump_runtime.heatpump_power_refresh_due = lambda: False
+
+    plan = build_site_only_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].ordered_tasks] == [
+        "inverters_s",
+    ]
 
 
 def test_dynamic_followup_plan_includes_due_evse_feature_flags() -> None:
@@ -630,6 +666,24 @@ def test_dynamic_heatpump_followup_includes_cleanup_when_power_cannot_cover_deps
 def test_dynamic_heatpump_followup_includes_cleanup_when_hems_support_unknown() -> None:
     owner = _RefreshOwner()
     owner.heatpump_runtime.client.hems_site_supported = None
+
+    plan = build_heatpump_followup_plan(owner)
+
+    assert len(plan.stages) == 1
+    assert [task.timing_key for task in plan.stages[0].ordered_tasks] == [
+        "heatpump_runtime_s",
+        "heatpump_daily_s",
+        "heatpump_power_s",
+    ]
+
+
+def test_dynamic_heatpump_followup_includes_cleanup_when_has_type_raises() -> None:
+    owner = _RefreshOwner()
+
+    def _boom(_key: str) -> bool:
+        raise RuntimeError("bad has_type")
+
+    owner.heatpump_runtime.has_type = _boom
 
     plan = build_heatpump_followup_plan(owner)
 
