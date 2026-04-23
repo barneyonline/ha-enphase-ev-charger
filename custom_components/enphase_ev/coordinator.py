@@ -3895,6 +3895,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if not needs_refresh or view_blocked:
                 continue
             if not view_has_valid_cache:
+                # Failed/no-cache lookups should retry on the session-history cadence,
+                # not on every fast coordinator poll.
                 if cache_age is not None and cache_age < session_cache_ttl:
                     continue
                 if first_refresh:
