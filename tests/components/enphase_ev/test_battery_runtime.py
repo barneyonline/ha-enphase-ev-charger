@@ -2034,6 +2034,159 @@ async def test_battery_runtime_grid_control_refresh_keeps_recent_state_during_co
     assert coord._grid_control_active_download is False  # noqa: SLF001
 
 
+def test_battery_runtime_grid_control_refresh_due_requests_state_invalidation(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    grid_health = coord._endpoint_family_state("grid_control_check")  # noqa: SLF001
+    grid_health.next_retry_mono = time.monotonic() + 300
+    grid_health.cooldown_active = True
+    grid_health.last_success_mono = time.monotonic() - 500
+    coord._grid_control_check_cache_until = None  # noqa: SLF001
+    coord._grid_control_supported = True  # noqa: SLF001
+    coord.client.grid_control_check = AsyncMock(side_effect=AssertionError("unused"))
+
+    assert coord.battery_runtime.grid_control_check_refresh_due() is True
+
+
+def test_battery_runtime_dry_contact_refresh_due_requests_state_invalidation(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    dry_health = coord._endpoint_family_state("dry_contact_settings")  # noqa: SLF001
+    dry_health.next_retry_mono = time.monotonic() + 300
+    dry_health.cooldown_active = True
+    dry_health.last_success_mono = time.monotonic() - 2_000
+    coord._dry_contact_settings_cache_until = None  # noqa: SLF001
+    coord._dry_contact_settings_supported = True  # noqa: SLF001
+    coord.client.dry_contacts_settings = AsyncMock(side_effect=AssertionError("unused"))
+
+    assert coord.battery_runtime.dry_contact_settings_refresh_due() is True
+
+
+def test_battery_runtime_due_predicates_cover_cached_and_missing_fetcher_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    future = time.monotonic() + 300
+
+    coord._battery_settings_cache_until = future  # noqa: SLF001
+    assert coord.battery_runtime.battery_settings_refresh_due() is False
+
+    coord._ac_battery_devices_cache_until = future  # noqa: SLF001
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord.client.ac_battery_devices_page = AsyncMock(
+        side_effect=AssertionError("unused")
+    )
+    assert coord.battery_runtime.ac_battery_devices_refresh_due() is False
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_ac_battery_refresh_due_requests_cleanup(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._ac_battery_data = {  # noqa: SLF001
+        "BAT-AC-1": {"serial_number": "BAT-AC-1", "battery_id": "67890"}
+    }
+    coord._ac_battery_order = ["BAT-AC-1"]  # noqa: SLF001
+    coord._ac_battery_devices_payload = {
+        "records": [{"serial_number": "BAT-AC-1"}]
+    }  # noqa: SLF001
+    health = coord._endpoint_family_state("ac_battery_devices")  # noqa: SLF001
+    health.next_retry_mono = time.monotonic() + 300
+    health.cooldown_active = True
+    coord._endpoint_family_can_use_stale = lambda *_args, **_kwargs: False  # type: ignore[method-assign]  # noqa: SLF001
+    coord.client.ac_battery_devices_page = AsyncMock(
+        side_effect=AssertionError("unused")
+    )
+
+    assert coord.battery_runtime.ac_battery_devices_refresh_due() is True
+    await coord.battery_runtime.async_refresh_ac_battery_devices()
+
+    coord.client.ac_battery_devices_page.assert_not_called()
+    assert coord.iter_ac_battery_serials() == []
+
+
+@pytest.mark.asyncio
+async def test_battery_runtime_optional_refreshes_handle_early_return_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    coord.client.battery_status = None
+    await coord.battery_runtime.async_refresh_battery_status()
+
+    coord.client.battery_backup_history = None
+    await coord.battery_runtime.async_refresh_battery_backup_history()
+
+    coord._endpoint_family_should_run = (  # type: ignore[method-assign]  # noqa: SLF001
+        lambda family, force=False: family != "battery_settings"
+    )
+    coord.client.battery_settings_details = AsyncMock(
+        side_effect=AssertionError("unused")
+    )
+    await coord.battery_runtime.async_refresh_battery_settings()
+    coord.client.battery_settings_details.assert_not_awaited()
+
+    coord._endpoint_family_should_run = lambda *args, **kwargs: True  # type: ignore[method-assign]  # noqa: SLF001
+    coord.client.battery_settings_details = None
+    await coord.battery_runtime.async_refresh_battery_settings()
+
+    coord._endpoint_family_should_run = (  # type: ignore[method-assign]  # noqa: SLF001
+        lambda family, force=False: family != "battery_schedules"
+    )
+    coord.client.battery_schedules = AsyncMock(side_effect=AssertionError("unused"))
+    await coord.battery_runtime.async_refresh_battery_schedules()
+    coord.client.battery_schedules.assert_not_awaited()
+
+    coord._endpoint_family_should_run = lambda *args, **kwargs: True  # type: ignore[method-assign]  # noqa: SLF001
+    coord.client.battery_schedules = None
+    await coord.battery_runtime.async_refresh_battery_schedules()
+
+    coord.client.battery_site_settings = None
+    await coord.battery_runtime.async_refresh_battery_site_settings()
+
+    coord._grid_control_supported = True  # noqa: SLF001
+    coord._grid_control_disable = False  # noqa: SLF001
+    coord._grid_control_active_download = True  # noqa: SLF001
+    coord._grid_control_sunlight_backup_system_check = True  # noqa: SLF001
+    coord._grid_control_grid_outage_check = True  # noqa: SLF001
+    coord._grid_control_user_initiated_toggle = True  # noqa: SLF001
+    coord.client.grid_control_check = None
+    await coord.battery_runtime.async_refresh_grid_control_check()
+    assert coord._grid_control_supported is None  # noqa: SLF001
+    assert coord._grid_control_disable is None  # noqa: SLF001
+    assert coord._grid_control_active_download is None  # noqa: SLF001
+    assert coord._grid_control_sunlight_backup_system_check is None  # noqa: SLF001
+    assert coord._grid_control_grid_outage_check is None  # noqa: SLF001
+    assert coord._grid_control_user_initiated_toggle is None  # noqa: SLF001
+
+    coord._dry_contact_settings_supported = True  # noqa: SLF001
+    coord.client.dry_contacts_settings = None
+    await coord.battery_runtime.async_refresh_dry_contact_settings()
+    assert coord._dry_contact_settings_supported is None  # noqa: SLF001
+
+    coord.client.storm_guard_profile = None
+    await coord.battery_runtime.async_refresh_storm_guard_profile()
+
+    coord._endpoint_family_should_run = (  # type: ignore[method-assign]  # noqa: SLF001
+        lambda family, force=False: family != "storm_alert"
+    )
+    coord.client.storm_guard_alert = AsyncMock(side_effect=AssertionError("unused"))
+    await coord.battery_runtime.async_refresh_storm_alert()
+    coord.client.storm_guard_alert.assert_not_awaited()
+
+    coord._endpoint_family_should_run = lambda *args, **kwargs: True  # type: ignore[method-assign]  # noqa: SLF001
+    coord.client.storm_guard_alert = None
+    await coord.battery_runtime.async_refresh_storm_alert()
+
+
 @pytest.mark.asyncio
 async def test_battery_runtime_async_set_grid_connection_uses_runtime_grid_mode() -> (
     None
