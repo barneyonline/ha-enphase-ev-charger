@@ -933,7 +933,9 @@ async def test_set_charge_from_grid_enable_uses_disclaimer_ack_and_bool_marker(
     coord.kick_fast = MagicMock()
 
     fixed_now = datetime(2026, 2, 8, 12, 0, tzinfo=timezone.utc)
-    monkeypatch.setattr("custom_components.enphase_ev.battery_runtime.dt_util.utcnow", lambda: fixed_now)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow", lambda: fixed_now
+    )
 
     await coord.battery_runtime.async_set_charge_from_grid(True)
 
@@ -958,9 +960,7 @@ async def test_set_charge_from_grid_disable_omits_disclaimer(
     coord._battery_has_encharge = True  # noqa: SLF001
     coord._battery_hide_charge_from_grid = False  # noqa: SLF001
     coord._battery_charge_from_grid = True  # noqa: SLF001
-    coord.client.set_battery_settings = AsyncMock(
-        return_value={"message": "success"}
-    )
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
     coord.client.accept_battery_settings_disclaimer = AsyncMock(
         return_value={"message": "success"}
     )
