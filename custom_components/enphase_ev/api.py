@@ -5229,7 +5229,8 @@ class EnphaseEVClient:
 
         POST /service/batteryConfig/api/v1/battery/sites/{site_id}/schedules/isValid
 
-        Also useful as a side-effect to acquire a fresh XSRF token.
+        Acquires a fresh XSRF token before validation because affected
+        BatteryConfig sites reject this endpoint without ``X-XSRF-Token``.
         """
 
         url = (
@@ -5243,6 +5244,7 @@ class EnphaseEVClient:
             json_body=payload,
             schedule_type=schedule_type,
             endpoint_family="schedules",
+            bootstrap_xsrf=True,
         )
 
     async def charger_auth_settings(self, sn: str) -> list[dict[str, Any]]:

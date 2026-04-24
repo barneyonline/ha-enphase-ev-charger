@@ -4711,11 +4711,17 @@ async def test_validate_battery_schedule_cfg_payload_keeps_force_schedule_opted(
     None
 ):
     client = _make_client()
+    client._bp_xsrf_token = "xsrf=token"  # noqa: SLF001
+    client._acquire_xsrf_token = AsyncMock(return_value="xsrf=token")  # noqa: SLF001
     client._json = AsyncMock(return_value={"isValid": True})
 
     out = await client.validate_battery_schedule("CFG")
 
     assert out == {"isValid": True}
+    client._acquire_xsrf_token.assert_awaited_once_with(  # noqa: SLF001
+        "CFG", variant=api._BATTERY_CONFIG_VARIANT_PRIMARY
+    )
+    assert client._json.await_args.kwargs["headers"]["X-XSRF-Token"] == "xsrf=token"
     assert client._json.await_args.kwargs["json"] == {
         "scheduleType": "cfg",
         "forceScheduleOpted": True,
@@ -5145,7 +5151,12 @@ async def test_battery_schedule_crud_methods_build_requests() -> None:
         "https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid",
     )
     assert validate_call.kwargs["json"] == {"scheduleType": "dtg"}
-    assert client._acquire_xsrf_token.await_count == 2
+    assert validate_call.kwargs["headers"]["X-XSRF-Token"] == "fresh-token"
+    assert client._acquire_xsrf_token.await_args_list[2].args == ("dtg",)
+    assert client._acquire_xsrf_token.await_args_list[2].kwargs == {
+        "variant": api._BATTERY_CONFIG_VARIANT_PRIMARY
+    }
+    assert client._acquire_xsrf_token.await_count == 3
 
 
 @pytest.mark.asyncio

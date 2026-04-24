@@ -1502,6 +1502,7 @@ async def test_battery_schedule_services_support_crud_and_validation(
 
     coord = coordinator_factory()
     _prepare_battery_schedule_coord(coord)
+    coord._battery_charge_from_grid = False  # noqa: SLF001
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     registered: dict[tuple[str, str], dict[str, object]] = {}
@@ -1600,14 +1601,10 @@ async def test_battery_schedule_services_support_crud_and_validation(
     assert coord.client.set_battery_settings.await_count == 4
     create_payload = coord.client.set_battery_settings.await_args_list[0].args[0]
     assert create_payload["chargeFromGrid"] is True
-    assert create_payload["chargeFromGridScheduleEnabled"] is True
-    assert create_payload["chargeBeginTime"] == 300
-    assert create_payload["chargeEndTime"] == 420
+    assert isinstance(create_payload["acceptedItcDisclaimer"], str)
     update_payload = coord.client.set_battery_settings.await_args_list[1].args[0]
     assert update_payload["chargeFromGrid"] is True
-    assert update_payload["chargeFromGridScheduleEnabled"] is True
-    assert update_payload["chargeBeginTime"] == 360
-    assert update_payload["chargeEndTime"] == 480
+    assert isinstance(update_payload["acceptedItcDisclaimer"], str)
     delete_cfg_payload = coord.client.set_battery_settings.await_args_list[2].args[0]
     assert delete_cfg_payload["chargeFromGridScheduleEnabled"] is False
     assert delete_cfg_payload["chargeBeginTime"] == 60

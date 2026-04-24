@@ -736,12 +736,17 @@ def async_setup_services(
                 ),
                 apply_settings=False,
             )
-            await coord.battery_runtime.async_apply_schedule_family_settings(
-                schedule_type,
-                start_time=apply_start_str,
-                end_time=apply_end_str,
-                enabled=apply_enabled,
-            )
+            if schedule_type == "cfg":
+                await coord.battery_runtime.async_commit_cfg_schedule_write(
+                    schedule_enabled=apply_enabled
+                )
+            else:
+                await coord.battery_runtime.async_apply_schedule_family_settings(
+                    schedule_type,
+                    start_time=apply_start_str,
+                    end_time=apply_end_str,
+                    enabled=apply_enabled,
+                )
         except aiohttp.ClientResponseError as err:
             coord.battery_runtime.raise_schedule_update_validation_error(err)
             raise
