@@ -35,6 +35,9 @@ from custom_components.enphase_ev.evse_runtime import (
     FAST_TOGGLE_POLL_HOLD_S,
     ChargeModeResolution,
 )
+from custom_components.enphase_ev.coordinator_refresh_metrics import (
+    refresh_performance_summary,
+)
 from custom_components.enphase_ev.session_history import (
     SESSION_CACHE_STATE_UNAVAILABLE,
     SessionCacheEntry,
@@ -1811,6 +1814,9 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
     coord._dns_failures = 0
     coord._last_error = "unauthorized"
     coord._phase_timings = {"status_s": 0.5}
+    coord._last_refresh_cloud_calls = 3
+    coord._last_steady_refresh_cloud_calls = 3
+    coord._last_fast_refresh_cloud_calls = 7
     coord._session_history_cache_ttl = 300
     coord._hems_devices_using_stale = True
     coord._hems_devices_last_success_mono = time.monotonic() - 12
@@ -1822,6 +1828,19 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
     assert metrics["last_success"] == now.isoformat()
     assert metrics["backoff_active"] is True
     assert metrics["phase_timings"] == {"status_s": 0.5}
+    assert metrics["refresh_performance"] == {
+        "total_s": 0.123,
+        "total_budget_s": 30.0,
+        "total_over_budget": False,
+        "timed_stage_count": 1,
+        "stage_budget_s": 5.0,
+        "over_budget_stages": [],
+        "slowest_stage": "status_s",
+        "slowest_stage_s": 0.5,
+        "cloud_calls": 3,
+        "steady_cloud_calls": 3,
+        "fast_cloud_calls": 7,
+    }
     assert metrics["hems_devices_data_stale"] is True
     assert metrics["hems_devices_last_success_utc"] == now.isoformat()
     assert metrics["hems_devices_last_success_age_s"] >= 0
@@ -1833,6 +1852,31 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
     assert placeholders["last_status"] == "503"
 
 
+def test_refresh_pipeline_records_cloud_call_counts(hass, monkeypatch) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    client = SimpleNamespace(request_count=99)
+
+    def reset_request_count() -> None:
+        client.request_count = 0
+
+    client.reset_request_count = reset_request_count
+    coord.client = client
+
+    context = coord._start_refresh_pipeline()  # noqa: SLF001
+    assert client.request_count == 0
+    client.request_count = 4
+    coord._finish_refresh_pipeline(context)  # noqa: SLF001
+    assert coord._last_refresh_cloud_calls == 4  # noqa: SLF001
+    assert coord._last_steady_refresh_cloud_calls == 4  # noqa: SLF001
+
+    context = coord._start_refresh_pipeline()  # noqa: SLF001
+    context.fast_poll = True
+    client.request_count = 6
+    coord._finish_refresh_pipeline(context)  # noqa: SLF001
+    assert coord._last_refresh_cloud_calls == 6  # noqa: SLF001
+    assert coord._last_fast_refresh_cloud_calls == 6  # noqa: SLF001
+
+
 def test_collect_site_metrics_skips_negative_hems_age(hass, monkeypatch):
     coord = _make_coordinator(hass, monkeypatch)
     coord._hems_devices_last_success_mono = time.monotonic() + 5  # noqa: SLF001
@@ -1840,6 +1884,28 @@ def test_collect_site_metrics_skips_negative_hems_age(hass, monkeypatch):
     metrics = coord.collect_site_metrics()
 
     assert "hems_devices_last_success_age_s" not in metrics
+
+
+def test_refresh_performance_summary_flags_budget_and_bad_timings() -> None:
+    summary = refresh_performance_summary(
+        {"total_s": 31, "status_s": 6, "ignored": -1, "bad": "nope"},  # type: ignore[dict-item]
+        latency_ms=120,
+    )
+
+    assert summary == {
+        "total_s": 31.0,
+        "total_budget_s": 30.0,
+        "total_over_budget": True,
+        "timed_stage_count": 1,
+        "stage_budget_s": 5.0,
+        "over_budget_stages": ["status_s"],
+        "slowest_stage": "status_s",
+        "slowest_stage_s": 6.0,
+        "cloud_calls": None,
+        "steady_cloud_calls": None,
+        "fast_cloud_calls": None,
+    }
+    assert refresh_performance_summary({}, latency_ms="bad")["total_s"] is None  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio

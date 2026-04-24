@@ -14,13 +14,14 @@ All notable changes to this project will be documented in this file.
 - Seed AC Battery status and last-reported data from the battery status endpoint when the dedicated AC Battery devices page does not return parsed rows.
 - Routed IQ EV Charger device services through the target device's owning site or config entry so multi-site installs do not send start, stop, trigger, or schedule-sync requests to the wrong site when another entry has no discovered serials yet.
 - Kept the "Store password for automatic reauthentication" checkbox aligned with the existing entry setting during reconfigure and reauthentication flows instead of defaulting back to storing newly entered passwords.
+- Rejected charger and site services with a clear validation error when no target or owning coordinator can be resolved.
 - Cancelled pending EV charger amp-restart and live-stream stop tasks during config entry unload so stale tasks cannot call the cloud client after reload or removal.
 
 ### 🔧 Improvements
-- None
+- Added refresh performance diagnostics, including per-stage timing and cloud-call counts for steady and fast polling.
 
 ### 🔄 Other changes
-- None
+- Split large API, battery runtime, sensor, and coordinator helper logic into smaller typed modules with focused regression coverage.
 
 ## v2.9.1 - 2026-04-24
 

@@ -2210,7 +2210,8 @@ async def test_battery_schedule_services_cover_failure_paths(
     coord.async_start_streaming = AsyncMock()
     await start_stream(SimpleNamespace(data={"config_entry_id": config_entry.entry_id}))
     coord.async_start_streaming.assert_awaited_once()
-    await start_stream(SimpleNamespace(data={"config_entry_id": "missing-entry"}))
+    with pytest.raises(ServiceValidationError):
+        await start_stream(SimpleNamespace(data={"config_entry_id": "missing-entry"}))
 
     with pytest.raises(ServiceValidationError, match="must be different"):
         await add_schedule(

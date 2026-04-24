@@ -13,6 +13,9 @@ from homeassistant.const import UnitOfEnergy
 
 from custom_components.enphase_ev import sensor as sensor_mod
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
+from custom_components.enphase_ev.sensor_battery_helpers import (
+    battery_last_reported_snapshot,
+)
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
@@ -4113,15 +4116,49 @@ def test_gateway_helpers_cover_edge_paths(coordinator_factory) -> None:
     assert sensor_mod._gateway_parse_timestamp(float("inf")) is None
     assert sensor_mod._battery_parse_timestamp(0) is None
     assert sensor_mod._battery_parse_timestamp("1e20") is None
+    assert sensor_mod._battery_parse_timestamp(" ") is None
+    assert sensor_mod._battery_parse_timestamp("not-a-timestamp") is None
+    assert sensor_mod._battery_parse_timestamp("2026-02-15T08:31:33") == datetime(
+        2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc
+    )
     parsed_epoch = sensor_mod._battery_parse_timestamp(1_771_144_293_000)
     assert parsed_epoch == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
     parsed_battery_naive = sensor_mod._battery_parse_timestamp(
         datetime(2026, 2, 15, 8, 31, 33)
     )
     assert parsed_battery_naive == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
+    assert sensor_mod._battery_optional_bool(True) is True
     assert sensor_mod._battery_optional_bool(1) is True
     assert sensor_mod._battery_optional_bool("disabled") is False
     assert sensor_mod._battery_optional_bool("maybe") is None
+    assert sensor_mod._battery_last_reported_members(
+        SimpleNamespace(
+            battery_status_payload=None,
+            iter_battery_serials=lambda: ["BAT-3"],
+        )
+    ) == [{"serial_number": "BAT-3"}]
+    snapshot_from_storage = battery_last_reported_snapshot(
+        SimpleNamespace(
+            battery_status_payload=None,
+            iter_battery_serials=lambda: ["BAT-1", "BAT-2"],
+            battery_storage=lambda serial: (
+                {
+                    "serial_number": serial,
+                    "name": f"Battery {serial[-1]}",
+                    "last_reported_at": "2026-02-15T08:31:33Z",
+                }
+                if serial == "BAT-1"
+                else "bad"
+            ),
+        )
+    )
+    assert snapshot_from_storage["total_batteries"] == 2
+    assert snapshot_from_storage["without_last_report_count"] == 1
+    assert snapshot_from_storage["latest_reported_device"] == {
+        "serial_number": "BAT-1",
+        "name": "Battery 1",
+        "status": None,
+    }
     assert sensor_mod._EnphaseBatteryStorageBaseSensor._parse_timestamp(
         "2026-02-15T08:31:33Z"
     ) == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)

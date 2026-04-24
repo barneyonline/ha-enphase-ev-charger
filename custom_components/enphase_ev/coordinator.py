@@ -244,6 +244,7 @@ class RefreshPipelineContext:
     fallback_data: dict[str, dict]
     first_refresh: bool
     status_used_stale: bool = False
+    fast_poll: bool = False
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
@@ -1133,16 +1134,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def cleanup_runtime_state(self) -> None:
         """Release runtime caches/listeners to make unload deterministic."""
+
+        def _task_done(task: object) -> bool:
+            done = getattr(task, "done", None)
+            return callable(done) and done() is True
+
         if self._warmup_task is not None:
             self._warmup_task.cancel()
             self._warmup_task = None
-        if self._streaming_stop_task is not None:
-            self._streaming_stop_task.cancel()
-            self._streaming_stop_task = None
         for task in list(self._amp_restart_tasks.values()):
-            task.cancel()
+            if task is not None and not _task_done(task):
+                task.cancel()
         self._amp_restart_tasks.clear()
-        self._clear_streaming_state()
+        if self._streaming_stop_task is not None:
+            if not _task_done(self._streaming_stop_task):
+                self._streaming_stop_task.cancel()
+            self._streaming_stop_task = None
+        if self._auth_refresh_task is not None:
+            if not _task_done(self._auth_refresh_task):
+                self._auth_refresh_task.cancel()
+            self._auth_refresh_task = None
+        clear_streaming_state = getattr(self, "_clear_streaming_state", None)
+        if callable(clear_streaming_state):
+            clear_streaming_state()
         self.discovery_snapshot.cancel_pending_save()
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None and hasattr(session_manager, "clear"):
@@ -2252,6 +2266,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         refresh_started_utc = dt_util.utcnow()
         if refresh_started_utc.tzinfo is None:
             refresh_started_utc = refresh_started_utc.replace(tzinfo=_tz.utc)
+        reset_request_count = getattr(self.client, "reset_request_count", None)
+        if callable(reset_request_count):
+            reset_request_count()
         fallback_data: dict[str, dict] = {}
         if isinstance(self.data, dict):
             try:
@@ -2412,6 +2429,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         phase_timings = context.phase_timings
         phase_timings["total_s"] = round(time.monotonic() - context.started_mono, 3)
         self._phase_timings = phase_timings.copy()
+        request_count = getattr(self.client, "request_count", None)
+        if isinstance(request_count, int):
+            self._last_refresh_cloud_calls = request_count
+            if context.fast_poll:
+                self._last_fast_refresh_cloud_calls = request_count
+            else:
+                self._last_steady_refresh_cloud_calls = request_count
         if context.first_refresh:
             self._bootstrap_phase_timings = phase_timings.copy()
         self._refresh_cached_topology()
@@ -3723,6 +3747,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_desired_charging(out)
 
         polling_state = self._determine_polling_state(out)
+        context.fast_poll = bool(polling_state["want_fast"])
         summary_force = self.summary.prepare_refresh(
             want_fast=polling_state["want_fast"],
             target_interval=float(polling_state["target"]),
