@@ -1235,7 +1235,7 @@ async def test_finalize_login_entry_reauth_updates_entry(hass) -> None:
 
 
 @pytest.mark.asyncio
-async def test_reconfigure_step_remember_password_defaults_enabled(hass) -> None:
+async def test_reconfigure_step_preserves_remember_password_default(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -1262,11 +1262,11 @@ async def test_reconfigure_step_remember_password_defaults_enabled(hass) -> None
         if isinstance(item, VolOptional) and item.schema == CONF_REMEMBER_PASSWORD
     )
     default = key.default() if callable(key.default) else key.default
-    assert default is True
+    assert default is False
 
 
 @pytest.mark.asyncio
-async def test_reauth_step_remember_password_defaults_enabled(hass) -> None:
+async def test_reauth_step_preserves_remember_password_default(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
@@ -1293,7 +1293,7 @@ async def test_reauth_step_remember_password_defaults_enabled(hass) -> None:
         if isinstance(item, VolOptional) and item.schema == CONF_REMEMBER_PASSWORD
     )
     default = key.default() if callable(key.default) else key.default
-    assert default is True
+    assert default is False
 
 
 @pytest.mark.asyncio

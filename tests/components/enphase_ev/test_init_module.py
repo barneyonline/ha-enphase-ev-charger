@@ -1392,10 +1392,11 @@ async def test_registered_services_cover_branches(
     )
 
     class FakeCoordinator:
-        def __init__(self, site, serials, data, start_results):
+        def __init__(self, site, serials, data, start_results, *, site_only=False):
             self.site_id = site
             self.serials = set(serials)
             self.data = data
+            self.site_only = site_only
             self._start_results = start_results
             self._streaming = False
             self.schedule_sync = SimpleNamespace(async_refresh=AsyncMock())
@@ -1429,6 +1430,13 @@ async def test_registered_services_cover_branches(
             )
             self.async_request_refresh = AsyncMock()
 
+    coord_site_only = FakeCoordinator(
+        site_id,
+        serials=set(),
+        data={},
+        start_results={},
+        site_only=True,
+    )
     coord_primary = FakeCoordinator(
         site_id,
         serials={second_serial},
@@ -1539,6 +1547,15 @@ async def test_registered_services_cover_branches(
         limit=80,
     )
 
+    entry_site_only = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: site_id},
+        title="Site Only",
+        unique_id="entry-site-only",
+    )
+    entry_site_only.add_to_hass(hass)
+    entry_site_only.runtime_data = EnphaseRuntimeData(coordinator=coord_site_only)
+
     start_call = SimpleNamespace(
         data={
             "device_id": [charger_one.id, site_device.id, charger_two.id],
@@ -1552,10 +1569,12 @@ async def test_registered_services_cover_branches(
     assert call(first_serial, requested_amps=30, connector_id=2) in await_args
     assert call(second_serial, requested_amps=30, connector_id=2) in await_args
     assert coord_primary.async_start_charging.await_count == 2
+    coord_site_only.async_start_charging.assert_not_awaited()
 
     stop_call = SimpleNamespace(data={"device_id": charger_one.id})
     await svc_stop(stop_call)
     coord_primary.async_stop_charging.assert_awaited_once_with(first_serial)
+    coord_site_only.async_stop_charging.assert_not_awaited()
 
     trigger_call = SimpleNamespace(
         data={"device_id": charger_two.id, "requested_message": "status"}
@@ -1604,6 +1623,7 @@ async def test_registered_services_cover_branches(
     await svc_sync(SimpleNamespace(data={}))
     assert coord_primary.schedule_sync.async_refresh.await_count >= 2
 
+    entry_site_only.runtime_data = None
     entry_one.runtime_data = None
     entry_two.runtime_data = None
     entry_three.runtime_data = None
@@ -1634,6 +1654,474 @@ async def test_registered_services_cover_branches(
         )
     with pytest.raises(ServiceValidationError):
         await svc_request_grid_otp(SimpleNamespace(data={"site_id": "missing-site"}))
+
+
+@pytest.mark.asyncio
+async def test_device_service_routing_prefers_owning_entry_over_empty_serial_fallback(
+    hass: HomeAssistant, monkeypatch
+) -> None:
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.services.ha_service",
+        SimpleNamespace(async_extract_referenced_device_ids=lambda *_args: []),
+    )
+
+    serial = "EV-ROUTE-1"
+    site_id = "site-route"
+    site_only_coord = SimpleNamespace(
+        site_id=site_id,
+        site_only=True,
+        serials=set(),
+        data={},
+        async_start_charging=AsyncMock(return_value={"status": "wrong"}),
+    )
+    owning_coord = SimpleNamespace(
+        site_id=site_id,
+        site_only=False,
+        serials={serial},
+        data={serial: {}},
+        async_start_charging=AsyncMock(return_value={"status": "ok"}),
+    )
+
+    site_only_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: site_id},
+        title="Site Only",
+        unique_id="site-only-entry",
+    )
+    site_only_entry.add_to_hass(hass)
+    site_only_entry.runtime_data = EnphaseRuntimeData(coordinator=site_only_coord)
+
+    owning_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: site_id},
+        title="Owning Entry",
+        unique_id="owning-entry",
+    )
+    owning_entry.add_to_hass(hass)
+    owning_entry.runtime_data = EnphaseRuntimeData(coordinator=owning_coord)
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=owning_entry.entry_id,
+        identifiers={(DOMAIN, serial)},
+        manufacturer="Enphase",
+        name="Routed Charger",
+    )
+
+    async_setup_services(hass)
+    svc_start = registered[(DOMAIN, "start_charging")]["handler"]
+
+    await svc_start(
+        SimpleNamespace(
+            data={
+                "device_id": device.id,
+                "charging_level": 24,
+                "connector_id": 1,
+            }
+        )
+    )
+
+    owning_coord.async_start_charging.assert_awaited_once_with(
+        serial, requested_amps=24, connector_id=1
+    )
+    site_only_coord.async_start_charging.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_device_service_routing_prefers_global_exact_match_before_empty_entry(
+    hass: HomeAssistant, monkeypatch
+) -> None:
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.services.ha_service",
+        SimpleNamespace(async_extract_referenced_device_ids=lambda *_args: []),
+    )
+
+    serial = "EV-STALE-ENTRY-1"
+    empty_coord = SimpleNamespace(
+        site_id="empty-site",
+        site_only=False,
+        serials=set(),
+        data={},
+        async_start_charging=AsyncMock(return_value={"status": "wrong"}),
+    )
+    owning_coord = SimpleNamespace(
+        site_id="owning-site",
+        site_only=False,
+        serials={serial},
+        data={serial: {}},
+        async_start_charging=AsyncMock(return_value={"status": "ok"}),
+    )
+
+    empty_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "empty-site"},
+        title="Empty Entry",
+        unique_id="empty-entry",
+    )
+    empty_entry.add_to_hass(hass)
+    empty_entry.runtime_data = EnphaseRuntimeData(coordinator=empty_coord)
+
+    owning_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "owning-site"},
+        title="Owning Entry",
+        unique_id="owning-entry",
+    )
+    owning_entry.add_to_hass(hass)
+    owning_entry.runtime_data = EnphaseRuntimeData(coordinator=owning_coord)
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=empty_entry.entry_id,
+        identifiers={(DOMAIN, serial)},
+        manufacturer="Enphase",
+        name="Stale Entry Charger",
+    )
+
+    async_setup_services(hass)
+    svc_start = registered[(DOMAIN, "start_charging")]["handler"]
+
+    await svc_start(
+        SimpleNamespace(
+            data={
+                "device_id": device.id,
+                "charging_level": 32,
+                "connector_id": 1,
+            }
+        )
+    )
+
+    owning_coord.async_start_charging.assert_awaited_once_with(
+        serial, requested_amps=32, connector_id=1
+    )
+    empty_coord.async_start_charging.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_device_service_routing_skips_ambiguous_empty_serial_fallback(
+    hass: HomeAssistant, monkeypatch
+) -> None:
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.services.ha_service",
+        SimpleNamespace(async_extract_referenced_device_ids=lambda *_args: []),
+    )
+
+    serial = "EV-AMBIGUOUS-EMPTY-1"
+    first_empty_coord = SimpleNamespace(
+        site_id="first-empty-site",
+        site_only=False,
+        serials=set(),
+        data={},
+        async_start_charging=AsyncMock(return_value={"status": "first"}),
+    )
+    second_empty_coord = SimpleNamespace(
+        site_id="second-empty-site",
+        site_only=False,
+        serials=set(),
+        data={},
+        async_start_charging=AsyncMock(return_value={"status": "second"}),
+    )
+
+    first_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "first-empty-site"},
+        title="First Empty Entry",
+        unique_id="first-empty-entry",
+    )
+    first_entry.add_to_hass(hass)
+    first_entry.runtime_data = EnphaseRuntimeData(coordinator=first_empty_coord)
+
+    second_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "second-empty-site"},
+        title="Second Empty Entry",
+        unique_id="second-empty-entry",
+    )
+    second_entry.add_to_hass(hass)
+    second_entry.runtime_data = EnphaseRuntimeData(coordinator=second_empty_coord)
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=first_entry.entry_id,
+        identifiers={(DOMAIN, serial)},
+        manufacturer="Enphase",
+        name="Ambiguous Empty Charger",
+    )
+
+    async_setup_services(hass)
+    svc_start = registered[(DOMAIN, "start_charging")]["handler"]
+
+    await svc_start(
+        SimpleNamespace(
+            data={
+                "device_id": device.id,
+                "charging_level": 16,
+                "connector_id": 1,
+            }
+        )
+    )
+
+    first_empty_coord.async_start_charging.assert_not_awaited()
+    second_empty_coord.async_start_charging.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_device_service_routing_allows_single_empty_serial_fallback(
+    hass: HomeAssistant, monkeypatch
+) -> None:
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.services.ha_service",
+        SimpleNamespace(async_extract_referenced_device_ids=lambda *_args: []),
+    )
+
+    serial = "EV-SINGLE-EMPTY-1"
+    empty_coord = SimpleNamespace(
+        site_id="single-empty-site",
+        site_only=False,
+        serials=set(),
+        data={},
+        async_start_charging=AsyncMock(return_value={"status": "fallback"}),
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "single-empty-site"},
+        title="Single Empty Entry",
+        unique_id="single-empty-entry",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=empty_coord)
+
+    device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, serial)},
+        manufacturer="Enphase",
+        name="Single Empty Charger",
+    )
+
+    async_setup_services(hass)
+    svc_start = registered[(DOMAIN, "start_charging")]["handler"]
+
+    await svc_start(
+        SimpleNamespace(
+            data={
+                "device_id": device.id,
+                "charging_level": 12,
+                "connector_id": 1,
+            }
+        )
+    )
+
+    empty_coord.async_start_charging.assert_awaited_once_with(
+        serial, requested_amps=12, connector_id=1
+    )
+
+
+@pytest.mark.asyncio
+async def test_device_service_routing_helper_guard_paths(
+    hass: HomeAssistant, monkeypatch
+) -> None:
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
+
+    def extract_helper(func, target):
+        for cell in func.__closure__ or ():
+            value = cell.cell_contents
+            if callable(value) and getattr(value, "__name__", "") == target:
+                return value
+        raise AssertionError(f"helper {target} not found")
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.services.ha_service",
+        SimpleNamespace(async_extract_referenced_device_ids=lambda *_args: []),
+    )
+
+    async_setup_services(hass)
+    svc_start = registered[(DOMAIN, "start_charging")]["handler"]
+    resolve_context = extract_helper(svc_start, "_resolve_device_routing_context")
+    get_coord = extract_helper(svc_start, "_get_coordinator_for_sn")
+    config_ids_for_device = extract_helper(
+        resolve_context, "_config_entry_ids_for_device"
+    )
+    can_fallback = extract_helper(get_coord, "_coordinator_can_fallback_for_serial")
+
+    assert not can_fallback(
+        SimpleNamespace(site_id="other-site", site_only=False, serials=set(), data={}),
+        "EV-GUARD",
+        "site-guard",
+    )
+    assert not can_fallback(
+        SimpleNamespace(site_id="site-guard", site_only=True, serials=set(), data={}),
+        "EV-GUARD",
+        "site-guard",
+    )
+    assert config_ids_for_device(
+        SimpleNamespace(async_get=Mock()),
+        SimpleNamespace(
+            config_entries=None, config_entry_id="legacy-entry", via_device_id=None
+        ),
+    ) == ["legacy-entry"]
+    assert (
+        config_ids_for_device(
+            SimpleNamespace(async_get=Mock()),
+            SimpleNamespace(
+                config_entries=None, config_entry_id=None, via_device_id=None
+            ),
+        )
+        == []
+    )
+    assert (
+        config_ids_for_device(
+            SimpleNamespace(async_get=Mock(return_value=None)),
+            SimpleNamespace(
+                config_entries=None, config_entry_id=None, via_device_id="missing"
+            ),
+        )
+        == []
+    )
+    parent_device = SimpleNamespace(
+        config_entries={"parent-entry"}, config_entry_id=None, via_device_id=None
+    )
+    assert config_ids_for_device(
+        SimpleNamespace(async_get=Mock(return_value=parent_device)),
+        SimpleNamespace(
+            config_entries=None, config_entry_id=None, via_device_id="parent"
+        ),
+    ) == ["parent-entry"]
+
+    site_serial = "EV-SITE-DUPE"
+    site_dup_one = SimpleNamespace(
+        site_id="site-dupe",
+        site_only=False,
+        serials={site_serial},
+        data={},
+    )
+    site_dup_two = SimpleNamespace(
+        site_id="site-dupe",
+        site_only=False,
+        serials={site_serial},
+        data={},
+    )
+    for index, coord in enumerate((site_dup_one, site_dup_two), start=1):
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={CONF_SITE_ID: "site-dupe"},
+            title=f"Site Duplicate {index}",
+            unique_id=f"site-duplicate-{index}",
+        )
+        entry.add_to_hass(hass)
+        entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    assert await get_coord(site_serial, site_id="site-dupe") is None
+
+    for index in range(2):
+        coord = SimpleNamespace(
+            site_id="site-empty-dupe",
+            site_only=False,
+            serials=set(),
+            data={},
+        )
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={CONF_SITE_ID: "site-empty-dupe"},
+            title=f"Site Empty Duplicate {index}",
+            unique_id=f"site-empty-duplicate-{index}",
+        )
+        entry.add_to_hass(hass)
+        entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    assert await get_coord("EV-SITE-EMPTY-DUPE", site_id="site-empty-dupe") is None
+
+    global_serial = "EV-GLOBAL-DUPE"
+    global_dup_one = SimpleNamespace(
+        site_id="global-dupe-one",
+        site_only=False,
+        serials={global_serial},
+        data={},
+    )
+    global_dup_two = SimpleNamespace(
+        site_id="global-dupe-two",
+        site_only=False,
+        serials={global_serial},
+        data={},
+    )
+    for index, coord in enumerate((global_dup_one, global_dup_two), start=1):
+        entry = MockConfigEntry(
+            domain=DOMAIN,
+            data={CONF_SITE_ID: coord.site_id},
+            title=f"Global Duplicate {index}",
+            unique_id=f"global-duplicate-{index}",
+        )
+        entry.add_to_hass(hass)
+        entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    assert await get_coord(global_serial) is None
+
+    site_fallback_coord = SimpleNamespace(
+        site_id="site-fallback",
+        site_only=False,
+        serials=set(),
+        data={},
+    )
+    site_fallback_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "site-fallback"},
+        title="Site Fallback",
+        unique_id="site-fallback-entry",
+    )
+    site_fallback_entry.add_to_hass(hass)
+    site_fallback_entry.runtime_data = EnphaseRuntimeData(
+        coordinator=site_fallback_coord
+    )
+
+    assert (
+        await get_coord("EV-SITE-FALLBACK", site_id="site-fallback")
+        is site_fallback_coord
+    )
 
 
 def test_register_services_supports_response_fallback(
@@ -1696,12 +2184,13 @@ async def test_service_helper_resolve_functions_cover_none_branches(
                 return value
         raise AssertionError(f"helper {target} not found")
 
-    resolve_sn = _extract_helper(svc_start, "_resolve_sn")
+    resolve_device_routing_context = _extract_helper(
+        svc_start, "_resolve_device_routing_context"
+    )
     resolve_site = _extract_helper(svc_clear, "_resolve_site_id")
 
     dev_reg = dr.async_get(hass)
-    missing_sn = await resolve_sn("does-not-exist")
-    assert missing_sn is None
+    assert await resolve_device_routing_context("does-not-exist") is None
 
     site_device = dev_reg.async_get_or_create(
         config_entry_id=config_entry.entry_id,
@@ -1709,7 +2198,7 @@ async def test_service_helper_resolve_functions_cover_none_branches(
         manufacturer="Enphase",
         name="Site Device",
     )
-    assert await resolve_sn(site_device.id) is None
+    assert await resolve_device_routing_context(site_device.id) is None
     assert await resolve_site(site_device.id) == "ABC123"
 
     child_no_parent = dev_reg.async_get_or_create(
@@ -1718,7 +2207,7 @@ async def test_service_helper_resolve_functions_cover_none_branches(
         manufacturer="Vendor",
         name="Third Party Device",
     )
-    assert await resolve_sn(child_no_parent.id) is None
+    assert await resolve_device_routing_context(child_no_parent.id) is None
     assert await resolve_site(child_no_parent.id) is None
 
     dev_reg.async_get_or_create(
@@ -1734,6 +2223,11 @@ async def test_service_helper_resolve_functions_cover_none_branches(
         name="Child Device",
         via_device=(DOMAIN, "site:PARENT"),
     )
+    assert await resolve_device_routing_context(child_with_via.id) == (
+        "EVCHILD",
+        "PARENT",
+        [config_entry.entry_id],
+    )
     assert await resolve_site(child_with_via.id) == "PARENT"
 
     type_device = dev_reg.async_get_or_create(
@@ -1742,7 +2236,7 @@ async def test_service_helper_resolve_functions_cover_none_branches(
         manufacturer="Enphase",
         name="Gateway (1)",
     )
-    assert await resolve_sn(type_device.id) is None
+    assert await resolve_device_routing_context(type_device.id) is None
     assert await resolve_site(type_device.id) == "TYPED"
 
     child_with_type_parent = dev_reg.async_get_or_create(

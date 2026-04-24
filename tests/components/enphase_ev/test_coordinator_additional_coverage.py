@@ -1107,13 +1107,33 @@ def test_cleanup_runtime_state_clears_session_history(coordinator_factory):
     coord = coordinator_factory(serials=["EV1"])
     clear = MagicMock()
     prune = MagicMock()
+    warmup_task = MagicMock()
+    stream_stop_task = MagicMock()
+    amp_restart_task = MagicMock()
     coord.session_history = SimpleNamespace(clear=clear, prune=prune)
     coord._session_history_cache_shim = {
         ("EV1", "2020-01-02"): (1.0, [])
     }  # noqa: SLF001
+    coord._warmup_task = warmup_task  # noqa: SLF001
+    coord._streaming_stop_task = stream_stop_task  # noqa: SLF001
+    coord._amp_restart_tasks = {"EV1": amp_restart_task}  # noqa: SLF001
+    coord._streaming = True  # noqa: SLF001
+    coord._streaming_until = 123.0  # noqa: SLF001
+    coord._streaming_manual = True  # noqa: SLF001
+    coord._streaming_targets = {"EV1": True}  # noqa: SLF001
 
     coord.cleanup_runtime_state()
 
+    warmup_task.cancel.assert_called_once()
+    stream_stop_task.cancel.assert_called_once()
+    amp_restart_task.cancel.assert_called_once()
+    assert coord._warmup_task is None  # noqa: SLF001
+    assert coord._streaming_stop_task is None  # noqa: SLF001
+    assert coord._amp_restart_tasks == {}  # noqa: SLF001
+    assert coord._streaming is False  # noqa: SLF001
+    assert coord._streaming_until is None  # noqa: SLF001
+    assert coord._streaming_manual is False  # noqa: SLF001
+    assert coord._streaming_targets == {}  # noqa: SLF001
     clear.assert_called_once()
     assert coord._session_history_cache_shim == {}  # noqa: SLF001
 
