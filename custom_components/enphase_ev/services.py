@@ -553,11 +553,6 @@ def async_setup_services(
 
     async def _resolve_site_ids_from_call(call: ServiceCall) -> set[str]:
         site_ids: set[str] = set()
-        config_entry_id = call.data.get("config_entry_id")
-        if config_entry_id:
-            coord = _get_coordinator_for_entry_id(str(config_entry_id))
-            if coord is not None:
-                site_ids.add(str(coord.site_id))
         for device_id in _extract_device_ids(call):
             site_id = await _resolve_site_id(device_id)
             if site_id:
@@ -596,15 +591,17 @@ def async_setup_services(
             translation_key="exceptions.grid_site_required",
         )
 
-    async def _svc_force_refresh(call: ServiceCall) -> None:
-        coord = await _resolve_single_site_coordinator(call)
-        await coord.async_request_refresh()
-
-    async def _svc_start(call: ServiceCall) -> None:
+    async def _resolve_charger_targets(
+        call: ServiceCall,
+    ) -> list[tuple[str, str, EnphaseCoordinator]]:
         device_ids = _extract_device_ids(call)
         if not device_ids:
-            return
-        connector_id = int(call.data.get("connector_id", 1))
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.grid_site_required",
+            )
+
+        targets: list[tuple[str, str, EnphaseCoordinator]] = []
         for device_id in device_ids:
             routing_context = await _resolve_device_routing_context(device_id)
             if routing_context is None:
@@ -615,49 +612,40 @@ def async_setup_services(
                 site_id=site_id,
                 config_entry_ids=config_entry_ids,
             )
-            if not coord:
-                continue
+            if coord is None:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="exceptions.grid_site_required",
+                )
+            targets.append((device_id, sn, coord))
+
+        if not targets:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="exceptions.grid_site_required",
+            )
+        return targets
+
+    async def _svc_force_refresh(call: ServiceCall) -> None:
+        coord = await _resolve_single_site_coordinator(call)
+        await coord.async_request_refresh()
+
+    async def _svc_start(call: ServiceCall) -> None:
+        connector_id = int(call.data.get("connector_id", 1))
+        for _device_id, sn, coord in await _resolve_charger_targets(call):
             level = call.data.get("charging_level")
             await coord.async_start_charging(
                 sn, requested_amps=level, connector_id=connector_id
             )
 
     async def _svc_stop(call: ServiceCall) -> None:
-        device_ids = _extract_device_ids(call)
-        if not device_ids:
-            return
-        for device_id in device_ids:
-            routing_context = await _resolve_device_routing_context(device_id)
-            if routing_context is None:
-                continue
-            sn, site_id, config_entry_ids = routing_context
-            coord = await _get_coordinator_for_sn(
-                sn,
-                site_id=site_id,
-                config_entry_ids=config_entry_ids,
-            )
-            if not coord:
-                continue
+        for _device_id, sn, coord in await _resolve_charger_targets(call):
             await coord.async_stop_charging(sn)
 
     async def _svc_trigger(call: ServiceCall) -> dict[str, object]:
-        device_ids = _extract_device_ids(call)
-        if not device_ids:
-            return {}
         message = call.data["requested_message"]
         results: list[dict[str, object]] = []
-        for device_id in device_ids:
-            routing_context = await _resolve_device_routing_context(device_id)
-            if routing_context is None:
-                continue
-            sn, site_id, config_entry_ids = routing_context
-            coord = await _get_coordinator_for_sn(
-                sn,
-                site_id=site_id,
-                config_entry_ids=config_entry_ids,
-            )
-            if not coord:
-                continue
+        for device_id, sn, coord in await _resolve_charger_targets(call):
             reply = await coord.async_trigger_ocpp_message(sn, message)
             results.append(
                 {
@@ -696,26 +684,14 @@ def async_setup_services(
             ir.async_delete_issue(hass, DOMAIN, issue_id)
 
     async def _svc_start_stream(call: ServiceCall) -> None:
-        site_ids = await _resolve_site_ids_from_call(call)
-        coords = iter_coordinators(hass, site_ids=site_ids or None)
-        if not coords:
-            return
-        if not site_ids:
-            coords = coords[:1]
-        for coord in coords:
-            await coord.async_start_streaming(manual=True)
-            await coord.async_request_refresh()
+        coord = await _resolve_single_site_coordinator(call)
+        await coord.async_start_streaming(manual=True)
+        await coord.async_request_refresh()
 
     async def _svc_stop_stream(call: ServiceCall) -> None:
-        site_ids = await _resolve_site_ids_from_call(call)
-        coords = iter_coordinators(hass, site_ids=site_ids or None)
-        if not coords:
-            return
-        if not site_ids:
-            coords = coords[:1]
-        for coord in coords:
-            await coord.async_stop_streaming(manual=True)
-            await coord.async_request_refresh()
+        coord = await _resolve_single_site_coordinator(call)
+        await coord.async_stop_streaming(manual=True)
+        await coord.async_request_refresh()
 
     async def _svc_update_cfg_schedule(call: ServiceCall) -> None:
         coord = await _resolve_single_site_coordinator(call)
@@ -989,26 +965,13 @@ def async_setup_services(
         return result
 
     async def _svc_sync_schedules(call: ServiceCall) -> None:
-        device_ids = _extract_device_ids(call)
-        if device_ids:
-            for device_id in device_ids:
-                routing_context = await _resolve_device_routing_context(device_id)
-                if routing_context is None:
-                    continue
-                sn, site_id, config_entry_ids = routing_context
-                coord = await _get_coordinator_for_sn(
-                    sn,
-                    site_id=site_id,
-                    config_entry_ids=config_entry_ids,
+        for _device_id, sn, coord in await _resolve_charger_targets(call):
+            if not hasattr(coord, "schedule_sync"):
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="exceptions.grid_site_required",
                 )
-                if not coord or not hasattr(coord, "schedule_sync"):
-                    continue
-                await coord.schedule_sync.async_refresh(reason="service", serials=[sn])
-            return
-
-        for coord in iter_coordinators(hass):
-            if hasattr(coord, "schedule_sync"):
-                await coord.schedule_sync.async_refresh(reason="service")
+            await coord.schedule_sync.async_refresh(reason="service", serials=[sn])
 
     hass.services.async_register(
         DOMAIN, "force_refresh", _svc_force_refresh, schema=FORCE_REFRESH_SCHEMA

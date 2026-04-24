@@ -9,6 +9,7 @@ import voluptuous as vol
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 import custom_components.enphase_ev as enphase_init
@@ -1174,6 +1175,94 @@ async def test_async_unload_entry_stops_schedule_sync(
     assert config_entry.runtime_data is None
 
 
+class _RecordingTask:
+    def __init__(self, *, done: bool = False) -> None:
+        self._done = done
+        self.cancelled = False
+
+    def done(self) -> bool:
+        return self._done
+
+    def cancel(self) -> None:
+        self.cancelled = True
+
+
+@pytest.mark.asyncio
+async def test_async_unload_entry_cancels_background_lifecycle_tasks(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    warmup_task = _RecordingTask()
+    session_task = _RecordingTask()
+    amp_task = _RecordingTask()
+    completed_amp_task = _RecordingTask(done=True)
+    stream_stop_task = _RecordingTask()
+    auth_refresh_task = _RecordingTask()
+    schedule_sync = SimpleNamespace(async_stop=AsyncMock())
+    session_history = SimpleNamespace(_enrichment_tasks={session_task})
+
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    def _clear_session_history() -> None:
+        for task in list(session_history._enrichment_tasks):
+            task.cancel()
+        session_history._enrichment_tasks.clear()
+
+    session_history.clear = Mock(side_effect=_clear_session_history)
+
+    class CleanupCoordinator:
+        cleanup_runtime_state = EnphaseCoordinator.cleanup_runtime_state
+
+        def __init__(self) -> None:
+            self._warmup_task = warmup_task
+            self._amp_restart_tasks = {
+                "EV123": amp_task,
+                "EV456": completed_amp_task,
+            }
+            self._streaming_stop_task = stream_stop_task
+            self._auth_refresh_task = auth_refresh_task
+            self.discovery_snapshot = SimpleNamespace(cancel_pending_save=Mock())
+            self.session_history = session_history
+            self._session_history_cache_shim = {("EV123", "2026-04-24"): (1.0, [])}
+            self._topology_listeners = [Mock()]
+            self.schedule_sync = schedule_sync
+            self.evse_runtime = SimpleNamespace(
+                prune_runtime_caches=Mock(),
+            )
+
+        def _prune_runtime_caches(self, *, active_serials, keep_day_keys) -> None:
+            self.evse_runtime.prune_runtime_caches(
+                active_serials=active_serials,
+                keep_day_keys=keep_day_keys,
+            )
+
+    coord = CleanupCoordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    unload = AsyncMock(return_value=True)
+    monkeypatch.setattr(hass.config_entries, "async_forward_entry_unload", unload)
+
+    assert await async_unload_entry(hass, config_entry)
+
+    schedule_sync.async_stop.assert_awaited_once()
+    assert warmup_task.cancelled
+    assert session_task.cancelled
+    assert amp_task.cancelled
+    assert not completed_amp_task.cancelled
+    assert stream_stop_task.cancelled
+    assert auth_refresh_task.cancelled
+    assert coord._warmup_task is None
+    assert coord._amp_restart_tasks == {}
+    assert coord._streaming_stop_task is None
+    assert coord._auth_refresh_task is None
+    assert coord._session_history_cache_shim == {}
+    assert coord._topology_listeners == []
+    session_history.clear.assert_called_once_with()
+    coord.discovery_snapshot.cancel_pending_save.assert_called_once_with()
+    coord.evse_runtime.prune_runtime_caches.assert_called_once_with(
+        active_serials=(), keep_day_keys=()
+    )
+    assert config_entry.runtime_data is None
+
+
 @pytest.mark.asyncio
 async def test_async_unload_entry_does_not_cleanup_when_unload_fails(
     hass: HomeAssistant, config_entry, monkeypatch
@@ -1500,11 +1589,16 @@ async def test_registered_services_cover_branches(
     svc_update_cfg = registered[(DOMAIN, "update_cfg_schedule")]["handler"]
     update_cfg_schema = registered[(DOMAIN, "update_cfg_schedule")]["schema"]
 
-    await svc_start(SimpleNamespace(data={}))
-    await svc_stop(SimpleNamespace(data={}))
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError):
+        await svc_start(SimpleNamespace(data={}))
+    with pytest.raises(ServiceValidationError):
+        await svc_stop(SimpleNamespace(data={}))
 
     fake_service_helper.calls = 0
-    assert await svc_trigger(SimpleNamespace(data={})) == {}
+    with pytest.raises(ServiceValidationError):
+        await svc_trigger(SimpleNamespace(data={"requested_message": "status"}))
 
     with pytest.raises(vol.Invalid):
         update_cfg_schema({"site_id": site_id})
@@ -1513,23 +1607,25 @@ async def test_registered_services_cover_branches(
         "limit": 75,
     }
 
-    await svc_start(SimpleNamespace(data={"device_id": [lonely_device.id]}))
-    await svc_stop(SimpleNamespace(data={"device_id": lonely_device.id}))
-    empty_trigger = await svc_trigger(
-        SimpleNamespace(
-            data={"device_id": lonely_device.id, "requested_message": "status"}
+    with pytest.raises(ServiceValidationError):
+        await svc_start(SimpleNamespace(data={"device_id": [lonely_device.id]}))
+    with pytest.raises(ServiceValidationError):
+        await svc_stop(SimpleNamespace(data={"device_id": lonely_device.id}))
+    with pytest.raises(ServiceValidationError):
+        await svc_trigger(
+            SimpleNamespace(
+                data={"device_id": lonely_device.id, "requested_message": "status"}
+            )
         )
-    )
-    assert empty_trigger == {"results": []}
 
     await svc_sync(
-        SimpleNamespace(
-            data={"device_id": [charger_two.id, site_device.id, lonely_device.id]}
-        )
+        SimpleNamespace(data={"device_id": [charger_two.id, site_device.id]})
     )
     assert call(reason="service", serials=[second_serial]) in (
         coord_primary.schedule_sync.async_refresh.await_args_list
     )
+    with pytest.raises(ServiceValidationError):
+        await svc_sync(SimpleNamespace(data={"device_id": [lonely_device.id]}))
     await svc_request_grid_otp(SimpleNamespace(data={"site_id": site_id}))
     coord_primary.async_request_grid_toggle_otp.assert_awaited_once()
     coord_primary.async_request_refresh.assert_awaited()
@@ -1607,28 +1703,33 @@ async def test_registered_services_cover_branches(
 
     await svc_start_stream(SimpleNamespace(data={"site_id": site_id}))
     await svc_start_stream(SimpleNamespace(data={"device_id": [charger_one.id]}))
-    await svc_start_stream(SimpleNamespace(data={}))
+    with pytest.raises(ServiceValidationError):
+        await svc_start_stream(SimpleNamespace(data={}))
     coord_primary.async_start_streaming.assert_awaited()
     assert coord_other.async_start_streaming.await_count == 0
     assert coord_primary._streaming is True
 
     await svc_stop_stream(SimpleNamespace(data={"site_id": site_id}))
     await svc_stop_stream(SimpleNamespace(data={"device_id": [charger_one.id]}))
-    await svc_stop_stream(SimpleNamespace(data={}))
+    with pytest.raises(ServiceValidationError):
+        await svc_stop_stream(SimpleNamespace(data={}))
     coord_primary.async_stop_streaming.assert_awaited()
     assert coord_other.async_stop_streaming.await_count == 0
     assert coord_primary._streaming is False
 
     fake_service_helper.calls = 0
-    await svc_sync(SimpleNamespace(data={}))
-    assert coord_primary.schedule_sync.async_refresh.await_count >= 2
+    with pytest.raises(ServiceValidationError):
+        await svc_sync(SimpleNamespace(data={}))
+    assert coord_primary.schedule_sync.async_refresh.await_count >= 1
 
     entry_site_only.runtime_data = None
     entry_one.runtime_data = None
     entry_two.runtime_data = None
     entry_three.runtime_data = None
-    await svc_start_stream(SimpleNamespace(data={"site_id": "missing"}))
-    await svc_stop_stream(SimpleNamespace(data={"site_id": "missing"}))
+    with pytest.raises(ServiceValidationError):
+        await svc_start_stream(SimpleNamespace(data={"site_id": "missing"}))
+    with pytest.raises(ServiceValidationError):
+        await svc_stop_stream(SimpleNamespace(data={"site_id": "missing"}))
 
     supports_response = registered[(DOMAIN, "trigger_message")]["kwargs"][
         "supports_response"
@@ -1637,8 +1738,6 @@ async def test_registered_services_cover_branches(
 
     assert supports_response is SupportsResponse.OPTIONAL
     assert fake_service_helper.calls >= 3
-
-    from custom_components.enphase_ev.coordinator import ServiceValidationError
 
     with pytest.raises(ServiceValidationError):
         await svc_request_grid_otp(SimpleNamespace(data={}))
@@ -1878,15 +1977,16 @@ async def test_device_service_routing_skips_ambiguous_empty_serial_fallback(
     async_setup_services(hass)
     svc_start = registered[(DOMAIN, "start_charging")]["handler"]
 
-    await svc_start(
-        SimpleNamespace(
-            data={
-                "device_id": device.id,
-                "charging_level": 16,
-                "connector_id": 1,
-            }
+    with pytest.raises(ServiceValidationError):
+        await svc_start(
+            SimpleNamespace(
+                data={
+                    "device_id": device.id,
+                    "charging_level": 16,
+                    "connector_id": 1,
+                }
+            )
         )
-    )
 
     first_empty_coord.async_start_charging.assert_not_awaited()
     second_empty_coord.async_start_charging.assert_not_awaited()
@@ -1982,8 +2082,9 @@ async def test_device_service_routing_helper_guard_paths(
 
     async_setup_services(hass)
     svc_start = registered[(DOMAIN, "start_charging")]["handler"]
-    resolve_context = extract_helper(svc_start, "_resolve_device_routing_context")
-    get_coord = extract_helper(svc_start, "_get_coordinator_for_sn")
+    resolve_targets = extract_helper(svc_start, "_resolve_charger_targets")
+    resolve_context = extract_helper(resolve_targets, "_resolve_device_routing_context")
+    get_coord = extract_helper(resolve_targets, "_get_coordinator_for_sn")
     config_ids_for_device = extract_helper(
         resolve_context, "_config_entry_ids_for_device"
     )
@@ -2184,8 +2285,9 @@ async def test_service_helper_resolve_functions_cover_none_branches(
                 return value
         raise AssertionError(f"helper {target} not found")
 
+    resolve_targets = _extract_helper(svc_start, "_resolve_charger_targets")
     resolve_device_routing_context = _extract_helper(
-        svc_start, "_resolve_device_routing_context"
+        resolve_targets, "_resolve_device_routing_context"
     )
     resolve_site = _extract_helper(svc_clear, "_resolve_site_id")
 
@@ -2248,7 +2350,10 @@ async def test_service_helper_resolve_functions_cover_none_branches(
     )
     assert await resolve_site(child_with_type_parent.id) == "TYPED"
 
-    await svc_stop(SimpleNamespace(data={}))
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    with pytest.raises(ServiceValidationError):
+        await svc_stop(SimpleNamespace(data={}))
 
 
 def test_init_module_reload_executes_module_code() -> None:
