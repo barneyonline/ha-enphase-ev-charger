@@ -24,7 +24,7 @@ from homeassistant.helpers.event import (
 from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 
-from .api import SchedulerUnavailable
+from .api import EnphaseLoginWallUnauthorized, SchedulerUnavailable
 from .const import (
     DEFAULT_SCHEDULE_SYNC_ENABLED,
     DOMAIN,
@@ -165,6 +165,20 @@ class ScheduleSync:
         )
         if callable(note_unavailable):
             note_unavailable(err)
+
+    def _note_login_wall_unauthorized(self, err: EnphaseLoginWallUnauthorized) -> None:
+        """Let the coordinator activate its auth-block path from scheduler calls."""
+
+        self._last_error = redact_text(
+            err,
+            site_ids=(getattr(self._coordinator, "site_id", None),),
+        )
+        self._last_status = "auth_failed"
+        activate = getattr(
+            self._coordinator, "_activate_auth_block_from_login_wall", None
+        )
+        if callable(activate) and activate(err):
+            self._last_status = "auth_blocked"
 
     async def _disable_support(self) -> None:
         if self._disabled_cleanup_done:
@@ -315,6 +329,9 @@ class ScheduleSync:
                 sn, slot_states=slot_states
             )
             self._mark_scheduler_available()
+        except EnphaseLoginWallUnauthorized as err:
+            self._note_login_wall_unauthorized(err)
+            return
         except SchedulerUnavailable as err:
             self._last_error = redact_text(
                 err,
@@ -417,6 +434,7 @@ class ScheduleSync:
                 else self._coordinator.iter_serials()
             )
             unique_serials = [sn for sn in dict.fromkeys(serial_list) if sn]
+            success = True
             if unique_serials:
                 semaphore = asyncio.Semaphore(SYNC_REFRESH_CONCURRENCY)
 
@@ -429,10 +447,25 @@ class ScheduleSync:
                 results = await asyncio.gather(
                     *(_fetch_one(sn) for sn in unique_serials)
                 )
-                for sn, response, err in results:
-                    self._apply_sync_serial_result(sn, response, err)
+                auth_result = next(
+                    (
+                        result
+                        for result in results
+                        if isinstance(result[2], EnphaseLoginWallUnauthorized)
+                    ),
+                    None,
+                )
+                success = auth_result is None and all(
+                    result[2] is None for result in results
+                )
+                if auth_result is not None:
+                    self._apply_sync_serial_result(*auth_result)
+                else:
+                    for sn, response, err in results:
+                        self._apply_sync_serial_result(sn, response, err)
             self._last_sync = dt_util.utcnow()
-            self._last_status = f"ok:{reason}"
+            if success:
+                self._last_status = f"ok:{reason}"
 
     async def _patch_slot(
         self, sn: str, slot_id: str, slot_patch: dict[str, Any]
@@ -450,6 +483,9 @@ class ScheduleSync:
                 sn, slot_id, slot_patch
             )
             self._mark_scheduler_available()
+        except EnphaseLoginWallUnauthorized as err:
+            self._note_login_wall_unauthorized(err)
+            return
         except SchedulerUnavailable as err:
             self._last_error = redact_text(
                 err,
@@ -567,6 +603,9 @@ class ScheduleSync:
     ) -> None:
         if err is None:
             self._mark_scheduler_available()
+        elif isinstance(err, EnphaseLoginWallUnauthorized):
+            self._note_login_wall_unauthorized(err)
+            return
         elif isinstance(err, SchedulerUnavailable):
             self._last_error = redact_text(
                 err,

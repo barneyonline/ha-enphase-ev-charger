@@ -23,7 +23,10 @@ from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
 )
 
-from custom_components.enphase_ev.api import SchedulerUnavailable
+from custom_components.enphase_ev.api import (
+    EnphaseLoginWallUnauthorized,
+    SchedulerUnavailable,
+)
 from custom_components.enphase_ev.const import DOMAIN, OPT_SCHEDULE_SYNC_ENABLED
 from custom_components.enphase_ev import schedule_sync as schedule_sync_mod
 from custom_components.enphase_ev.schedule_sync import ScheduleSync
@@ -276,6 +279,53 @@ async def test_async_set_slot_enabled_handles_scheduler_unavailable(hass) -> Non
 
 
 @pytest.mark.asyncio
+async def test_async_set_slot_enabled_activates_auth_block_on_login_wall(
+    hass,
+) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    err = EnphaseLoginWallUnauthorized(
+        endpoint="/service/evse_scheduler/test/states",
+        request_label="PATCH scheduler states",
+        status=200,
+        content_type="application/json; charset=utf-8",
+    )
+    coord._activate_auth_block_from_login_wall = MagicMock(
+        return_value=True
+    )  # noqa: SLF001
+    sync._slot_cache = {
+        RANDOM_SERIAL: {
+            "slot-1": {
+                "id": "slot-1",
+                "scheduleType": "CUSTOM",
+                "enabled": True,
+                "startTime": "08:00",
+                "endTime": "09:00",
+            }
+        }
+    }
+    client.patch_schedule_states = AsyncMock(side_effect=err)
+
+    await sync.async_set_slot_enabled(RANDOM_SERIAL, "slot-1", False)
+
+    assert sync._last_status == "auth_blocked"
+    assert "Enphase login wall returned HTML" in sync._last_error
+    coord._activate_auth_block_from_login_wall.assert_called_once_with(
+        err
+    )  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_patch_slot_respects_scheduler_backoff(hass) -> None:
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
@@ -343,6 +393,49 @@ async def test_patch_slot_handles_scheduler_unavailable(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_patch_slot_activates_auth_block_on_login_wall(hass) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    err = EnphaseLoginWallUnauthorized(
+        endpoint="/service/evse_scheduler/test/slot",
+        request_label="PATCH scheduler slot",
+        status=200,
+        content_type="application/json; charset=utf-8",
+    )
+    coord._activate_auth_block_from_login_wall = MagicMock(
+        return_value=True
+    )  # noqa: SLF001
+    client.patch_schedule = AsyncMock(side_effect=err)
+    sync._slot_cache = {
+        RANDOM_SERIAL: {
+            "slot-1": {
+                "id": "slot-1",
+                "scheduleType": "CUSTOM",
+                "startTime": "08:00",
+                "endTime": "09:00",
+            }
+        }
+    }
+
+    await sync._patch_slot(RANDOM_SERIAL, "slot-1", {"startTime": "09:00"})
+
+    assert sync._last_status == "auth_blocked"
+    coord._activate_auth_block_from_login_wall.assert_called_once_with(
+        err
+    )  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_patch_slot_marks_scheduler_available(hass) -> None:
     payload = {
         "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
@@ -396,6 +489,74 @@ async def test_sync_serial_handles_scheduler_unavailable(hass) -> None:
     assert sync._last_status == "scheduler_unavailable"
     assert sync._last_error == "down"
     coord._note_scheduler_unavailable.assert_called_once()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_sync_serial_activates_auth_block_on_login_wall(hass) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    err = EnphaseLoginWallUnauthorized(
+        endpoint="/service/evse_scheduler/test/schedules",
+        request_label="GET scheduler schedules",
+        status=200,
+        content_type="application/json; charset=utf-8",
+    )
+    coord._activate_auth_block_from_login_wall = MagicMock(
+        return_value=True
+    )  # noqa: SLF001
+    client.get_schedules = AsyncMock(side_effect=err)
+
+    await sync._sync_serial(RANDOM_SERIAL)
+
+    assert sync._last_status == "auth_blocked"
+    assert "Enphase login wall returned HTML" in sync._last_error
+    coord._activate_auth_block_from_login_wall.assert_called_once_with(
+        err
+    )  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_refresh_preserves_auth_block_status_on_login_wall(hass) -> None:
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [],
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"site_id": RANDOM_SITE_ID},
+        options={OPT_SCHEDULE_SYNC_ENABLED: True},
+    )
+    sync, client = await _setup_sync(hass, entry, payload)
+    coord = sync._coordinator
+    err = EnphaseLoginWallUnauthorized(
+        endpoint="/service/evse_scheduler/test/schedules",
+        request_label="GET scheduler schedules",
+        status=200,
+        content_type="application/json; charset=utf-8",
+    )
+    coord._activate_auth_block_from_login_wall = MagicMock(
+        return_value=True
+    )  # noqa: SLF001
+    client.get_schedules = AsyncMock(side_effect=err)
+
+    await sync.async_refresh(reason="startup", serials=[RANDOM_SERIAL])
+
+    assert sync._last_status == "auth_blocked"
+    assert sync._last_sync is not None
+    coord._activate_auth_block_from_login_wall.assert_called_once_with(
+        err
+    )  # noqa: SLF001
 
 
 @pytest.mark.asyncio

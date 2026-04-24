@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - Seed AC Battery status and last-reported data from the battery status endpoint when the dedicated AC Battery devices page does not return parsed rows.
 - Routed IQ EV Charger device services through the target device's owning site or config entry so multi-site installs do not send start, stop, trigger, or schedule-sync requests to the wrong site when another entry has no discovered serials yet.
 - Kept the "Store password for automatic reauthentication" checkbox aligned with the existing entry setting during reconfigure and reauthentication flows instead of defaulting back to storing newly entered passwords.
+- Treated scheduler login-wall responses as authentication failures so Enphase auth blocks are detected during schedule sync instead of being logged as ordinary schedule fetch errors.
 - Rejected charger and site services with a clear validation error when no target or owning coordinator can be resolved.
 - Cancelled pending EV charger amp-restart and live-stream stop tasks during config entry unload so stale tasks cannot call the cloud client after reload or removal.
 
