@@ -739,7 +739,7 @@ async def test_async_update_data_site_only_handles_heatpump_refresh_failure(
     coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(return_value=None)  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock(
-        side_effect=RuntimeError("boom")
+        side_effect=aiohttp.ClientError("boom")
     )  # noqa: SLF001
 
     assert await coord._async_update_data() == {}  # noqa: SLF001
@@ -752,10 +752,10 @@ async def test_update_data_ignores_grid_control_and_hems_refresh_errors_site_onl
     coord = coordinator_factory(serials=[])
     coord.site_only = True
     coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
-        side_effect=RuntimeError("boom")
+        side_effect=aiohttp.ClientError("boom")
     )
     coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]
-        side_effect=RuntimeError("boom")
+        side_effect=aiohttp.ClientError("boom")
     )  # noqa: SLF001
 
     assert await coord._async_update_data() == {}
@@ -847,10 +847,10 @@ async def test_async_update_data_site_only_ignores_runtime_and_daily_refresh_err
     )
     coord._async_refresh_inverters = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_heatpump_runtime_state = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("runtime")
+        side_effect=aiohttp.ClientError("runtime")
     )
     coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("daily")
+        side_effect=aiohttp.ClientError("daily")
     )
     coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
         side_effect=lambda: order.append("heatpump_power")
@@ -3506,7 +3506,9 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     coord = coordinator_factory()
     coord.async_set_updated_data = Mock(side_effect=RuntimeError("publish"))  # type: ignore[assignment]
     coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
-    coord._async_refresh_battery_site_settings = None  # type: ignore[assignment]  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value=None
+    )
 
     await coord.refresh_runner.async_startup_warmup_runner()
 
@@ -3528,7 +3530,7 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     coord = coordinator_factory()
     coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_heatpump_power = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
-        side_effect=RuntimeError("heatpump")
+        side_effect=aiohttp.ClientError("heatpump")
     )
     await coord.refresh_runner.async_startup_warmup_runner()
     assert "heatpump_power_s" in coord._warmup_phase_timings  # noqa: SLF001
@@ -3537,10 +3539,10 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     coord = coordinator_factory()
     coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
     coord._async_refresh_heatpump_runtime_state = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
-        side_effect=RuntimeError("runtime")
+        side_effect=aiohttp.ClientError("runtime")
     )
     coord._async_refresh_heatpump_daily_consumption = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
-        side_effect=RuntimeError("daily")
+        side_effect=aiohttp.ClientError("daily")
     )
     await coord.refresh_runner.async_startup_warmup_runner()
     assert "heatpump_runtime_s" in coord._warmup_phase_timings  # noqa: SLF001
@@ -5451,7 +5453,7 @@ async def test_update_data_site_only_continues_when_backup_history_refresh_fails
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("boom")
+        side_effect=aiohttp.ClientError("boom")
     )
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
@@ -5477,38 +5479,38 @@ async def test_update_data_site_only_ignores_optional_refresh_failures(
         return_value=None
     )  # noqa: SLF001
     coord._async_refresh_battery_site_settings = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("site settings")
+        side_effect=aiohttp.ClientError("site settings")
     )
     coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("schedules")
+        side_effect=aiohttp.ClientError("schedules")
     )
     coord._async_refresh_storm_guard_profile = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("storm guard")
+        side_effect=aiohttp.ClientError("storm guard")
     )
     coord._async_refresh_storm_alert = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("storm alert")
+        side_effect=aiohttp.ClientError("storm alert")
     )
     coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
-        side_effect=RuntimeError("grid")
+        side_effect=aiohttp.ClientError("grid")
     )
     coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
-        side_effect=RuntimeError("inventory")
+        side_effect=aiohttp.ClientError("inventory")
     )
     coord._async_refresh_dry_contact_settings = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("dry contact")
+        side_effect=aiohttp.ClientError("dry contact")
     )
     coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
-        side_effect=RuntimeError("hems")
+        side_effect=aiohttp.ClientError("hems")
     )
     coord._async_refresh_inverters = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("inverters")
+        side_effect=aiohttp.ClientError("inverters")
     )
     coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("heatpump")
+        side_effect=aiohttp.ClientError("heatpump")
     )
     coord.heatpump_runtime.heatpump_power_refresh_due = lambda: True  # type: ignore[method-assign]
 
@@ -5556,7 +5558,7 @@ async def test_update_data_normal_continues_when_backup_history_refresh_fails(
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("boom")
+        side_effect=aiohttp.ClientError("boom")
     )
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
@@ -5603,35 +5605,35 @@ async def test_update_data_normal_ignores_optional_refresh_failures(
         return_value=None
     )  # noqa: SLF001
     coord.evse_timeseries.async_refresh = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("timeseries")
+        side_effect=aiohttp.ClientError("timeseries")
     )
     coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
     coord.battery_runtime.async_refresh_battery_status = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
     coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
     coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("schedules")
+        side_effect=aiohttp.ClientError("schedules")
     )
     coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
     coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
     coord.battery_runtime.async_refresh_grid_control_check = AsyncMock(  # type: ignore[method-assign]
-        side_effect=RuntimeError("grid")
+        side_effect=aiohttp.ClientError("grid")
     )
     coord.inventory_runtime._async_refresh_devices_inventory = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
-        side_effect=RuntimeError("inventory")
+        side_effect=aiohttp.ClientError("inventory")
     )
     coord._async_refresh_dry_contact_settings = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("dry contact")
+        side_effect=aiohttp.ClientError("dry contact")
     )
     coord.inventory_runtime._async_refresh_hems_devices = AsyncMock(  # type: ignore[method-assign]  # noqa: SLF001
-        side_effect=RuntimeError("hems")
+        side_effect=aiohttp.ClientError("hems")
     )
     coord._async_refresh_inverters = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("inverters")
+        side_effect=aiohttp.ClientError("inverters")
     )
     coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
     coord._async_refresh_heatpump_power = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("heatpump")
+        side_effect=aiohttp.ClientError("heatpump")
     )
     coord._get_charge_mode = AsyncMock(return_value="IMMEDIATE")  # type: ignore[assignment]  # noqa: SLF001
     coord.evse_runtime.async_resolve_green_battery_settings = AsyncMock(  # type: ignore[method-assign]

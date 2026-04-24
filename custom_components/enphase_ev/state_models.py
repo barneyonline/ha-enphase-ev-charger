@@ -165,6 +165,7 @@ class InventoryState:
     _system_dashboard_devices_details_payloads: dict[str, dict[str, object]] = field(
         default_factory=dict
     )
+    _system_dashboard_detail_failures: dict[str, str] = field(default_factory=dict)
     _system_dashboard_hierarchy_index: dict[str, dict[str, object]] = field(
         default_factory=dict
     )

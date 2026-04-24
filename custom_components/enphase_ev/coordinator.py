@@ -234,6 +234,18 @@ class EndpointFamilyPolicy:
     support_state_on_success: bool = False
 
 
+@dataclass(slots=True)
+class RefreshPipelineContext:
+    """Mutable state shared by one coordinator refresh pipeline."""
+
+    started_mono: float
+    refresh_started_utc: datetime
+    phase_timings: dict[str, float]
+    fallback_data: dict[str, dict]
+    first_refresh: bool
+    status_used_stale: bool = False
+
+
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def __init__(self, hass: HomeAssistant, config, config_entry=None):
         self.hass = hass
@@ -2229,66 +2241,185 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             resolved.get("charger_config", {}),
         )
 
-    async def _async_update_data(self) -> dict:
-        t0 = time.monotonic()
+    def _start_refresh_pipeline(self) -> RefreshPipelineContext:
         refresh_started_utc = dt_util.utcnow()
         if refresh_started_utc.tzinfo is None:
             refresh_started_utc = refresh_started_utc.replace(tzinfo=_tz.utc)
-        phase_timings: dict[str, float] = {}
         fallback_data: dict[str, dict] = {}
-        status_used_stale = False
-        first_refresh = not self._has_successful_refresh
         if isinstance(self.data, dict):
             try:
                 fallback_data = dict(self.data)
             except Exception:
                 fallback_data = self.data
+        return RefreshPipelineContext(
+            started_mono=time.monotonic(),
+            refresh_started_utc=refresh_started_utc,
+            phase_timings={},
+            fallback_data=fallback_data,
+            first_refresh=not self._has_successful_refresh,
+        )
+
+    async def _async_run_site_only_refresh_pipeline(
+        self,
+        context: RefreshPipelineContext,
+    ) -> dict:
+        phase_timings = context.phase_timings
+        self._backoff_until = None
+        self._clear_backoff_timer()
+        self._clear_auth_repair_issues_on_success()
+        self.diagnostics.clear_network_issue()
+        self.diagnostics.clear_cloud_issue()
+        self.diagnostics.clear_dns_issue()
+        self._unauth_errors = 0
+        self._rate_limit_hits = 0
+        self._http_errors = 0
+        self._network_errors = 0
+        self._dns_failures = 0
+        self._last_error = None
+        self.backoff_ends_utc = None
+        self._has_successful_refresh = True
+        site_energy_start = time.monotonic()
+        await self.energy._async_refresh_site_energy()
+        self.discovery_snapshot.sync_site_energy_discovery_state()
+        self._sync_site_energy_issue()
+        phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
+        if not context.first_refresh:
+            followup_plan = build_site_only_followup_plan(
+                self,
+                force_full=self.endpoint_manual_bypass_active(),
+            )
+            if followup_plan.stages:
+                await self.refresh_runner.async_run_refresh_plan(
+                    phase_timings,
+                    plan=followup_plan,
+                )
+        if not self._auth_refresh_suspended_active():
+            self._clear_auth_refresh_rejection_state()
+        self._prune_runtime_caches(active_serials=(), keep_day_keys=())
+        self._sync_battery_profile_pending_issue()
+        self.last_success_utc = dt_util.utcnow()
+        self.latency_ms = int((time.monotonic() - context.started_mono) * 1000)
+        self._finish_refresh_pipeline(context)
+        return {}
+
+    def _record_status_refresh_success(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        if self._unauth_errors:
+            self._clear_auth_repair_issues_on_success()
+        self._unauth_errors = 0
+        self._rate_limit_hits = 0
+        self._http_errors = 0
+        self._payload_errors = 0
+        self.diagnostics.clear_network_issue()
+        self._network_errors = 0
+        self.diagnostics.clear_cloud_issue()
+        self._backoff_until = None
+        self._clear_backoff_timer()
+        self._last_error = None
+        self.diagnostics.clear_dns_issue()
+        self._dns_failures = 0
+        if not context.status_used_stale:
+            self.last_success_utc = dt_util.utcnow()
+            self.payload_using_stale = False
+            self.payload_failure_kind = None
+            self.last_failure_endpoint = None
+        else:
+            self._last_error = self.last_failure_description
+
+    async def _async_run_post_status_refresh_pipeline(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        if not context.first_refresh:
+            followup_plan = build_followup_plan(
+                self,
+                force_full=self.endpoint_manual_bypass_active(),
+            )
+            if followup_plan.stages:
+                await self.refresh_runner.async_run_refresh_plan(
+                    context.phase_timings,
+                    plan=followup_plan,
+                )
+        if not self._auth_refresh_suspended_active():
+            self._clear_auth_refresh_rejection_state()
+
+    async def _async_run_post_session_refresh_pipeline(
+        self,
+        context: RefreshPipelineContext,
+        out: dict[str, dict],
+        day_local_default: datetime,
+    ) -> None:
+        if context.first_refresh:
+            return
+        post_session_plan = build_post_session_followup_plan(
+            self,
+            day_local_default,
+            force_full=self.endpoint_manual_bypass_active(),
+        )
+        if post_session_plan.stages:
+            await self.refresh_runner.async_run_refresh_plan(
+                context.phase_timings,
+                plan=post_session_plan,
+            )
+        try:
+            self.evse_timeseries.merge_charger_payloads(
+                out, day_local=day_local_default
+            )
+        except Exception:
+            pass
+        self.discovery_snapshot.sync_site_energy_discovery_state()
+        self._sync_site_energy_issue()
+        self._sync_battery_profile_pending_issue()
+        heatpump_plan = build_heatpump_followup_plan(
+            self,
+            force_full=self.endpoint_manual_bypass_active(),
+        )
+        if heatpump_plan.stages:
+            await self.refresh_runner.async_run_refresh_plan(
+                context.phase_timings,
+                plan=heatpump_plan,
+            )
+
+    def _apply_refresh_polling_interval(self, polling_state: dict[str, object]) -> None:
+        if self.config_entry is None:
+            return
+        target = polling_state["target"]
+        if (
+            not self.update_interval
+            or int(self.update_interval.total_seconds()) != target
+        ):
+            new_interval = timedelta(seconds=target)
+            self.update_interval = new_interval
+            if hasattr(self, "async_set_update_interval"):
+                try:
+                    self.async_set_update_interval(new_interval)
+                except Exception:
+                    pass
+
+    def _finish_refresh_pipeline(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        phase_timings = context.phase_timings
+        phase_timings["total_s"] = round(time.monotonic() - context.started_mono, 3)
+        self._phase_timings = phase_timings.copy()
+        if context.first_refresh:
+            self._bootstrap_phase_timings = phase_timings.copy()
+        self._refresh_cached_topology()
+        self.discovery_snapshot.schedule_save()
+
+    async def _async_update_data(self) -> dict:
+        context = self._start_refresh_pipeline()
+        t0 = context.started_mono
+        refresh_started_utc = context.refresh_started_utc
+        phase_timings = context.phase_timings
+        fallback_data = context.fallback_data
+        first_refresh = context.first_refresh
 
         if self.site_only or not self.serials:
-            self._backoff_until = None
-            self._clear_backoff_timer()
-            self._clear_auth_repair_issues_on_success()
-            self.diagnostics.clear_network_issue()
-            self.diagnostics.clear_cloud_issue()
-            self.diagnostics.clear_dns_issue()
-            self._unauth_errors = 0
-            self._rate_limit_hits = 0
-            self._http_errors = 0
-            self._network_errors = 0
-            self._dns_failures = 0
-            self._last_error = None
-            self.backoff_ends_utc = None
-            self._has_successful_refresh = True
-            site_energy_start = time.monotonic()
-            await self.energy._async_refresh_site_energy()
-            self.discovery_snapshot.sync_site_energy_discovery_state()
-            self._sync_site_energy_issue()
-            phase_timings["site_energy_s"] = round(
-                time.monotonic() - site_energy_start, 3
-            )
-            if not first_refresh:
-                followup_plan = build_site_only_followup_plan(
-                    self,
-                    force_full=self.endpoint_manual_bypass_active(),
-                )
-                if followup_plan.stages:
-                    await self.refresh_runner.async_run_refresh_plan(
-                        phase_timings,
-                        plan=followup_plan,
-                    )
-            if not self._auth_refresh_suspended_active():
-                self._clear_auth_refresh_rejection_state()
-            self._prune_runtime_caches(active_serials=(), keep_day_keys=())
-            self._sync_battery_profile_pending_issue()
-            self.last_success_utc = dt_util.utcnow()
-            self.latency_ms = int((time.monotonic() - t0) * 1000)
-            phase_timings["total_s"] = round(time.monotonic() - t0, 3)
-            self._phase_timings = phase_timings.copy()
-            if first_refresh:
-                self._bootstrap_phase_timings = phase_timings.copy()
-            self._refresh_cached_topology()
-            self.discovery_snapshot.schedule_save()
-            return {}
+            return await self._async_run_site_only_refresh_pipeline(context)
 
         # Helper to normalize epoch-like inputs to seconds
         def _sec(v):
@@ -2454,7 +2585,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
                 data = dict(self._status_payload_cache)
-                status_used_stale = True
+                context.status_used_stale = True
             else:
                 self.payload_using_stale = False
                 self._note_payload_endpoint_failure(
@@ -2500,7 +2631,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
                 data = dict(self._status_payload_cache)
-                status_used_stale = True
+                context.status_used_stale = True
                 self._payload_errors = 0
                 self._backoff_until = None
                 self._clear_backoff_timer()
@@ -2647,42 +2778,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         finally:
             self.latency_ms = int((time.monotonic() - t0) * 1000)
 
-        # Success path: reset counters, record last success
-        if self._unauth_errors:
-            # Clear any outstanding reauth issues on success
-            self._clear_auth_repair_issues_on_success()
-        self._unauth_errors = 0
-        self._rate_limit_hits = 0
-        self._http_errors = 0
-        self._payload_errors = 0
-        self.diagnostics.clear_network_issue()
-        self._network_errors = 0
-        self.diagnostics.clear_cloud_issue()
-        self._backoff_until = None
-        self._clear_backoff_timer()
-        self._last_error = None
-        self.diagnostics.clear_dns_issue()
-        self._dns_failures = 0
-        if not status_used_stale:
-            self.last_success_utc = dt_util.utcnow()
-            self.payload_using_stale = False
-            self.payload_failure_kind = None
-            self.last_failure_endpoint = None
-        else:
-            self._last_error = self.last_failure_description
-
-        if not first_refresh:
-            followup_plan = build_followup_plan(
-                self,
-                force_full=self.endpoint_manual_bypass_active(),
-            )
-            if followup_plan.stages:
-                await self.refresh_runner.async_run_refresh_plan(
-                    phase_timings,
-                    plan=followup_plan,
-                )
-        if not self._auth_refresh_suspended_active():
-            self._clear_auth_refresh_rejection_state()
+        self._record_status_refresh_success(context)
+        await self._async_run_post_status_refresh_pipeline(context)
 
         prev_data = self.data if isinstance(self.data, dict) else {}
         self._has_successful_refresh = True
@@ -3594,7 +3691,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
                 if previous_lifetime_kwh is not None:
                     entry.setdefault("lifetime_kwh", previous_lifetime_kwh)
-            entry.update(_build_evse_power_snapshot(sn, entry, previous_entry))
             if PHASE_SWITCH_CONFIG_SETTING in config_values:
                 entry["phase_switch_config"] = config_values[
                     PHASE_SWITCH_CONFIG_SETTING
@@ -4027,63 +4123,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         phase_timings["sessions_s"] = round(time.monotonic() - sessions_start, 3)
         self._sync_session_history_issue()
 
-        if not first_refresh:
-            post_session_plan = build_post_session_followup_plan(
-                self,
-                day_local_default,
-                force_full=self.endpoint_manual_bypass_active(),
-            )
-            if post_session_plan.stages:
-                await self.refresh_runner.async_run_refresh_plan(
-                    phase_timings,
-                    plan=post_session_plan,
-                )
-            try:
-                self.evse_timeseries.merge_charger_payloads(
-                    out, day_local=day_local_default
-                )
-            except Exception:
-                pass
-            self.discovery_snapshot.sync_site_energy_discovery_state()
-            self._sync_site_energy_issue()
-            self._sync_battery_profile_pending_issue()
-            heatpump_plan = build_heatpump_followup_plan(
-                self,
-                force_full=self.endpoint_manual_bypass_active(),
-            )
-            if heatpump_plan.stages:
-                await self.refresh_runner.async_run_refresh_plan(
-                    phase_timings,
-                    plan=heatpump_plan,
-                )
+        await self._async_run_post_session_refresh_pipeline(
+            context,
+            out,
+            day_local_default,
+        )
+        self._apply_refresh_polling_interval(polling_state)
 
-        # Dynamic poll rate: fast while any charging, within a fast window, or streaming
-        if self.config_entry is not None:
-            target = polling_state["target"]
-            if (
-                not self.update_interval
-                or int(self.update_interval.total_seconds()) != target
-            ):
-                new_interval = timedelta(seconds=target)
-                self.update_interval = new_interval
-                # Older cores require async_set_update_interval for dynamic changes
-                if hasattr(self, "async_set_update_interval"):
-                    try:
-                        self.async_set_update_interval(new_interval)
-                    except Exception:
-                        pass
-
-        phase_timings["total_s"] = round(time.monotonic() - t0, 3)
-        self._phase_timings = phase_timings
-        if first_refresh:
-            self._bootstrap_phase_timings = phase_timings.copy()
-        self._refresh_cached_topology()
-        self.discovery_snapshot.schedule_save()
+        self._finish_refresh_pipeline(context)
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(
                 "Coordinator refresh timings for site %s: %s",
                 redact_site_id(self.site_id),
-                phase_timings,
+                self._phase_timings,
             )
 
         return out
