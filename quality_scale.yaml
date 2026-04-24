@@ -39,66 +39,218 @@ rules:
   # Silver rules (implemented)
   config_flow:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_config_flow_coverage.py
+      docs:
+        - README.md
   options_flow:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_config_flow_coverage.py
+      docs:
+        - README.md
   inject_websession:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+        - custom_components/enphase_ev/__init__.py
+      tests:
+        - tests/components/enphase_ev/test_api_http_flow.py
   common_modules:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/api.py
+        - custom_components/enphase_ev/coordinator.py
+        - custom_components/enphase_ev/runtime_helpers.py
+      tests:
+        - tests/components/enphase_ev/test_api_helpers.py
+        - tests/components/enphase_ev/test_helper_modules.py
   entity_category:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/binary_sensor.py
+        - custom_components/enphase_ev/button.py
+        - custom_components/enphase_ev/sensor.py
+      tests:
+        - tests/components/enphase_ev/test_binary_sensor_module.py
+        - tests/components/enphase_ev/test_sensor_edge_cases.py
   integration_owner:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/manifest.json
+      tests:
+        - tests/components/enphase_ev/test_manifest.py
+      docs:
+        - README.md
   appropriate_polling:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/const.py
+        - custom_components/enphase_ev/refresh_plan.py
+        - custom_components/enphase_ev/refresh_runner.py
+      tests:
+        - tests/components/enphase_ev/test_coordinator_redesign.py
+        - tests/components/enphase_ev/test_rate_limit_and_switch_kick.py
+      docs:
+        - README.md
   log_when_unavailable:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/api.py
+        - custom_components/enphase_ev/coordinator.py
+      tests:
+        - tests/components/enphase_ev/test_latency_and_connectivity.py
+        - tests/components/enphase_ev/test_coordinator_behavior.py
   integration_diagnostics:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/diagnostics.py
+      tests:
+        - tests/components/enphase_ev/test_diagnostics.py
+      docs:
+        - README.md
   system_health:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/system_health.py
+      tests:
+        - tests/components/enphase_ev/test_system_health.py
+      docs:
+        - README.md
   icon_translations:
     status: done
+    references:
+      code:
+        - custom_components/enphase_ev/icons.json
+        - custom_components/enphase_ev/strings.json
+      tests:
+        - tests/components/enphase_ev/test_service_translations.py
   docs_high_level_description:
     status: done
+    references:
+      docs:
+        - README.md
   docs_configuration_parameters:
     status: done
+    references:
+      docs:
+        - README.md
   docs_supported_functions:
     status: done
+    references:
+      docs:
+        - README.md
   docs_data_update:
     status: done
+    references:
+      docs:
+        - README.md
   docs_known_limitations:
     status: done
+    references:
+      docs:
+        - README.md
   docs_troubleshooting:
     status: done
+    references:
+      docs:
+        - README.md
 
   # Gold rules (current status)
   devices:
     status: done
     comment: Charger DeviceInfo now exposes manufacturer/model/hw/sw and new chargers are created dynamically without reload.
+    references:
+      code:
+        - custom_components/enphase_ev/entity.py
+        - custom_components/enphase_ev/device_info_helpers.py
+        - custom_components/enphase_ev/inventory_view.py
+      tests:
+        - tests/components/enphase_ev/test_device_info.py
+        - tests/components/enphase_ev/test_device_types.py
+      docs:
+        - README.md
   docs_installation_instructions:
     status: done
     comment: README includes HACS and manual steps.
+    references:
+      docs:
+        - README.md
   docs_installation_parameters:
     status: done
     comment: README documents required inputs and options.
+    references:
+      docs:
+        - README.md
   docs_removal_instructions:
     status: done
     comment: README includes a Removing the integration section with standard steps.
+    references:
+      docs:
+        - README.md
   docs_supported_devices:
     status: done
     comment: README lists supported and unsupported/not tested devices.
+    references:
+      docs:
+        - README.md
   docs_actions:
     status: done
     comment: Structured Actions section in README covers all services and fields.
+    references:
+      code:
+        - custom_components/enphase_ev/services.yaml
+        - custom_components/enphase_ev/services.py
+      tests:
+        - tests/components/enphase_ev/test_device_action.py
+        - tests/components/enphase_ev/test_battery_runtime_grid_control.py
+      docs:
+        - README.md
   reconfiguration_flow:
     status: done
     comment: async_step_reconfigure implemented with validation and in-place update.
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_reconfigure_flow.py
+      docs:
+        - README.md
 
   # Platinum rules (current status)
   dynamic_devices:
     status: done
     comment: Platforms listen for coordinator updates and register charger entities when new serials appear at runtime.
+    references:
+      code:
+        - custom_components/enphase_ev/inventory_runtime.py
+        - custom_components/enphase_ev/sensor.py
+        - custom_components/enphase_ev/switch.py
+      tests:
+        - tests/components/enphase_ev/test_inventory_runtime.py
+        - tests/components/enphase_ev/test_entity_wiring.py
+        - tests/components/enphase_ev/test_switch_module.py
+      docs:
+        - README.md
   discovery_update_info:
     status: n/a
     comment: Cloud-only integration; no local discovery (zeroconf/bluetooth/mqtt) applicable today.
+    references:
+      code:
+        - custom_components/enphase_ev/manifest.json
+      docs:
+        - README.md
