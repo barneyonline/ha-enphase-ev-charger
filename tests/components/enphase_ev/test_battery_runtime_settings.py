@@ -977,6 +977,221 @@ async def test_set_charge_from_grid_disable_omits_disclaimer(
     coord.async_request_refresh.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_validate_cfg_schedule_commit_is_optional_for_missing_or_failing_client(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.validate_battery_schedule = None
+
+    await coord.battery_runtime._async_validate_cfg_schedule_commit()  # noqa: SLF001
+
+    coord.client.validate_battery_schedule = AsyncMock(
+        side_effect=[
+            aiohttp.ClientResponseError(
+                request_info=None,
+                history=(),
+                status=500,
+                message="boom",
+            ),
+            RuntimeError("boom"),
+        ]
+    )
+
+    await coord.battery_runtime._async_validate_cfg_schedule_commit()  # noqa: SLF001
+    await coord.battery_runtime._async_validate_cfg_schedule_commit()  # noqa: SLF001
+
+    coord.client.validate_battery_schedule = AsyncMock(return_value=["unexpected"])
+
+    await coord.battery_runtime._async_validate_cfg_schedule_commit()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_validate_cfg_schedule_commit_raises_detail_when_backend_rejects(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.validate_battery_schedule = AsyncMock(
+        return_value={"isValid": False, "message": "Invalid schedule"}
+    )
+
+    with pytest.raises(ServiceValidationError, match="Invalid schedule"):
+        await coord.battery_runtime._async_validate_cfg_schedule_commit()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_validate_cfg_schedule_commit_raises_generic_error_without_detail(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import ServiceValidationError
+
+    coord = coordinator_factory()
+    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": False})
+
+    with pytest.raises(
+        ServiceValidationError, match="Battery schedule validation was rejected"
+    ):
+        await coord.battery_runtime._async_validate_cfg_schedule_commit()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_accept_charge_from_grid_disclaimer_ignores_missing_endpoint(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.accept_battery_settings_disclaimer = None
+
+    await coord.battery_runtime._async_accept_charge_from_grid_disclaimer()  # noqa: SLF001
+
+    coord.client.accept_battery_settings_disclaimer = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=404,
+            message="missing",
+        )
+    )
+
+    await coord.battery_runtime._async_accept_charge_from_grid_disclaimer()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_accept_charge_from_grid_disclaimer_reraises_other_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.accept_battery_settings_disclaimer = AsyncMock(
+        side_effect=aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=500,
+            message="boom",
+        )
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.battery_runtime._async_accept_charge_from_grid_disclaimer()  # noqa: SLF001
+
+
+def test_cfg_schedule_commit_payload_uses_state_fallback_and_enable_intent(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = None  # noqa: SLF001
+    coord.battery_state._battery_charge_from_grid = False  # noqa: SLF001
+
+    disabled_payload = (
+        coord.battery_runtime._cfg_schedule_commit_payload()
+    )  # noqa: SLF001
+    assert disabled_payload == {"chargeFromGrid": False}
+
+    enabled_payload = (
+        coord.battery_runtime._cfg_schedule_commit_payload(  # noqa: SLF001
+            schedule_enabled=True
+        )
+    )
+    assert enabled_payload["chargeFromGrid"] is True
+    assert isinstance(enabled_payload["acceptedItcDisclaimer"], str)
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_commit_write_reraises_non_forbidden_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    err = aiohttp.ClientResponseError(
+        request_info=None,
+        history=(),
+        status=409,
+        message="conflict",
+    )
+    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": True})
+    coord.client.set_battery_settings = AsyncMock(side_effect=err)
+    coord.battery_runtime.raise_schedule_update_validation_error = (
+        MagicMock()
+    )  # noqa: SLF001
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.battery_runtime.async_commit_cfg_schedule_write()
+
+    coord.battery_runtime.raise_schedule_update_validation_error.assert_called_once_with(  # noqa: SLF001
+        err
+    )
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_commit_translates_compat_fallback_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    primary_err = aiohttp.ClientResponseError(
+        request_info=None,
+        history=(),
+        status=403,
+        message="forbidden",
+    )
+    compat_err = aiohttp.ClientResponseError(
+        request_info=None,
+        history=(),
+        status=409,
+        message="conflict",
+    )
+    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": True})
+    coord.client.set_battery_settings = AsyncMock(side_effect=primary_err)
+    coord.client.set_battery_settings_compat = AsyncMock(side_effect=compat_err)
+    coord.battery_runtime.raise_schedule_update_validation_error = (
+        MagicMock()
+    )  # noqa: SLF001
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await coord.battery_runtime.async_commit_cfg_schedule_write()
+
+    coord.battery_runtime.raise_schedule_update_validation_error.assert_called_once_with(  # noqa: SLF001
+        compat_err
+    )
+
+
+@pytest.mark.asyncio
+async def test_cfg_schedule_commit_rejects_valid_false_validation_response(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.validate_battery_schedule = AsyncMock(
+        return_value={"valid": False, "message": "bad schedule"}
+    )
+    coord.client.set_battery_settings = AsyncMock(return_value={"message": "success"})
+
+    with pytest.raises(ServiceValidationError, match="bad schedule"):
+        await coord.battery_runtime.async_commit_cfg_schedule_write()
+
+    coord.client.set_battery_settings.assert_not_awaited()
+
+
+def test_schedule_family_effective_enabled_uses_cfg_control_fallback(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_schedule_effective_enabled = (
+        lambda schedule_type: None
+    )  # noqa: SLF001
+    coord._battery_charge_from_grid_schedule_enabled = None  # noqa: SLF001
+    coord.battery_state._battery_charge_from_grid_schedule_enabled = (
+        None  # noqa: SLF001
+    )
+    monkeypatch.setattr(
+        type(coord),
+        "battery_cfg_control_force_schedule_opted",
+        property(lambda self: True),
+        raising=False,
+    )
+
+    assert (
+        coord.battery_runtime._schedule_family_effective_enabled("cfg", None) is True
+    )  # noqa: SLF001
+
+
 def test_parse_battery_settings_payload_keeps_shutdown_level_when_values_present(
     coordinator_factory,
 ) -> None:
@@ -2395,6 +2610,7 @@ def _seed_cfg_schedule(coord):
     coord.client.set_battery_settings_compat = AsyncMock(
         return_value={"message": "success"}
     )
+    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": True})
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
@@ -2558,6 +2774,7 @@ async def test_cfg_schedule_time_update_uses_in_place_put(
     payload = coord.client.set_battery_settings.await_args.args[0]
     assert payload["chargeFromGrid"] is True
     assert isinstance(payload["acceptedItcDisclaimer"], str)
+    coord.client.validate_battery_schedule.assert_awaited_once_with("cfg")
 
 
 @pytest.mark.asyncio
@@ -3128,7 +3345,6 @@ async def test_cfg_schedule_update_uses_compat_apply_after_forbidden_primary_wri
 ) -> None:
     coord = coordinator_factory()
     _seed_cfg_schedule(coord)
-    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": True})
     coord.client.set_battery_settings = AsyncMock(
         side_effect=aiohttp.ClientResponseError(
             request_info=None,
@@ -4564,6 +4780,7 @@ def _seed_no_cfg_schedule(coord):
     coord.client.set_battery_settings_compat = AsyncMock(
         return_value={"message": "success"}
     )
+    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": True})
     coord.async_request_refresh = AsyncMock()
     coord.kick_fast = MagicMock()
 
@@ -4575,7 +4792,6 @@ async def test_cfg_schedule_creates_when_none_exists(
     """When no CFG schedule exists but the API is available, create one."""
     coord = coordinator_factory()
     _seed_no_cfg_schedule(coord)
-    coord.client.validate_battery_schedule = AsyncMock(return_value={"isValid": True})
 
     await coord.battery_runtime.async_set_charge_from_grid_schedule_time(
         start=dt_time(22, 0), end=dt_time(8, 0)

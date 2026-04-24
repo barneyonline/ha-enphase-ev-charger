@@ -1406,18 +1406,24 @@ class BatteryRuntime:
                 redact_text(err),
             )
             return
-        if isinstance(result, dict) and result.get("isValid") is False:
-            message = self._coerce_optional_text(result.get("message"))
-            if message:
-                self._raise_validation(
-                    "battery_schedule_validation_rejected_detail",
-                    placeholders={"message": message},
-                    message=message,
-                )
+        if not isinstance(result, dict):
+            return
+        valid = self._coerce_optional_bool(result.get("valid"))
+        if valid is None and "isValid" in result:
+            valid = self._coerce_optional_bool(result.get("isValid"))
+        if valid is not False:
+            return
+        message = self._coerce_optional_text(result.get("message"))
+        if message:
             self._raise_validation(
-                "battery_schedule_validation_rejected",
-                message="Battery schedule validation was rejected by Enphase.",
+                "battery_schedule_validation_rejected_detail",
+                placeholders={"message": message},
+                message=message,
             )
+        self._raise_validation(
+            "battery_schedule_validation_rejected",
+            message="Battery schedule validation was rejected by Enphase.",
+        )
 
     async def _async_accept_charge_from_grid_disclaimer(self) -> None:
         """Acknowledge the ITC disclaimer before enabling charge from grid."""
@@ -1442,11 +1448,16 @@ class BatteryRuntime:
             raise
 
     def _cfg_schedule_commit_payload(
-        self, *, charge_from_grid_enabled: bool | None = None
+        self,
+        *,
+        charge_from_grid_enabled: bool | None = None,
+        schedule_enabled: bool | None = None,
     ) -> dict[str, object]:
         """Return the lean CFG commit payload used for schedule commits."""
 
         coord = self.coordinator
+        if schedule_enabled is True:
+            charge_from_grid_enabled = True
         if charge_from_grid_enabled is None:
             charge_from_grid_enabled = getattr(
                 coord, "battery_charge_from_grid_enabled", None
@@ -1455,8 +1466,6 @@ class BatteryRuntime:
             charge_from_grid_enabled = getattr(
                 self.battery_state, "_battery_charge_from_grid", None
             )
-        if charge_from_grid_enabled is None:
-            charge_from_grid_enabled = True
         enabled = bool(charge_from_grid_enabled)
         payload: dict[str, object] = {"chargeFromGrid": enabled}
         if enabled:
@@ -1464,13 +1473,17 @@ class BatteryRuntime:
         return payload
 
     async def _async_commit_cfg_schedule_write(
-        self, *, charge_from_grid_enabled: bool | None = None
+        self,
+        *,
+        charge_from_grid_enabled: bool | None = None,
+        schedule_enabled: bool | None = None,
     ) -> None:
         """Commit a pending CFG schedule change after validation."""
 
         coord = self.coordinator
         payload = self._cfg_schedule_commit_payload(
-            charge_from_grid_enabled=charge_from_grid_enabled
+            charge_from_grid_enabled=charge_from_grid_enabled,
+            schedule_enabled=schedule_enabled,
         )
         await self._async_validate_cfg_schedule_commit()
         try:
@@ -1479,13 +1492,30 @@ class BatteryRuntime:
             if err.status != HTTPStatus.FORBIDDEN:
                 self.raise_schedule_update_validation_error(err)
                 raise
-            await coord.client.set_battery_settings_compat(
-                payload,
-                schedule_type="cfg",
-                include_source=False,
-                merged_payload=True,
-                strip_devices=True,
-            )
+            try:
+                await coord.client.set_battery_settings_compat(
+                    payload,
+                    schedule_type="cfg",
+                    include_source=False,
+                    merged_payload=True,
+                    strip_devices=True,
+                )
+            except aiohttp.ClientResponseError as compat_err:
+                self.raise_schedule_update_validation_error(compat_err)
+                raise
+
+    async def async_commit_cfg_schedule_write(
+        self,
+        *,
+        charge_from_grid_enabled: bool | None = None,
+        schedule_enabled: bool | None = None,
+    ) -> None:
+        """Commit a pending CFG schedule change after validation."""
+
+        await self._async_commit_cfg_schedule_write(
+            charge_from_grid_enabled=charge_from_grid_enabled,
+            schedule_enabled=schedule_enabled,
+        )
 
     def _schedule_overlap_record(
         self,
@@ -1692,7 +1722,7 @@ class BatteryRuntime:
             and not is_deleted
         ):
             if normalized_schedule_type == "cfg":
-                await self._async_commit_cfg_schedule_write()
+                await self.async_commit_cfg_schedule_write(schedule_enabled=is_enabled)
             else:
                 await self.async_apply_schedule_family_settings(
                     normalized_schedule_type,
@@ -1733,7 +1763,7 @@ class BatteryRuntime:
             raise
         if normalized_schedule_type in {"cfg", "dtg", "rbd"}:
             if normalized_schedule_type == "cfg":
-                await self._async_commit_cfg_schedule_write()
+                await self.async_commit_cfg_schedule_write(schedule_enabled=is_enabled)
             else:
                 await self.async_apply_schedule_family_settings(
                     normalized_schedule_type,

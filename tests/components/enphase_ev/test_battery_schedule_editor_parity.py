@@ -1502,6 +1502,7 @@ async def test_battery_schedule_services_support_crud_and_validation(
 
     coord = coordinator_factory()
     _prepare_battery_schedule_coord(coord)
+    coord._battery_charge_from_grid = False  # noqa: SLF001
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     registered: dict[tuple[str, str], dict[str, object]] = {}
