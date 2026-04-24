@@ -14,6 +14,8 @@
 - For manual Home Assistant UI verification, start the runtime container against this checkout:
   - `mkdir -p .ha-config`
   - `docker compose -f devtools/docker/docker-compose.yml up -d ha-runtime`
+  - `ha-runtime` mounts `.ha-config/` at `/config`, mounts `custom_components/enphase_ev` into Home Assistant, and inherits `TZ` from your shell (default `UTC`).
+  - Use `ha-runtime` for manual verification only; keep lint, coverage, and pytest runs on `ha-dev`.
 - Run the repository’s standard checks before finalizing changes:
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "ruff check ."`
   - `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "black custom_components/enphase_ev tests/components/enphase_ev"`
@@ -44,7 +46,9 @@
 ## Translations, Docs, and Changelog
 - Any user-facing string change must update `custom_components/enphase_ev/strings.json` and every locale file under `custom_components/enphase_ev/translations/`.
 - Do not leave new non-English locale entries in English.
+- If translations changed, run `docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "pytest tests/components/enphase_ev/test_service_translations.py -q"`.
 - If translation or manifest changes need `hassfest` validation, follow `CONTRIBUTING.md` for the local workflow; CI also runs hassfest for this repository.
+  - Local `hassfest` runs require a Home Assistant Core checkout; run `python -m script.hassfest` from this integration checkout using that workflow rather than inventing a repo-local command.
 - Update `README.md` or `docs/` when supported features, setup, or behavior change.
 - Update `CHANGELOG.md` for user-facing changes.
 
