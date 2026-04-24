@@ -84,6 +84,8 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 
 > Tip: `pre-commit` still runs inside the Docker environment, so local hook installation is optional rather than required.
 
+> Tip: `pre-commit` runs a scoped codespell check over Markdown, YAML, Python, and English user-facing translation JSON. Add intentional project terms to `.codespellignore`.
+
 > Tip: the `ha-runtime` service is for manual verification only. Keep automated checks on `ha-dev` so test and lint runs stay fast and deterministic.
 
 > Tip: `ha-runtime` inherits the `TZ` environment variable from your shell and defaults to `UTC` when `TZ` is unset.
