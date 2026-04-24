@@ -10,3 +10,10 @@ repos:
     hooks:
       - id: ruff
         files: "^(custom_components/enphase_ev|tests/components/enphase_ev)/.*\\.py$"
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.2
+    hooks:
+      - id: codespell
+        name: codespell docs, yaml, python, and user-facing strings
+        args: [--ignore-words=.codespellignore]
+        files: "^(.*\\.md|.*\\.ya?ml|(custom_components/enphase_ev|tests/components/enphase_ev|scripts|tests/scripts)/.*\\.py|custom_components/enphase_ev/(strings\\.json|translations/en.*\\.json))$"
