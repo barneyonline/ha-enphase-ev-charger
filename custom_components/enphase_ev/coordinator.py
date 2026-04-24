@@ -1136,6 +1136,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self._warmup_task is not None:
             self._warmup_task.cancel()
             self._warmup_task = None
+        if self._streaming_stop_task is not None:
+            self._streaming_stop_task.cancel()
+            self._streaming_stop_task = None
+        for task in list(self._amp_restart_tasks.values()):
+            task.cancel()
+        self._amp_restart_tasks.clear()
+        self._clear_streaming_state()
         self.discovery_snapshot.cancel_pending_save()
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None and hasattr(session_manager, "clear"):
