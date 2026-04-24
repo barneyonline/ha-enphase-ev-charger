@@ -19,6 +19,32 @@ All notable changes to this project will be documented in this file.
 ### 🔄 Other changes
 - None
 
+## v2.9.1 - 2026-04-24
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Rejected advisory firmware update install requests with a clear Home Assistant error so IQ Gateway and IQ EV Charger firmware entities remain status-only.
+- Aligned Charge from Grid battery schedule writes and toggles with the Enlighten web flow, including ITC disclaimer acceptance, CFG validation preflight handling, and lean CFG settings commits.
+- Handled unavailable EV charger session-history cache states so failed or missing cache lookups retry on the normal session-history cadence instead of every fast coordinator poll, while preserving stale valid data when available.
+- Seeded AC Battery status and last-reported data from the battery status endpoint when the dedicated AC Battery devices page does not return parsed rows.
+
+### 🔧 Improvements
+- Reduced coordinator refresh latency by dynamically planning only due follow-up endpoint families and by running post-status EVSE enrichment lookups concurrently.
+- Improved refresh pipeline structure and grouped refresh execution so topology updates can be deferred until related refresh stages complete.
+- Added session-history cache-state diagnostics to make valid, stale-reused, and unavailable cache entries visible in diagnostics.
+
+### 🔄 Other changes
+- Added codespell, quality-scale, and quality-scale evidence validation coverage to CI and pre-commit.
+- Added the checked-in quality scale evidence file and expanded validator test coverage.
+- Corrected the manifest integration type to `hub`.
+- Updated contributor workflow guidance.
+- Bumped the integration manifest version to `2.9.1`.
+
 ## v2.9.0 - 2026-04-23
 
 ### 🚧 Breaking changes
