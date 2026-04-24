@@ -12,12 +12,14 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Seed AC Battery status and last-reported data from the battery status endpoint when the dedicated AC Battery devices page does not return parsed rows.
+- Preserved the password-storage opt-out choice across reauthentication and reconfiguration flows.
+- Rejected charger and site services with a clear validation error when no target or owning coordinator can be resolved.
 
 ### 🔧 Improvements
-- None
+- Added refresh performance diagnostics, including per-stage timing and cloud-call counts for steady and fast polling.
 
 ### 🔄 Other changes
-- None
+- Split large API, battery runtime, sensor, and coordinator helper logic into smaller typed modules with focused regression coverage.
 
 ## v2.9.1 - 2026-04-24
 

@@ -8,7 +8,7 @@ import json
 import logging
 import re
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from http import HTTPStatus
 from urllib.parse import unquote
 import uuid
@@ -31,8 +31,9 @@ from .const import (
     MFA_VALIDATE_URL,
     SITE_SEARCH_URL,
 )
+from . import api_parsers
+from .api_models import AuthTokens, ChargerInfo, SiteInfo, TextResponse
 from .log_redaction import redact_identifier, redact_site_id, redact_text
-from .runtime_helpers import coerce_optional_text as helper_coerce_optional_text
 
 _LOGGER = logging.getLogger(__name__)
 _EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
@@ -266,15 +267,6 @@ class InvalidPayloadError(aiohttp.ClientError):
         return self.signature.to_dict()
 
 
-@dataclass(slots=True, frozen=True)
-class TextResponse:
-    status: int
-    text: str
-    url: str
-    headers: dict[str, str]
-    location: str | None = None
-
-
 def _is_optional_non_json_payload(err: InvalidPayloadError) -> bool:
     """Return True when an optional endpoint returned a non-JSON success page."""
 
@@ -482,33 +474,6 @@ def _payload_preview_and_hash(
     preview = _truncate_preview(preview, max_length=max_preview) if preview else ""
     body_sha256 = hashlib.sha256(raw_bytes).hexdigest()
     return len(raw_bytes), body_sha256, preview or None
-
-
-@dataclass(slots=True)
-class AuthTokens:
-    """Container for Enlighten authentication state."""
-
-    cookie: str
-    session_id: str | None = None
-    access_token: str | None = None
-    token_expires_at: int | None = None
-    raw_cookies: dict[str, str] | None = None
-
-
-@dataclass(slots=True)
-class SiteInfo:
-    """Basic representation of an Enlighten site."""
-
-    site_id: str
-    name: str | None = None
-
-
-@dataclass(slots=True)
-class ChargerInfo:
-    """Metadata about a charger discovered for a site."""
-
-    serial: str
-    name: str | None = None
 
 
 _SYSTEM_DASHBOARD_DETAIL_QUERY_MAP: dict[str, str] = {
@@ -1198,80 +1163,13 @@ async def _submit_login_form(
 def _normalize_sites(payload: Any) -> list[SiteInfo]:
     """Normalize site payloads from various Enlighten APIs."""
 
-    sites: list[SiteInfo] = []
-    seen: dict[str, SiteInfo] = {}
-
-    if isinstance(payload, dict):
-        for key in ("sites", "data", "items"):
-            nested = payload.get(key)
-            if isinstance(nested, list):
-                payload = nested
-                break
-
-    if isinstance(payload, list):
-        items = payload
-    else:
-        items = []
-
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        site_id = item.get("site_id") or item.get("siteId") or item.get("id")
-        name = (
-            item.get("name")
-            or item.get("site_name")
-            or item.get("siteName")
-            or item.get("title")
-            or item.get("displayName")
-            or item.get("display_name")
-        )
-        if site_id is None:
-            continue
-        site_id_str = str(site_id)
-        existing = seen.get(site_id_str)
-        if existing:
-            if not existing.name and name:
-                existing.name = str(name)
-            continue
-        info = SiteInfo(site_id=site_id_str, name=str(name) if name else None)
-        seen[site_id_str] = info
-        sites.append(info)
-    return sites
+    return api_parsers.normalize_sites(payload)
 
 
 def _normalize_chargers(payload: Any) -> list[ChargerInfo]:
     """Normalize charger list payloads into ChargerInfo entries."""
 
-    chargers: list[ChargerInfo] = []
-
-    if isinstance(payload, dict):
-        payload = payload.get("data") or payload
-
-    if isinstance(payload, dict):
-        # Some responses use { "chargers": [...] }
-        payload = payload.get("chargers") or payload.get("evChargerData") or payload
-
-    if isinstance(payload, list):
-        items = payload
-    else:
-        items = []
-
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        serial = (
-            item.get("serial")
-            or item.get("serialNumber")
-            or item.get("sn")
-            or item.get("id")
-        )
-        if not serial:
-            continue
-        name = item.get("name") or item.get("displayName") or item.get("display_name")
-        chargers.append(
-            ChargerInfo(serial=str(serial), name=str(name) if name else None)
-        )
-    return chargers
+    return api_parsers.normalize_chargers(payload)
 
 
 async def _build_tokens_and_sites(
@@ -1906,6 +1804,7 @@ class EnphaseEVClient:
         self._hems_site_supported: bool | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._last_unauthorized_request: str | None = None
+        self._request_count = 0
         self._payload_failure_log_state: dict[str, PayloadFailureSignature] = {}
         self._h = {
             "Accept": "application/json, text/plain, */*",
@@ -1927,6 +1826,17 @@ class EnphaseEVClient:
         """Return the most recent request that received a 401 response."""
 
         return self._last_unauthorized_request
+
+    def reset_request_count(self) -> None:
+        """Reset the lightweight cloud request counter."""
+
+        self._request_count = 0
+
+    @property
+    def request_count(self) -> int:
+        """Return the number of HTTP attempts since the last counter reset."""
+
+        return int(getattr(self, "_request_count", 0) or 0)
 
     def update_credentials(
         self,
@@ -3984,6 +3894,7 @@ class EnphaseEVClient:
                     async with self._request_session(
                         cookie_header_only=use_cookie_header_only
                     ) as request_session:
+                        self._request_count += 1
                         async with request_session.request(
                             method, url, headers=base_headers, **kwargs
                         ) as r:
@@ -5499,54 +5410,7 @@ class EnphaseEVClient:
     ) -> dict[str, object] | None:
         """Normalize app-api latest power payloads into a common shape."""
 
-        data = payload
-        if isinstance(data, dict) and isinstance(data.get("data"), dict):
-            data = data.get("data")
-        if not isinstance(data, dict):
-            return None
-
-        latest = data.get("latest_power")
-        if not isinstance(latest, dict):
-            latest = data
-
-        value = cls._coerce_non_boolean_number(latest.get("value"))
-        if value is None:
-            return None
-
-        normalized: dict[str, object] = {"value": value}
-
-        units = latest.get("units")
-        if units is not None:
-            try:
-                units_text = str(units).strip()
-            except Exception:  # noqa: BLE001
-                units_text = ""
-            if units_text:
-                normalized["units"] = units_text
-
-        precision = cls._coerce_non_boolean_number(latest.get("precision"))
-        if precision is not None:
-            try:
-                precision_int = int(precision)
-            except Exception:  # noqa: BLE001
-                precision_int = None
-            if precision_int is not None:
-                normalized["precision"] = precision_int
-
-        sample_time = latest.get("time")
-        if sample_time is not None:
-            sample_time_val = cls._coerce_non_boolean_number(sample_time)
-            if sample_time_val is not None:
-                if sample_time_val > 10**12:
-                    sample_time_val /= 1000.0
-                try:
-                    sample_time_int = int(sample_time_val)
-                except Exception:  # noqa: BLE001
-                    sample_time_int = None
-                if sample_time_int is not None:
-                    normalized["time"] = sample_time_int
-
-        return normalized
+        return api_parsers.normalize_latest_power_payload(payload)
 
     async def latest_power(self) -> dict[str, object] | None:
         """Return the latest site power sample for the configured site.
@@ -5608,52 +5472,11 @@ class EnphaseEVClient:
 
     @staticmethod
     def _normalize_evse_timeseries_serial(value: object) -> str | None:
-        if value is None:
-            return None
-        try:
-            text = str(value).strip()
-        except Exception:  # noqa: BLE001
-            return None
-        return text or None
+        return api_parsers.normalize_evse_timeseries_serial(value)
 
     @staticmethod
     def _parse_evse_timeseries_date_key(value: object) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, datetime):
-            return value.date().isoformat()
-        if isinstance(value, date):
-            return value.isoformat()
-        if isinstance(value, (int, float)):
-            try:
-                ts_val = float(value)
-                if ts_val > 10**12:
-                    ts_val /= 1000.0
-                return (
-                    datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
-                )
-            except Exception:  # noqa: BLE001
-                return None
-        if not isinstance(value, str):
-            return None
-        cleaned = value.strip()
-        if not cleaned:
-            return None
-        if len(cleaned) >= 10:
-            try:
-                return (
-                    datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
-                    .date()
-                    .isoformat()
-                )
-            except Exception:  # noqa: BLE001
-                pass
-            try:
-                datetime.strptime(cleaned[:10], "%Y-%m-%d")
-                return cleaned[:10]
-            except Exception:  # noqa: BLE001
-                pass
-        return None
+        return api_parsers.parse_evse_timeseries_date_key(value)
 
     @classmethod
     def _coerce_evse_timeseries_energy(
@@ -5663,78 +5486,26 @@ class EnphaseEVClient:
         key_hint: str | None = None,
         unit_hint: object | None = None,
     ) -> float | None:
-        numeric = cls._coerce_lifetime_energy_value(value)
-        if numeric is None:
-            return None
-        try:
-            unit_text = str(unit_hint).strip().lower() if unit_hint is not None else ""
-        except Exception:  # noqa: BLE001
-            unit_text = ""
-        hint = (key_hint or "").lower()
-        if "wh" in hint and "kwh" not in hint:
-            return round(numeric / 1000.0, 6)
-        if unit_text in {"wh", "watt_hour", "watt-hours", "watt_hours"}:
-            return round(numeric / 1000.0, 6)
-        return round(numeric, 6)
+        return api_parsers.coerce_evse_timeseries_energy(
+            value,
+            key_hint=key_hint,
+            unit_hint=unit_hint,
+        )
 
     @classmethod
     def _normalize_evse_timeseries_metadata(cls, payload: object) -> dict[str, object]:
-        if not isinstance(payload, dict):
-            return {}
-        interval = cls._coerce_lifetime_energy_value(
-            payload.get("interval_minutes")
-            or payload.get("interval")
-            or payload.get("interval_min")
-            or payload.get("intervalMinutes")
-        )
-        metadata: dict[str, object] = {}
-        if interval is not None and interval > 0:
-            metadata["interval_minutes"] = interval
-        last_report = (
-            payload.get("last_report_date")
-            or payload.get("lastReportDate")
-            or payload.get("last_reported_at")
-            or payload.get("lastReportedAt")
-        )
-        if last_report is not None:
-            metadata["last_report_date"] = last_report
-        return metadata
+        return api_parsers.normalize_evse_timeseries_metadata(payload)
 
     @classmethod
     def _daily_values_from_mapping(
         cls,
         payload: dict[str, object],
     ) -> tuple[dict[str, float], float | None]:
-        day_values: dict[str, float] = {}
-        current_value: float | None = None
-        unit_hint = payload.get("unit") or payload.get("source_unit")
-        for key, raw in payload.items():
-            day_key = cls._parse_evse_timeseries_date_key(key)
-            if day_key is None:
-                continue
-            numeric = cls._coerce_evse_timeseries_energy(
-                raw, key_hint=str(key), unit_hint=unit_hint
-            )
-            if numeric is None:
-                continue
-            day_values[day_key] = numeric
-        for key in (
-            "energy_kwh",
-            "value_kwh",
-            "daily_energy_kwh",
-            "daily_kwh",
-            "energy",
-            "value",
-            "energy_wh",
-            "daily_energy_wh",
-        ):
-            if key not in payload:
-                continue
-            current_value = cls._coerce_evse_timeseries_energy(
-                payload.get(key), key_hint=key, unit_hint=unit_hint
-            )
-            break
-        return day_values, current_value
+        return api_parsers.daily_values_from_mapping(
+            payload,
+            parse_date_key=cls._parse_evse_timeseries_date_key,
+            coerce_energy=cls._coerce_evse_timeseries_energy,
+        )
 
     @classmethod
     def _daily_values_from_sequence(
@@ -5744,58 +5515,13 @@ class EnphaseEVClient:
         start_date_value: object | None = None,
         unit_hint: object | None = None,
     ) -> tuple[dict[str, float], float | None]:
-        day_values: dict[str, float] = {}
-        current_value: float | None = None
-        start_day = cls._parse_evse_timeseries_date_key(start_date_value)
-        start_dt = None
-        if start_day is not None:
-            try:
-                start_dt = datetime.fromisoformat(start_day)
-            except Exception:  # noqa: BLE001
-                start_dt = None
-        for idx, item in enumerate(values):
-            if isinstance(item, dict):
-                day_key = cls._parse_evse_timeseries_date_key(
-                    item.get("date")
-                    or item.get("day")
-                    or item.get("start_date")
-                    or item.get("startDate")
-                    or item.get("timestamp")
-                    or item.get("time")
-                )
-                item_unit = item.get("unit") or unit_hint
-                for key in (
-                    "energy_kwh",
-                    "value_kwh",
-                    "daily_energy_kwh",
-                    "energy",
-                    "value",
-                    "energy_wh",
-                    "daily_energy_wh",
-                ):
-                    if key not in item:
-                        continue
-                    numeric = cls._coerce_evse_timeseries_energy(
-                        item.get(key), key_hint=key, unit_hint=item_unit
-                    )
-                    if numeric is None:
-                        continue
-                    if day_key is not None:
-                        day_values[day_key] = numeric
-                    else:
-                        current_value = numeric
-                    break
-                continue
-            numeric = cls._coerce_evse_timeseries_energy(item, unit_hint=unit_hint)
-            if numeric is None:
-                continue
-            if start_dt is not None:
-                day_values[(start_dt + timedelta(days=idx)).date().isoformat()] = (
-                    numeric
-                )
-            else:
-                current_value = numeric
-        return day_values, current_value
+        return api_parsers.daily_values_from_sequence(
+            values,
+            start_date_value=start_date_value,
+            unit_hint=unit_hint,
+            parse_date_key=cls._parse_evse_timeseries_date_key,
+            coerce_energy=cls._coerce_evse_timeseries_energy,
+        )
 
     @classmethod
     def _normalize_evse_daily_entry(
@@ -5805,56 +5531,13 @@ class EnphaseEVClient:
         *,
         base_metadata: dict[str, object] | None = None,
     ) -> dict[str, object] | None:
-        metadata = dict(base_metadata or {})
-        day_values: dict[str, float] = {}
-        current_value: float | None = None
-        if isinstance(payload, dict):
-            metadata.update(cls._normalize_evse_timeseries_metadata(payload))
-            record_serial = cls._normalize_evse_timeseries_serial(
-                payload.get("serial")
-                or payload.get("serial_number")
-                or payload.get("device_serial")
-                or payload.get("charger_serial")
-                or payload.get("sn")
-            )
-            if record_serial and record_serial != serial:
-                serial = record_serial
-            nested = (
-                payload.get("days")
-                or payload.get("daily")
-                or payload.get("values")
-                or payload.get("series")
-                or payload.get("data")
-            )
-            if isinstance(nested, list):
-                day_values, current_value = cls._daily_values_from_sequence(
-                    nested,
-                    start_date_value=payload.get("start_date")
-                    or payload.get("startDate"),
-                    unit_hint=payload.get("unit") or payload.get("source_unit"),
-                )
-            elif isinstance(nested, dict):
-                day_values, current_value = cls._daily_values_from_mapping(nested)
-            else:
-                day_values, current_value = cls._daily_values_from_mapping(payload)
-        elif isinstance(payload, list):
-            day_values, current_value = cls._daily_values_from_sequence(payload)
-        else:
-            current_value = cls._coerce_evse_timeseries_energy(payload)
-        if not day_values and current_value is None:
-            return None
-        current_day = max(day_values) if day_values else None
-        return {
-            "serial": serial,
-            "day_values_kwh": day_values,
-            "energy_kwh": (
-                day_values.get(current_day)
-                if current_day is not None
-                else current_value
-            ),
-            "current_value_kwh": current_value,
-            **metadata,
-        }
+        return api_parsers.normalize_evse_daily_entry(
+            serial,
+            payload,
+            base_metadata=base_metadata,
+            parse_date_key=cls._parse_evse_timeseries_date_key,
+            coerce_energy=cls._coerce_evse_timeseries_energy,
+        )
 
     @classmethod
     def _normalize_evse_lifetime_entry(
@@ -5864,78 +5547,12 @@ class EnphaseEVClient:
         *,
         base_metadata: dict[str, object] | None = None,
     ) -> dict[str, object] | None:
-        metadata = dict(base_metadata or {})
-        energy_kwh: float | None = None
-        if isinstance(payload, dict):
-            metadata.update(cls._normalize_evse_timeseries_metadata(payload))
-            record_serial = cls._normalize_evse_timeseries_serial(
-                payload.get("serial")
-                or payload.get("serial_number")
-                or payload.get("device_serial")
-                or payload.get("charger_serial")
-                or payload.get("sn")
-            )
-            if record_serial and record_serial != serial:
-                serial = record_serial
-            unit_hint = payload.get("unit") or payload.get("source_unit")
-            for key in (
-                "energy_kwh",
-                "value_kwh",
-                "lifetime_energy_kwh",
-                "lifetime_kwh",
-                "total_kwh",
-                "energy_wh",
-                "lifetime_energy_wh",
-                "value_wh",
-                "energy",
-                "value",
-            ):
-                if key not in payload:
-                    continue
-                energy_kwh = cls._coerce_evse_timeseries_energy(
-                    payload.get(key), key_hint=key, unit_hint=unit_hint
-                )
-                if energy_kwh is not None:
-                    break
-            if energy_kwh is None:
-                values = (
-                    payload.get("values")
-                    or payload.get("series")
-                    or payload.get("data")
-                )
-                if isinstance(values, list):
-                    for item in reversed(values):
-                        if isinstance(item, dict):
-                            for key in (
-                                "energy_kwh",
-                                "value_kwh",
-                                "lifetime_energy_kwh",
-                                "energy_wh",
-                                "value_wh",
-                                "value",
-                            ):
-                                if key not in item:
-                                    continue
-                                energy_kwh = cls._coerce_evse_timeseries_energy(
-                                    item.get(key),
-                                    key_hint=key,
-                                    unit_hint=item.get("unit") or unit_hint,
-                                )
-                                if energy_kwh is not None:
-                                    break
-                            if energy_kwh is not None:
-                                break
-                        else:
-                            energy_kwh = cls._coerce_evse_timeseries_energy(
-                                item, unit_hint=unit_hint
-                            )
-                            if energy_kwh is not None:
-                                break
-        else:
-            energy_kwh = cls._coerce_evse_timeseries_energy(payload)
-        if energy_kwh is None:
-            return None
-        return {"serial": serial, "energy_kwh": energy_kwh, **metadata}
+        return api_parsers.normalize_evse_lifetime_entry(
+            serial,
+            payload,
+            base_metadata=base_metadata,
+            coerce_energy=cls._coerce_evse_timeseries_energy,
+        )
 
     @classmethod
     def _normalize_evse_timeseries_payload(
@@ -5944,66 +5561,12 @@ class EnphaseEVClient:
         *,
         daily: bool,
     ) -> dict[str, dict[str, object]] | None:
-        data = payload
-        if isinstance(data, dict) and isinstance(data.get("data"), (dict, list)):
-            data = data.get("data")
-        base_metadata = cls._normalize_evse_timeseries_metadata(
-            payload if isinstance(payload, dict) else {}
+        return api_parsers.normalize_evse_timeseries_payload(
+            payload,
+            daily=daily,
+            parse_date_key=cls._parse_evse_timeseries_date_key,
+            coerce_energy=cls._coerce_evse_timeseries_energy,
         )
-        if isinstance(data, dict):
-            candidates = (
-                data.get("results")
-                or data.get("chargers")
-                or data.get("devices")
-                or data.get("timeseries")
-            )
-            if isinstance(candidates, list):
-                data = candidates
-        normalized: dict[str, dict[str, object]] = {}
-        if isinstance(data, list):
-            for item in data:
-                if not isinstance(item, dict):
-                    continue
-                serial = cls._normalize_evse_timeseries_serial(
-                    item.get("serial")
-                    or item.get("serial_number")
-                    or item.get("device_serial")
-                    or item.get("charger_serial")
-                    or item.get("sn")
-                )
-                if not serial:
-                    continue
-                entry = (
-                    cls._normalize_evse_daily_entry(
-                        serial, item, base_metadata=base_metadata
-                    )
-                    if daily
-                    else cls._normalize_evse_lifetime_entry(
-                        serial, item, base_metadata=base_metadata
-                    )
-                )
-                if entry is not None:
-                    normalized[serial] = entry
-            return normalized
-        if not isinstance(data, dict):
-            return None
-        for key, value in data.items():
-            serial = cls._normalize_evse_timeseries_serial(key)
-            if not serial:
-                continue
-            entry = (
-                cls._normalize_evse_daily_entry(
-                    serial, value, base_metadata=base_metadata
-                )
-                if daily
-                else cls._normalize_evse_lifetime_entry(
-                    serial, value, base_metadata=base_metadata
-                )
-            )
-            if entry is None:
-                continue
-            normalized[serial] = entry
-        return normalized
 
     async def evse_timeseries_daily_energy(
         self,
@@ -6070,112 +5633,19 @@ class EnphaseEVClient:
     def _coerce_lifetime_energy_value(value: object) -> float | None:
         """Normalize numeric lifetime-energy values into float samples."""
 
-        if isinstance(value, (int, float)):
-            try:
-                return float(value)
-            except Exception:  # noqa: BLE001
-                return None
-        if isinstance(value, str):
-            cleaned = value.strip()
-            if not cleaned:
-                return None
-            try:
-                return float(cleaned)
-            except Exception:  # noqa: BLE001
-                return None
-        return None
+        return api_parsers.coerce_lifetime_energy_value(value)
 
     @classmethod
     def _coerce_non_boolean_number(cls, value: object) -> float | None:
         """Normalize numeric values while rejecting JSON booleans."""
 
-        if isinstance(value, bool):
-            return None
-        return cls._coerce_lifetime_energy_value(value)
+        return api_parsers.coerce_non_boolean_number(value)
 
     @classmethod
     def _normalize_lifetime_energy_payload(cls, payload: object) -> dict | None:
         """Normalize site/HEMS lifetime-energy payloads into a common shape."""
 
-        data = payload
-        if isinstance(data, dict) and isinstance(data.get("data"), dict):
-            data = data.get("data")
-        if not isinstance(data, dict):
-            return None
-
-        array_fields = {
-            "production",
-            "consumption",
-            "solar_home",
-            "solar_grid",
-            "grid_home",
-            "import",
-            "export",
-            "charge",
-            "discharge",
-            "solar_battery",
-            "battery_home",
-            "battery_grid",
-            "grid_battery",
-            "evse",
-            "heatpump",
-            "water_heater",
-        }
-        array_field_aliases = {
-            "evse_charging": "evse",
-            "heat_pump": "heatpump",
-            "heat-pump": "heatpump",
-            "waterheater": "water_heater",
-            "water-heater": "water_heater",
-            "water_heater_consumption": "water_heater",
-        }
-        metadata_fields = {
-            "start_date",
-            "last_report_date",
-            "update_pending",
-            "system_id",
-        }
-        metadata_aliases = {
-            "startDate": "start_date",
-            "lastReportDate": "last_report_date",
-            "updatePending": "update_pending",
-            "systemId": "system_id",
-        }
-
-        normalized: dict[str, object] = {}
-        for key, value in data.items():
-            canonical_key = array_field_aliases.get(key, key)
-            if canonical_key in array_fields:
-                # Prefer canonical keys when both canonical and alias variants exist.
-                if (
-                    canonical_key != key
-                    and canonical_key in data
-                    and canonical_key in normalized
-                ):
-                    continue
-                if isinstance(value, list):
-                    normalized[canonical_key] = [
-                        cls._coerce_lifetime_energy_value(v) for v in value
-                    ]
-                else:
-                    normalized[canonical_key] = []
-                continue
-            if key in metadata_fields:
-                normalized[key] = value
-                continue
-            canonical_meta = metadata_aliases.get(key)
-            if canonical_meta and canonical_meta not in normalized:
-                normalized[canonical_meta] = value
-
-        interval_minutes = cls._coerce_lifetime_energy_value(
-            data.get("interval_minutes")
-            or data.get("interval")
-            or data.get("interval_min")
-            or data.get("intervalMinutes")
-        )
-        if interval_minutes is not None and interval_minutes > 0:
-            normalized["interval_minutes"] = interval_minutes
-        return normalized
+        return api_parsers.normalize_lifetime_energy_payload(payload)
 
     async def hems_consumption_lifetime(self) -> dict | None:
         """Return HEMS lifetime consumption buckets when available.
@@ -6218,88 +5688,19 @@ class EnphaseEVClient:
     @staticmethod
     def _clean_optional_text(value: object) -> str | None:
         """Return a trimmed string value when present."""
-        return helper_coerce_optional_text(value)
+        return api_parsers.clean_optional_text(value)
 
     @classmethod
     def _heatpump_sg_ready_mode_details(cls, value: object) -> dict[str, object]:
         """Map raw HEMS SG Ready mode labels to app-facing semantics."""
 
-        text = cls._clean_optional_text(value)
-        if text is None:
-            return {
-                "sg_ready_mode_label": None,
-                "sg_ready_active": None,
-                "sg_ready_contact_state": None,
-            }
-        normalized = text.upper()
-        if normalized == "MODE_2":
-            return {
-                "sg_ready_mode_label": "Normal",
-                "sg_ready_active": False,
-                "sg_ready_contact_state": "open",
-            }
-        if normalized == "MODE_3":
-            return {
-                "sg_ready_mode_label": "Recommended",
-                "sg_ready_active": True,
-                "sg_ready_contact_state": "closed",
-            }
-        return {
-            "sg_ready_mode_label": None,
-            "sg_ready_active": None,
-            "sg_ready_contact_state": None,
-        }
+        return api_parsers.heatpump_sg_ready_mode_details(value)
 
     @classmethod
     def _normalize_hems_heatpump_state_payload(cls, payload: object) -> dict | None:
         """Normalize HEMS heat-pump runtime state payloads."""
 
-        if not isinstance(payload, dict):
-            return None
-        data = payload.get("data")
-        if not isinstance(data, dict):
-            data = payload
-        device_uid = cls._clean_optional_text(
-            data.get("device_uid")
-            if data.get("device_uid") is not None
-            else data.get("device-uid")
-        )
-        heatpump_status = cls._clean_optional_text(
-            data.get("heatpump_status")
-            if data.get("heatpump_status") is not None
-            else data.get("heatpump-status")
-        )
-        sg_ready_mode_raw = cls._clean_optional_text(
-            data.get("sg_ready_mode")
-            if data.get("sg_ready_mode") is not None
-            else data.get("sg-ready-mode")
-        )
-        details = cls._heatpump_sg_ready_mode_details(sg_ready_mode_raw)
-        endpoint_type = cls._clean_optional_text(payload.get("type"))
-        endpoint_timestamp = payload.get("timestamp")
-        normalized: dict[str, object] = {
-            "type": endpoint_type,
-            "timestamp": endpoint_timestamp,
-            "endpoint_type": endpoint_type,
-            "endpoint_timestamp": endpoint_timestamp,
-            "device_uid": device_uid,
-            "heatpump_status": heatpump_status,
-            "sg_ready_mode_raw": sg_ready_mode_raw,
-            "sg_ready_mode_label": details.get("sg_ready_mode_label"),
-            "sg_ready_active": details.get("sg_ready_active"),
-            "sg_ready_contact_state": details.get("sg_ready_contact_state"),
-            "vpp_sgready_mode_override": cls._clean_optional_text(
-                data.get("vpp_sgready_mode_override")
-                if data.get("vpp_sgready_mode_override") is not None
-                else data.get("vpp-sgready-mode-override")
-            ),
-            "last_report_at": (
-                data.get("last_report_at")
-                if data.get("last_report_at") is not None
-                else data.get("last-report-at")
-            ),
-        }
-        return normalized
+        return api_parsers.normalize_hems_heatpump_state_payload(payload)
 
     @classmethod
     def _normalize_hems_daily_consumption_entry(
@@ -6307,104 +5708,19 @@ class EnphaseEVClient:
     ) -> dict[str, object] | None:
         """Normalize a HEMS daily-consumption device entry."""
 
-        if not isinstance(payload, dict):
-            return None
-        device_uid = cls._clean_optional_text(
-            payload.get("device_uid")
-            if payload.get("device_uid") is not None
-            else payload.get("device-uid")
-        )
-        device_name = cls._clean_optional_text(
-            payload.get("device_name")
-            if payload.get("device_name") is not None
-            else payload.get("device-name")
-        )
-        buckets: list[dict[str, object]] = []
-        raw_buckets = payload.get("consumption")
-        if isinstance(raw_buckets, list):
-            for item in raw_buckets:
-                if not isinstance(item, dict):
-                    continue
-                bucket: dict[str, object] = {
-                    "solar": cls._coerce_lifetime_energy_value(item.get("solar")),
-                    "battery": cls._coerce_lifetime_energy_value(item.get("battery")),
-                    "grid": cls._coerce_lifetime_energy_value(item.get("grid")),
-                    "details": [],
-                }
-                details = item.get("details")
-                if isinstance(details, list):
-                    bucket["details"] = [
-                        cls._coerce_lifetime_energy_value(detail) for detail in details
-                    ]
-                buckets.append(bucket)
-        return {
-            "device_uid": device_uid,
-            "device_name": device_name,
-            "consumption": buckets,
-        }
+        return api_parsers.normalize_hems_daily_consumption_entry(payload)
 
     @classmethod
     def _normalize_hems_energy_consumption_payload(cls, payload: object) -> dict | None:
         """Normalize HEMS daily energy-consumption payloads."""
 
-        if not isinstance(payload, dict):
-            return None
-        data = payload.get("data")
-        if not isinstance(data, dict):
-            data = payload
-
-        endpoint_type = cls._clean_optional_text(payload.get("type"))
-        endpoint_timestamp = payload.get("timestamp")
-        normalized: dict[str, object] = {
-            "type": endpoint_type,
-            "timestamp": endpoint_timestamp,
-            "endpoint_type": endpoint_type,
-            "endpoint_timestamp": endpoint_timestamp,
-            "data": {
-                "heat-pump": [],
-                "evse": [],
-                "water-heater": [],
-            },
-        }
-        families = normalized["data"]
-        assert isinstance(families, dict)
-        for family_key in ("heat-pump", "evse", "water-heater"):
-            raw_family = data.get(family_key)
-            if raw_family is None:
-                raw_family = data.get(family_key.replace("-", "_"))
-            if not isinstance(raw_family, list):
-                continue
-            entries: list[dict[str, object]] = []
-            for item in raw_family:
-                normalized_entry = cls._normalize_hems_daily_consumption_entry(item)
-                if normalized_entry is not None:
-                    entries.append(normalized_entry)
-            families[family_key] = entries
-        return normalized
+        return api_parsers.normalize_hems_energy_consumption_payload(payload)
 
     @classmethod
     def _normalize_pv_system_today_payload(cls, payload: object) -> dict | None:
         """Normalize site-today payloads used by heat-pump daily totals."""
 
-        if not isinstance(payload, dict):
-            return None
-        stats = payload.get("stats")
-        normalized_stats: list[dict[str, object]] = []
-        if isinstance(stats, list):
-            for item in stats:
-                if not isinstance(item, dict):
-                    continue
-                normalized_stat = dict(item)
-                for key in ("heatpump", "heat_pump", "heat-pump"):
-                    value = item.get(key)
-                    if value is None:
-                        continue
-                    normalized_stat["heatpump"] = value
-                    break
-                normalized_stats.append(normalized_stat)
-        normalized = dict(payload)
-        normalized["stats"] = normalized_stats
-        return normalized
+        return api_parsers.normalize_pv_system_today_payload(payload)
 
     async def hems_heatpump_state(
         self, device_uid: str, *, timezone: str | None = None
@@ -6539,78 +5855,7 @@ class EnphaseEVClient:
     def _normalize_hems_power_timeseries_payload(cls, payload: object) -> dict | None:
         """Normalize HEMS heat-pump power timeseries payloads."""
 
-        data = payload
-        if isinstance(data, dict) and isinstance(data.get("data"), dict):
-            data = data.get("data")
-        if not isinstance(data, dict):
-            return None
-
-        raw_values: object | None = None
-        fallback_non_list: object | None = None
-        for key in (
-            "heat_pump_consumption",
-            "heatpump_consumption",
-            "heat-pump-consumption",
-            "heatPumpConsumption",
-            "heatpumpConsumption",
-            "heat_pump",
-            "heat-pump",
-            "heatpump",
-        ):
-            value = data.get(key)
-            if value is None:
-                continue
-            if isinstance(value, list):
-                raw_values = value
-                break
-            if fallback_non_list is None:
-                fallback_non_list = value
-        if raw_values is None:
-            for key, value in data.items():
-                key_text = str(key).strip().lower()
-                normalized_key = "".join(ch for ch in key_text if ch.isalnum())
-                if "heatpump" not in normalized_key:
-                    continue
-                if "consumption" not in normalized_key and not normalized_key.endswith(
-                    "heatpump"
-                ):
-                    continue
-                if not isinstance(value, list):
-                    if fallback_non_list is None:
-                        fallback_non_list = value
-                    continue
-                raw_values = value
-                break
-        if raw_values is None:
-            raw_values = fallback_non_list
-        values: list[float | None]
-        if isinstance(raw_values, list):
-            values = [cls._coerce_lifetime_energy_value(item) for item in raw_values]
-        else:
-            values = []
-
-        normalized: dict[str, object] = {
-            "heat_pump_consumption": values,
-        }
-        device_uid = data.get("device_uid")
-        if device_uid is None:
-            device_uid = data.get("uid")
-        if device_uid is not None:
-            normalized["device_uid"] = device_uid
-        start_date = data.get("start_date")
-        if start_date is None:
-            start_date = data.get("startDate")
-        if start_date is not None:
-            normalized["start_date"] = start_date
-        interval_minutes = cls._coerce_lifetime_energy_value(
-            data.get("interval_minutes")
-            or data.get("interval")
-            or data.get("interval_min")
-            or data.get("intervalMinutes")
-        )
-        if interval_minutes is not None and interval_minutes > 0:
-            normalized["interval_minutes"] = interval_minutes
-        return normalized
+        return api_parsers.normalize_hems_power_timeseries_payload(payload)
 
     @staticmethod
     def _is_hems_invalid_date_error(err: aiohttp.ClientResponseError) -> bool:

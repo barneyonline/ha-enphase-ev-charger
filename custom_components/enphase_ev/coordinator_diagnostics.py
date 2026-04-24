@@ -22,6 +22,7 @@ from .const import (
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
 )
+from .coordinator_refresh_metrics import refresh_performance_summary
 from .log_redaction import redact_text
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -248,6 +249,15 @@ class CoordinatorDiagnostics:
             "rate_limit_hits": getattr(coord, "_rate_limit_hits", 0),
             "dns_errors": getattr(coord, "_dns_failures", 0),
             "phase_timings": coord.phase_timings,
+            "refresh_performance": refresh_performance_summary(
+                coord.phase_timings,
+                latency_ms=coord.latency_ms,
+                cloud_calls=getattr(coord, "_last_refresh_cloud_calls", None),
+                steady_cloud_calls=getattr(
+                    coord, "_last_steady_refresh_cloud_calls", None
+                ),
+                fast_cloud_calls=getattr(coord, "_last_fast_refresh_cloud_calls", None),
+            ),
             "bootstrap_phase_timings": coord.bootstrap_phase_timings,
             "warmup_phase_timings": coord.warmup_phase_timings,
             "warmup_in_progress": getattr(coord, "_warmup_in_progress", False),

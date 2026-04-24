@@ -221,7 +221,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._type_keys_loaded = False
         self._inventory_unknown = False
         self._email: str | None = None
-        self._remember_password = True
+        self._remember_password = False
         self._password: str | None = None
         self._reconfigure_entry: ConfigEntry | None = None
         self._reauth_entry: ConfigEntry | None = None
@@ -977,7 +977,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         stored_remember_password = bool(
             self._reconfigure_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
-        self._remember_password = True
+        self._remember_password = stored_remember_password
         self._site_only = bool(self._reconfigure_entry.data.get(CONF_SITE_ONLY, False))
         self._include_inverters = bool(
             self._reconfigure_entry.data.get(CONF_INCLUDE_INVERTERS, True)
@@ -1003,7 +1003,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         stored_remember_password = bool(
             self._reauth_entry.data.get(CONF_REMEMBER_PASSWORD)
         )
-        self._remember_password = True
+        self._remember_password = stored_remember_password
         self._site_only = bool(self._reauth_entry.data.get(CONF_SITE_ONLY, False))
         self._include_inverters = bool(
             self._reauth_entry.data.get(CONF_INCLUDE_INVERTERS, True)
