@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -1300,6 +1301,42 @@ async def test_inventory_runtime_refresh_system_dashboard_handles_missing_fetche
 
 
 @pytest.mark.asyncio
+async def test_inventory_runtime_refresh_system_dashboard_fetches_details_concurrently(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    monkeypatch.setattr(
+        inventory_runtime_mod,
+        "SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES",
+        ("envoys", "meters", "encharges", "inverters"),
+    )
+    monkeypatch.setattr(
+        inventory_runtime_mod,
+        "SYSTEM_DASHBOARD_DETAIL_CONCURRENCY",
+        2,
+    )
+    active = 0
+    max_active = 0
+
+    async def _details(source_type: str):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0)
+        active -= 1
+        return {source_type: [{"device_uid": source_type}]}
+
+    coord.client.devices_tree = AsyncMock(return_value={"devices": []})
+    coord.client.devices_details = AsyncMock(side_effect=_details)
+
+    await runtime._async_refresh_system_dashboard(force=True)  # noqa: SLF001
+
+    assert max_active == 2
+    assert coord.client.devices_details.await_count == 4
+
+
+@pytest.mark.asyncio
 async def test_inventory_runtime_refresh_system_dashboard_handles_fetch_exceptions(
     coordinator_factory, monkeypatch
 ) -> None:
@@ -1337,6 +1374,7 @@ async def test_inventory_runtime_refresh_system_dashboard_handles_fetch_exceptio
     assert diagnostics["devices_details_payloads"]["envoy"]["meters"] == {
         "meters": [{"name": "Meter"}]
     }
+    assert diagnostics["detail_failures"] == {"envoys": "detail"}
 
 
 @pytest.mark.asyncio

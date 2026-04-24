@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+import aiohttp
 import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
@@ -453,6 +454,8 @@ def test_followup_refresh_stage_binds_zero_arg_calls() -> None:
 
     assert bound.parallel_calls[0][2]() == "site-settings"
     assert bound.ordered_calls[-1][2]() == "hems-devices"
+    assert bound.parallel_calls[0][3] == "battery_site_settings"
+    assert bound.ordered_calls[-1][3] == "inventory_topology"
     assert owner.calls == ["battery_site_settings", "hems_devices"]
 
 
@@ -771,6 +774,53 @@ async def test_coordinator_run_refresh_calls_tracks_stage_and_topology_batch(
 
 
 @pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_drains_siblings_before_batch_end(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    started = asyncio.Event()
+    drained = False
+    end_saw_drained = False
+
+    async def _slow() -> None:
+        nonlocal drained
+        started.set()
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            drained = True
+            raise
+
+    async def _fail() -> None:
+        await started.wait()
+        raise RuntimeError("boom")
+
+    def _end_topology_batch() -> None:
+        nonlocal end_saw_drained
+        end_saw_drained = drained
+
+    coord._begin_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    coord._end_topology_refresh_batch = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        side_effect=_end_topology_batch
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("slow_s", "slow", _slow),
+                ("fail_s", "fail", _fail),
+            ),
+            defer_topology=True,
+        )
+
+    coord._begin_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    coord._end_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    assert drained is True
+    assert end_saw_drained is True
+
+
+@pytest.mark.asyncio
 async def test_refresh_runner_staged_calls_track_empty_stage_timing(
     coordinator_factory,
 ) -> None:
@@ -957,3 +1007,48 @@ async def test_refresh_runner_does_not_swallow_config_entry_auth_failed(
 
     with pytest.raises(ConfigEntryAuthFailed, match="reauth"):
         await coord.refresh_runner.async_run_refresh_call("k", "label", _raise)
+
+
+@pytest.mark.asyncio
+async def test_refresh_runner_tracks_skipped_endpoint_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    async def _raise() -> None:
+        raise aiohttp.ClientError("inventory down")
+
+    timing_key, duration = await coord.refresh_runner.async_run_refresh_call(
+        "devices_inventory_s",
+        "device inventory",
+        _raise,
+        endpoint_family="inventory_topology",
+    )
+
+    health = coord.diagnostics.endpoint_family_health_diagnostics()[
+        "inventory_topology"
+    ]
+    assert timing_key == "devices_inventory_s"
+    assert duration is not None
+    assert health["consecutive_failures"] == 1
+    assert health["last_error"] == "inventory down"
+
+
+@pytest.mark.asyncio
+async def test_refresh_runner_surfaces_unexpected_stage_errors(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    async def _raise() -> None:
+        raise RuntimeError("programming bug")
+
+    with pytest.raises(RuntimeError, match="programming bug"):
+        await coord.refresh_runner.async_run_refresh_call(
+            "devices_inventory_s",
+            "device inventory",
+            _raise,
+        )
+
+    assert coord.last_failure_source == "refresh_stage"
+    assert coord.last_failure_endpoint == "devices_inventory_s"
