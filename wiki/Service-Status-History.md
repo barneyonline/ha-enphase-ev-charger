@@ -1,10 +1,10 @@
 # Service Status History
 
 - Current status: **Fully Operational**
-- Last updated: `2026-04-24 08:02 UTC`
+- Last updated: `2026-04-24 10:03 UTC`
 - Failed checks in latest run: `1`
 - Latest failed checks: battery_config
-- Retained hourly samples: `528`
+- Retained hourly samples: `527`
 - Incident windows in last 30 days: `8`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
@@ -16,10 +16,10 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-03-25T08:02:01, 0ms
-    Window end :vert, window-end, 2026-04-24T08:02:01, 0ms
+    Window start :vert, window-start, 2026-03-25T10:03:43, 0ms
+    Window end :vert, window-end, 2026-04-24T10:03:43, 0ms
     section Down
-    Down 1 (2026-03-25 0943 UTC) :crit, down-1, 2026-03-25T09:43:28, 111m
+    Down 1 (2026-03-25 1039 UTC) :crit, down-1, 2026-03-25T10:39:26, 60m
     Down 2 (2026-04-01 0145 UTC) :crit, down-2, 2026-04-01T01:45:09, 60m
     Down 3 (2026-04-14 0901 UTC) :crit, down-3, 2026-04-14T09:01:13, 60m
     Down 4 (2026-04-18 2234 UTC) :crit, down-4, 2026-04-18T22:34:13, 60m
@@ -34,7 +34,7 @@ gantt
 
 | Status | Started (UTC) | Ended (UTC) | Duration | Failed checks |
 | --- | --- | --- | --- | --- |
-| Down | 2026-03-25 09:43 UTC | 2026-03-25 11:34 UTC | 1h 51m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
+| Down | 2026-03-25 10:39 UTC | 2026-03-25 11:34 UTC | 55m | charger_status, scheduler_charge_mode, scheduler_green_settings, scheduler_schedules |
 | Down | 2026-04-01 01:45 UTC | Unknown after last seen 2026-04-01 01:45 UTC | Observed 0m | battery_config, evse_runtime, evse_scheduler |
 | Degraded | 2026-04-04 16:35 UTC | 2026-04-04 17:28 UTC | 53m | battery_config, evse_scheduler, inventory, site_energy |
 | Degraded | 2026-04-04 20:30 UTC | 2026-04-04 21:30 UTC | 59m | battery_config, evse_scheduler |

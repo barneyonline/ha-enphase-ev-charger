@@ -1,25 +1,8 @@
 {
   "current_status": "Fully Operational",
-  "generated_at": "2026-04-24T08:02:01.335797Z",
+  "generated_at": "2026-04-24T10:03:43.712922Z",
   "retention_days": 30,
   "samples": [
-    {
-      "checked_at": "2026-03-25T08:38:45.141289Z",
-      "checks_failed": 0,
-      "failed_check_names": [],
-      "status": "Fully Operational"
-    },
-    {
-      "checked_at": "2026-03-25T09:43:28.827585Z",
-      "checks_failed": 4,
-      "failed_check_names": [
-        "charger_status",
-        "scheduler_charge_mode",
-        "scheduler_green_settings",
-        "scheduler_schedules"
-      ],
-      "status": "Down"
-    },
     {
       "checked_at": "2026-03-25T10:39:26.435747Z",
       "checks_failed": 4,
@@ -4114,6 +4097,14 @@
     },
     {
       "checked_at": "2026-04-24T08:02:01.335797Z",
+      "checks_failed": 1,
+      "failed_check_names": [
+        "battery_config"
+      ],
+      "status": "Fully Operational"
+    },
+    {
+      "checked_at": "2026-04-24T10:03:43.712922Z",
       "checks_failed": 1,
       "failed_check_names": [
         "battery_config"
