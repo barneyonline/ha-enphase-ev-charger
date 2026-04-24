@@ -134,6 +134,17 @@ def _make_token(payload: dict) -> str:
     return f"header.{payload_b64}.sig"
 
 
+def test_request_count_reset_and_snapshot() -> None:
+    client = _make_client()
+
+    client._request_count = 3  # noqa: SLF001
+    assert client.request_count == 3
+
+    client.reset_request_count()
+
+    assert client.request_count == 0
+
+
 def _make_optional_payload_error(endpoint: str) -> api.InvalidPayloadError:
     return api.InvalidPayloadError(
         "Invalid JSON response",
