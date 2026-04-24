@@ -185,10 +185,44 @@ class AcBatteryRuntime:
         if refresh_topology:
             self._battery_runtime._refresh_cached_topology()
 
+    def _preserve_ac_battery_status_fallback(self) -> bool:
+        # Battery status refresh runs before the dedicated AC Battery devices page.
+        # If that page is empty or unparsable, keep the known battery-status rows
+        # instead of erasing AC Battery entities before Home Assistant sees them.
+        state = self.battery_state
+        details = getattr(state, "_ac_battery_aggregate_status_details", None)
+        if not isinstance(details, dict):
+            return False
+        if details.get("status_source") != "battery_status":
+            return False
+        rows = getattr(state, "_ac_battery_data", None)
+        if not isinstance(rows, dict):
+            return False
+        valid_rows = {
+            key: snapshot
+            for key, snapshot in rows.items()
+            if isinstance(snapshot, dict)
+        }
+        if not valid_rows:
+            return False
+        order = [
+            key
+            for key in getattr(state, "_ac_battery_order", []) or []
+            if key in valid_rows
+        ]
+        order.extend(key for key in valid_rows if key not in order)
+        state._ac_battery_data = valid_rows
+        state._ac_battery_order = list(dict.fromkeys(order))
+        self.refresh_ac_battery_summary()
+        self._battery_runtime._refresh_cached_topology()
+        return True
+
     def parse_ac_battery_devices_page(self, html_text: object) -> None:
         state = self.battery_state
         page_text = self._battery_runtime._coerce_optional_text(html_text)
         if not page_text:
+            if self._preserve_ac_battery_status_fallback():
+                return
             state._ac_battery_data = {}
             state._ac_battery_order = []
             state._ac_battery_aggregate_status = None
@@ -286,6 +320,9 @@ class AcBatteryRuntime:
                 worst_severity = severity
                 worst_status = status_normalized
                 worst_key = key
+
+        if not rows and self._preserve_ac_battery_status_fallback():
+            return
 
         aggregate_sleep_state = None
         if sleep_states:
