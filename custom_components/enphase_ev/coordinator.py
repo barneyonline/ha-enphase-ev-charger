@@ -1134,21 +1134,29 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     def cleanup_runtime_state(self) -> None:
         """Release runtime caches/listeners to make unload deterministic."""
+
+        def _task_done(task: object) -> bool:
+            done = getattr(task, "done", None)
+            return callable(done) and done() is True
+
         if self._warmup_task is not None:
             self._warmup_task.cancel()
             self._warmup_task = None
         for task in list(self._amp_restart_tasks.values()):
-            if task is not None and not task.done():
+            if task is not None and not _task_done(task):
                 task.cancel()
         self._amp_restart_tasks.clear()
         if self._streaming_stop_task is not None:
-            if not self._streaming_stop_task.done():
+            if not _task_done(self._streaming_stop_task):
                 self._streaming_stop_task.cancel()
             self._streaming_stop_task = None
         if self._auth_refresh_task is not None:
-            if not self._auth_refresh_task.done():
+            if not _task_done(self._auth_refresh_task):
                 self._auth_refresh_task.cancel()
             self._auth_refresh_task = None
+        clear_streaming_state = getattr(self, "_clear_streaming_state", None)
+        if callable(clear_streaming_state):
+            clear_streaming_state()
         self.discovery_snapshot.cancel_pending_save()
         session_manager = getattr(self, "session_history", None)
         if session_manager is not None and hasattr(session_manager, "clear"):

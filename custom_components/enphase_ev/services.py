@@ -78,11 +78,7 @@ def async_setup_services(
             message=message,
         )
 
-    async def _resolve_sn(device_id: str) -> str | None:
-        dev_reg = dr.async_get(hass)
-        dev = dev_reg.async_get(device_id)
-        if not dev:
-            return None
+    def _serial_from_device(dev) -> str | None:
         for domain, sn in dev.identifiers:
             if domain == DOMAIN:
                 if sn.startswith("site:"):
@@ -92,11 +88,7 @@ def async_setup_services(
                 return sn
         return None
 
-    async def _resolve_site_id(device_id: str) -> str | None:
-        dev_reg = dr.async_get(hass)
-        dev = dev_reg.async_get(device_id)
-        if not dev:
-            return None
+    def _site_id_from_device(dev_reg, dev) -> str | None:
         for domain, identifier in dev.identifiers:
             if domain == DOMAIN and identifier.startswith("site:"):
                 return identifier.partition(":")[2]
@@ -117,14 +109,127 @@ def async_setup_services(
                             return parsed[0]
         return None
 
-    async def _get_coordinator_for_sn(sn: str) -> EnphaseCoordinator | None:
+    async def _resolve_site_id(device_id: str) -> str | None:
+        dev_reg = dr.async_get(hass)
+        dev = dev_reg.async_get(device_id)
+        if not dev:
+            return None
+        return _site_id_from_device(dev_reg, dev)
+
+    def _iter_loaded_coordinators() -> list[EnphaseCoordinator]:
+        coordinators: list[EnphaseCoordinator] = []
         for entry in hass.config_entries.async_entries(DOMAIN):
             runtime_data = getattr(entry, "runtime_data", None)
-            if not isinstance(runtime_data, EnphaseRuntimeData):
+            if isinstance(runtime_data, EnphaseRuntimeData):
+                coordinators.append(runtime_data.coordinator)
+        return coordinators
+
+    def _coordinator_has_serial(coord: EnphaseCoordinator, sn: str) -> bool:
+        data = coord.data if isinstance(getattr(coord, "data", None), dict) else {}
+        return sn in (getattr(coord, "serials", None) or set()) or sn in data
+
+    def _coordinator_can_fallback_for_serial(
+        coord: EnphaseCoordinator, sn: str, site_id: str | None
+    ) -> bool:
+        if site_id is not None and str(getattr(coord, "site_id", "")) != site_id:
+            return False
+        if getattr(coord, "site_only", False):
+            return False
+        serials = getattr(coord, "serials", None) or set()
+        data = coord.data if isinstance(getattr(coord, "data", None), dict) else {}
+        return bool(not serials and not data and sn)
+
+    def _device_config_entry_ids(device) -> list[str]:
+        entry_ids: list[str] = []
+        config_entries = getattr(device, "config_entries", None)
+        if config_entries:
+            entry_ids.extend(str(entry_id) for entry_id in config_entries)
+        config_entry_id = getattr(device, "config_entry_id", None)
+        if config_entry_id:
+            entry_ids.append(str(config_entry_id))
+        return list(dict.fromkeys(entry_ids))
+
+    def _config_entry_ids_for_device(dev_reg, dev) -> list[str]:
+        entry_ids = _device_config_entry_ids(dev)
+        if entry_ids:
+            return entry_ids
+        via = dev.via_device_id
+        if not via:
+            return []
+        parent = dev_reg.async_get(via)
+        if not parent:
+            return []
+        return _device_config_entry_ids(parent)
+
+    async def _resolve_device_routing_context(
+        device_id: str,
+    ) -> tuple[str, str | None, list[str]] | None:
+        dev_reg = dr.async_get(hass)
+        dev = dev_reg.async_get(device_id)
+        if not dev:
+            return None
+        sn = _serial_from_device(dev)
+        if not sn:
+            return None
+        return (
+            sn,
+            _site_id_from_device(dev_reg, dev),
+            _config_entry_ids_for_device(dev_reg, dev),
+        )
+
+    async def _get_coordinator_for_sn(
+        sn: str,
+        *,
+        site_id: str | None = None,
+        config_entry_ids: list[str] | None = None,
+    ) -> EnphaseCoordinator | None:
+        sn = str(sn)
+        for entry_id in config_entry_ids or []:
+            coord = _get_coordinator_for_entry_id(entry_id)
+            if coord is None:
                 continue
-            coord = runtime_data.coordinator
-            if sn in (coord.serials or set()) or sn in (coord.data or {}):
+            if _coordinator_has_serial(coord, sn):
                 return coord
+
+        all_coordinators = _iter_loaded_coordinators()
+        if site_id is not None:
+            site_coordinators = [
+                coord
+                for coord in all_coordinators
+                if str(getattr(coord, "site_id", "")) == site_id
+            ]
+            exact_matches = [
+                coord
+                for coord in site_coordinators
+                if _coordinator_has_serial(coord, sn)
+            ]
+            if len(exact_matches) == 1:
+                return exact_matches[0]
+            if exact_matches:
+                return None
+            fallback_candidates = [
+                coord
+                for coord in site_coordinators
+                if _coordinator_can_fallback_for_serial(coord, sn, site_id)
+            ]
+            if len(fallback_candidates) == 1:
+                return fallback_candidates[0]
+            return None
+
+        exact_matches = [
+            coord for coord in all_coordinators if _coordinator_has_serial(coord, sn)
+        ]
+        if len(exact_matches) == 1:
+            return exact_matches[0]
+        if exact_matches:
+            return None
+        fallback_candidates = [
+            coord
+            for coord in all_coordinators
+            if _coordinator_can_fallback_for_serial(coord, sn, None)
+        ]
+        if len(fallback_candidates) == 1:
+            return fallback_candidates[0]
         return None
 
     def _get_coordinator_for_entry_id(entry_id: str) -> EnphaseCoordinator | None:
@@ -498,10 +603,15 @@ def async_setup_services(
 
         targets: list[tuple[str, str, EnphaseCoordinator]] = []
         for device_id in device_ids:
-            sn = await _resolve_sn(device_id)
-            if not sn:
+            routing_context = await _resolve_device_routing_context(device_id)
+            if routing_context is None:
                 continue
-            coord = await _get_coordinator_for_sn(sn)
+            sn, site_id, config_entry_ids = routing_context
+            coord = await _get_coordinator_for_sn(
+                sn,
+                site_id=site_id,
+                config_entry_ids=config_entry_ids,
+            )
             if coord is None:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
