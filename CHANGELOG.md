@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Seed AC Battery status and last-reported data from the battery status endpoint when the dedicated AC Battery devices page does not return parsed rows.
 
 ### 🔧 Improvements
 - None

@@ -722,6 +722,136 @@ def test_battery_runtime_parse_status_payload_updates_runtime_state(
     assert coord.battery_aggregate_status == "normal"
 
 
+def test_battery_runtime_parse_status_payload_seeds_ac_battery_fallback(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._battery_has_encharge = False  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "storages": [
+                {
+                    "id": 110528990,
+                    "serial_number": "BAT-AC-1",
+                    "current_charge": "1%",
+                    "available_energy": 0.01,
+                    "max_capacity": 1.24,
+                    "statusText": "Normal",
+                    "status": "normal",
+                    "last_report": 1_776_981_758,
+                    "cycle_count": 53,
+                    "battery_mode": "Self-Consumption",
+                    "rated_power": "N/A",
+                    "battery_phase_count": "N/A",
+                }
+            ]
+        }
+    )
+
+    assert coord.iter_ac_battery_serials() == ["BAT-AC-1"]
+    snapshot = coord.ac_battery_storage("BAT-AC-1")
+    assert snapshot is not None
+    assert snapshot["battery_id"] == "110528990"
+    assert snapshot["current_charge_pct"] == 1.0
+    assert snapshot["status_normalized"] == "normal"
+    assert snapshot["cycle_count"] == 53
+    assert snapshot["last_reported"] == datetime.fromtimestamp(1_776_981_758, UTC)
+    assert coord.ac_battery_aggregate_status == "normal"
+    assert coord.ac_battery_status_summary["status_source"] == "battery_status"
+
+
+@pytest.mark.asyncio
+async def test_ac_battery_devices_refresh_preserves_status_fallback_rows(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._battery_has_encharge = False  # noqa: SLF001
+    coord.client.ac_battery_devices_page = AsyncMock(
+        return_value="<html><table id='ac_batteries'></table></html>"
+    )
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "storages": [
+                {
+                    "id": 110528990,
+                    "serial_number": "BAT-AC-1",
+                    "current_charge": "1%",
+                    "statusText": "Normal",
+                    "status": "normal",
+                    "last_report": 1_776_981_758,
+                }
+            ]
+        }
+    )
+
+    await coord.battery_runtime.async_refresh_ac_battery_devices(force=True)
+
+    assert coord.iter_ac_battery_serials() == ["BAT-AC-1"]
+    assert coord.ac_battery_storage("BAT-AC-1")["battery_id"] == "110528990"
+    assert coord.ac_battery_aggregate_status == "normal"
+    assert coord.ac_battery_status_summary["status_source"] == "battery_status"
+    assert coord._ac_battery_devices_payload["battery_count"] == 1  # noqa: SLF001
+
+
+def test_battery_runtime_ac_battery_status_fallback_guard_paths(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._battery_has_acb = True  # noqa: SLF001
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord._selected_type_keys = {"envoy"}  # noqa: SLF001
+
+    coord.battery_runtime._sync_ac_battery_from_battery_status(  # noqa: SLF001
+        {"BAT-AC-1": {"serial_number": "BAT-AC-1"}}
+    )
+    assert coord.iter_ac_battery_serials() == []
+
+    coord._selected_type_keys = {"ac_battery"}  # noqa: SLF001
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._type_device_buckets = {}  # noqa: SLF001
+    coord.battery_runtime._sync_ac_battery_from_battery_status(  # noqa: SLF001
+        {"BAT-AC-1": {"serial_number": "BAT-AC-1"}}
+    )
+    assert coord.iter_ac_battery_serials() == []
+
+    coord._type_device_buckets = {  # noqa: SLF001
+        "ac_battery": {
+            "count": 1,
+            "devices": [
+                "bad-member",
+                {"id": "110528990", "serial_number": "BAT-AC-1"},
+            ],
+        }
+    }
+    coord.battery_runtime._sync_ac_battery_from_battery_status(  # noqa: SLF001
+        {"BAT-SKIP": {"battery_id": "999", "serial_number": "BAT-SKIP"}}
+    )
+    assert coord.iter_ac_battery_serials() == []
+
+    coord.battery_runtime._sync_ac_battery_from_battery_status(  # noqa: SLF001
+        {
+            "BAT-SKIP": {"battery_id": "999", "serial_number": "BAT-SKIP"},
+            "BAT-AC-1": {
+                "battery_id": "110528990",
+                "serial_number": "BAT-AC-1",
+                "status_text": None,
+                "status_normalized": None,
+            },
+        }
+    )
+
+    assert coord.iter_ac_battery_serials() == ["BAT-AC-1"]
+    assert coord.ac_battery_aggregate_status == "unknown"
+
+
 def test_battery_runtime_parse_profile_payload_updates_profile_state(
     coordinator_factory,
 ) -> None:
@@ -1400,6 +1530,21 @@ def test_ac_battery_runtime_helper_branches(coordinator_factory, monkeypatch) ->
     )
     assert runtime._ac_battery_parse_int("1") is None  # noqa: SLF001
     assert runtime._ac_battery_key() is None  # noqa: SLF001
+
+    coord._ac_battery_aggregate_status_details = None  # noqa: SLF001
+    assert runtime._preserve_ac_battery_status_fallback() is False  # noqa: SLF001
+    coord._ac_battery_aggregate_status_details = {  # noqa: SLF001
+        "status_source": "battery_status"
+    }
+    coord._ac_battery_data = None  # noqa: SLF001
+    assert runtime._preserve_ac_battery_status_fallback() is False  # noqa: SLF001
+    coord._ac_battery_data = {"bad": "not-a-dict"}  # noqa: SLF001
+    assert runtime._preserve_ac_battery_status_fallback() is False  # noqa: SLF001
+
+    coord._ac_battery_data = {"BAT-AC-1": {"serial_number": "BAT-AC-1"}}  # noqa: SLF001
+    coord._ac_battery_order = []  # noqa: SLF001
+    coord.battery_runtime.parse_ac_battery_devices_page(None)
+    assert coord.iter_ac_battery_serials() == ["BAT-AC-1"]
 
 
 def test_ac_battery_runtime_parse_devices_page_edge_branches(
