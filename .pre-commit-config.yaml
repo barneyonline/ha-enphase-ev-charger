@@ -4,12 +4,12 @@ repos:
     hooks:
       - id: black
         args: [--check]
-        files: "^(custom_components/enphase_ev|tests/components/enphase_ev)/.*\\.py$"
+        files: "^((custom_components/enphase_ev|tests/components/enphase_ev)/.*|scripts/validate_quality_scale|tests/scripts/test_validate_quality_scale)\\.py$"
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
-        files: "^(custom_components/enphase_ev|tests/components/enphase_ev)/.*\\.py$"
+        files: "^((custom_components/enphase_ev|tests/components/enphase_ev)/.*|scripts/validate_quality_scale|tests/scripts/test_validate_quality_scale)\\.py$"
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.2
     hooks:
