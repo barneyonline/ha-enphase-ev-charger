@@ -8,18 +8,39 @@ from datetime import datetime
 from datetime import timezone as _tz
 from typing import TYPE_CHECKING, Callable
 
+import aiohttp
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.util import dt as dt_util
 
-from .api import EnphaseLoginWallUnauthorized
+from .api import (
+    EnphaseLoginWallUnauthorized,
+    InvalidPayloadError,
+    OptionalEndpointUnavailable,
+)
 from .const import DOMAIN, DEFAULT_CHARGE_LEVEL_SETTING, PHASE_SWITCH_CONFIG_SETTING
 from .log_redaction import redact_site_id, redact_text
-from .refresh_plan import RefreshPlan, bind_refresh_plan, warmup_plan
+from .refresh_plan import BoundRefreshCall, RefreshPlan, bind_refresh_plan, warmup_plan
 
 if TYPE_CHECKING:
     from .coordinator import EnphaseCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+_SKIPPABLE_REFRESH_ERRORS = (
+    aiohttp.ClientError,
+    asyncio.TimeoutError,
+    InvalidPayloadError,
+    OptionalEndpointUnavailable,
+)
+
+
+def _unpack_refresh_call(
+    call: BoundRefreshCall | tuple[str, str, Callable[[], object]],
+) -> tuple[str, str, Callable[[], object], str | None]:
+    if len(call) == 3:
+        timing_key, log_label, callback_factory = call
+        return timing_key, log_label, callback_factory, None
+    return call
 
 
 class RefreshRunner:
@@ -33,6 +54,8 @@ class RefreshRunner:
         timing_key: str,
         log_label: str,
         callback_factory: Callable[[], object],
+        *,
+        endpoint_family: str | None = None,
     ) -> tuple[str, float | None]:
         started = time.monotonic()
         try:
@@ -49,20 +72,33 @@ class RefreshRunner:
             raise ConfigEntryAuthFailed from err
         except ConfigEntryAuthFailed:
             raise
-        except Exception as err:  # noqa: BLE001
+        except _SKIPPABLE_REFRESH_ERRORS as err:
+            if endpoint_family is not None:
+                self._coordinator._note_endpoint_family_failure(endpoint_family, err)
             _LOGGER.debug(
                 "Skipping %s refresh for site %s: %s",
                 log_label,
                 redact_site_id(self._coordinator.site_id),
                 redact_text(err, site_ids=(self._coordinator.site_id,)),
             )
+        except Exception as err:
+            self._coordinator.last_failure_utc = dt_util.utcnow()
+            self._coordinator.last_failure_status = None
+            self._coordinator.last_failure_description = (
+                redact_text(err, site_ids=(self._coordinator.site_id,))
+                or err.__class__.__name__
+            )
+            self._coordinator.last_failure_response = None
+            self._coordinator.last_failure_source = "refresh_stage"
+            self._coordinator.last_failure_endpoint = timing_key
+            raise
         return timing_key, round(time.monotonic() - started, 3)
 
     async def async_run_refresh_calls(
         self,
         phase_timings: dict[str, float],
         *,
-        calls: tuple[tuple[str, str, Callable[[], object]], ...],
+        calls: tuple[BoundRefreshCall | tuple[str, str, Callable[[], object]], ...],
         stage_key: str | None = None,
         defer_topology: bool = False,
     ) -> None:
@@ -70,13 +106,29 @@ class RefreshRunner:
             self._coordinator._begin_topology_refresh_batch()
 
         group_started = time.monotonic()
+        tasks: list[asyncio.Task[tuple[str, float | None]]] = []
         try:
-            results = await asyncio.gather(
-                *(
-                    self.async_run_refresh_call(timing_key, log_label, callback_factory)
-                    for timing_key, log_label, callback_factory in calls
+            tasks = [
+                asyncio.create_task(
+                    self.async_run_refresh_call(
+                        timing_key,
+                        log_label,
+                        callback_factory,
+                        endpoint_family=endpoint_family,
+                    )
                 )
-            )
+                for timing_key, log_label, callback_factory, endpoint_family in (
+                    _unpack_refresh_call(call) for call in calls
+                )
+            ]
+            results = await asyncio.gather(*tasks)
+        except (asyncio.CancelledError, Exception):
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            raise
         finally:
             if defer_topology:
                 self._coordinator._end_topology_refresh_batch()
@@ -91,7 +143,7 @@ class RefreshRunner:
         self,
         phase_timings: dict[str, float],
         *,
-        calls: tuple[tuple[str, str, Callable[[], object]], ...],
+        calls: tuple[BoundRefreshCall | tuple[str, str, Callable[[], object]], ...],
         stage_key: str | None = None,
         defer_topology: bool = False,
     ) -> None:
@@ -100,11 +152,14 @@ class RefreshRunner:
 
         group_started = time.monotonic()
         try:
-            for timing_key, log_label, callback_factory in calls:
+            for timing_key, log_label, callback_factory, endpoint_family in (
+                _unpack_refresh_call(call) for call in calls
+            ):
                 key, duration = await self.async_run_refresh_call(
                     timing_key,
                     log_label,
                     callback_factory,
+                    endpoint_family=endpoint_family,
                 )
                 if duration is not None:
                     phase_timings[key] = duration
@@ -119,8 +174,12 @@ class RefreshRunner:
         self,
         phase_timings: dict[str, float],
         *,
-        parallel_calls: tuple[tuple[str, str, Callable[[], object]], ...] = (),
-        ordered_calls: tuple[tuple[str, str, Callable[[], object]], ...] = (),
+        parallel_calls: tuple[
+            BoundRefreshCall | tuple[str, str, Callable[[], object]], ...
+        ] = (),
+        ordered_calls: tuple[
+            BoundRefreshCall | tuple[str, str, Callable[[], object]], ...
+        ] = (),
         stage_key: str | None = None,
         defer_topology: bool = False,
     ) -> None:

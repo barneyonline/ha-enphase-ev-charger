@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 import re
@@ -54,6 +55,7 @@ _LOGGER = logging.getLogger(__name__)
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEMS_DEVICES_STALE_AFTER_S = 90.0
 HEMS_DEVICES_CACHE_TTL = 15.0
+SYSTEM_DASHBOARD_DETAIL_CONCURRENCY = 3
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
     "envoys",
     "meters",
@@ -1991,15 +1993,36 @@ class InventoryRuntime:
             )
             else {}
         )
+        detail_failures: dict[str, str] = {}
         if callable(details_fetcher):
-            for source_type in SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES:
-                try:
-                    payload = await details_fetcher(source_type)
-                except Exception as err:  # noqa: BLE001
+            semaphore = asyncio.Semaphore(SYSTEM_DASHBOARD_DETAIL_CONCURRENCY)
+
+            async def _fetch_detail(
+                source_type: str,
+            ) -> tuple[str, dict[str, object] | None, Exception | None]:
+                async with semaphore:
+                    try:
+                        payload = await details_fetcher(source_type)
+                    except Exception as err:  # noqa: BLE001
+                        return source_type, None, err
+                return source_type, payload if isinstance(payload, dict) else None, None
+
+            detail_results = await asyncio.gather(
+                *(
+                    _fetch_detail(source_type)
+                    for source_type in SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES
+                )
+            )
+            for source_type, payload, err in detail_results:
+                if err is not None:
                     if first_error is None:
                         first_error = err
+                    detail_failures[source_type] = (
+                        redact_text(err, site_ids=(self.site_id,))
+                        or err.__class__.__name__
+                    )
                     continue
-                if not isinstance(payload, dict):
+                if payload is None:
                     continue
                 fetched_payload = True
                 canonical_type = self._system_dashboard_type_key(source_type)
@@ -2048,6 +2071,7 @@ class InventoryRuntime:
         self._update_shared_state(
             _system_dashboard_devices_tree_payload=tree_payload_out,
             _system_dashboard_devices_details_payloads=redacted_details,
+            _system_dashboard_detail_failures=detail_failures,
             _system_dashboard_type_summaries=type_summaries,
             _system_dashboard_hierarchy_summary=hierarchy_summary,
             _system_dashboard_hierarchy_index=hierarchy_index,
@@ -2984,6 +3008,7 @@ class InventoryRuntime:
         devices_details_payloads = getattr(
             self, "_system_dashboard_devices_details_payloads", None
         )
+        detail_failures = getattr(self, "_system_dashboard_detail_failures", None)
         hierarchy_summary = getattr(self, "_system_dashboard_hierarchy_summary", None)
         type_summaries = getattr(self, "_system_dashboard_type_summaries", None)
         out: dict[str, object] = {
@@ -2995,6 +3020,11 @@ class InventoryRuntime:
             "devices_details_payloads": (
                 self._copy_diagnostics_value(devices_details_payloads)
                 if isinstance(devices_details_payloads, dict)
+                else {}
+            ),
+            "detail_failures": (
+                self._copy_diagnostics_value(detail_failures)
+                if isinstance(detail_failures, dict)
                 else {}
             ),
             "hierarchy_summary": (

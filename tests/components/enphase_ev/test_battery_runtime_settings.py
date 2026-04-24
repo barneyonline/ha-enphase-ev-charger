@@ -4678,7 +4678,7 @@ async def test_async_update_data_site_only_ignores_battery_schedule_refresh_erro
     )  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("boom")
+        side_effect=aiohttp.ClientError("boom")
     )
     coord._async_refresh_storm_guard_profile = AsyncMock(
         return_value=None
@@ -4741,7 +4741,7 @@ async def test_async_update_data_ignores_battery_schedule_refresh_errors(
     )  # noqa: SLF001
     coord._async_refresh_battery_settings = AsyncMock(return_value=None)  # noqa: SLF001
     coord._async_refresh_battery_schedules = AsyncMock(  # noqa: SLF001
-        side_effect=RuntimeError("boom")
+        side_effect=aiohttp.ClientError("boom")
     )
     coord._async_refresh_storm_guard_profile = AsyncMock(
         return_value=None

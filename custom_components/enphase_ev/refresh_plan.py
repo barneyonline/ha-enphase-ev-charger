@@ -5,7 +5,25 @@ from functools import partial
 from typing import Any, Callable
 
 CallbackFactory = Callable[[Any], object]
-BoundRefreshCall = tuple[str, str, Callable[[], object]]
+BoundRefreshCall = tuple[str, str, Callable[[], object], str | None]
+
+REFRESH_TASK_ENDPOINT_FAMILIES: dict[str, str] = {
+    "battery_site_settings_s": "battery_site_settings",
+    "battery_backup_history_s": "battery_backup_history",
+    "battery_settings_s": "battery_settings",
+    "battery_schedules_s": "battery_schedules",
+    "storm_guard_s": "storm_guard",
+    "storm_alert_s": "storm_alert",
+    "grid_control_check_s": "grid_control_check",
+    "dry_contact_settings_s": "dry_contact_settings",
+    "battery_status_s": "battery_status",
+    "ac_battery_devices_s": "ac_battery_devices",
+    "ac_battery_telemetry_s": "ac_battery_telemetry",
+    "devices_inventory_s": "inventory_topology",
+    "hems_devices_s": "inventory_topology",
+    "system_dashboard_s": "inventory_topology",
+    "inverters_s": "inverter_inventory",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +31,7 @@ class RefreshTask:
     timing_key: str
     log_label: str
     callback_factory: CallbackFactory
+    endpoint_family: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,12 +65,18 @@ def method_task(
     log_label: str,
     method_name: str,
     /,
+    endpoint_family: str | None = None,
     **kwargs: object,
 ) -> RefreshTask:
     return RefreshTask(
         timing_key=timing_key,
         log_label=log_label,
         callback_factory=lambda owner: getattr(owner, method_name)(**kwargs),
+        endpoint_family=(
+            endpoint_family
+            if endpoint_family is not None
+            else REFRESH_TASK_ENDPOINT_FAMILIES.get(timing_key)
+        ),
     )
 
 
@@ -61,6 +86,7 @@ def object_method_task(
     object_name: str,
     method_name: str,
     /,
+    endpoint_family: str | None = None,
     **kwargs: object,
 ) -> RefreshTask:
     return RefreshTask(
@@ -69,6 +95,11 @@ def object_method_task(
         callback_factory=lambda owner: getattr(
             getattr(owner, object_name), method_name
         )(**kwargs),
+        endpoint_family=(
+            endpoint_family
+            if endpoint_family is not None
+            else REFRESH_TASK_ENDPOINT_FAMILIES.get(timing_key)
+        ),
     )
 
 
@@ -76,11 +107,18 @@ def callback_task(
     timing_key: str,
     log_label: str,
     callback_factory: CallbackFactory,
+    *,
+    endpoint_family: str | None = None,
 ) -> RefreshTask:
     return RefreshTask(
         timing_key=timing_key,
         log_label=log_label,
         callback_factory=callback_factory,
+        endpoint_family=(
+            endpoint_family
+            if endpoint_family is not None
+            else REFRESH_TASK_ENDPOINT_FAMILIES.get(timing_key)
+        ),
     )
 
 
@@ -92,6 +130,7 @@ def bind_refresh_tasks(
             task.timing_key,
             task.log_label,
             partial(task.callback_factory, owner),
+            task.endpoint_family,
         )
         for task in tasks
     )
