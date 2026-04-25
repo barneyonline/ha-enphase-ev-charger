@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Automatic retries are paused until {blocked_until}. A successful manual reauthentication can clear this earlier."
     },
     "rate_limited": {
       "title": "Enphase Energy is rate limited",
@@ -1711,6 +1711,20 @@
         "device_id": {
           "name": "Chargers",
           "description": "Select Enphase chargers whose reauthentication repair issue should be cleared."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Try Reauth Now",
+      "description": "Use stored Enphase credentials to attempt reauthentication immediately for the selected site.",
+      "fields": {
+        "device_id": {
+          "name": "Site devices",
+          "description": "Select an Enphase site device to try reauthentication for."
         },
         "site_id": {
           "name": "Site ID",

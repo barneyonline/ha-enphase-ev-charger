@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Atrodo, kad Enphase laikinai blokuoja svetainės {site_id} autentifikavimą. Automatiniai bandymai pristabdyti iki {blocked_until}. Sėkmingas rankinis pakartotinis autentifikavimas gali panaikinti bloką anksčiau."
     },
     "rate_limited": {
       "title": "Enphase Energy ribojamas",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Konfigūracijos įrašo ID",
           "description": "Pasirenkamas konfigūracijos įrašo identifikatorius vienam Enphase svetainės įrašui."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Bandyti pakartotinai autentifikuoti dabar",
+      "description": "Naudoti išsaugotus Enphase prisijungimo duomenis ir iš karto bandyti pakartotinai autentifikuoti pasirinktą svetainę.",
+      "fields": {
+        "device_id": {
+          "name": "Svetainės įrenginiai",
+          "description": "Pasirinkite Enphase svetainės įrenginį, kuriam bandyti pakartotinį autentifikavimą."
+        },
+        "site_id": {
+          "name": "Svetainės ID",
+          "description": "Pasirenkamas svetainės identifikatorius; aptinkamas automatiškai pasirinkus svetainės įrenginį."
         }
       }
     }

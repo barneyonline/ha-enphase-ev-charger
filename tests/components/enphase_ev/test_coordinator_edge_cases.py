@@ -1467,6 +1467,207 @@ async def test_attempt_auto_refresh_skips_when_auth_block_active(hass):
 
 
 @pytest.mark.asyncio
+async def test_manual_auth_refresh_bypasses_block_and_clears_on_success(
+    monkeypatch, hass
+):
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
+    from custom_components.enphase_ev.api import AuthTokens
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_rejected_until = time.monotonic() + 300
+    coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
+        minutes=5
+    )
+    coord._auth_refresh_rejected_count = 1
+    coord._auth_refresh_suspended_until_utc = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+    coord._auth_block_reason = "login_wall_after_refresh_reject"
+    coord.client = SimpleNamespace(update_credentials=MagicMock())
+    coord.diagnostics = SimpleNamespace(clear_auth_block_issue=MagicMock())
+    coord._persist_tokens = MagicMock()
+    coord._tokens = AuthTokens(
+        cookie="", session_id=None, access_token="", token_expires_at=None
+    )
+
+    new_tokens = AuthTokens(
+        cookie="cookie",
+        session_id="sess",
+        access_token="token",
+        token_expires_at=12345,
+    )
+    monkeypatch.setattr(
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        arr_mod, "async_authenticate", AsyncMock(return_value=(new_tokens, {}))
+    )
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is True
+    assert result.reason is None
+
+    coord.client.update_credentials.assert_called_once_with(
+        eauth="token", cookie="cookie"
+    )
+    coord._persist_tokens.assert_called_once_with(new_tokens)
+    assert coord._auth_blocked_until_utc is None
+    assert coord._auth_block_reason is None
+    assert coord._auth_refresh_suspended_until_utc is None
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_requires_stored_credentials(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = None
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is False
+    assert result.reason == "stored_credentials_unavailable"
+    assert result.retry_after_seconds is None
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_reuses_recent_success(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._auth_refresh_last_success_mono = time.monotonic()
+    coord._auth_refresh_manual_retry_until = None
+    coord.auth_refresh_runtime.async_run_auto_refresh = AsyncMock(return_value=True)
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is True
+    assert result.reason is None
+    coord.auth_refresh_runtime.async_run_auto_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_failed_attempt_enters_short_cooldown(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_last_success_mono = None
+    coord._auth_refresh_manual_retry_until = None
+    coord.auth_refresh_runtime.async_run_auto_refresh = AsyncMock(return_value=False)
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is False
+    assert result.reason == "reauth_failed"
+    assert result.retry_after_seconds is None
+    cooldown_until = coord._auth_refresh_manual_retry_until
+    assert isinstance(cooldown_until, float)
+    assert cooldown_until > time.monotonic()
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is False
+    assert result.reason == "manual_retry_cooldown_active"
+    assert result.retry_after_seconds is not None
+    coord.auth_refresh_runtime.async_run_auto_refresh.assert_awaited_once_with()
+    assert coord._auth_refresh_manual_retry_until == cooldown_until
+
+
+def test_manual_auth_refresh_clears_expired_retry_cooldown(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._auth_refresh_manual_retry_until = time.monotonic() - 1
+
+    assert coord.auth_refresh_runtime.manual_refresh_retry_active() is False
+    assert coord._auth_refresh_manual_retry_until is None
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_rechecks_recent_success_inside_lock(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+
+    recent_states = iter([False, True])
+    arr = coord.auth_refresh_runtime
+    arr.auth_refresh_recent_success_active = lambda: next(recent_states)  # type: ignore[method-assign]
+    arr.manual_refresh_retry_after_seconds = lambda: None  # type: ignore[method-assign]
+    arr.async_run_auto_refresh = AsyncMock(return_value=True)
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is True
+    assert result.reason is None
+    arr.async_run_auto_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_rechecks_retry_cooldown_inside_lock(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+
+    retry_states = iter([False, True])
+    arr = coord.auth_refresh_runtime
+    arr.auth_refresh_recent_success_active = lambda: False  # type: ignore[method-assign]
+    arr.manual_refresh_retry_after_seconds = lambda: 60 if next(retry_states) else None  # type: ignore[method-assign]
+    arr.async_run_auto_refresh = AsyncMock(return_value=True)
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is False
+    assert result.reason == "manual_retry_cooldown_active"
+    assert result.retry_after_seconds == 60
+    arr.async_run_auto_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_shares_in_flight_refresh_task(hass):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    task = asyncio.create_task(asyncio.sleep(0, result=True))
+    coord._auth_refresh_task = task
+
+    result = await coord.async_try_reauth_now()
+    assert result.success is True
+    assert result.reason is None
+
+
+@pytest.mark.asyncio
 async def test_attempt_auto_refresh_skips_when_auth_refresh_suspended(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 

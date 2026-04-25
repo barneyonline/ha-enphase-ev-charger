@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Το Enphase φαίνεται να μπλοκάρει προσωρινά τον έλεγχο ταυτότητας για την εγκατάσταση {site_id}. Οι αυτόματες προσπάθειες έχουν παύσει έως {blocked_until}. Μια επιτυχημένη χειροκίνητη επαναπιστοποίηση μπορεί να άρει το μπλοκάρισμα νωρίτερα."
     },
     "rate_limited": {
       "title": "Το Enphase Energy έχει περιορισμό ρυθμού",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Αναγνωριστικό καταχώρισης ρύθμισης",
           "description": "Προαιρετικό αναγνωριστικό καταχώρισης ρύθμισης για μία καταχώριση τοποθεσίας Enphase."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Δοκιμή επαναπιστοποίησης τώρα",
+      "description": "Χρήση των αποθηκευμένων διαπιστευτηρίων Enphase για άμεση προσπάθεια επαναπιστοποίησης της επιλεγμένης εγκατάστασης.",
+      "fields": {
+        "device_id": {
+          "name": "Συσκευές εγκατάστασης",
+          "description": "Επιλέξτε μια συσκευή εγκατάστασης Enphase για την οποία θα γίνει προσπάθεια επαναπιστοποίησης."
+        },
+        "site_id": {
+          "name": "ID εγκατάστασης",
+          "description": "Προαιρετικό αναγνωριστικό εγκατάστασης· εντοπίζεται αυτόματα όταν επιλεγεί συσκευή εγκατάστασης."
         }
       }
     }

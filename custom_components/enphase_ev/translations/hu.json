@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Úgy tűnik, az Enphase ideiglenesen blokkolja a(z) {site_id} hely hitelesítését. Az automatikus próbálkozások {blocked_until} időpontig szünetelnek. A sikeres kézi újrahitelesítés korábban is feloldhatja a blokkolást."
     },
     "rate_limited": {
       "title": "Enphase Energy korlátozott",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Konfigurációs bejegyzés azonosítója",
           "description": "Nem kötelező konfigurációsbejegyzés-azonosító egyetlen Enphase-helyszínbejegyzéshez."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Újrahitelesítés próbája most",
+      "description": "A mentett Enphase hitelesítő adatokkal azonnali újrahitelesítési kísérletet indít a kiválasztott helyhez.",
+      "fields": {
+        "device_id": {
+          "name": "Hely eszközei",
+          "description": "Válasszon egy Enphase helyeszközt, amelyhez újrahitelesítést szeretne próbálni."
+        },
+        "site_id": {
+          "name": "Hely azonosítója",
+          "description": "Opcionális helyazonosító; automatikusan felismerhető, ha helyeszköz van kiválasztva."
         }
       }
     }

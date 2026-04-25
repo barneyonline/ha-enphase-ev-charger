@@ -23,6 +23,61 @@ def test_clear_reauth_issue_device_field_translated() -> None:
         assert entry.get("description"), f"{lang} device_id description empty"
 
 
+def test_try_reauth_now_strings_exist_for_all_locales() -> None:
+    """Ensure manual reauth service and repair text are translated."""
+
+    root = (
+        pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "enphase_ev"
+    )
+    translations_dir = root / "translations"
+    paths = [
+        "issues.auth_blocked.description",
+        "services.try_reauth_now.name",
+        "services.try_reauth_now.description",
+        "services.try_reauth_now.fields.device_id.name",
+        "services.try_reauth_now.fields.device_id.description",
+        "services.try_reauth_now.fields.site_id.name",
+        "services.try_reauth_now.fields.site_id.description",
+    ]
+    strings_data = json.loads((root / "strings.json").read_text(encoding="utf-8"))
+    for path in paths:
+        value = _at_path(strings_data, path)
+        assert value.strip(), f"strings.json missing value for {path}"
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    assert _at_path(strings_data, "services.trigger_message.name")
+    try:
+        _at_path(strings_data, "services.trigger_message.response.fields.success.name")
+    except KeyError:
+        pass
+    else:
+        raise AssertionError(
+            "strings.json should not define manual reauth response fields under trigger_message"
+        )
+    try:
+        _at_path(strings_data, "services.try_reauth_now.response.fields.success.name")
+    except KeyError:
+        pass
+    else:
+        raise AssertionError(
+            "strings.json should not define unsupported response fields under try_reauth_now"
+        )
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
+        issue = _at_path(data, "issues.auth_blocked.description")
+        assert "{site_id}" in issue, f"{name} missing {{site_id}} placeholder"
+        assert (
+            "{blocked_until}" in issue
+        ), f"{name} missing {{blocked_until}} placeholder"
+
+
 def _at_path(data: dict, path: str) -> str:
     cur = data
     for part in path.split("."):

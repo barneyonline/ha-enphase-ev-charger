@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Enphase näyttää estävän sivuston {site_id} todennuksen tilapäisesti. Automaattiset yritykset on keskeytetty aikaan {blocked_until} asti. Onnistunut manuaalinen uudelleentodennus voi poistaa eston aiemmin."
     },
     "rate_limited": {
       "title": "Enphase Energy:n nopeus on rajoitettu",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Asetusmerkinnän tunnus",
           "description": "Valinnainen asetuskirjauksen tunniste yhdelle Enphase-kohdemerkinnälle."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Yritä uudelleentodennusta nyt",
+      "description": "Käytä tallennettuja Enphase-tunnuksia valitun sivuston välittömään uudelleentodennusyritykseen.",
+      "fields": {
+        "device_id": {
+          "name": "Sivuston laitteet",
+          "description": "Valitse Enphase-sivustolaite, jolle uudelleentodennusta yritetään."
+        },
+        "site_id": {
+          "name": "Sivuston ID",
+          "description": "Valinnainen sivustotunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
         }
       }
     }

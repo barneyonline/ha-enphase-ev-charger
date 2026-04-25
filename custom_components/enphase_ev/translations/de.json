@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Enphase scheint die Authentifizierung für Standort {site_id} vorübergehend zu blockieren. Automatische Versuche sind bis {blocked_until} pausiert. Eine erfolgreiche manuelle erneute Authentifizierung kann die Blockierung früher aufheben."
     },
     "rate_limited": {
       "title": "Enphase Energy ist rate-limitiert",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Konfigurationseintrags-ID",
           "description": "Optionaler Konfigurationseintragsbezeichner für einen einzelnen Enphase-Site-Eintrag."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Erneute Authentifizierung jetzt versuchen",
+      "description": "Gespeicherte Enphase-Zugangsdaten verwenden, um die erneute Authentifizierung für den ausgewählten Standort sofort zu versuchen.",
+      "fields": {
+        "device_id": {
+          "name": "Standortgeräte",
+          "description": "Wählen Sie ein Enphase-Standortgerät aus, für das die erneute Authentifizierung versucht werden soll."
+        },
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionale Standortkennung; wird automatisch erkannt, wenn ein Standortgerät ausgewählt ist."
         }
       }
     }

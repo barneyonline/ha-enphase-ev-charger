@@ -39,7 +39,15 @@ def _fake_service_coordinator(*, site_id: str, serials: set[str]):
         async_start_streaming=AsyncMock(return_value=None),
         async_stop_streaming=AsyncMock(return_value=None),
         async_request_refresh=AsyncMock(return_value=None),
+        async_try_reauth_now=AsyncMock(
+            return_value=SimpleNamespace(
+                success=True, reason=None, retry_after_seconds=None
+            )
+        ),
         schedule_sync=SimpleNamespace(async_refresh=AsyncMock(return_value=None)),
+        _email="user@example.com",
+        _remember_password=True,
+        _stored_password="secret",
     )
 
 
@@ -222,6 +230,99 @@ async def test_targeted_services_raise_without_target_or_owner(
     for service, data in owner_required_calls:
         with pytest.raises(ServiceValidationError):
             await handlers[(DOMAIN, service)](SimpleNamespace(data=data))
+
+
+@pytest.mark.asyncio
+async def test_try_reauth_now_uses_stored_credentials_for_selected_site(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Manual reauth should run once for the targeted stored-credential site."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    result = await handlers[(DOMAIN, "try_reauth_now")](
+        SimpleNamespace(data={"site_id": "evse-site"})
+    )
+
+    assert result == {"site_id": "evse-site", "success": True, "reason": None}
+    coord.async_try_reauth_now.assert_awaited_once_with()
+    coord.async_request_refresh.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_try_reauth_now_reports_missing_stored_credentials(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Manual reauth should not prompt or retry when no stored password exists."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    coord._stored_password = None
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    result = await handlers[(DOMAIN, "try_reauth_now")](
+        SimpleNamespace(data={"site_id": "evse-site"})
+    )
+
+    assert result == {
+        "site_id": "evse-site",
+        "success": False,
+        "reason": "stored_credentials_unavailable",
+    }
+    coord.async_try_reauth_now.assert_not_awaited()
+    coord.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_try_reauth_now_reports_manual_retry_cooldown(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Manual reauth should report when the retry cooldown prevents a new login."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    coord.async_try_reauth_now.return_value = SimpleNamespace(
+        success=False,
+        reason="manual_retry_cooldown_active",
+        retry_after_seconds=42,
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    result = await handlers[(DOMAIN, "try_reauth_now")](
+        SimpleNamespace(data={"site_id": "evse-site"})
+    )
+
+    assert result == {
+        "site_id": "evse-site",
+        "success": False,
+        "reason": "manual_retry_cooldown_active",
+        "retry_after_seconds": 42,
+    }
+    coord.async_try_reauth_now.assert_awaited_once_with()
+    coord.async_request_refresh.assert_not_awaited()
 
     coord.async_start_charging.assert_not_awaited()
     coord.async_stop_charging.assert_not_awaited()
