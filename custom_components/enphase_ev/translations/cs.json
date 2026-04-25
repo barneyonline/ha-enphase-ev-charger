@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Enphase zřejmě dočasně blokuje ověření pro lokalitu {site_id}. Automatické pokusy jsou pozastaveny do {blocked_until}. Úspěšné ruční opětovné ověření může blokování ukončit dříve."
     },
     "rate_limited": {
       "title": "Enphase Energy je omezeno limitem",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "ID vstupu konfigurace",
           "description": "Volitelný identifikátor položky konfigurace pro jednu položku webu Enphase."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Zkusit opětovné ověření nyní",
+      "description": "Použije uložené přihlašovací údaje Enphase k okamžitému pokusu o opětovné ověření vybrané lokality.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení lokality",
+          "description": "Vyberte zařízení lokality Enphase, pro které se má zkusit opětovné ověření."
+        },
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; zjistí se automaticky, když je vybráno zařízení lokality."
         }
       }
     }

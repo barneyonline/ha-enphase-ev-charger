@@ -43,7 +43,7 @@ from .api import (
     Unauthorized,
     is_scheduler_unavailable_error,
 )
-from .auth_refresh_runtime import AuthRefreshRuntime
+from .auth_refresh_runtime import AuthRefreshRuntime, ManualAuthRefreshResult
 from .const import (
     AUTH_BLOCKED_COOLDOWN_S,
     BATTERY_MIN_SOC_FALLBACK,
@@ -4407,7 +4407,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if blocked_until:
             return (
                 "Enphase authentication is temporarily blocked; wait until "
-                f"{blocked_until} before retrying."
+                f"{blocked_until} before automatic retries resume. Manual "
+                "reauthentication can clear the block earlier if Enphase accepts it."
             )
         return "Enphase authentication is temporarily blocked; retry later."
 
@@ -4418,6 +4419,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """
 
         return await self.auth_refresh_runtime.attempt_auto_refresh()
+
+    async def async_try_reauth_now(self) -> ManualAuthRefreshResult:
+        """Attempt one manual stored-credential reauthentication."""
+
+        return await self.auth_refresh_runtime.attempt_manual_refresh()
 
     def _clear_auth_refresh_task(self, task: asyncio.Task[bool]) -> None:
         """Clear the shared auth-refresh task once it completes (delegates to ``AuthRefreshRuntime``)."""

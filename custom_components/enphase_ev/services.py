@@ -37,6 +37,7 @@ REGISTERED_SERVICES = (
     "request_grid_toggle_otp",
     "set_grid_mode",
     "clear_reauth_issue",
+    "try_reauth_now",
     "start_live_stream",
     "stop_live_stream",
     "sync_schedules",
@@ -685,6 +686,33 @@ def async_setup_services(
         for issue_id in issue_ids:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
 
+    async def _svc_try_reauth_now(call: ServiceCall) -> dict[str, object]:
+        coord = await _resolve_single_site_coordinator(call)
+        site_id = str(getattr(coord, "site_id", ""))
+        has_stored_credentials = bool(
+            getattr(coord, "_email", None)
+            and getattr(coord, "_remember_password", False)
+            and getattr(coord, "_stored_password", None)
+        )
+        if not has_stored_credentials:
+            return {
+                "site_id": site_id,
+                "success": False,
+                "reason": "stored_credentials_unavailable",
+            }
+
+        success = await coord.async_try_reauth_now()
+        response = {
+            "site_id": site_id,
+            "success": bool(success.success),
+            "reason": success.reason,
+        }
+        if success.retry_after_seconds is not None:
+            response["retry_after_seconds"] = success.retry_after_seconds
+        if success.success:
+            await coord.async_request_refresh()
+        return response
+
     async def _svc_start_stream(call: ServiceCall) -> None:
         coord = await _resolve_single_site_coordinator(call)
         await coord.async_start_streaming(manual=True)
@@ -997,6 +1025,13 @@ def async_setup_services(
     )
     hass.services.async_register(
         DOMAIN, "clear_reauth_issue", _svc_clear_issue, schema=CLEAR_SCHEMA
+    )
+    try_reauth_register_kwargs: dict[str, object] = {
+        "schema": CLEAR_SCHEMA,
+        "supports_response": supports_response.OPTIONAL,
+    }
+    hass.services.async_register(
+        DOMAIN, "try_reauth_now", _svc_try_reauth_now, **try_reauth_register_kwargs
     )
     hass.services.async_register(DOMAIN, "start_live_stream", _svc_start_stream)
     hass.services.async_register(DOMAIN, "stop_live_stream", _svc_stop_stream)
