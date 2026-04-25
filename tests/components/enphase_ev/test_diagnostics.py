@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -121,6 +122,42 @@ def test_gateway_diagnostics_helper_branches() -> None:
     assert diagnostics._microinverter_summary({})["connectivity"] is None
     assert diagnostics._battery_status_summary_for_diagnostics(None) == {}
     assert diagnostics._ac_battery_status_summary_for_diagnostics(None) == {}
+
+
+def test_diagnostics_redacts_numeric_site_ids_in_nested_payloads() -> None:
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    payload = {
+        "payload": {
+            "id": 3381244,
+            3381244: {"status": "raw"},
+            42: "other",
+            "ids": [3381244, 3381244.0, 42, True, BadStr()],
+            "nested": {"value": "/systems/3381244/devices"},
+        }
+    }
+
+    redacted = diagnostics._redact_diagnostics_payload(  # noqa: SLF001
+        payload,
+        site_ids=("3381244",),
+    )
+
+    assert redacted["payload"]["id"] == "[site]"
+    assert redacted["payload"]["[site]"] == {"status": "raw"}
+    assert 3381244 not in redacted["payload"]
+    assert redacted["payload"][42] == "other"
+    assert redacted["payload"]["ids"][:2] == ["[site]", "[site]"]
+    assert redacted["payload"]["ids"][2] == 42
+    assert redacted["payload"]["ids"][3] is True
+    assert isinstance(redacted["payload"]["ids"][4], BadStr)
+    assert redacted["payload"]["nested"]["value"] == "/systems/[site]/devices"
+    assert diagnostics._normalize_site_ids(
+        [None, "3381244", 3381244, BadStr()]
+    ) == (  # noqa: SLF001
+        "3381244",
+    )
 
 
 class DummyClient(SimpleNamespace):
@@ -558,7 +595,7 @@ class DummyCoordinator(SimpleNamespace):
             "network_errors": self._network_errors,
             "http_errors": self._http_errors,
             "last_error": self._last_error,
-            "last_failure_endpoint": "/service/evse_controller/[site]/ev_chargers/status",
+            "last_failure_endpoint": f"/service/evse_controller/{self.site_id}/ev_chargers/status",
             "payload_using_stale": True,
             "payload_failure_kind": "json_decode",
             "payload_health": self.payload_health_diagnostics(),
@@ -605,7 +642,7 @@ class DummyCoordinator(SimpleNamespace):
                 "last_error": "Invalid JSON response",
                 "last_success_age_s": 12.5,
                 "last_payload_signature": {
-                    "endpoint": "/service/evse_controller/[site]/ev_chargers/status",
+                    "endpoint": f"/service/evse_controller/{self.site_id}/ev_chargers/status",
                     "failure_kind": "json_decode",
                     "body_preview_redacted": '{"site":"[site]","serial":"SERI...5678"}',
                 },
@@ -736,6 +773,7 @@ async def test_config_entry_diagnostics_includes_coordinator(
         ]
         == "/service/evse_controller/[site]/ev_chargers/status"
     )
+    assert RANDOM_SITE_ID not in json.dumps(diag, default=str)
     assert (
         diag["coordinator"]["payload_health"]["status"]["last_payload_signature"][
             "body_preview_redacted"

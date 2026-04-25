@@ -468,6 +468,32 @@ async def test_summary_store_caches_and_handles_errors() -> None:
 
 
 @pytest.mark.asyncio
+async def test_summary_store_redacts_configured_site_from_errors() -> None:
+    client = _DummySummaryClient()
+    client.summary_v2 = AsyncMock(
+        side_effect=RuntimeError(
+            "GET /service/evse_controller/api/v2/3381244/ev_chargers/summary"
+        )
+    )
+    store = SummaryStore(lambda: client, site_id_getter=lambda: "3381244")
+
+    assert await store.async_fetch(force=True) == []
+
+    last_error = store.diagnostics()["last_error"]
+    assert "3381244" not in str(last_error)
+    assert "/api/v2/[site]/ev_chargers/summary" in str(last_error)
+
+
+def test_summary_store_redaction_ignores_site_getter_errors() -> None:
+    def bad_site_id():
+        raise RuntimeError("bad site")
+
+    store = SummaryStore(lambda: None, site_id_getter=bad_site_id)
+
+    assert store._redact_error("summary failed") == "summary failed"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_summary_store_records_invalid_payload_stale_diagnostics() -> None:
     client = _DummySummaryClient()
     store = SummaryStore(lambda: client)
@@ -993,8 +1019,27 @@ def test_session_history_cache_state_counts_handles_legacy_and_invalid_entries(
 
 
 def test_session_history_entry_error_text_handles_empty_values() -> None:
-    assert SessionHistoryManager._entry_error_text(None) is None  # noqa: SLF001
-    assert SessionHistoryManager._entry_error_text("   ") is None  # noqa: SLF001
+    manager = SessionHistoryManager(
+        MagicMock(config=MagicMock(time_zone="UTC"), async_create_task=MagicMock()),
+        lambda: None,
+        cache_ttl=10,
+    )
+    assert manager._entry_error_text(None) is None  # noqa: SLF001
+    assert manager._entry_error_text("   ") is None  # noqa: SLF001
+
+
+def test_session_history_redaction_ignores_site_getter_errors(hass) -> None:
+    def bad_site_id():
+        raise RuntimeError("bad site")
+
+    manager = SessionHistoryManager(
+        hass,
+        lambda: None,
+        cache_ttl=10,
+        site_id_getter=bad_site_id,
+    )
+
+    assert manager._redact_error("history failed") == "history failed"  # noqa: SLF001
 
 
 def _make_request_info() -> RequestInfo:

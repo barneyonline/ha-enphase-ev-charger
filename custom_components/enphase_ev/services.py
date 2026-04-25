@@ -21,6 +21,7 @@ from .battery_schedule_editor import (
 )
 from .const import DOMAIN, ISSUE_AUTH_BLOCKED, ISSUE_REAUTH_REQUIRED
 from .device_types import parse_type_identifier
+from .log_redaction import redact_site_id
 from .parsing_helpers import coerce_optional_bool
 from .runtime_data import EnphaseRuntimeData, iter_coordinators
 from .service_validation import raise_translated_service_validation
@@ -392,9 +393,10 @@ def async_setup_services(
             result = await validator(schedule_type)
         except aiohttp.ClientResponseError as err:
             if err.status in {403, 404}:
+                site_id = getattr(coord, "site_id", None)
                 _LOGGER.debug(
                     "Ignoring battery schedule preflight failure for site %s (%s %s)",
-                    getattr(coord, "site_id", "unknown"),
+                    redact_site_id(site_id),
                     err.status,
                     str(schedule_type).upper(),
                 )

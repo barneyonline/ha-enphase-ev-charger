@@ -1043,8 +1043,9 @@ def test_redact_headers_masks_sensitive_fields() -> None:
         "X-CSRF-Token": "csrf",
         "X-XSRF-Token": "xsrf",
         "Username": "123456",
+        "Referer": "https://enlighten.enphaseenergy.com/pv/systems/SITE/summary",
     }
-    redacted = api.EnphaseEVClient._redact_headers(headers)
+    redacted = _make_client(MagicMock())._redact_headers(headers)
     assert redacted["Cookie"] == "[redacted]"
     assert redacted["Authorization"] == "[redacted]"
     assert redacted["e-auth-token"] == "[redacted]"
@@ -1052,6 +1053,7 @@ def test_redact_headers_masks_sensitive_fields() -> None:
     assert redacted["X-XSRF-Token"] == "[redacted]"
     assert redacted["Username"] == "[redacted]"
     assert redacted["X-Test"] == "value"
+    assert redacted["Referer"].endswith("/pv/systems/[site]/summary")
 
 
 def test_truncate_debug_identifier_branches() -> None:
@@ -1825,7 +1827,8 @@ async def test_json_logs_batteryconfig_write_failure_details(caplog) -> None:
 
     assert (
         "BatteryConfig write failed for PUT "
-        "/service/batteryConfig/api/v1/batterySettings/SITE: status=403" in caplog.text
+        "/service/batteryConfig/api/v1/batterySettings/[site]: status=403"
+        in caplog.text
     )
     assert "payload={'scheduleType': None, 'json_keys': ['veryLowSoc']}" in caplog.text
     assert "cookie_names=['bp-xsrf-token', 'other', 'session']" in caplog.text
@@ -1846,6 +1849,8 @@ async def test_json_logs_batteryconfig_write_failure_details(caplog) -> None:
     assert "'X-CSRF-Token': '[redacted]'" in caplog.text
     assert "'X-XSRF-Token': '[redacted]'" in caplog.text
     assert "'Username': '[redacted]'" in caplog.text
+    assert "/pv/systems/SITE/summary" not in caplog.text
+    assert "/pv/systems/[site]/summary" in caplog.text
     assert "secret-auth" not in caplog.text
     assert "secret-eauth" not in caplog.text
     assert "secret-xsrf" not in caplog.text
@@ -2089,7 +2094,7 @@ async def test_json_invalid_payload_logs_redacted_evse_status_body(
         == '{"site":"[site]","email":"[redacted]","serial":"SERI...5678"}'
     )
     assert (
-        "Invalid payload for site [site] endpoint /service/evse_controller/SITE/ev_chargers/status"
+        "Invalid payload for site [site] endpoint /service/evse_controller/[site]/ev_chargers/status"
         in caplog.text
     )
     assert "application/json; charset=utf-8" in caplog.text
@@ -2137,11 +2142,11 @@ async def test_json_invalid_payload_logs_once_and_recovery_logs_once(
     ]
     assert len(warning_messages) == 1
     assert (
-        "Invalid payload for site [site] endpoint /service/evse_controller/SITE/ev_chargers/status"
+        "Invalid payload for site [site] endpoint /service/evse_controller/[site]/ev_chargers/status"
         in warning_messages[0]
     )
     assert info_messages == [
-        "Payload recovered for site [site] endpoint /service/evse_controller/SITE/ev_chargers/status"
+        "Payload recovered for site [site] endpoint /service/evse_controller/[site]/ev_chargers/status"
     ]
 
 

@@ -30,9 +30,11 @@ class SummaryStore:
         self,
         client_getter: Callable[[], Any],
         *,
+        site_id_getter: Callable[[], object] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self._client_getter = client_getter
+        self._site_id_getter = site_id_getter
         self._logger = logger or _LOGGER
         self._cache: tuple[float, list[dict], float] | None = None
         self._ttl: float = SUMMARY_IDLE_TTL
@@ -49,6 +51,20 @@ class SummaryStore:
             "backoff_ends_utc": None,
             "last_payload_signature": None,
         }
+
+    def _site_ids(self, client: Any | None = None) -> tuple[object, ...]:
+        site_ids: list[object] = []
+        if self._site_id_getter is not None:
+            try:
+                site_ids.append(self._site_id_getter())
+            except Exception:  # noqa: BLE001
+                pass
+        if client is not None:
+            site_ids.append(getattr(client, "_site", None))
+        return tuple(site_id for site_id in site_ids if site_id)
+
+    def _redact_error(self, err: object, client: Any | None = None) -> str:
+        return redact_text(err, site_ids=self._site_ids(client))
 
     @property
     def ttl(self) -> float:
@@ -158,7 +174,7 @@ class SummaryStore:
                 delay = self._failure_backoff_delay(err, failures)
                 self._state["available"] = False
                 self._state["last_failure_utc"] = dt_util.utcnow()
-                self._state["last_error"] = redact_text(err)
+                self._state["last_error"] = self._redact_error(err, client)
                 self._state["failures"] = failures
                 self._state["backoff_until"] = time.monotonic() + delay
                 try:
@@ -176,11 +192,14 @@ class SummaryStore:
                     self._state["using_stale"] = True
                     self._logger.debug(
                         "Summary v2 fetch failed; reusing cache: %s",
-                        redact_text(err),
+                        self._redact_error(err, client),
                     )
                     return cached[1]
                 self._state["using_stale"] = False
-                self._logger.debug("Summary v2 fetch failed: %s", redact_text(err))
+                self._logger.debug(
+                    "Summary v2 fetch failed: %s",
+                    self._redact_error(err, client),
+                )
                 return []
 
             summary_list = self._as_list(summary)

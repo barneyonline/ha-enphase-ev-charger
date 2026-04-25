@@ -29,12 +29,14 @@ class EVSETimeseriesManager:
         client_provider: Callable[[], object],
         *,
         logger: logging.Logger | None = None,
+        site_id_getter: Callable[[], object] | None = None,
         cache_ttl: float = EVSE_TIMESERIES_CACHE_TTL,
         failure_backoff: float = EVSE_TIMESERIES_FAILURE_BACKOFF_S,
     ) -> None:
         self._hass = hass
         self._client_provider = client_provider
         self._logger = logger or _LOGGER
+        self._site_id_getter = site_id_getter
         self._cache_ttl = max(60.0, float(cache_ttl or 0))
         self._failure_backoff = max(60.0, float(failure_backoff or 0))
         self._daily_cache: dict[str, tuple[float, dict[str, dict[str, object]]]] = {}
@@ -61,6 +63,18 @@ class EVSETimeseriesManager:
                 "last_payload_signature": None,
             },
         }
+
+    def _site_ids(self) -> tuple[object, ...]:
+        if self._site_id_getter is None:
+            return ()
+        try:
+            site_id = self._site_id_getter()
+        except Exception:  # noqa: BLE001
+            return ()
+        return (site_id,) if site_id else ()
+
+    def _redact_error(self, err: object) -> str:
+        return redact_text(err, site_ids=self._site_ids())
 
     @property
     def cache_ttl(self) -> float:
@@ -205,7 +219,7 @@ class EVSETimeseriesManager:
         using_stale: bool = False,
     ) -> None:
         state = self._endpoint_state_for(endpoint)
-        reason = redact_text(err) if err else "EVSE timeseries unavailable"
+        reason = self._redact_error(err) if err else "EVSE timeseries unavailable"
         state["available"] = False
         state["using_stale"] = using_stale
         state["failures"] = int(state.get("failures", 0) or 0) + 1

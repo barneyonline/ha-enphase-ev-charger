@@ -67,16 +67,24 @@ async def test_evse_timeseries_manager_retains_cache_on_unavailable(hass) -> Non
             return_value={"EV-1": {"energy_kwh": 10.0}}
         ),
     )
-    manager = EVSETimeseriesManager(hass, lambda: client)
+    manager = EVSETimeseriesManager(
+        hass,
+        lambda: client,
+        site_id_getter=lambda: "3381244",
+    )
     day_local = datetime(2026, 3, 11, 12, 0, 0, tzinfo=timezone.utc)
 
     await manager.async_refresh(day_local=day_local)
 
     client.evse_timeseries_daily_energy = AsyncMock(
-        side_effect=EVSETimeseriesUnavailable("daily down")
+        side_effect=EVSETimeseriesUnavailable(
+            "GET /service/timeseries/evse/timeseries/daily_energy?site_id=3381244&source=evse"
+        )
     )
     client.evse_timeseries_lifetime_energy = AsyncMock(
-        side_effect=EVSETimeseriesUnavailable("lifetime down")
+        side_effect=EVSETimeseriesUnavailable(
+            "GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=3381244&source=evse"
+        )
     )
 
     await manager.async_refresh(day_local=day_local, force=True)
@@ -89,9 +97,25 @@ async def test_evse_timeseries_manager_retains_cache_on_unavailable(hass) -> Non
     diagnostics = manager.diagnostics()
     assert diagnostics["available"] is False
     assert diagnostics["failures"] == 2
-    assert diagnostics["last_error"] == "daily down"
-    assert diagnostics["daily"]["last_error"] == "daily down"
-    assert diagnostics["lifetime"]["last_error"] == "lifetime down"
+    assert "3381244" not in str(diagnostics["last_error"])
+    assert "3381244" not in str(diagnostics["daily"]["last_error"])
+    assert "3381244" not in str(diagnostics["lifetime"]["last_error"])
+    assert "site_id=[site]&source=evse" in str(diagnostics["daily"]["last_error"])
+    assert "site_id=[site]&source=evse" in str(diagnostics["lifetime"]["last_error"])
+
+
+def test_evse_timeseries_redaction_ignores_site_getter_errors(hass) -> None:
+    def bad_site_id():
+        raise RuntimeError("bad site")
+
+    manager = EVSETimeseriesManager(hass, lambda: None, site_id_getter=bad_site_id)
+
+    assert (
+        manager._redact_error(
+            "GET /service/timeseries/evse/timeseries/daily_energy"
+        )  # noqa: SLF001
+        == "GET /service/timeseries/evse/timeseries/daily_energy"
+    )
 
 
 @pytest.mark.asyncio
