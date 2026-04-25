@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import time
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -999,6 +1001,16 @@ def test_battery_profile_property_helpers_cover_branches(coordinator_factory) ->
     assert "ai_optimisation" in coord.battery_profile_option_keys
     assert coord.battery_profile_display == "Savings"
     assert coord.battery_effective_profile_display == "Self-Consumption"
+    coord._battery_live_profile = "backup_only"  # noqa: SLF001
+    assert coord.battery_live_profile == "backup_only"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_selected_profile == "cost_savings"
+    assert "backup_only" in coord.battery_profile_option_keys
+    coord._battery_pending_profile = None  # noqa: SLF001
+    assert coord.battery_selected_profile == "backup_only"
+    assert coord.battery_effective_profile_display == "Full Backup"
+    coord._battery_live_profile = None  # noqa: SLF001
+    coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
     assert coord.savings_use_battery_after_peak is True
 
     coord._battery_pending_profile = "ai_optimisation"  # noqa: SLF001
@@ -1395,6 +1407,306 @@ def test_battery_pending_match_and_memory_branches(coordinator_factory) -> None:
 
     coord._remember_battery_reserve(BadProfile(), 20)  # noqa: SLF001
     coord._remember_battery_reserve("regional_special", 20)  # noqa: SLF001
+
+
+def test_live_battery_mode_profile_normalization(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    class BadStr:
+        def __str__(self) -> str:
+            raise ValueError("boom")
+
+    assert runtime.normalize_live_battery_mode_profile(BadStr()) is None
+    assert runtime.normalize_live_battery_mode_profile("   ") is None
+    assert runtime.normalize_live_battery_mode_profile("Full Backup") == "backup_only"
+    assert (
+        runtime.normalize_live_battery_mode_profile("Self-Consumption")
+        == "self-consumption"
+    )
+    assert runtime.normalize_live_battery_mode_profile("backup_only") == "backup_only"
+    assert runtime.normalize_live_battery_mode_profile("not-a-mode") == "not-a-mode"
+    assert runtime.normalize_live_battery_mode_profile(None) is None
+
+    coord._battery_profile = "ai_optimisation"  # noqa: SLF001
+    assert runtime.normalize_live_battery_mode_profile("Savings") == "ai_optimisation"
+    coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
+    assert runtime.normalize_live_battery_mode_profile("Savings") == "cost_savings"
+
+
+def test_battery_status_payload_tracks_live_profile_and_clears_pending(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_reserve = 100  # noqa: SLF001
+    coord._battery_pending_require_exact_settings = False  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "storages": [
+                {
+                    "id": "123",
+                    "battery_mode": "Full Backup",
+                    "current_charge": "75%",
+                    "available_energy": "7.5",
+                    "max_capacity": "10",
+                    "status": "normal",
+                }
+            ]
+        }
+    )
+
+    assert coord._battery_live_profile == "backup_only"  # noqa: SLF001
+    assert coord._battery_live_profile_label == "Full Backup"  # noqa: SLF001
+    assert coord._battery_live_profile_sample_utc is not None  # noqa: SLF001
+    assert coord.battery_profile_pending is False
+
+    coord.battery_runtime.parse_battery_status_payload({"storages": [{"id": "123"}]})
+    assert coord._battery_live_profile is None  # noqa: SLF001
+    assert coord._battery_live_profile_label is None  # noqa: SLF001
+    assert coord._battery_live_profile_sample_utc is None  # noqa: SLF001
+
+    coord._battery_live_profile = "backup_only"  # noqa: SLF001
+    coord._battery_live_profile_label = "Full Backup"  # noqa: SLF001
+    coord._battery_live_profile_sample_utc = datetime.now(timezone.utc)  # noqa: SLF001
+    coord.battery_runtime.parse_battery_status_payload(None)
+    assert coord._battery_live_profile is None  # noqa: SLF001
+    assert coord._battery_live_profile_label is None  # noqa: SLF001
+    assert coord._battery_live_profile_sample_utc is None  # noqa: SLF001
+
+
+def test_live_profile_blocks_pending_match_until_controller_updates(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_live_profile = "backup_only"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_require_exact_settings = False  # noqa: SLF001
+
+    assert coord._effective_profile_matches_pending() is False  # noqa: SLF001
+
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+    assert coord._effective_profile_matches_pending() is True  # noqa: SLF001
+
+
+def test_collect_site_metrics_includes_live_battery_profile(
+    coordinator_factory,
+) -> None:
+    sample_utc = datetime(2026, 4, 25, tzinfo=timezone.utc)
+    coord = coordinator_factory()
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_live_profile = "backup_only"  # noqa: SLF001
+    coord._battery_live_profile_label = "Full Backup"  # noqa: SLF001
+    coord._battery_live_profile_sample_utc = sample_utc  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+
+    assert metrics["battery_profile"] == "self-consumption"
+    assert metrics["battery_live_profile"] == "backup_only"
+    assert metrics["battery_live_profile_label"] == "Full Backup"
+    assert metrics["battery_live_profile_raw"] == "Full Backup"
+    assert metrics["battery_live_profile_sample_utc"] == sample_utc.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_split_profile_recovery_nudges_reserve_then_restores(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import battery_runtime as battery_runtime_module
+
+    monkeypatch.setattr(
+        battery_runtime_module, "_PROFILE_RECOVERY_RESERVE_RESTORE_DELAY_S", 0
+    )
+    monkeypatch.setattr(battery_runtime_module, "BATTERY_PROFILE_WRITE_DEBOUNCE_S", 0)
+    monkeypatch.setattr(battery_runtime_module, "BATTERY_SETTINGS_WRITE_DEBOUNCE_S", 0)
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_user_is_installer = False  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_live_profile = "backup_only"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_backup_percentage_min = 5  # noqa: SLF001
+    coord._battery_backup_percentage_max = 100  # noqa: SLF001
+    coord._battery_show_full_backup = True  # noqa: SLF001
+    coord.client.set_battery_settings_compat = AsyncMock(
+        return_value={"message": "success"}
+    )
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+
+    recovered = await coord.battery_runtime.async_recover_split_battery_profile(
+        profile="self-consumption",
+        reserve=20,
+    )
+    task = coord._battery_profile_recovery_restore_task  # noqa: SLF001
+    assert task is not None
+    await task
+
+    assert recovered is True
+    assert coord.client.set_battery_settings_compat.await_count == 2
+    first_call, second_call = coord.client.set_battery_settings_compat.await_args_list
+    assert first_call.args[0] == {"batteryBackupPercentage": 25}
+    assert first_call.kwargs == {"merged_payload": True, "strip_devices": True}
+    assert second_call.args[0] == {"batteryBackupPercentage": 20}
+    assert second_call.kwargs == {"merged_payload": True, "strip_devices": True}
+    assert coord._battery_profile_recovery_restore_task is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_battery_reserve_only_and_recovery_edge_branches(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import battery_runtime as battery_runtime_module
+    from homeassistant.exceptions import ServiceValidationError
+
+    monkeypatch.setattr(
+        battery_runtime_module, "_PROFILE_RECOVERY_RESERVE_RESTORE_DELAY_S", 60
+    )
+    coord = coordinator_factory()
+    runtime = coord.battery_runtime
+
+    with pytest.raises(ServiceValidationError, match="unavailable"):
+        await runtime.async_apply_battery_reserve_only(profile="", reserve=20)
+
+    assert (
+        runtime._profile_recovery_reserve_nudge("backup_only", 100) is None
+    )  # noqa: SLF001
+    coord._battery_backup_percentage_min = 5  # noqa: SLF001
+    coord._battery_backup_percentage_max = 100  # noqa: SLF001
+    assert (
+        runtime._profile_recovery_reserve_nudge("self-consumption", 100) == 95
+    )  # noqa: SLF001
+    coord._battery_backup_percentage_min = 20  # noqa: SLF001
+    coord._battery_backup_percentage_max = 20  # noqa: SLF001
+    assert (
+        runtime._profile_recovery_reserve_nudge("self-consumption", 20) is None
+    )  # noqa: SLF001
+
+    coord.hass = object()
+    runtime._schedule_profile_recovery_reserve_restore(
+        "self-consumption", 20
+    )  # noqa: SLF001
+    first_task = coord._battery_profile_recovery_restore_task  # noqa: SLF001
+    runtime._schedule_profile_recovery_reserve_restore(
+        "self-consumption", 20
+    )  # noqa: SLF001
+    second_task = coord._battery_profile_recovery_restore_task  # noqa: SLF001
+    await asyncio.sleep(0)
+    assert first_task.cancelled() or first_task.done()
+    assert second_task is not first_task
+    second_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await second_task
+
+
+@pytest.mark.asyncio
+async def test_profile_recovery_restore_logs_and_clears_failed_restore(
+    coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import battery_runtime as battery_runtime_module
+
+    monkeypatch.setattr(
+        battery_runtime_module, "_PROFILE_RECOVERY_RESERVE_RESTORE_DELAY_S", 0
+    )
+    coord = coordinator_factory()
+    coord.hass = object()
+    coord.battery_runtime.async_apply_battery_reserve_only = AsyncMock(
+        side_effect=RuntimeError("boom")
+    )
+
+    coord.battery_runtime._schedule_profile_recovery_reserve_restore(  # noqa: SLF001
+        "self-consumption",
+        20,
+    )
+    task = coord._battery_profile_recovery_restore_task  # noqa: SLF001
+    await task
+
+    assert coord._battery_profile_recovery_restore_task is None  # noqa: SLF001
+    coord.battery_runtime.async_apply_battery_reserve_only.assert_awaited_once_with(
+        profile="self-consumption",
+        reserve=20,
+        require_exact_pending_match=False,
+    )
+
+
+@pytest.mark.asyncio
+async def test_split_profile_recovery_skips_when_not_applicable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+
+    assert (
+        await coord.battery_runtime.async_recover_split_battery_profile(
+            profile="",
+            reserve=20,
+        )
+        is False
+    )
+
+    assert (
+        await coord.battery_runtime.async_recover_split_battery_profile(
+            profile="self-consumption",
+            reserve=20,
+        )
+        is False
+    )
+
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+    assert (
+        await coord.battery_runtime.async_recover_split_battery_profile(
+            profile="self-consumption",
+            reserve=20,
+        )
+        is False
+    )
+
+    coord._battery_live_profile = "backup_only"  # noqa: SLF001
+    coord._battery_profile = "cost_savings"  # noqa: SLF001
+    assert (
+        await coord.battery_runtime.async_recover_split_battery_profile(
+            profile="self-consumption",
+            reserve=20,
+        )
+        is False
+    )
+
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+    assert (
+        await coord.battery_runtime.async_recover_split_battery_profile(
+            profile="backup_only",
+            reserve=100,
+        )
+        is False
+    )
+    coord.client.set_battery_profile.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_system_profile_setter_returns_after_split_recovery(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_user_is_owner = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.client.set_battery_profile = AsyncMock(return_value={"message": "success"})
+    coord.battery_runtime.async_recover_split_battery_profile = AsyncMock(
+        return_value=True
+    )
+
+    await coord.battery_runtime.async_set_system_profile("self-consumption")
+
+    coord.battery_runtime.async_recover_split_battery_profile.assert_awaited_once()
+    coord.client.set_battery_profile.assert_not_awaited()
 
 
 def test_pending_profile_issue_noop_when_already_reported(

@@ -8561,8 +8561,13 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
     def extra_state_attributes(self):
         labels = self._coord.battery_profile_option_labels
         attrs = {
-            "effective_profile": self._coord.battery_profile,
+            "effective_profile": self._coord.battery_effective_profile,
             "effective_profile_label": self._coord.battery_effective_profile_display,
+            "configured_profile": self._coord.battery_profile,
+            "live_profile": self._coord.battery_live_profile,
+            "live_profile_label": getattr(
+                self._coord, "_battery_live_profile_label", None
+            ),
             "effective_reserve_percentage": self._coord.battery_effective_backup_percentage,
             "effective_operation_mode_sub_type": self._coord.battery_effective_operation_mode_sub_type,
             "requested_profile": self._coord.battery_pending_profile,
