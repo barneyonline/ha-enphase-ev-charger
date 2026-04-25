@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -162,11 +163,14 @@ async def test_fetch_sessions_handles_paging(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_fetch_sessions_criteria_unavailable(monkeypatch):
+async def test_fetch_sessions_criteria_unavailable(monkeypatch, caplog):
     hass = _make_hass()
+    caplog.set_level(logging.DEBUG, logger=sh_mod._LOGGER.name)
 
     async def fake_criteria(**_kwargs):
-        raise SessionHistoryUnavailable("down")
+        raise SessionHistoryUnavailable(
+            "GET /service/enho_historical_events_ms/9990001/filter_criteria"
+        )
 
     client = SimpleNamespace(
         session_history_filter_criteria=fake_criteria,
@@ -176,6 +180,7 @@ async def test_fetch_sessions_criteria_unavailable(monkeypatch):
         hass,
         client_getter=lambda: client,
         cache_ttl=60,
+        site_id_getter=lambda: "9990001",
     )
     now = datetime(2025, 1, 5, tzinfo=timezone.utc)
     monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
@@ -184,9 +189,16 @@ async def test_fetch_sessions_criteria_unavailable(monkeypatch):
     result = await manager._async_fetch_sessions_today("SN", day_local=now)
     assert result == []
     assert manager.service_available is False
+    assert "9990001" not in str(manager.service_last_error)
+    assert "9990001" not in caplog.text
+    assert "/enho_historical_events_ms/[site]/filter_criteria" in caplog.text
+    assert "/enho_historical_events_ms/[site]/filter_criteria" in str(
+        manager.service_last_error
+    )
     entry = manager._cache[("SN", now.strftime("%Y-%m-%d"))]
     assert entry.state == sh_mod.SESSION_CACHE_STATE_UNAVAILABLE
     assert entry.has_valid_cache is False
+    assert "9990001" not in str(entry.last_error)
 
 
 @pytest.mark.asyncio
@@ -249,15 +261,21 @@ async def test_fetch_sessions_criteria_http_error(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_fetch_sessions_marks_service_unavailable(monkeypatch):
+async def test_fetch_sessions_marks_service_unavailable(monkeypatch, caplog):
     hass = _make_hass()
+    caplog.set_level(logging.DEBUG, logger=sh_mod._LOGGER.name)
     client = SimpleNamespace(
-        session_history=AsyncMock(side_effect=SessionHistoryUnavailable("down"))
+        session_history=AsyncMock(
+            side_effect=SessionHistoryUnavailable(
+                "POST /service/enho_historical_events_ms/9990001/sessions/SN/history"
+            )
+        )
     )
     manager = sh_mod.SessionHistoryManager(
         hass,
         client_getter=lambda: client,
         cache_ttl=60,
+        site_id_getter=lambda: "9990001",
     )
     now = datetime(2025, 1, 3, tzinfo=timezone.utc)
     monkeypatch.setattr(sh_mod.dt_util, "now", lambda: now)
@@ -268,6 +286,9 @@ async def test_fetch_sessions_marks_service_unavailable(monkeypatch):
     assert manager.service_available is False
     assert manager.service_backoff_active is True
     assert manager.service_last_error
+    assert "9990001" not in str(manager.service_last_error)
+    assert "9990001" not in caplog.text
+    assert "/enho_historical_events_ms/[site]/sessions/SN/history" in caplog.text
     entry = manager._cache[("SN", now.strftime("%Y-%m-%d"))]
     assert entry.state == sh_mod.SESSION_CACHE_STATE_UNAVAILABLE
     assert entry.has_valid_cache is False

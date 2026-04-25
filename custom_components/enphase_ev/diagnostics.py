@@ -8,9 +8,10 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.helpers import device_registry as dr
 
-from .const import CONF_EMAIL, DOMAIN
+from .const import CONF_EMAIL, CONF_SITE_ID, DOMAIN
 from .device_types import parse_type_identifier
 from .energy import SiteEnergyFlow
+from .log_redaction import redact_text
 from .runtime_data import get_runtime_data
 
 DIAGNOSTIC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
@@ -102,10 +103,76 @@ DIAGNOSTIC_IDENTIFIER_KEYS = [
 DIAGNOSTICS_REDACT_KEYS = [*TO_REDACT, *DIAGNOSTIC_IDENTIFIER_KEYS]
 
 
-def _redact_diagnostics_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _normalize_site_ids(values: list[Any]) -> tuple[str, ...]:
+    """Return normalized site IDs to redact from embedded diagnostics strings."""
+
+    site_ids: list[str] = []
+    for value in values:
+        if value is None:
+            continue
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            continue
+        if text and text not in site_ids:
+            site_ids.append(text)
+    return tuple(site_ids)
+
+
+def _value_matches_site_id(value: Any, site_ids: tuple[str, ...]) -> bool:
+    """Return true when a scalar diagnostics value exactly matches a site ID."""
+
+    if not site_ids or isinstance(value, bool):
+        return False
+    try:
+        text = str(value).strip()
+    except Exception:  # noqa: BLE001
+        return False
+    if text in site_ids:
+        return True
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value)) in site_ids
+    return False
+
+
+def _redact_embedded_diagnostics_text(value: Any, site_ids: tuple[str, ...]) -> Any:
+    """Redact site IDs embedded in otherwise non-sensitive diagnostics strings."""
+
+    if isinstance(value, dict):
+        redacted: dict[Any, Any] = {}
+        for key, child_value in value.items():
+            if isinstance(key, str):
+                safe_key = redact_text(key, site_ids=site_ids, max_length=512)
+            elif _value_matches_site_id(key, site_ids):
+                safe_key = "[site]"
+            else:
+                safe_key = key
+            redacted[safe_key] = _redact_embedded_diagnostics_text(
+                child_value, site_ids
+            )
+        return redacted
+    if isinstance(value, list):
+        return [_redact_embedded_diagnostics_text(item, site_ids) for item in value]
+    if isinstance(value, tuple):
+        return tuple(
+            _redact_embedded_diagnostics_text(item, site_ids) for item in value
+        )
+    if isinstance(value, str):
+        return redact_text(value, site_ids=site_ids, max_length=4096)
+    if _value_matches_site_id(value, site_ids):
+        return "[site]"
+    return value
+
+
+def _redact_diagnostics_payload(
+    payload: dict[str, Any],
+    *,
+    site_ids: tuple[str, ...] = (),
+) -> dict[str, Any]:
     """Return a redacted diagnostics payload safe for external sharing."""
 
-    return async_redact_data(payload, DIAGNOSTICS_REDACT_KEYS)
+    redacted = async_redact_data(payload, DIAGNOSTICS_REDACT_KEYS)
+    return _redact_embedded_diagnostics_text(redacted, site_ids)
 
 
 def _text(value: Any) -> str | None:
@@ -364,6 +431,7 @@ def _ac_battery_status_summary_for_diagnostics(summary: Any) -> dict[str, Any]:
 async def async_get_config_entry_diagnostics(hass, entry):
     """Return diagnostics for a config entry."""
 
+    site_ids = _normalize_site_ids([entry.data.get(CONF_SITE_ID)])
     data = async_redact_data(dict(entry.data), TO_REDACT)
     options = dict(getattr(entry, "options", {}) or {})
 
@@ -375,7 +443,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
     try:
         coord = get_runtime_data(entry).coordinator
     except RuntimeError:
-        return diag
+        return _redact_diagnostics_payload(diag, site_ids=site_ids)
 
     try:
         upd = (
@@ -390,6 +458,13 @@ async def async_get_config_entry_diagnostics(hass, entry):
         metrics: dict[str, Any] = coord.collect_site_metrics()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         metrics = {}
+    site_ids = _normalize_site_ids(
+        [
+            *site_ids,
+            getattr(coord, "site_id", None),
+            metrics.get("site_id") if isinstance(metrics, dict) else None,
+        ]
+    )
 
     try:
         last_modes = coord.charge_mode_cache_snapshot()
@@ -573,11 +648,12 @@ async def async_get_config_entry_diagnostics(hass, entry):
             "cache_age_s": cache_age,
         }
 
-    return _redact_diagnostics_payload(diag)
+    return _redact_diagnostics_payload(diag, site_ids=site_ids)
 
 
 async def async_get_device_diagnostics(hass, entry, device):
     """Return diagnostics for a device."""
+    site_ids = _normalize_site_ids([entry.data.get(CONF_SITE_ID)])
     dev_reg = dr.async_get(hass)
     dev = dev_reg.async_get(device.id)
     if not dev:
@@ -595,6 +671,7 @@ async def async_get_device_diagnostics(hass, entry, device):
             parsed = parse_type_identifier(ident_text)
             if parsed:
                 type_site_id, type_key = parsed
+                site_ids = _normalize_site_ids([*site_ids, type_site_id])
             continue
         sn = ident_text
         break
@@ -767,7 +844,7 @@ async def async_get_device_diagnostics(hass, entry, device):
                     runtime_payload = {}
                 if isinstance(runtime_payload, dict) and runtime_payload:
                     payload["heatpump_runtime"] = runtime_payload
-        return _redact_diagnostics_payload(payload)
+        return _redact_diagnostics_payload(payload, site_ids=site_ids)
     if not sn:
         return {"error": "serial_not_resolved"}
     coord = None
@@ -776,4 +853,7 @@ async def async_get_device_diagnostics(hass, entry, device):
     except RuntimeError:
         pass
     snapshot = (coord.data or {}).get(sn) if coord else None
-    return _redact_diagnostics_payload({"serial": sn, "snapshot": snapshot or {}})
+    return _redact_diagnostics_payload(
+        {"serial": sn, "snapshot": snapshot or {}},
+        site_ids=site_ids,
+    )

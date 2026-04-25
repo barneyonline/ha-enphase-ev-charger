@@ -68,6 +68,7 @@ class SessionHistoryManager:
         concurrency: int = SESSION_HISTORY_CONCURRENCY,
         data_supplier: Callable[[], dict[str, dict] | None] | None = None,
         publish_callback: Callable[[dict[str, dict]], None] | None = None,
+        site_id_getter: Callable[[], object] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self._hass = hass
@@ -88,6 +89,7 @@ class SessionHistoryManager:
         self._enrichment_tasks: set[asyncio.Task[None]] = set()
         self._data_supplier = data_supplier
         self._publish_callback = publish_callback
+        self._site_id_getter = site_id_getter
         self._logger = logger or _LOGGER
         self._fetch_override: (
             Callable[[str, datetime | None], Awaitable[list[dict]]] | None
@@ -100,6 +102,18 @@ class SessionHistoryManager:
         self._service_backoff_ends_utc: datetime | None = None
         self._service_using_stale = False
         self._service_last_payload_signature: dict[str, object] | None = None
+
+    def _site_ids(self) -> tuple[object, ...]:
+        if self._site_id_getter is None:
+            return ()
+        try:
+            site_id = self._site_id_getter()
+        except Exception:  # noqa: BLE001
+            return ()
+        return (site_id,) if site_id else ()
+
+    def _redact_error(self, err: object) -> str:
+        return redact_text(err, site_ids=self._site_ids())
 
     @property
     def cache_ttl(self) -> float:
@@ -195,7 +209,7 @@ class SessionHistoryManager:
         *,
         using_stale: bool = False,
     ) -> None:
-        reason = redact_text(err) if err else ""
+        reason = self._redact_error(err) if err else ""
         if not reason:
             reason = "Session history unavailable"
         self._service_available = False
@@ -222,11 +236,10 @@ class SessionHistoryManager:
         except Exception:
             return None
 
-    @staticmethod
-    def _entry_error_text(err: Exception | str | None) -> str | None:
+    def _entry_error_text(self, err: Exception | str | None) -> str | None:
         if err is None:
             return None
-        reason = redact_text(err)
+        reason = self._redact_error(err)
         if reason:
             return reason
         if isinstance(err, str):
@@ -419,19 +432,23 @@ class SessionHistoryManager:
                         )
                 except asyncio.CancelledError as err:
                     self._logger.debug(
-                        "Session history enrichment cancelled for %s: %s", sn, err
+                        "Session history enrichment cancelled for %s: %s",
+                        sn,
+                        self._redact_error(err),
                     )
                     return sn, None
                 except Unauthorized as err:
                     self._logger.debug(
                         "Session history unauthorized for %s during enrichment: %s",
                         sn,
-                        err,
+                        self._redact_error(err),
                     )
                     return sn, None
                 except Exception as err:  # noqa: BLE001
                     self._logger.debug(
-                        "Session history enrichment failed for %s: %s", sn, err
+                        "Session history enrichment failed for %s: %s",
+                        sn,
+                        self._redact_error(err),
                     )
                     return sn, None
                 return sn, sessions
@@ -442,7 +459,8 @@ class SessionHistoryManager:
         for response in responses:
             if isinstance(response, Exception):
                 self._logger.debug(
-                    "Session history enrichment task error: %s", response
+                    "Session history enrichment task error: %s",
+                    self._redact_error(response),
                 )
                 continue
             sn, sessions = response
@@ -554,7 +572,9 @@ class SessionHistoryManager:
                 await self._async_refresh_filter_criteria(criteria_fetcher)
             except SessionHistoryUnavailable as err:
                 self._logger.debug(
-                    "Session history criteria unavailable for %s: %s", sn, err
+                    "Session history criteria unavailable for %s: %s",
+                    sn,
+                    self._redact_error(err),
                 )
                 if cached and cached.has_valid_cache:
                     self._note_service_unavailable(err, using_stale=True)
@@ -565,7 +585,9 @@ class SessionHistoryManager:
                 return []
             except Unauthorized as err:
                 self._logger.debug(
-                    "Session history criteria unauthorized for %s: %s", sn, err
+                    "Session history criteria unauthorized for %s: %s",
+                    sn,
+                    self._redact_error(err),
                 )
                 self._set_unavailable_entry(sn, day_key, now_mono, err)
                 return []
@@ -574,7 +596,7 @@ class SessionHistoryManager:
                     "Session history criteria error for %s: %s (%s)",
                     sn,
                     err.status,
-                    err.message,
+                    self._redact_error(err.message),
                 )
                 if err.status in (500, 502, 503, 504, 550):
                     self._block_until[sn] = now_mono + self._failure_backoff
@@ -582,7 +604,9 @@ class SessionHistoryManager:
                 return []
             except Exception as err:  # noqa: BLE001
                 self._logger.debug(
-                    "Session history criteria failed for %s: %s", sn, err
+                    "Session history criteria failed for %s: %s",
+                    sn,
+                    self._redact_error(err),
                 )
                 if cached and cached.has_valid_cache:
                     self._note_service_unavailable(err, using_stale=True)
@@ -624,7 +648,7 @@ class SessionHistoryManager:
                 "Session history unavailable for %s on %s: %s",
                 sn,
                 api_day,
-                err,
+                self._redact_error(err),
             )
             if cached and cached.has_valid_cache:
                 self._note_service_unavailable(err, using_stale=True)
@@ -638,7 +662,7 @@ class SessionHistoryManager:
                 "Session history unauthorized for %s on %s: %s",
                 sn,
                 api_day,
-                err,
+                self._redact_error(err),
             )
             self._set_unavailable_entry(sn, day_key, now_mono, err)
             return []
@@ -648,7 +672,7 @@ class SessionHistoryManager:
                 sn,
                 api_day,
                 err.status,
-                err.message,
+                self._redact_error(err.message),
             )
             if err.status in (500, 502, 503, 504, 550):
                 self._block_until[sn] = now_mono + self._failure_backoff
@@ -656,7 +680,10 @@ class SessionHistoryManager:
             return []
         except Exception as err:  # noqa: BLE001
             self._logger.debug(
-                "Session history fetch failed for %s on %s: %s", sn, api_day, err
+                "Session history fetch failed for %s on %s: %s",
+                sn,
+                api_day,
+                self._redact_error(err),
             )
             if cached and cached.has_valid_cache:
                 self._note_service_unavailable(err, using_stale=True)

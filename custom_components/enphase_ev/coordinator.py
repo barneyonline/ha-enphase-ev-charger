@@ -420,7 +420,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             elif fast_opt is not None:
                 interval = max(interval, fast_interval)
         self._configured_slow_poll_interval = interval
-        self.summary = SummaryStore(lambda: self.client, logger=_LOGGER)
+        self.summary = SummaryStore(
+            lambda: self.client,
+            site_id_getter=lambda: self.site_id,
+            logger=_LOGGER,
+        )
         self.energy = EnergyManager(
             client_provider=lambda: self.client,
             site_id=self.site_id,
@@ -430,6 +434,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.evse_timeseries = EVSETimeseriesManager(
             hass,
             lambda: self.client,
+            site_id_getter=lambda: self.site_id,
             logger=_LOGGER,
         )
         self._session_history_interval_min = DEFAULT_SESSION_HISTORY_INTERVAL_MIN
@@ -471,6 +476,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             concurrency=SESSION_HISTORY_CONCURRENCY,
             data_supplier=lambda: self.data,
             publish_callback=self.async_set_updated_data,
+            site_id_getter=lambda: self.site_id,
             logger=_LOGGER,
         )
         self.evse_runtime = EvseRuntime(self)
@@ -519,6 +525,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             manager = EVSETimeseriesManager(
                 self.__dict__.get("hass"),
                 lambda: self.__dict__.get("client"),
+                site_id_getter=lambda: getattr(self, "site_id", None),
                 logger=_LOGGER,
             )
             self.__dict__["evse_timeseries"] = manager
