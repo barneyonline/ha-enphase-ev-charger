@@ -21,7 +21,7 @@ from .battery_schedule_editor import (
 )
 from .const import DOMAIN, ISSUE_AUTH_BLOCKED, ISSUE_REAUTH_REQUIRED
 from .device_types import parse_type_identifier
-from .log_redaction import redact_site_id
+from .log_redaction import redact_site_id, redact_text
 from .parsing_helpers import coerce_optional_bool
 from .runtime_data import EnphaseRuntimeData, iter_coordinators
 from .service_validation import raise_translated_service_validation
@@ -710,7 +710,14 @@ def async_setup_services(
         if success.retry_after_seconds is not None:
             response["retry_after_seconds"] = success.retry_after_seconds
         if success.success:
-            await coord.async_request_refresh()
+            try:
+                await coord.async_request_refresh()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Manual reauthentication succeeded for site %s but the follow-up refresh failed: %s",
+                    redact_site_id(site_id),
+                    redact_text(err),
+                )
         return response
 
     async def _svc_start_stream(call: ServiceCall) -> None:
