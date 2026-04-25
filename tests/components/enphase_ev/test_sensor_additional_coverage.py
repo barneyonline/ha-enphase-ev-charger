@@ -1398,6 +1398,7 @@ def test_type_inventory_sensor_summary_attributes(coordinator_factory) -> None:
     coord._type_device_order = ["microinverter"]  # noqa: SLF001
     entity = EnphaseTypeInventorySensor(coord, "microinverter")
 
+    assert entity.entity_registry_enabled_default is False
     attrs = entity.extra_state_attributes
     assert attrs["status_counts"]["normal"] == 2
     assert attrs["status_summary"].startswith("Normal 2")
@@ -1570,7 +1571,7 @@ def test_gateway_diagnostic_sensors_expose_inventory_summary(
     assert status_attrs["status_counts"]["warning"] == 1
 
     last_reported_sensor = EnphaseGatewayLastReportedSensor(coord)
-    assert last_reported_sensor.entity_registry_enabled_default is True
+    assert last_reported_sensor.entity_registry_enabled_default is False
     assert last_reported_sensor.native_value is not None
     report_attrs = last_reported_sensor.extra_state_attributes
     assert report_attrs["latest_reported_device"]["serial_number"] == "GW-1"
@@ -1682,12 +1683,31 @@ def test_microinverter_diagnostic_sensors_expose_inventory_summary(
     assert "status_summary" not in reporting_attrs
 
     last_reported_sensor = EnphaseMicroinverterLastReportedSensor(coord)
-    assert last_reported_sensor.entity_registry_enabled_default is True
+    assert last_reported_sensor.entity_registry_enabled_default is False
     assert last_reported_sensor.available is True
     assert last_reported_sensor.native_value is not None
     report_attrs = last_reported_sensor.extra_state_attributes
     assert set(report_attrs) == {"latest_reported_device"}
     assert report_attrs["latest_reported_device"]["serial_number"] == "INV-B"
+
+
+def test_last_reported_site_diagnostic_sensors_disabled_by_default(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import (
+        EnphaseAcBatteryLastReportedSensor,
+        EnphaseBatteryLastReportedSensor,
+        EnphaseHeatPumpLastReportedSensor,
+    )
+
+    coord = coordinator_factory(serials=[RANDOM_SERIAL])
+
+    for entity in (
+        EnphaseBatteryLastReportedSensor(coord),
+        EnphaseAcBatteryLastReportedSensor(coord),
+        EnphaseHeatPumpLastReportedSensor(coord),
+    ):
+        assert entity.entity_registry_enabled_default is False
 
 
 def test_microinverter_diagnostic_sensors_handle_disabled_or_empty_inventory(
@@ -2690,7 +2710,7 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
 
     production = EnphaseGatewayProductionMeterSensor(coord)
     assert production.native_value == "Normal"
-    assert production.entity_registry_enabled_default is True
+    assert production.entity_registry_enabled_default is False
     p_attrs = production.extra_state_attributes
     assert p_attrs["meter_name"] == "Production Meter"
     assert p_attrs["meter_type"] == "production"
@@ -2705,7 +2725,7 @@ def test_gateway_meter_sensors_expose_status_and_meter_attributes(
 
     consumption = EnphaseGatewayConsumptionMeterSensor(coord)
     assert consumption.native_value == "Not Reporting"
-    assert consumption.entity_registry_enabled_default is True
+    assert consumption.entity_registry_enabled_default is False
     c_attrs = consumption.extra_state_attributes
     assert c_attrs["meter_name"] == "Consumption Meter"
     assert c_attrs["meter_type"] == "consumption"
@@ -2910,6 +2930,7 @@ def test_gateway_iq_energy_router_sensor_state_and_attributes(
         "5956621_iq_energy_router_1",
         1,
     )
+    assert sensor.entity_registry_enabled_default is False
     assert sensor.available is True
     assert sensor.native_value == "Normal"
     attrs = sensor.extra_state_attributes
@@ -3498,7 +3519,7 @@ def test_system_controller_inventory_sensor_state_and_attributes(
     sensor = EnphaseSystemControllerInventorySensor(coord)
     assert sensor.available is True
     assert sensor.native_value == "Normal"
-    assert sensor.entity_registry_enabled_default is True
+    assert sensor.entity_registry_enabled_default is False
     attrs = sensor.extra_state_attributes
     assert attrs["name"] == "System Controller"
     assert attrs["channel_type"] == "enpower"
@@ -3613,7 +3634,7 @@ def test_dry_contacts_inventory_sensor_state_and_attributes(
     sensor = EnphaseDryContactsInventorySensor(coord)
     assert sensor.available is True
     assert sensor.native_value == "Closed | Open"
-    assert sensor.entity_registry_enabled_default is True
+    assert sensor.entity_registry_enabled_default is False
     assert sensor._attr_name == "Dry Contacts"  # noqa: SLF001
     attrs = sensor.extra_state_attributes
     assert attrs["name"] == "Dry Contacts"

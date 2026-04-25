@@ -5,13 +5,14 @@ import re
 from typing import Any
 
 from homeassistant.components.recorder import statistics as recorder_statistics
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers.entity import async_generate_entity_id
 from homeassistant.helpers import entity_registry as er
 
 from .const import CONF_SITE_ID, DOMAIN
+from .runtime_data import EnphaseConfigEntry
 
 ENVOY_DOMAIN = "enphase_envoy"
 MIGRATION_FLOWS: tuple[str, ...] = (
@@ -348,7 +349,7 @@ async def discover_envoy_sources(hass: HomeAssistant) -> list[EnvoyHistorySource
 
 async def discover_external_migration_candidates(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: EnphaseConfigEntry,
 ) -> list[EnvoyHistoryCandidate]:
     ent_reg = er.async_get(hass)
     registry_entries: list[er.RegistryEntry] = []
@@ -382,7 +383,7 @@ async def discover_external_migration_candidates(
 
 
 def discover_enphase_targets(
-    hass: HomeAssistant, entry: ConfigEntry
+    hass: HomeAssistant, entry: EnphaseConfigEntry
 ) -> dict[str, EnvoyHistoryTarget]:
     site_id = str(entry.data.get(CONF_SITE_ID, "")).strip()
     if not site_id:
@@ -604,7 +605,7 @@ def selected_mappings(
 
 def validate_selected_mappings(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: EnphaseConfigEntry,
     source: EnvoyHistorySource,
     targets: dict[str, EnvoyHistoryTarget],
     selected: dict[str, str],

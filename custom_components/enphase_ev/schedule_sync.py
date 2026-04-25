@@ -8,7 +8,7 @@ from datetime import datetime, time as dt_time, timedelta
 import inspect
 import json
 import logging
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 from homeassistant.components import websocket_api
 from homeassistant.components.schedule.const import (
@@ -35,6 +35,10 @@ from .const import (
 from .log_redaction import redact_identifier, redact_text
 from .schedule import normalize_slot_payload
 
+if TYPE_CHECKING:
+    from .coordinator import EnphaseCoordinator
+    from .runtime_data import EnphaseConfigEntry
+
 _LOGGER = logging.getLogger(__name__)
 
 SYNC_INTERVAL = timedelta(minutes=5)
@@ -47,7 +51,12 @@ SYNC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
 class ScheduleSync:
     """Mirror Enphase scheduler slots into Home Assistant helper entities."""
 
-    def __init__(self, hass: HomeAssistant, coordinator, config_entry=None) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: EnphaseCoordinator,
+        config_entry: EnphaseConfigEntry | None = None,
+    ) -> None:
         self.hass = hass
         self._coordinator = coordinator
         self._config_entry = config_entry

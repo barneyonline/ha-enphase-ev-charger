@@ -11,13 +11,14 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- None
+- Bounded the `Current Production Power` live-sample cache so stale values are not reused indefinitely when the latest-power endpoint stops returning valid samples.
 
 ### 🔧 Improvements
 - Clarified the Enphase authentication-block repair message and added a manual stored-credential reauthentication service for trying one immediate unblock attempt.
+- Disabled less-common diagnostic and inventory entities by default to reduce recorder churn on larger sites while keeping them available for troubleshooting.
 
 ### 🔄 Other changes
-- None
+- Expanded Platinum quality-scale evidence and validation, including upstream brands validation, stricter runtime-data typing checks, and CI coverage enforcement.
 
 ## v2.9.2 - 2026-04-25
 

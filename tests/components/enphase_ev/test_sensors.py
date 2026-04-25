@@ -916,7 +916,7 @@ def test_battery_last_reported_sensor_states_and_attributes():
 
     sensor = EnphaseBatteryLastReportedSensor(coord)
     assert sensor.entity_category is EntityCategory.DIAGNOSTIC
-    assert sensor.entity_registry_enabled_default is True
+    assert sensor.entity_registry_enabled_default is False
     assert sensor.available is True
     assert sensor.native_value == datetime(2026, 2, 15, 8, 31, 33, tzinfo=timezone.utc)
     attrs = sensor.extra_state_attributes

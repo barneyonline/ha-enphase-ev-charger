@@ -10,7 +10,7 @@ from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN
 
 TRIGGER_MAP: dict[str, dict[str, Any]] = {
-    # type: { tkey: translation_key on binary_sensor, to: state, from: optional from state }
+    # Mapping: tkey is the binary_sensor translation key, to/from are states.
     "charging_started": {"tkey": "charging", "to": STATE_ON, "from": STATE_OFF},
     "charging_stopped": {"tkey": "charging", "to": STATE_OFF, "from": STATE_ON},
     "plugged_in": {"tkey": "plugged_in", "to": STATE_ON},
