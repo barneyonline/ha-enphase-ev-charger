@@ -341,6 +341,9 @@ class BatteryState:
     _battery_site_status_text: str | None = None
     _battery_site_status_severity: str | None = None
     _battery_profile: str | None = None
+    _battery_live_profile: str | None = None
+    _battery_live_profile_label: str | None = None
+    _battery_live_profile_sample_utc: datetime | None = None
     _battery_backup_percentage: int | None = None
     _battery_backup_percentage_min: int | None = None
     _battery_backup_percentage_max: int | None = None
@@ -370,6 +373,7 @@ class BatteryState:
     )
     _battery_profile_issue_reported: bool = False
     _battery_profile_write_lock: Any = None
+    _battery_profile_recovery_restore_task: Any = None
     _battery_profile_last_write_mono: float | None = None
     _battery_settings_write_lock: Any = None
     _battery_settings_last_write_mono: float | None = None

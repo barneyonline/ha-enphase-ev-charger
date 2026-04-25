@@ -311,6 +311,16 @@ class CoordinatorDiagnostics:
             "battery_profile_label": coord._battery_profile_label(
                 getattr(coord, "_battery_profile", None)
             ),
+            "battery_live_profile": coord.battery_live_profile,
+            "battery_live_profile_label": coord._battery_profile_label(
+                coord.battery_live_profile
+            ),
+            "battery_live_profile_raw": getattr(
+                coord, "_battery_live_profile_label", None
+            ),
+            "battery_live_profile_sample_utc": _iso(
+                getattr(coord, "_battery_live_profile_sample_utc", None)
+            ),
             "battery_backup_percentage": getattr(
                 coord, "_battery_backup_percentage", None
             ),

@@ -72,6 +72,25 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _LOGGER = logging.getLogger(__name__)
 
+_PROFILE_RECOVERY_RESERVE_RESTORE_DELAY_S = 75.0
+_LIVE_BATTERY_MODE_PROFILE_ALIASES = {
+    "self-consumption": "self-consumption",
+    "self consumption": "self-consumption",
+    "self_consumption": "self-consumption",
+    "full backup": "backup_only",
+    "full-backup": "backup_only",
+    "backup": "backup_only",
+    "backup only": "backup_only",
+    "backup_only": "backup_only",
+    "savings": "cost_savings",
+    "cost savings": "cost_savings",
+    "cost_savings": "cost_savings",
+    "ai optimisation": "ai_optimisation",
+    "ai optimization": "ai_optimisation",
+    "ai_optimisation": "ai_optimisation",
+    "ai_optimization": "ai_optimisation",
+}
+
 
 class BatteryRuntime:
     """Battery profile selection and pending-state helpers."""
@@ -327,6 +346,23 @@ class BatteryRuntime:
         ):
             return "ai_optimisation"
         return normalized or None
+
+    def normalize_live_battery_mode_profile(self, value: object) -> str | None:
+        if value is None:
+            return None
+        try:
+            normalized = str(value).strip().lower()
+        except Exception:  # noqa: BLE001
+            return None
+        if not normalized:
+            return None
+        profile = _LIVE_BATTERY_MODE_PROFILE_ALIASES.get(normalized)
+        if profile == "cost_savings":
+            for attr in ("_battery_pending_profile", "_battery_profile"):
+                candidate = getattr(self.battery_state, attr, None)
+                if candidate in {"cost_savings", "ai_optimisation"}:
+                    return candidate
+        return profile or self.normalize_battery_profile_key(normalized)
 
     @staticmethod
     def battery_profile_label(
@@ -628,7 +664,10 @@ class BatteryRuntime:
         pending_profile = getattr(state, "_battery_pending_profile", None)
         if not pending_profile:
             return False
-        if getattr(state, "_battery_profile", None) != pending_profile:
+        effective_profile = getattr(state, "_battery_live_profile", None)
+        if effective_profile is None:
+            effective_profile = getattr(state, "_battery_profile", None)
+        if effective_profile != pending_profile:
             return False
         if not getattr(state, "_battery_pending_require_exact_settings", True):
             return True
@@ -2061,6 +2100,96 @@ class BatteryRuntime:
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()
 
+    def _profile_recovery_reserve_nudge(self, profile: str, reserve: int) -> int | None:
+        normalized_profile = self.normalize_battery_profile_key(profile)
+        if normalized_profile == "backup_only":
+            return None
+        normalized_reserve = self.normalize_battery_reserve_for_profile(
+            normalized_profile or profile, reserve
+        )
+        min_reserve = self.battery_reserve_min_bound()
+        max_reserve = self.battery_reserve_max_bound()
+        if normalized_reserve < max_reserve:
+            return min(max_reserve, normalized_reserve + 5)
+        if normalized_reserve > min_reserve:
+            return max(min_reserve, normalized_reserve - 5)
+        return None
+
+    def _schedule_profile_recovery_reserve_restore(
+        self, profile: str, reserve: int
+    ) -> None:
+        state = self.battery_state
+        task = getattr(state, "_battery_profile_recovery_restore_task", None)
+        if task is not None and not task.done():
+            task.cancel()
+
+        async def _restore() -> None:
+            try:
+                await asyncio.sleep(_PROFILE_RECOVERY_RESERVE_RESTORE_DELAY_S)
+                await self.async_apply_battery_reserve_only(
+                    profile=profile,
+                    reserve=reserve,
+                    require_exact_pending_match=False,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug(
+                    "Failed to restore battery reserve after profile recovery for site %s: %s",
+                    redact_site_id(self.coordinator.site_id),
+                    redact_text(str(err)),
+                )
+            finally:
+                current = getattr(
+                    self.battery_state, "_battery_profile_recovery_restore_task", None
+                )
+                if current is asyncio.current_task():
+                    self.battery_state._battery_profile_recovery_restore_task = None
+
+        hass = getattr(self.coordinator, "hass", None)
+        creator = getattr(hass, "async_create_task", None)
+        if callable(creator):
+            state._battery_profile_recovery_restore_task = creator(_restore())
+        else:
+            state._battery_profile_recovery_restore_task = asyncio.create_task(
+                _restore()
+            )
+
+    async def async_recover_split_battery_profile(
+        self, *, profile: str, reserve: int
+    ) -> bool:
+        state = self.battery_state
+        normalized_profile = self.normalize_battery_profile_key(profile)
+        if not normalized_profile:
+            return False
+        live_profile = getattr(state, "_battery_live_profile", None)
+        if live_profile is None or live_profile == normalized_profile:
+            return False
+        if getattr(state, "_battery_profile", None) != normalized_profile:
+            return False
+        nudge_reserve = self._profile_recovery_reserve_nudge(
+            normalized_profile, reserve
+        )
+        if nudge_reserve is None:
+            return False
+        _LOGGER.debug(
+            "Recovering split battery profile for site %s (configured=%s live=%s target=%s)",
+            redact_site_id(self.coordinator.site_id),
+            getattr(state, "_battery_profile", None),
+            live_profile,
+            normalized_profile,
+        )
+        await self.async_apply_battery_reserve_only(
+            profile=normalized_profile,
+            reserve=nudge_reserve,
+            require_exact_pending_match=False,
+        )
+        self._schedule_profile_recovery_reserve_restore(
+            normalized_profile,
+            self.normalize_battery_reserve_for_profile(normalized_profile, reserve),
+        )
+        return True
+
     def parse_battery_backup_history_payload(
         self, payload: object
     ) -> list[dict[str, object]] | None:
@@ -2227,6 +2356,9 @@ class BatteryRuntime:
             state._battery_aggregate_status = None
             state._battery_aggregate_status_details = {}
             state._battery_summary_sample_utc = None
+            state._battery_live_profile = None
+            state._battery_live_profile_label = None
+            state._battery_live_profile_sample_utc = None
             self._refresh_cached_topology()
             return
 
@@ -2245,6 +2377,7 @@ class BatteryRuntime:
         worst_key: str | None = None
         worst_status: str | None = None
         worst_severity = self._battery_status_severity_value("normal")
+        live_profiles: list[tuple[str, str]] = []
 
         for item in storage_items:
             if not isinstance(item, dict):
@@ -2252,6 +2385,11 @@ class BatteryRuntime:
             raw_payload: dict[str, object] = {}
             for raw_key, raw_value in item.items():
                 raw_payload[str(raw_key)] = raw_value
+
+            live_label = self._coerce_optional_text(raw_payload.get("battery_mode"))
+            live_profile = self.normalize_live_battery_mode_profile(live_label)
+            if live_profile is not None and live_label is not None:
+                live_profiles.append((live_profile, live_label))
 
             excluded = self._coerce_optional_bool(raw_payload.get("excluded")) is True
             if excluded:
@@ -2342,7 +2480,17 @@ class BatteryRuntime:
         state._battery_storage_order = list(dict.fromkeys(order))
         state._battery_aggregate_charge_pct = aggregate_charge
         state._battery_aggregate_status = aggregate_status
-        state._battery_summary_sample_utc = dt_util.utcnow()
+        sample_utc = dt_util.utcnow()
+        state._battery_summary_sample_utc = sample_utc
+        if live_profiles:
+            live_profile, live_label = live_profiles[0]
+            state._battery_live_profile = live_profile
+            state._battery_live_profile_label = live_label
+            state._battery_live_profile_sample_utc = sample_utc
+        else:
+            state._battery_live_profile = None
+            state._battery_live_profile_label = None
+            state._battery_live_profile_sample_utc = None
         state._battery_aggregate_status_details = {
             "status": aggregate_status,
             "worst_storage_key": worst_key,
@@ -2386,6 +2534,8 @@ class BatteryRuntime:
         }
         self._sync_ac_battery_from_battery_status(snapshots)
         self._refresh_cached_topology()
+        if self.effective_profile_matches_pending():
+            self.clear_battery_pending()
 
     def _sync_ac_battery_from_battery_status(
         self, snapshots: dict[str, dict[str, object]]
@@ -3587,6 +3737,10 @@ class BatteryRuntime:
         )
         reserve = self.target_reserve_for_profile(profile)
         sub_type = self.target_operation_mode_sub_type(profile)
+        if await self.async_recover_split_battery_profile(
+            profile=profile, reserve=reserve
+        ):
+            return
         await self.async_apply_battery_profile(
             profile=profile,
             reserve=reserve,

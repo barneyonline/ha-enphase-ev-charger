@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Treated scheduler login-wall responses as authentication failures so Enphase auth blocks are detected during schedule sync instead of being logged as ordinary schedule fetch errors.
 - Rejected charger and site services with a clear validation error when no target or owning coordinator can be resolved.
 - Cancelled pending EV charger amp-restart and live-stream stop tasks during config entry unload so stale tasks cannot call the cloud client after reload or removal.
+- Fixed IQ Battery profile recovery for sites where BatteryConfig reports the requested profile while the live controller remains in the previous mode, and restored BatteryConfig write XSRF bootstrapping when `schedules/isValid` rejects the initial preflight with `403`.
 
 ### 🔧 Improvements
 - Added refresh performance diagnostics, including per-stage timing and cloud-call counts for steady and fast polling.

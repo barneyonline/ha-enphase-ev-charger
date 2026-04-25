@@ -1832,6 +1832,8 @@ def test_system_profile_status_sensor_states():
         battery_controls_available=True,
         battery_profile_pending=False,
         battery_profile="self-consumption",
+        battery_live_profile=None,
+        battery_effective_profile="self-consumption",
         battery_effective_profile_display="Self-Consumption",
         battery_effective_backup_percentage=20,
         battery_effective_operation_mode_sub_type=None,
@@ -1902,6 +1904,10 @@ def test_system_profile_status_sensor_states():
     assert sensor.native_value == "Updating..."
     attrs = sensor.extra_state_attributes
     assert attrs["pending"] is True
+    assert attrs["effective_profile"] == "self-consumption"
+    assert attrs["configured_profile"] == "self-consumption"
+    assert attrs["live_profile"] is None
+    assert attrs["live_profile_label"] is None
     assert attrs["requested_profile"] == "ai_optimisation"
     assert attrs["requested_profile_label"] == "AI Optimisation"
     assert attrs["supports_mqtt"] is True
@@ -1915,6 +1921,18 @@ def test_system_profile_status_sensor_states():
     assert attrs["site_country_code"] == "US"
     assert attrs["feature_details"] == {"HEMS_EV_Custom_Schedule": True}
     assert attrs["evse_profile"]["uuid"] == "evse-1"
+
+    coord.battery_profile_pending = False
+    coord.battery_live_profile = "backup_only"
+    coord.battery_effective_profile = "backup_only"
+    coord.battery_effective_profile_display = "Full Backup"
+    coord._battery_live_profile_label = "Full Backup"
+    assert sensor.native_value == "Full Backup"
+    attrs = sensor.extra_state_attributes
+    assert attrs["effective_profile"] == "backup_only"
+    assert attrs["configured_profile"] == "self-consumption"
+    assert attrs["live_profile"] == "backup_only"
+    assert attrs["live_profile_label"] == "Full Backup"
 
     coord.last_update_success = False
     assert sensor.available is False
