@@ -1,3 +1,5 @@
+"""Coordinate Enphase battery controls, schedules, caches, and diagnostics."""
+
 from __future__ import annotations
 
 import asyncio
@@ -358,6 +360,8 @@ class BatteryRuntime:
             return None
         profile = _LIVE_BATTERY_MODE_PROFILE_ALIASES.get(normalized)
         if profile == "cost_savings":
+            # Enphase can report both Cost Savings and AI Optimization as the
+            # same live savings mode, so preserve the selected profile when known.
             for attr in ("_battery_pending_profile", "_battery_profile"):
                 candidate = getattr(self.battery_state, attr, None)
                 if candidate in {"cost_savings", "ai_optimisation"}:
@@ -657,6 +661,9 @@ class BatteryRuntime:
         if pending_age is None:
             return
         if pending_age >= self._backend_not_pending_clear_grace_seconds():
+            # The backend may briefly report no pending task before the updated
+            # settings are reflected, so pending state is cleared only after a
+            # poll-sized grace window.
             self.clear_battery_pending()
 
     def effective_profile_matches_pending(self) -> bool:
@@ -994,6 +1001,8 @@ class BatteryRuntime:
                     redact_text(err, site_ids=(coord.site_id,)),
                 )
             else:
+                # The raw permission payload can contain site identifiers and is
+                # retained for diagnostics only after coordinator redaction.
                 redacted_payload = coord.redact_battery_payload(payload)
                 if isinstance(redacted_payload, dict):
                     state._battery_site_settings_payload = redacted_payload

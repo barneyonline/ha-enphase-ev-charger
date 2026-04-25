@@ -1,3 +1,5 @@
+"""Expose inventory-derived type visibility and Home Assistant device metadata."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable
@@ -100,12 +102,15 @@ class InventoryView:
 
     def has_type_for_entities(self, type_key: object) -> bool:  # pragma: no cover
         """Return whether a type should gate entity creation/availability."""
+
         normalized = normalize_type_key(type_key)
         if not normalized:
             return False
         if not self._type_is_selected(normalized):
             return False
         if not getattr(self.coordinator, "_devices_inventory_ready", False):
+            # During startup, keep selected entities available until inventory
+            # proves the type absent.
             return True
         if self.has_type(normalized):
             return True
@@ -185,6 +190,8 @@ class InventoryView:
             return type_identifier(self.site_id, normalized)
         if normalized not in {"encharge", "ac_battery"}:
             return None
+        # Battery controls can be discovered through BatteryConfig before the
+        # generic devices inventory exposes a concrete member bucket.
         if not self.has_type_for_entities(normalized):
             return None
         return type_identifier(self.site_id, normalized)

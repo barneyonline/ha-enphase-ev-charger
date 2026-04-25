@@ -1,3 +1,5 @@
+"""Build redacted Home Assistant diagnostics for Enphase config entries/devices."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -28,6 +30,8 @@ TO_REDACT = [
 ]
 
 DIAGNOSTIC_IDENTIFIER_KEYS = [
+    # Enphase diagnostics often include nested raw payloads. Redact broad key
+    # families so future payload additions are safe by default.
     "site",
     "site_id",
     "site_name",
@@ -358,6 +362,8 @@ def _ac_battery_status_summary_for_diagnostics(summary: Any) -> dict[str, Any]:
 
 
 async def async_get_config_entry_diagnostics(hass, entry):
+    """Return diagnostics for a config entry."""
+
     data = async_redact_data(dict(entry.data), TO_REDACT)
     options = dict(getattr(entry, "options", {}) or {})
 
@@ -436,6 +442,8 @@ async def async_get_config_entry_diagnostics(hass, entry):
             coord, "async_ensure_system_dashboard_diagnostics", None
         )
         if callable(ensure_system_dashboard):
+            # Device diagnostics may need optional dashboard payloads that are
+            # not fetched during every normal coordinator refresh.
             await ensure_system_dashboard()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         pass
@@ -614,6 +622,8 @@ async def async_get_device_diagnostics(hass, entry, device):
             "count": (bucket.get("count", 0) if isinstance(bucket, dict) else 0),
             "devices": (bucket.get("devices", []) if isinstance(bucket, dict) else []),
         }
+        # Type diagnostics summarize groups of devices, while serial diagnostics
+        # below expose one charger snapshot.
         if isinstance(bucket, dict):
             for key, value in bucket.items():
                 if key in payload or key == "devices":

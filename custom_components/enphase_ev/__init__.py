@@ -1,3 +1,5 @@
+"""Set up Enphase EV config entries, services, devices, and registry migrations."""
+
 from __future__ import annotations
 
 import asyncio
@@ -157,6 +159,8 @@ async def _async_update_listener(
 ) -> None:
     runtime_data = getattr(entry, "runtime_data", None)
     if isinstance(runtime_data, EnphaseRuntimeData) and runtime_data.skip_reload_once:
+        # Reauth and reconfigure update the entry data themselves, so skip the
+        # reload Home Assistant would normally trigger from the options listener.
         runtime_data.skip_reload_once = False
         return
     if getattr(entry, "disabled_by", None) is not None:
@@ -208,6 +212,7 @@ def _sync_type_devices(
     entry: EnphaseConfigEntry, coord, dev_reg, site_id: object
 ) -> dict[str, object]:
     """Create or update type devices from coordinator inventory."""
+
     inventory_view = coord.inventory_view
     type_devices: dict[str, object] = {}
     type_devices_by_identifier: dict[tuple[str, str], object] = {}
@@ -217,6 +222,8 @@ def _sync_type_devices(
         if is_dry_contact_type_key(type_key) or (
             normalized in _TYPE_DEVICE_KEYS_WITH_DIRECT_CHILD_DEVICES
         ):
+            # Dry-contact and EV charger members get concrete child devices, so
+            # adding another aggregate type device would duplicate the hierarchy.
             continue
         ident = inventory_view.type_identifier(type_key)
         if ident is None:
@@ -491,6 +498,8 @@ def _migrate_cloud_entity_unique_ids(
     entry_id = getattr(entry, "entry_id", None)
     migrated = 0
     removed = 0
+    # Keep entity IDs stable for users while moving old unique IDs to the
+    # site-scoped naming convention used by current cloud sensors.
     rename_specs = (
         (
             "sensor",

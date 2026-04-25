@@ -1,3 +1,10 @@
+"""Sensor entities for Enphase charger, battery, gateway, and site telemetry.
+
+The module maps normalized coordinator snapshots into Home Assistant sensors,
+including restore-state fallbacks for cumulative energy and cloud diagnostic
+entities that surface optional endpoint health without exposing credentials.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -1689,7 +1696,9 @@ class EnphaseEnergyTodaySensor(EnphaseBaseEntity, SensorEntity, RestoreEntity):
             self._last_context_source = "realtime"
             return realtime
         if history and history.get("energy_kwh") is not None:
-            # When idle, prefer the richer session history payload.
+            # Session history is richer than the live status payload once the
+            # charger is idle, especially for authorization and final energy
+            # metadata that can arrive after charging stops.
             self._last_context_source = "history"
             return history
         if realtime and realtime_nonzero:
@@ -5329,6 +5338,8 @@ class _SiteBaseEntity(CoordinatorEntity, SensorEntity):
         self, *, include_last_success: bool = True
     ) -> dict[str, object]:
         attrs: dict[str, object] = {}
+        # These attributes are intentionally sanitized by the coordinator
+        # before they become visible on diagnostic sensors.
         if include_last_success and self._coord.last_success_utc:
             attrs["last_success_utc"] = self._coord.last_success_utc.isoformat()
         if self._coord.last_failure_utc:

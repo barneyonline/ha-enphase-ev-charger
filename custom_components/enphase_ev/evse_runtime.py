@@ -1,3 +1,5 @@
+"""Manage EVSE runtime state, polling, and charger control side effects."""
+
 from __future__ import annotations
 
 import asyncio
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Enphase scheduler/config endpoints are relatively slow and may rate-limit bursts.
 GREEN_BATTERY_CACHE_TTL = 300.0
 AUTH_SETTINGS_CACHE_TTL = 300.0
 CHARGE_MODE_CACHE_TTL = 300.0
@@ -452,6 +455,7 @@ class EvseRuntime:
                 )
                 continue
             last_attempt = coord._auto_resume_attempts.get(sn_str)
+            # A suspended EVSE can report unchanged state for more than one poll.
             if last_attempt is not None and (now - last_attempt) < 120:
                 continue
             coord._auto_resume_attempts[sn_str] = now
@@ -716,6 +720,8 @@ class EvseRuntime:
                 and err.status == 500
                 and "invalid charge level" in str(err.message or "").lower()
             ):
+                # Some chargers reject starts with a charge level when no explicit
+                # setpoint was requested, but accept the same command without it.
                 result = await coord.client.start_charging(
                     sn_str,
                     amps,
@@ -793,6 +799,7 @@ class EvseRuntime:
             delay_s = AMP_RESTART_DELAY_S
         fast_seconds = max(60, int(delay_s) if delay_s else 60)
         stop_hold = max(90.0, delay_s)
+        # The Enphase app applies amp changes by restarting the active session.
         try:
             await coord.async_stop_charging(
                 sn_str,
@@ -1024,6 +1031,7 @@ class EvseRuntime:
                 slow_floor = max(slow_floor, int(coord.update_interval.total_seconds()))
             except Exception:
                 pass
+        # Home Assistant's coordinator interval remains the lower bound for slow mode.
         _, slow_floor = normalize_poll_intervals(fast_floor, slow_floor)
         return slow_floor
 
@@ -1221,6 +1229,8 @@ class EvseRuntime:
         if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
             return cached[0], cached[1], cached[2], cached[3]
         if coord._auth_settings_backoff_active():
+            # Unsupported auth endpoints are treated as transient so older
+            # installs keep working.
             if cached:
                 return cached[0], cached[1], cached[2], cached[3]
             return None

@@ -1,3 +1,11 @@
+"""Client and authentication helpers for Enphase Enlighten cloud endpoints.
+
+This module intentionally keeps the HTTP boundary in one place. Enphase exposes
+several browser-backed services with different header, cookie, token, and XSRF
+expectations, so the client normalizes those variants before coordinator and
+entity code consume the data.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -54,6 +62,9 @@ _BATTERY_CONFIG_VARIANT_LEAN = "official_web_lean"
 _BATTERY_CONFIG_VARIANT_COOKIE_EAUTH = "cookie_eauth_compatible"
 _BATTERY_CONFIG_VARIANT_MIXED = "mixed_auth_compatible"
 _ENLIGHTEN_READ_CONCURRENCY_LIMIT = 2
+# Enlighten web pages and XHR endpoints share service capacity with the mobile
+# app. A module-level limiter keeps parallel refresh helpers from creating a
+# burst of browser-like reads during one Home Assistant update cycle.
 _enlighten_read_semaphore: asyncio.Semaphore | None = None
 
 
@@ -368,6 +379,8 @@ def _redact_debug_json_body(
 ) -> Any:
     """Return a JSON-safe payload with common identifiers redacted."""
 
+    # Invalid payload previews are copied into diagnostics and repair context,
+    # so redact before truncating to avoid exposing short tokens or site IDs.
     normalized_site_ids: set[str] = set()
     for site_id in site_ids or ():
         try:
@@ -2316,6 +2329,9 @@ class EnphaseEVClient:
     ) -> dict[str, str | None]:
         """Return headers for BatteryConfig read/write calls."""
 
+        # BatteryConfig is backed by the first-party battery profile web app,
+        # not the regular Enlighten XHR surface, so these headers intentionally
+        # mimic that origin and user agent instead of reusing the base headers.
         headers: dict[str, str | None] = {
             "Accept": "application/json, text/plain, */*",
             "Origin": "https://battery-profile-ui.enphaseenergy.com",
@@ -2613,6 +2629,10 @@ class EnphaseEVClient:
     ) -> list[_BatteryConfigWriteAttempt]:
         """Return ordered write attempts for a BatteryConfig endpoint family."""
 
+        # Captured BatteryConfig traffic differs by region, firmware, and
+        # whether the site supports MQTT-backed writes. Keep these variants
+        # explicit so a successful shape can be cached without hiding why the
+        # fallback exists.
         attempts: list[_BatteryConfigWriteAttempt]
         body = json_body if isinstance(json_body, dict) else None
         has_source = isinstance(params, dict) and "source" in params
@@ -3319,6 +3339,9 @@ class EnphaseEVClient:
                 seen_signatures.add(signature)
 
                 try:
+                    # Some cookie-compatible writes must reuse the XSRF token
+                    # captured with the original browser session; refreshing it
+                    # first can turn a working request into a 403.
                     if not (
                         attempt.prefer_existing_xsrf
                         and self._battery_config_cookie_header_xsrf_token() is not None

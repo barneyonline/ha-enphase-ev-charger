@@ -1,3 +1,5 @@
+"""Normalize Enphase inventory type names and device members."""
+
 from __future__ import annotations
 
 import re
@@ -7,6 +9,8 @@ from typing import Any
 from .const import DOMAIN
 
 _TYPE_ALIAS_TOKEN_MAP: dict[str, str] = {
+    # Inventory labels vary between Enlighten pages, API families, and legacy
+    # product names; normalize aliases before entity/device decisions.
     "envoy": "envoy",
     "gateway": "envoy",
     "iqgateway": "envoy",
@@ -195,6 +199,7 @@ def member_is_retired(member: object) -> bool:
     retired_flag = member.get("isRetired")
     if retired_flag is True:
         return True
+    # Some inventory payloads omit ``isRetired`` and only expose lifecycle text.
     for key in ("status", "statusText", "status_text"):
         value = member.get(key)
         if value is None:

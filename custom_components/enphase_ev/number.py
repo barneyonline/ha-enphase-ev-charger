@@ -1,3 +1,5 @@
+"""Number entities for Enphase current limits and battery schedule settings."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -40,6 +42,7 @@ def _battery_write_access_confirmed(coord: EnphaseCoordinator) -> bool:
         return True
     if confirmed is not None:
         return bool(confirmed)
+    # Battery write access starts unknown until BatteryConfig permissions load.
     return False
 
 
@@ -187,6 +190,8 @@ async def async_setup_entry(
         if not inventory_ready:
             return
 
+        # Registry cleanup waits for inventory so numbers are not removed while
+        # optional BatteryConfig endpoints are still warming up.
         active_charger_unique_ids = {
             _charger_number_unique_id(sn) for sn in current_serials
         }

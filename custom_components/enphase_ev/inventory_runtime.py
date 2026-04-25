@@ -1,3 +1,5 @@
+"""Maintain Enphase inventory topology and diagnostics payload caches."""
+
 from __future__ import annotations
 
 import asyncio
@@ -55,6 +57,7 @@ _LOGGER = logging.getLogger(__name__)
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEMS_DEVICES_STALE_AFTER_S = 90.0
 HEMS_DEVICES_CACHE_TTL = 15.0
+# System-dashboard detail calls are fan-out requests against the same cloud service.
 SYSTEM_DASHBOARD_DETAIL_CONCURRENCY = 3
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
     "envoys",
@@ -485,6 +488,7 @@ class InventoryRuntime:
     @callback
     def _refresh_cached_topology(self) -> bool:
         if self._topology_refresh_suppressed > 0:
+            # Batch refreshes coalesce Home Assistant entity-registry notifications.
             self._topology_refresh_pending = True
             return False
         try:
@@ -785,6 +789,7 @@ class InventoryRuntime:
             if data.get("hems-devices") is not None
             else data.get("hems_devices")
         )
+        # The HEMS endpoint has appeared with both hyphenated and underscored keys.
         if not isinstance(hems_devices, dict):
             return []
         return [hems_devices]
@@ -1843,6 +1848,8 @@ class InventoryRuntime:
                     _hems_devices_cache_until=now + HEMS_DEVICES_CACHE_TTL,
                 )
             elif stale_allowed:
+                # A short stale window avoids removing heat-pump entities during
+                # cloud blips.
                 self._update_shared_state(
                     _hems_devices_payload=previous_payload,
                     _hems_devices_using_stale=True,
@@ -2050,6 +2057,8 @@ class InventoryRuntime:
             _system_dashboard_devices_details_raw=details_raw,
         )
         if isinstance(tree_raw, dict):
+            # Raw dashboard payloads are kept separately; diagnostics only
+            # exposes redacted copies.
             redacted_tree = self._redact_battery_payload(tree_raw)
             tree_payload_out = (
                 redacted_tree if isinstance(redacted_tree, dict) else None

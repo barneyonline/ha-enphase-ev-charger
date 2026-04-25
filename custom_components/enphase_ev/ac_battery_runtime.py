@@ -1,3 +1,5 @@
+"""Parse and refresh Enphase AC Battery device state."""
+
 from __future__ import annotations
 
 import re
@@ -11,6 +13,8 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .service_validation import raise_translated_service_validation
 
+# Enphase exposes AC Battery controls through an HTML page rather than the JSON
+# endpoints used for most battery data.
 _AC_BATTERY_TABLE_RE = re.compile(
     r"<table[^>]*id=['\"]ac_batteries['\"][^>]*>(?P<table>.*?)</table>",
     re.IGNORECASE | re.DOTALL,
@@ -265,6 +269,8 @@ class AcBatteryRuntime:
             if not key:
                 continue
 
+            # The sleep link CSS class is the stable signal; the label can vary
+            # with localization or minor Enlighten page copy changes.
             sleep_match = _AC_BATTERY_SLEEP_CONTROL_RE.search(row_text)
             sleep_class = (
                 sleep_match.group("class").strip().lower() if sleep_match else None
@@ -506,11 +512,15 @@ class AcBatteryRuntime:
             }
         )
         if isinstance(redacted, dict):
+            # These payload copies feed diagnostics, so identifiers must stay
+            # redacted even though the source page was HTML.
             state._ac_battery_devices_payload = redacted
             state._ac_battery_devices_html_payload = redacted
         else:
             state._ac_battery_devices_payload = {"value": redacted}
             state._ac_battery_devices_html_payload = {"value": redacted}
+        # The AC Battery page is slow-changing and expensive enough to keep on
+        # its own short-lived cache separate from endpoint-family backoff.
         state._ac_battery_devices_cache_until = now + 300.0
         coord._note_endpoint_family_success(family, success_ttl_s=300.0)
 

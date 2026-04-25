@@ -99,6 +99,7 @@ docker compose -f devtools/docker/docker-compose.yml run --rm ha-dev bash -lc "p
 ## Documentation and Changelog
 
 - Update `README.md` when behaviour, options, or supported features change. Include new configuration parameters using the recommended `configuration_basic` formatting when appropriate.
+- For codebase orientation, see [`docs/architecture.md`](docs/architecture.md) and [`docs/glossary.md`](docs/glossary.md).
 - Record user-facing changes in `CHANGELOG.md` under an `Unreleased` entry (or add a new version section when preparing a release).
 
 ## Tests
