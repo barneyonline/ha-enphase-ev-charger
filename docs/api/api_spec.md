@@ -11,6 +11,7 @@ _This reference consolidates observed Enlighten mobile/web APIs across EV chargi
 - **Path Variables:**
   - `<site_id>` - numeric site identifier
   - `<sn>` - charger serial number
+  - `<gateway_sn>` - Envoy/IQ Gateway serial number used by site live-status streams
   - `connectorId` - connector index; currently always `1`
 - **Discovery:** `GET /app-api/search_sites.json?searchText=&favourite=false` enumerates the account's accessible sites, returning IDs and display titles.
 - **Evidence labels used below:**
@@ -77,7 +78,7 @@ Example response:
 | JWT token bootstrap (legacy / documented capture) | `GET` | `/app-api/jwt_token.json` | authenticated Enlighten session cookies | No (current integration); Yes in external client source |
 | JWT token fallback (legacy / documented capture) | `GET` | `/service/auth_ms_enho/api/v1/session/token` | session cookies + `_enlighten_4_session` echoed as `e-auth-token` | No |
 | Mobile/web shared constants | `GET` | `https://enlighten-mobile-38d22.firebaseio.com/enho_constants.json` | none observed | No (documented from web UI) |
-| EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
+| EV runtime status | `GET` | `/service/evse_controller/<site_id>/ev_chargers/status` and `/service/evse_controller/api/v2/<site_id>/ev_chargers/status` | `e-auth-token` + cookies | Yes |
 | EV metadata summary | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/summary` | `e-auth-token` + cookies | Yes |
 | EV last-reported timestamps | `GET` | `/service/evse_controller/api/v2/<site_id>/ev_chargers/last_reported_at` | `e-auth-token` + cookies | No (documented from web UI) |
 | EV firmware details | `GET` | `/service/evse_management/fwDetails/<site_id>` | `e-auth-token` + cookies | Yes |
@@ -88,6 +89,8 @@ Example response:
 | Site bootstrap payload | `GET` | `/app-api/<site_id>/data.json?app=<id>&device_status=non_retired&is_mobile=<id>` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
 | Filtered site-device inventory | `POST` | `/service/site-device/api/v2/devices/list` | `e-auth-token` + cookies | No (documented from web UI) |
 | Site live-stream flags | `GET` | `/app-api/<site_id>/show_livestream` | authenticated session cookies | No (documented from web UI) |
+| Site live-status MQTT authorizer | `GET` | `/pv/aws_sigv4/livestream.json?serial_num=<gateway_sn>` | authenticated Enlighten session cookies + `e-auth-token`; browser capture used `Accept: */*`, `Referer: /web/<site_id>/today/graph/hours?v=3.4.0`, `X-Requested-With: XMLHttpRequest` | No (documented from web UI and local 60s capture) |
+| Site live-vitals MQTT authorizer | `GET` | `/pv/aws_sigv4/livestream.json?serial_num=<gateway_sn>&live_debug=true` | authenticated Enlighten session cookies + `e-auth-token`; same browser XHR shape as the live-status authorizer | No (documented from web UI and local 20s/60s captures) |
 | Site latest power | `GET` | `/app-api/<site_id>/get_latest_power` | `e-auth-token` + cookies | Yes |
 | Site currency conversion settings | `GET` | `/app-api/<site_id>/get_currency_conversion.json` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
 | Requested battery usage hint | `GET` | `/app-api/<site_id>/get_requested_battery_usage` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
@@ -154,6 +157,7 @@ This section groups both EV charger endpoints and non-EV site/system endpoints e
 ### 2.1 Status Snapshot
 ```
 GET /service/evse_controller/<site_id>/ev_chargers/status
+GET /service/evse_controller/api/v2/<site_id>/ev_chargers/status
 ```
 Returns charger state (plugged, charging, session energy, etc.).
 
@@ -223,6 +227,7 @@ Recent cloud responses wrap the data in `meta`/`data` objects:
 ```
 Legacy responses may still return the flatter `evChargerData` shape.
 The `connectors[]` payload includes `dlbActive`, `safeLimitState`, and connector status fields.
+The web-app Live Vitals capture also used the `api/v2` status alias, returning a keyed `data` object where each key was a charger serial and the value included `connected`, `pluggedIn`, `charging`, and `lst_rpt_at` in epoch milliseconds.
 
 Observed field behavior:
 - `session_d` may still describe the most recent completed charge session even when `charging=false` and `pluggedIn=false`.
@@ -237,6 +242,9 @@ Observed property values from the web capture:
 - `sch_d.status=1`, `sch_d.info[].type="greencharging"`, `sch_d.info[].limit=0`
 - `session_d.auth_status=4`, `session_d.auth_type=null`, `session_d.auth_id=null`, `session_d.charge_level=null`
 - `connectors[].connectorId=1`, `connectors[].connectorStatusType="AVAILABLE"`, `connectors[].connectorStatusInfo=""`, `connectors[].connectorStatusReason=""`, `connectors[].safeLimitState=1`, `connectors[].dlbActive=false`
+- The `api/v2` status alias was observed with `data.<charger_sn>.connected=true`, `pluggedIn=false`, `charging=false`, and `lst_rpt_at=<epoch_ms>`, matching the web-app charger card state "Not Plugged-in" and `0 kW`.
+- During an active charging capture, the original status endpoint returned `connected=true`, `pluggedIn=true`, `charging=true`, `faulted=false`, `mode=0`, `offGrid="ON_GRID"`, and `connectors[].connectorStatusType="CHARGING"` with `safeLimitState=0`.
+- The `api/v2` status alias during the same active charging capture still only exposed the keyed charger booleans/timestamp shape (`connected`, `pluggedIn`, `charging`, `lst_rpt_at`); it did not include the instantaneous charger voltage/current/power rendered by the web UI.
 
 ### 2.2 Extended Summary (Metadata)
 ```
@@ -604,13 +612,38 @@ Example response:
 
 Observed behavior:
 - The response returns one or more live topic identifiers plus a 15-minute duration.
-- A subsequent request to `GET /service/evse_sse/subscribeEvent?key=<site_id>` was observed immediately afterward, but the HAR did not preserve event frames.
+- Observed EVSE topic shape is `v1/evse/prod/live-stream/<charger_sn>`.
+- The topic can be subscribed over the same AWS IoT WebSocket/custom-authorizer transport documented in `2.9.2.a`, using the site live-status authorizer credentials and `Origin: https://enlighten.enphaseenergy.com`.
+- A bounded 30-second local probe subscribed successfully to the returned EVSE topic while the charger was connected but not plugged in; no MQTT messages were emitted in that idle state.
+- A bounded active-charging capture also subscribed successfully to the returned EVSE topic, but the topic emitted no MQTT messages during a labeled 30-second capture. In the same window the gateway Live Status topic emitted binary frames and Live Vitals emitted JSON frames.
+- A later HAR did not preserve WebSocket/MQTT frames, but the captured web-app JavaScript shows the EVSE live-status component expects this topic to emit JSON payloads. The frontend parses `payloadString` as JSON, matches the destination topic with the EVSE live-stream regex, and decodes fields such as `power_W`, `power_W_l1`, `power_W_l2`, `power_W_l3`, `power_W_exp`, and phase-suffixed `meter` values. The EVSE-only energy-flow calculation treats `power_W / 1000` as charging kW, `power_W_exp / 1000` as discharging/export kW, and `meter / 1000` as grid kW. This is code-derived until a real EVSE MQTT frame is captured.
+- The EVSE-specific AWS authorizer path observed in the frontend is `GET /service/evse_controller/api/v1/aws_sigv4/livestream/<site_id>`. It returns the same style of AWS IoT custom-authorizer fields used by the other MQTT live streams.
+- The same JavaScript includes a per-charger retry path, `GET /service/evse_controller/<site_id>/ev_chargers/<charger_sn>/retry_start_live_stream`, used when the UI retries a device live-stream subscription.
+- A bounded 60-second active-charging probe using the EVSE-specific authorizer connected and subscribed to the EVSE topic successfully, but still received no EVSE topic messages. A parallel probe mirroring the web-app Live Vitals behavior subscribed to both `v1/live-debug/json/<stream_id>` and the EVSE topic; it received Live Vitals JSON frames every roughly 5 seconds and no EVSE topic frames.
+- Additional bounded 30-second probes tried the EVSE-specific authorizer with the exact topic, `v1/evse/prod/live-stream/+`, `v1/evse/prod/live-stream/#`, QoS 1, MQTT 3.1, MQTT 3.1.1, the gateway Live Status authorizer, the Live Vitals authorizer plus EVSE topic, retry-before-subscribe, and retry-after-subscribe. Exact-topic subscriptions received successful MQTT SUBACK grants, confirming the broker accepted the subscription, but no EVSE topic frames were received. Omitting `site-id` from the MQTT username caused AWS IoT disconnects, so `site-id` appears required.
+- A subsequent request to `GET /service/evse_sse/subscribeEvent?key=<site_id>` was observed immediately afterward. The browser request used `Accept: text/event-stream`, `Cache-Control: no-cache`, `Pragma: no-cache`, a bearer JWT in `Authorization`, `e-auth-token`, and the same `/web/<site_id>/today/graph/hours?v=3.4.0` referer. A short active-charging local probe returned only the `INIT` event and an empty message payload.
+- Open capture target: identify the web source for the charger card's voltage/current/power fields. They were visible in the browser UI during charging, but were not present in the EVSE MQTT topic, the Live Vitals MQTT JSON payload, the short SSE probe, or the two observed status endpoints.
 
 ### 2.4 Stop Live Stream
 ```
 GET /service/evse_controller/<site_id>/ev_chargers/stop_live_stream
 ```
 Ends the fast polling window.
+
+Observed web-app response:
+```json
+{
+  "meta": {
+    "serverTimeStamp": 1770000000000
+  },
+  "data": null,
+  "error": {}
+}
+```
+
+The request uses the same authenticated web XHR shape as `start_live_stream`: `Accept: */*`, Enlighten session cookies, `e-auth-token`, `Referer: /web/<site_id>/today/graph/hours?v=3.4.0`, and `X-Requested-With: XMLHttpRequest`.
+
+Legacy or normalized client responses may still use:
 ```json
 { "status": "accepted" }
 ```
@@ -838,12 +871,12 @@ Notes:
 
 Example daily request:
 ```
-GET /service/timeseries/evse/timeseries/daily_energy?site_id=1234567&source=evse&requestId=<uuid>&start_date=2026-03-13&username=2999024
+GET /service/timeseries/evse/timeseries/daily_energy?site_id=<site_id>&source=evse&requestId=<uuid>&start_date=2026-03-13&username=<user_id>
 ```
 
 Example lifetime request:
 ```
-GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=1234567&source=evse&requestId=<uuid>&username=2999024
+GET /service/timeseries/evse/timeseries/lifetime_energy?site_id=<site_id>&source=evse&requestId=<uuid>&username=<user_id>
 ```
 
 Observed lifetime response:
@@ -1259,6 +1292,185 @@ Notes:
 - The raw browser trace included session cookies, a JWT-bearing cookie, user identifiers, and an exact site ID; those values are intentionally omitted here and replaced with placeholders.
 - This endpoint appears to be a lightweight capability check used before the UI enables live monitoring flows.
 - It complements the HEMS live-stream toggle endpoints documented in `2.F`, but does not itself start a stream or return a stream topic/key.
+
+### 2.9.2.a Site Live-Status MQTT Authorizer
+```
+GET /pv/aws_sigv4/livestream.json?serial_num=<gateway_sn>
+```
+Returns an AWS IoT custom-authorizer payload for the Enlighten web-app **Live Status** modal. This stream is distinct from the BatteryConfig MQTT response stream documented in `5.1`.
+
+Example response (anonymized):
+```json
+{
+  "live_stream_duration": 900,
+  "live_stream_topic": "v1/live-stream/<stream_id>",
+  "dr_event_mode": "",
+  "has_load_controls": false,
+  "timeout": 15,
+  "aws_iot_endpoint": "a1b2c3d4e5f6g7-ats.iot.us-east-1.amazonaws.com",
+  "aws_authorizer": "aws-lambda-authoriser-prod",
+  "aws_token_key": "enph_token",
+  "aws_token_value": "<session_id>",
+  "aws_digest": "<base64_signature>"
+}
+```
+
+Observed request fields:
+- Query parameter `serial_num`: Envoy/IQ Gateway serial number. A charger serial was rejected with `400` and an `Envoy not found` style message in local probing.
+- Browser capture sent `Accept: */*`, `X-Requested-With: XMLHttpRequest`, Enlighten session cookies, and `e-auth-token`.
+- Browser capture referer was the web live graph route: `/web/<site_id>/today/graph/hours?v=3.4.0`.
+
+Observed MQTT usage:
+- MQTT WebSocket URL is `wss://<aws_iot_endpoint>/mqtt`.
+- WebSocket request uses `Sec-WebSocket-Protocol: mqtt`.
+- MQTT authentication is carried in the MQTT `username` field:
+  `?x-amz-customauthorizer-name=<aws_authorizer>&<aws_token_key>=<aws_token_value>&site-id=<site_id>&x-amz-customauthorizer-signature=<urlencoded aws_digest>&env=production`
+- The web-app stream used MQTT 3.1.1 over WebSockets, no password, path `/mqtt`, and `Origin: https://enlighten.enphaseenergy.com`.
+- Subscribe to the returned `live_stream_topic`.
+- Observed `live_stream_duration` was `900` seconds; local investigation deliberately disconnected after 60 seconds.
+- In a 60-second local capture, the topic emitted one binary message per second after successful subscribe.
+
+Observed payload format:
+- Payloads are binary and protobuf-like, not JSON.
+- The 60-second capture used 168-byte frames.
+- Numeric power values are signed varints scaled by `1_000_000` to kW.
+- The first subfield in each repeated power group matched the visible web-app Live Status values. The second subfield often held a nearby related value; its meaning is not confirmed.
+
+Decoded field mapping from two web-app screenshot comparisons:
+
+| Live Status UI value | Protobuf-like path | Conversion | Notes |
+| --- | --- | --- | --- |
+| Solar producing | root `field3.field1.field1` | divide by `1_000_000` | Positive value matched the blue solar node. |
+| Battery charging/discharging | root `field3.field2.field1` | divide by `1_000_000` | Positive value matched green "Discharging" in observed captures. Negative/charging semantics still need a direct charge-mode capture. |
+| Grid import/export | root `field3.field3.field1` | divide by `1_000_000` | Negative value matched "Exporting"; near-zero matched "Idle". |
+| Home consuming | root `field3.field4.field1` | divide by `1_000_000` | Matched orange home load. The balance relationship was `home ~= solar + battery + grid`. |
+| EV charger consuming | root `field3.field4.field2` | divide by `1_000_000` | Candidate mapping. During an active charging capture, early frames were around `7.10-7.12` kW while the Live Status charger card showed `7.1` kW. A later labeled 30-second capture saw this path fluctuate from roughly `7.25` to `9.45` kW while the EVSE MQTT topic remained silent. |
+| Battery state of charge | root `field3.field6` | integer percent | Matched the battery charge percentage. |
+| System profile / mode | root `field3.field5` | enum/integer | Observed value `2` while the UI showed Self-Consumption; mapping needs more modes. |
+| Grid status | root `field3.field8` | enum/integer | Observed value `6` while UI showed On Grid; mapping needs more states. |
+| Battery reserve/limit hint | root `field3.field11.field1`, `field3.field11.field2` | integer / scaled integer | Observed values aligned with charge percentage and a `9900`-style value, likely a percent scaled by 100; exact semantics unconfirmed. |
+
+Implementation notes:
+- Treat this stream as an experimental short-lived live-status source. Do not auto-renew indefinitely.
+- Do not log raw authorizer payloads, MQTT usernames, cookies, JWTs, exact topic IDs, site IDs, serial numbers, email addresses, or binary frames from real accounts.
+- Keep captures bounded and disconnect explicitly even when the server advertises a 15-minute duration.
+- The BatteryConfig MQTT authorizer at `5.1` returned a `v1/server/response-stream/<stream_id>` topic and emitted no passive telemetry in a 60-second local capture; do not conflate that response stream with this `v1/live-stream/<stream_id>` site telemetry stream.
+
+### 2.9.2.b Site Live-Vitals MQTT Authorizer
+```
+GET /pv/aws_sigv4/livestream.json?serial_num=<gateway_sn>&live_debug=true
+```
+Returns an AWS IoT custom-authorizer payload for the Enlighten web-app **Live Vitals** view. This is a separate topic from the Live Status stream in `2.9.2.a`, even though both authorizers use the same base route.
+
+Example response (anonymized):
+```json
+{
+  "live_debug_duration": 900,
+  "live_debug_topic": "v1/live-debug/json/<stream_id>",
+  "timeout": 15,
+  "aws_iot_endpoint": "a1b2c3d4e5f6g7-ats.iot.us-east-1.amazonaws.com",
+  "aws_authorizer": "aws-lambda-authoriser-prod",
+  "aws_token_key": "enph_token",
+  "aws_token_value": "<session_id>",
+  "aws_digest": "<base64_signature>"
+}
+```
+
+Observed request and MQTT usage:
+- Query parameter `serial_num` is the Envoy/IQ Gateway serial number.
+- Query parameter `live_debug=true` switches the authorizer response from `live_stream_topic` to `live_debug_topic`.
+- Observed Live Vitals topic shape is `v1/live-debug/json/<stream_id>`.
+- Browser capture used the same XHR headers as Live Status: `Accept: */*`, authenticated Enlighten cookies, `e-auth-token`, `Referer: /web/<site_id>/today/graph/hours?v=3.4.0`, and `X-Requested-With: XMLHttpRequest`.
+- MQTT WebSocket URL, username custom-authorizer format, protocol version, password behavior, path `/mqtt`, and `Origin: https://enlighten.enphaseenergy.com` match `2.9.2.a`.
+- Subscribe to the returned `live_debug_topic`.
+- Observed `live_debug_duration` was `900` seconds; local investigation deliberately disconnected after bounded 20-second and 60-second captures.
+
+Observed payload format:
+- Payloads are plain JSON text, not protobuf.
+- The stream emitted roughly every 5 seconds in local captures.
+- Captured frames were approximately 8-9 KB.
+- Top-level keys observed: `data_ingest_type`, `site`, `meters`, and `devices`.
+- Captured JSON contains account/site/device identifiers and exact serial numbers. Store only redacted fixtures or schema summaries.
+- During an active charging capture, Live Vitals emitted one JSON message roughly every 5 seconds and still only exposed `enpower` and `encharge` device objects. No explicit EVSE/charger object was observed.
+
+Example payload shape (anonymized and abbreviated):
+```json
+{
+  "data_ingest_type": "new",
+  "site": [
+    {
+      "timestamp": 1770000000,
+      "agg_soc": 97,
+      "freq_bias_hz": 0.005,
+      "voltage_bias_v": 0.066,
+      "is_split_phase": false,
+      "phase_count": 1,
+      "system_np": 21120,
+      "production_mode": 1
+    }
+  ],
+  "meters": [
+    {"type": "production", "status": "enabled"},
+    {"type": "consumption", "status": "enabled"},
+    {"type": "storage", "status": "disabled"}
+  ],
+  "devices": [
+    {
+      "type": "enpower",
+      "device_state": 24,
+      "comm_state": "Communicating",
+      "enpower_led_status": 13,
+      "grid_ac_l1_v": 236218,
+      "grid_freq": 49960,
+      "com_ac_l1_v": 236031,
+      "com_ac_freq": 49960,
+      "internal_state": 16,
+      "relay_state_bitmap": 963,
+      "grid_relay_state": 1
+    },
+    {
+      "type": "encharge",
+      "serial_num": "<battery_serial>",
+      "soc": 97,
+      "led_status": 14,
+      "grid_state": 1,
+      "pcu": [
+        {
+          "type": "pcu",
+          "serial_num": "<battery_microinverter_serial>",
+          "comm_state": 6,
+          "oper_state": 5,
+          "enph_oper_state": 3,
+          "grid_state": 1,
+          "ac_power": -3
+        }
+      ]
+    }
+  ]
+}
+```
+
+Decoded field mapping from Live Vitals screenshots:
+
+| Live Vitals UI value | JSON path | Conversion | Notes |
+| --- | --- | --- | --- |
+| Site battery charge | `site[].agg_soc` | integer percent | Matched top-card battery percentage. |
+| System voltage | `devices[type=enpower].grid_ac_l1_v` | divide by `1000` | Matched the top-card/system-controller voltage. |
+| System frequency | `devices[type=enpower].grid_freq` | divide by `1000` | Matched the top-card/system-controller frequency. |
+| System controller status | `devices[type=enpower].comm_state`, `device_state`, `enpower_led_status` | enum/string | `comm_state="Communicating"` and LED/status enums matched operational UI. |
+| System controller relay state | `devices[type=enpower].relay_state_bitmap`, `grid_relay_state` | bitfield/enum | Browser UI showed MID/DER relay labels; bit mapping still needs full decoding. |
+| Utility grid parameters | `devices[type=enpower].grid_ac_l1_v`, `grid_freq` | divide by `1000` | Used by the expanded system-controller view. |
+| Microgrid parameters | `devices[type=enpower].com_ac_l1_v`, `com_ac_freq` | divide by `1000` | Used by the expanded system-controller view. |
+| Battery device charge | `devices[type=encharge].soc` | integer percent | Matched battery card percentage. |
+| Battery operational/grid state | `devices[type=encharge].device_state`, `led_status`, `grid_state`, `enchg_internal_state`, `bmu_state`, `ec_power_state` | enum/integer | Observed values matched operational/on-grid/idle UI states, but enum tables need more states. |
+| Battery microinverter watts | `devices[type=encharge].pcu[].ac_power` | watts | Matched the individual IQ8D-BAT microinverter rows. |
+| Meter presence/status | `meters[].type`, `meters[].status` | strings | Observed `production`, `consumption`, and `storage` meter rows. |
+| EV charger vitals | not observed in Live Vitals MQTT capture | n/a | The captured JSON had system controller and battery devices but no explicit EVSE object, even while the web UI showed charger voltage/current/power during active charging. |
+
+Implementation notes:
+- Prefer this JSON stream for short-lived diagnostics/live-vitals displays rather than trying to infer controller/battery internals from the binary Live Status stream.
+- Keep it opt-in/experimental and do not continuously renew the 15-minute stream window.
+- Redact `serial_num`, any device IDs, site IDs, account fields, raw AWS authorizer values, and raw payloads before committing fixtures.
 
 ### 2.9.3 Latest Site Power
 ```
@@ -3971,7 +4183,7 @@ Observed usage:
 ```
 GET /service/batteryConfig/api/v1/mqttSignedUrl/<site_id>
 ```
-Returns an AWS IoT custom authorizer payload used to open a short-lived MQTT stream for live updates.
+Returns an AWS IoT custom authorizer payload used to open a short-lived MQTT response stream for BatteryConfig write flows.
 
 Example response (anonymized):
 ```json
@@ -3992,6 +4204,7 @@ Observed usage:
   `?x-amz-customauthorizer-name=<aws_authorizer>&<aws_token_key>=<aws_token_value>&site-id=<site_id>&x-amz-customauthorizer-signature=<urlencoded aws_digest>&env=production`
 - The integration uses MQTT 3.1.1 (`protocolVersion: 4`), no password, and `Origin: https://battery-profile-ui.enphaseenergy.com`.
 - The returned `topic` is treated as the response stream subscription topic before issuing the matching battery-settings `PUT`.
+- A 60-second local probe subscribed to the returned `v1/server/response-stream/<stream_id>` topic without issuing a paired write and received no passive telemetry. Use `2.9.2.a` for the separate web-app Live Status telemetry stream.
 
 ### 5.2 Site Settings
 ```
