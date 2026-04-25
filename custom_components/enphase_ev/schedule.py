@@ -1,9 +1,12 @@
+"""Normalize EVSE schedule slot payloads before scheduler writes."""
+
 from __future__ import annotations
 
 from datetime import time
 from typing import Any
 
 SLOT_PATCH_FIELDS = (
+    # Preserve scheduler-owned fields that the Enphase API expects on PATCH.
     "id",
     "startTime",
     "endTime",
@@ -53,6 +56,8 @@ def _coerce_int(value: Any) -> Any:
 
 
 def normalize_slot_payload(slot: dict[str, Any]) -> dict[str, Any]:
+    """Return the subset of a schedule slot safe to send back to Enphase."""
+
     sanitized: dict[str, Any] = {
         key: slot.get(key) for key in SLOT_PATCH_FIELDS if key in slot
     }
@@ -72,6 +77,7 @@ def normalize_slot_payload(slot: dict[str, Any]) -> dict[str, Any]:
 
     days = sanitized.get("days")
     if isinstance(days, list):
+        # Enphase indexes days from Monday=1 through Sunday=7.
         normalized_days = []
         for day in days:
             try:

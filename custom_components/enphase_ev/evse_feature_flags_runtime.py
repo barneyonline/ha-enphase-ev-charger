@@ -1,3 +1,5 @@
+"""Fetch and cache EVSE feature flags used to gate charger capabilities."""
+
 from __future__ import annotations
 
 import logging
@@ -177,6 +179,8 @@ class EvseFeatureFlagsRuntime:
                 return
         fetcher = getattr(coord.client, "evse_feature_flags", None)
         if not callable(fetcher):
+            # Older client versions do not expose feature flags, so cached state
+            # must clear.
             coord._evse_feature_flags_payload = None
             coord._evse_site_feature_flags = {}
             coord._evse_feature_flags_by_serial = {}
@@ -189,6 +193,7 @@ class EvseFeatureFlagsRuntime:
                 "EVSE feature flags fetch failed: %s",
                 redact_text(err, site_ids=(coord.site_id,)),
             )
+            # Failed flag discovery should not hammer the management endpoint.
             coord._evse_feature_flags_cache_until = (
                 now + EVSE_FEATURE_FLAGS_FAILURE_BACKOFF_S
             )

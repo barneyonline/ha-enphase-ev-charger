@@ -1,3 +1,5 @@
+"""Collect coordinator diagnostics and synchronize Home Assistant repair issues."""
+
 from __future__ import annotations
 
 import time
@@ -48,6 +50,8 @@ class CoordinatorDiagnostics:
     ) -> None:
         coord = self.coordinator
         metrics, base_placeholders = self.issue_context()
+        # Repair issues store the current diagnostic snapshot so users can share
+        # actionable context without enabling debug logging first.
         issue_placeholders = dict(base_placeholders)
         if placeholders:
             issue_placeholders.update(placeholders)
@@ -139,6 +143,8 @@ class CoordinatorDiagnostics:
             if type_key is not None and not _type_available_for_entities(type_key):
                 return False
             if coord.last_success_utc is not None:
+                # Site diagnostic entities remain useful with stale data after a
+                # prior successful refresh.
                 return True
             return _coordinator_available()
 

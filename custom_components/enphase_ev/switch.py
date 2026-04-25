@@ -1,3 +1,5 @@
+"""Switch entities for Enphase charger, battery, and schedule controls."""
+
 from __future__ import annotations
 
 import logging
@@ -62,6 +64,8 @@ def _set_evse_toggle_pending(
 ) -> None:
     """Record a short-lived optimistic EVSE toggle target."""
 
+    # EVSE control endpoints can acknowledge before the status endpoint reflects
+    # the new value, so switches expose the requested target briefly.
     pending = getattr(coord, attr_name, None)
     if not isinstance(pending, dict):
         pending = {}
@@ -165,6 +169,9 @@ def _switch_entity_id_migrations(coord: EnphaseCoordinator) -> dict[str, str]:
 
 def _migrate_storm_guard_evse_entity_id(current_entity_id: str) -> str | None:
     """Return canonical EVSE storm guard entity_id preserving numeric suffixes."""
+
+    # Home Assistant may append numeric suffixes after entity collisions; keep
+    # those user-visible IDs stable during the spelling migration.
     base_entity_id = current_entity_id
     numeric_suffix = ""
     base, _, suffix = current_entity_id.rpartition("_")

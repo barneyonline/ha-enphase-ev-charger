@@ -1,3 +1,5 @@
+"""Run coordinator refresh stages while isolating optional endpoint failures."""
+
 from __future__ import annotations
 
 import asyncio
@@ -26,6 +28,8 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Optional Enphase endpoint families should not fail the whole coordinator
+# refresh when their data can be marked stale and retried later.
 _SKIPPABLE_REFRESH_ERRORS = (
     aiohttp.ClientError,
     asyncio.TimeoutError,

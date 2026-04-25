@@ -1,3 +1,5 @@
+"""Fetch and normalize Enphase current-power samples."""
+
 from __future__ import annotations
 
 import logging
@@ -104,6 +106,8 @@ class CurrentPowerRuntime:
             try:
                 sample_seconds = float(sample_time)
                 if sample_seconds > 10**12:
+                    # The app API has returned both seconds and milliseconds
+                    # for this field across deployments.
                     sample_seconds /= 1000.0
                 sampled_at = datetime.fromtimestamp(sample_seconds, tz=_tz.utc)
             except Exception:  # noqa: BLE001

@@ -1,3 +1,5 @@
+"""Keep battery schedule editor form state in sync with BatteryConfig payloads."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -101,6 +103,8 @@ def _weekly_schedule_segments(
         if start_minutes < end_minutes:
             segments.append((offset + start_minutes, offset + end_minutes))
             continue
+        # Cross-midnight schedules occupy the selected day and the following
+        # day's early window.
         segments.append((offset + start_minutes, offset + _DAY_MINUTES))
         next_day_offset = (day % 7) * _DAY_MINUTES
         segments.append((next_day_offset, next_day_offset + end_minutes))
@@ -288,6 +292,8 @@ def battery_schedule_inventory(
     normalized: list[BatteryScheduleRecord] = []
 
     if isinstance(payload, dict):
+        # BatteryConfig exposes each schedule family separately; normalize them
+        # into one list for editor controls.
         for schedule_type in ("cfg", "dtg", "rbd"):
             family_payload = payload.get(schedule_type)
             if not isinstance(family_payload, dict):
@@ -344,6 +350,8 @@ def battery_schedule_inventory(
     if normalized:
         return normalized
 
+    # Fall back to coordinator scalar fields populated by older BatteryConfig
+    # responses so existing schedule entities remain usable.
     fallback_specs = (
         (
             "cfg",
@@ -434,6 +442,8 @@ class BatteryScheduleEditorManager:
         for schedule in self.schedules:
             label = raw_labels[schedule.schedule_id]
             if counts[label] > 1:
+                # Multiple battery schedule families can share the same time
+                # window, so include a short ID only for ambiguous labels.
                 labels[schedule.schedule_id] = f"{label} [{schedule.schedule_id[:8]}]"
             else:
                 labels[schedule.schedule_id] = label

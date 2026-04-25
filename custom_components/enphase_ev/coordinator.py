@@ -1,3 +1,11 @@
+"""Coordinate Enphase cloud refreshes and expose normalized integration state.
+
+The coordinator owns polling cadence, auth refresh, endpoint health, runtime
+managers, and diagnostics state for one Home Assistant config entry. Entity
+platforms should read normalized state from here instead of calling the cloud
+client directly.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -165,6 +173,9 @@ HEMS_DEVICES_STALE_AFTER_S = 90.0
 # HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
 # Keep these caches short so we do not hold stale or empty telemetry for minutes.
 HEMS_DEVICES_CACHE_TTL = 15.0
+# Session history can arrive after real-time charging state changes. These
+# windows keep recent context available without letting old sessions override
+# live charger telemetry.
 SESSION_HISTORY_ACTIVE_SOFT_TTL_S = 120.0
 SESSION_HISTORY_RECENT_STOP_SOFT_TTL_S = 300.0
 SESSION_HISTORY_IDLE_HARD_TTL_GRACE_S = 300.0
@@ -4590,6 +4601,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return self._scheduler_backoff_active()
 
     def _scheduler_backoff_delay(self) -> float:
+        # Scheduler outages are usually service-side and transient. Tie the
+        # retry floor to the slow poll interval so repair issues remain visible
+        # without hammering the optional scheduler service.
         slow_floor = float(self._slow_interval_floor())
         backoff_multiplier = 2 ** min(self._scheduler_failures - 1, 3)
         return max(30.0, min(600.0, slow_floor * backoff_multiplier))
@@ -4676,6 +4690,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return bool(backoff_until and time.monotonic() < backoff_until)
 
     def _auth_settings_backoff_delay(self) -> float:
+        # Auth settings share the EVSE control plane, so use the same bounded
+        # exponential shape as scheduler backoff when the optional endpoint is
+        # unavailable.
         slow_floor = float(self._slow_interval_floor())
         backoff_multiplier = 2 ** min(self._auth_settings_failures - 1, 3)
         return max(30.0, min(600.0, slow_floor * backoff_multiplier))
@@ -6186,6 +6203,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.backoff_ends_utc = None
 
         async def _resume(_now: datetime) -> None:
+            # Home Assistant should recover from cloud throttling on its own;
+            # the timer clears diagnostic state and triggers one refresh when
+            # the backoff window ends.
             self._backoff_cancel = None
             self._backoff_until = None
             self.backoff_ends_utc = None

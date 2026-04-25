@@ -1,3 +1,5 @@
+"""Synchronize Enphase EVSE schedules into Home Assistant schedule helpers."""
+
 from __future__ import annotations
 
 import asyncio
@@ -37,11 +39,14 @@ _LOGGER = logging.getLogger(__name__)
 
 SYNC_INTERVAL = timedelta(minutes=5)
 SYNC_REFRESH_CONCURRENCY = 3
+# Scheduler writes often return before reads reflect the new slot state.
 PATCH_REFRESH_DELAY_S = 1.0
 SYNC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
 
 
 class ScheduleSync:
+    """Mirror Enphase scheduler slots into Home Assistant helper entities."""
+
     def __init__(self, hass: HomeAssistant, coordinator, config_entry=None) -> None:
         self.hass = hass
         self._coordinator = coordinator
@@ -195,6 +200,8 @@ class ScheduleSync:
     async def _remove_all_helpers(self) -> None:
         collection = await self._ensure_storage_collection()
         ent_reg = er.async_get(self.hass)
+        # Remove both entity-registry and storage-collection records because
+        # schedule helpers persist independently of the integration entities.
         slot_keys: set[tuple[str, str]] = {
             (serial, slot_id)
             for serial, slots in self._slot_cache.items()
@@ -426,6 +433,8 @@ class ScheduleSync:
             self._last_status = "missing_bearer"
             return
         if self._lock.locked():
+            # Coordinator updates can arrive while an interval refresh is still
+            # running; the next scheduled tick will catch up.
             return
         async with self._lock:
             serial_list = (
@@ -667,6 +676,8 @@ class ScheduleSync:
             return
         server_timestamp = self._meta_cache.get(sn)
         if not server_timestamp:
+            # Collection writes need the server timestamp as optimistic
+            # concurrency metadata.
             await self.async_refresh(reason="replace_prepare", serials=[sn])
             server_timestamp = self._meta_cache.get(sn)
         payload_slots: list[dict[str, Any]] = []

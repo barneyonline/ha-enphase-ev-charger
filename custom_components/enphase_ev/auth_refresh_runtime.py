@@ -1,12 +1,4 @@
-"""Stored-credential Enlighten token refresh.
-
-``AuthRefreshRuntime.attempt_auto_refresh`` uses this class's own methods
-(``auth_refresh_recent_success_active``, ``auth_refresh_rejected_active``,
-``async_run_auto_refresh``, ``clear_auth_refresh_task``) so behavior stays in one
-place; tests typically patch ``custom_components.enphase_ev.auth_refresh_runtime``
-(``async_authenticate``, ``async_get_clientsession``) or the runtime instance on
-the coordinator.
-"""
+"""Refresh Enlighten tokens from stored credentials with cooldown safeguards."""
 
 from __future__ import annotations
 
@@ -71,6 +63,8 @@ class AuthRefreshRuntime:
 
         task = getattr(coord, "_auth_refresh_task", None)
         if task is not None and not task.done():
+            # Concurrent 401 handlers share the same refresh attempt so Enphase
+            # does not see a burst of password logins.
             return await asyncio.shield(task)
 
         async with coord._refresh_lock:
@@ -123,6 +117,8 @@ class AuthRefreshRuntime:
         if coord._auth_refresh_rejected_count >= int(
             AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD
         ):
+            # Repeated credential rejections are treated as durable auth
+            # failures and suspended longer than transient service errors.
             coord._auth_refresh_rejected_until = None
             coord._auth_refresh_rejected_ends_utc = None
             try:
