@@ -4832,6 +4832,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return getattr(self, "_battery_profile", None)
 
     @property
+    def battery_live_profile(self) -> str | None:
+        return getattr(self, "_battery_live_profile", None)
+
+    @property
+    def battery_effective_profile(self) -> str | None:
+        return self.battery_live_profile or getattr(self, "_battery_profile", None)
+
+    @property
     def battery_profile_pending(self) -> bool:
         return getattr(self, "_battery_pending_profile", None) is not None
 
@@ -4849,8 +4857,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_selected_profile(self) -> str | None:
-        return getattr(self, "_battery_pending_profile", None) or getattr(
-            self, "_battery_profile", None
+        return getattr(self, "_battery_pending_profile", None) or (
+            self.battery_effective_profile
         )
 
     @property
@@ -5103,6 +5111,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         current = getattr(self, "_battery_profile", None)
         if current:
             options.append(current)
+        live = getattr(self, "_battery_live_profile", None)
+        if live:
+            options.append(live)
         pending = getattr(self, "_battery_pending_profile", None)
         if pending:
             options.append(pending)
@@ -5123,7 +5134,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_effective_profile_display(self) -> str | None:
-        return self._battery_profile_label(self._battery_profile)
+        return self._battery_profile_label(self.battery_effective_profile)
 
     @property
     def battery_controls_available(self) -> bool:

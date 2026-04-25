@@ -3518,11 +3518,73 @@ class EnphaseEVClient:
             isvalid_headers["Content-Type"] = "application/json"
             payload = self._battery_schedule_validation_payload(schedule_type)
 
+            def _remember_session_cookie_xsrf(source: str) -> str | None:
+                _cookie_header, cookie_map = _serialize_cookie_jar(
+                    self._s.cookie_jar,
+                    (
+                        isvalid_url,
+                        BASE_URL,
+                        ENTREZ_URL,
+                        "https://battery-profile-ui.enphaseenergy.com",
+                    ),
+                )
+                session_cookie_token = _extract_xsrf_token(cookie_map)
+                if session_cookie_token:
+                    return _remember_xsrf(session_cookie_token, source)
+                return None
+
+            async def _bootstrap_site_settings_xsrf() -> str | None:
+                site_settings_url = (
+                    f"{BASE_URL}/service/batteryConfig/api/v1/siteSettings/{self._site}"
+                )
+                site_settings_headers = self._merge_request_headers(
+                    {},
+                    self._battery_config_headers(
+                        include_xsrf=False,
+                        variant=variant,
+                    ),
+                )
+                async with asyncio.timeout(self._timeout):
+                    async with self._s.request(
+                        "GET",
+                        site_settings_url,
+                        headers=site_settings_headers,
+                        params=self._battery_config_params(),
+                    ) as r:
+                        if r.status < HTTPStatus.BAD_REQUEST:
+                            if token := _extract_xsrf_token(
+                                _coerce_cookie_map(getattr(r, "cookies", None))
+                            ):
+                                return _remember_xsrf(
+                                    token, "siteSettings response cookies"
+                                )
+                            return _remember_session_cookie_xsrf(
+                                "siteSettings session cookie jar"
+                            )
+                        _LOGGER.debug(
+                            "BatteryConfig siteSettings XSRF bootstrap returned %s for %s",
+                            r.status,
+                            _request_label("GET", site_settings_url),
+                        )
+                        return None
+
             async with asyncio.timeout(self._timeout):
                 async with self._s.request(
                     "POST", isvalid_url, json=payload, headers=isvalid_headers
                 ) as r:
                     if r.status >= HTTPStatus.BAD_REQUEST:
+                        if token := _extract_xsrf_token(
+                            _coerce_cookie_map(getattr(r, "cookies", None))
+                        ):
+                            return _remember_xsrf(
+                                token, "isValid error response cookies"
+                            )
+                        if token := _remember_session_cookie_xsrf(
+                            "isValid error session cookie jar"
+                        ):
+                            return token
+                        if token := await _bootstrap_site_settings_xsrf():
+                            return token
                         _LOGGER.debug(
                             "BatteryConfig bootstrap returned %s for %s; "
                             "keeping existing XSRF token",
@@ -3538,14 +3600,8 @@ class EnphaseEVClient:
                     if cookie_token:
                         return _remember_xsrf(cookie_token, "isValid Set-Cookie")
 
-                    cookie_header, cookie_map = _serialize_cookie_jar(
-                        self._s.cookie_jar, (isvalid_url, BASE_URL, ENTREZ_URL)
-                    )
-                    session_cookie_token = _extract_xsrf_token(cookie_map)
-                    if session_cookie_token:
-                        return _remember_xsrf(
-                            session_cookie_token, "session cookie jar"
-                        )
+                    if token := _remember_session_cookie_xsrf("session cookie jar"):
+                        return token
 
                     _LOGGER.warning(
                         "isValid endpoint did not return BP-XSRF-Token cookie"

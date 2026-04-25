@@ -5081,7 +5081,7 @@ async def test_acquire_xsrf_token_post_fallback_tolerates_unquote_errors(
 
 
 @pytest.mark.asyncio
-async def test_acquire_xsrf_token_keeps_existing_token_on_bootstrap_403() -> None:
+async def test_acquire_xsrf_token_uses_session_cookie_after_bootstrap_403() -> None:
     bootstrap = _FakeResponse(status=403, json_body={"error": "Forbidden"})
     bootstrap.headers = CIMultiDict()
     response = _FakeResponse(status=403, json_body={"error": "Forbidden"})
@@ -5094,6 +5094,27 @@ async def test_acquire_xsrf_token_keeps_existing_token_on_bootstrap_403() -> Non
         {"bp-xsrf-token": "jar-token"},
         response_url=request_url,
     )
+
+    client = _make_client(session)
+    client.update_credentials(
+        cookie="session=1; other=1; enlighten_manager_token_production=bearer"
+    )
+    client._bp_xsrf_token = "existing-token"  # noqa: SLF001
+
+    assert await client._acquire_xsrf_token() == "jar-token"  # noqa: SLF001
+    assert client._bp_xsrf_token == "jar-token"  # noqa: SLF001
+    assert client._xsrf_token() == "jar-token"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_sends_existing_token_on_validation() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    response = _FakeResponse(status=200, json_body={"isValid": True})
+    response.headers = CIMultiDict(
+        [("Set-Cookie", "BP-XSRF-Token=fresh-token; Path=/; Secure")]
+    )
+    session = _FakeSession([bootstrap, response])
     client = _make_client(session)
     client.update_credentials(
         cookie=(
@@ -5103,9 +5124,132 @@ async def test_acquire_xsrf_token_keeps_existing_token_on_bootstrap_403() -> Non
     )
     client._bp_xsrf_token = "existing-token"  # noqa: SLF001
 
-    assert await client._acquire_xsrf_token() is None  # noqa: SLF001
-    assert client._bp_xsrf_token == "existing-token"  # noqa: SLF001
-    assert client._xsrf_token() == "existing-token"  # noqa: SLF001
+    assert await client._acquire_xsrf_token() == "fresh-token"  # noqa: SLF001
+    assert session.calls[1][2]["headers"]["X-XSRF-Token"] == "existing-token"
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_uses_session_cookie_after_validation_403() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    validation = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    validation.headers = CIMultiDict()
+    session = _FakeSession([bootstrap, validation])
+    request_url = URL(
+        f"{api.BASE_URL}/service/batteryConfig/api/v1/battery/sites/SITE/schedules/isValid"
+    )
+    session.cookie_jar.update_cookies(
+        {"bp-xsrf-token": "jar-token"},
+        response_url=request_url,
+    )
+    client = _make_client(session)
+    client.update_credentials(
+        cookie="session=1; enlighten_manager_token_production=bearer"
+    )
+
+    assert await client._acquire_xsrf_token() == "jar-token"  # noqa: SLF001
+    assert [call[0] for call in session.calls] == ["GET", "POST"]
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_bootstraps_from_site_settings_cookie() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    validation = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    validation.headers = CIMultiDict()
+    site_settings = _FakeResponse(status=200, json_body={"data": {}})
+    site_settings.headers = CIMultiDict()
+    site_settings.cookies = SimpleCookie("BP-XSRF-Token=site-token")
+    session = _FakeSession([bootstrap, validation, site_settings])
+    client = _make_client(session)
+    client.update_credentials(
+        cookie="session=1; enlighten_manager_token_production=bearer"
+    )
+
+    assert await client._acquire_xsrf_token() == "site-token"  # noqa: SLF001
+    assert client._bp_xsrf_token == "site-token"  # noqa: SLF001
+    assert [call[0] for call in session.calls] == ["GET", "POST", "GET"]
+    method, url, kwargs = session.calls[2]
+    assert method == "GET"
+    assert "/service/batteryConfig/api/v1/siteSettings/SITE" in url
+    assert kwargs["params"] == {}
+    assert client._xsrf_token() == "site-token"  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_bootstraps_from_site_settings_cookie_jar() -> None:
+    class _DeferredJar:
+        active = False
+
+        def update_cookies(self, *_args, **_kwargs) -> None:
+            return None
+
+        def filter_cookies(self, _url):
+            if not self.active:
+                return SimpleCookie()
+            return SimpleCookie("BP-XSRF-Token=jar-site-token")
+
+    class _JarUpdatingSession(_FakeSession):
+        def request(self, method: str, url: str, **kwargs):
+            response = super().request(method, url, **kwargs)
+            if method == "GET" and "/siteSettings/" in url and len(self.calls) == 3:
+                self.cookie_jar.active = True
+            return response
+
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    validation = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    validation.headers = CIMultiDict()
+    site_settings = _FakeResponse(status=200, json_body={"data": {}})
+    site_settings.headers = CIMultiDict()
+    session = _JarUpdatingSession([bootstrap, validation, site_settings])
+    session.cookie_jar = _DeferredJar()
+    client = _make_client(session)
+    client.update_credentials(
+        cookie="session=1; enlighten_manager_token_production=bearer"
+    )
+
+    assert await client._acquire_xsrf_token() == "jar-site-token"  # noqa: SLF001
+    assert [call[0] for call in session.calls] == ["GET", "POST", "GET"]
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_returns_none_when_validation_and_site_settings_403(
+    caplog,
+) -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    validation = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    validation.headers = CIMultiDict()
+    site_settings = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    site_settings.headers = CIMultiDict()
+    session = _FakeSession([bootstrap, validation, site_settings])
+    client = _make_client(session)
+    client.update_credentials(
+        cookie="session=1; enlighten_manager_token_production=bearer"
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        assert await client._acquire_xsrf_token() is None  # noqa: SLF001
+
+    assert "siteSettings XSRF bootstrap returned 403" in caplog.text
+    assert "BatteryConfig bootstrap returned 403" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_acquire_xsrf_token_uses_validation_error_response_cookie() -> None:
+    bootstrap = _FakeResponse(status=500, json_body={})
+    bootstrap.headers = CIMultiDict()
+    validation = _FakeResponse(status=403, json_body={"error": "Forbidden"})
+    validation.headers = CIMultiDict()
+    validation.cookies = SimpleCookie("BP-XSRF-Token=error-token")
+    session = _FakeSession([bootstrap, validation])
+    client = _make_client(session)
+    client.update_credentials(
+        cookie="session=1; enlighten_manager_token_production=bearer"
+    )
+
+    assert await client._acquire_xsrf_token() == "error-token"  # noqa: SLF001
 
 
 @pytest.mark.asyncio
