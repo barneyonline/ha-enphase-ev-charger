@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Enphase näib ajutiselt blokeerivat saidi {site_id} autentimist. Automaatsed katsed on peatatud kuni {blocked_until}. Edukas käsitsi taasautentimine võib blokeeringu varem eemaldada."
     },
     "rate_limited": {
       "title": "Enphase Energy on piiratud",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Konfiguratsioonikirje ID",
           "description": "Valikuline konfiguratsioonikirje identifikaator ühe Enphase'i saidikirje jaoks."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Proovi taasautentimist nüüd",
+      "description": "Kasuta salvestatud Enphase sisselogimisandmeid, et proovida valitud saiti kohe taasautentida.",
+      "fields": {
+        "device_id": {
+          "name": "Saidi seadmed",
+          "description": "Vali Enphase saidi seade, mille jaoks taasautentimist proovida."
+        },
+        "site_id": {
+          "name": "Saidi ID",
+          "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt, kui saidi seade on valitud."
         }
       }
     }

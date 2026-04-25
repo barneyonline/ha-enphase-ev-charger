@@ -77,6 +77,26 @@ clear_reauth_issue:
           multiline: false
       example: "1234567"
 
+try_reauth_now:
+  name: Try Reauth Now
+  description: Use stored credentials to try Enphase reauthentication immediately
+  target:
+    entity:
+      integration: enphase_ev
+      domain: sensor
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: enphase_ev
+          multiple: true
+    site_id:
+      required: false
+      selector:
+        text:
+          multiline: false
+      example: "1234567"
 start_live_stream:
   name: Start Live Stream
   description: Request faster cloud status updates for a short period

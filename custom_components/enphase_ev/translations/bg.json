@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Enphase изглежда временно блокира удостоверяването за сайт {site_id}. Автоматичните опити са паузирани до {blocked_until}. Успешно ръчно повторно удостоверяване може да изчисти блока по-рано."
     },
     "rate_limited": {
       "title": "Enphase Energy е с ограничение на заявките",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Конфигуриране на идентификатор на запис",
           "description": "Незадължителен идентификатор за въвеждане на конфигурация за единичен запис в Enphase сайт."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Опитай повторно удостоверяване сега",
+      "description": "Използва съхранените Enphase идентификационни данни за незабавен опит за повторно удостоверяване на избрания сайт.",
+      "fields": {
+        "device_id": {
+          "name": "Устройства на сайта",
+          "description": "Изберете Enphase устройство на сайта, за което да се опита повторно удостоверяване."
+        },
+        "site_id": {
+          "name": "ID на сайта",
+          "description": "Незадължителен идентификатор на сайта; открива се автоматично, когато е избрано устройство на сайта."
         }
       }
     }

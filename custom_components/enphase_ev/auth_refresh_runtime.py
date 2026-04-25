@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone as _tz
 from typing import TYPE_CHECKING
 
@@ -19,6 +21,7 @@ from .api import (
 )
 from .const import (
     AUTH_BLOCKED_COOLDOWN_S,
+    AUTH_REFRESH_MANUAL_RETRY_COOLDOWN_S,
     AUTH_REFRESH_REJECTED_COOLDOWN_S,
     AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD,
     AUTH_REFRESH_SUSPENDED_COOLDOWN_S,
@@ -32,6 +35,15 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, slots=True)
+class ManualAuthRefreshResult:
+    """Result of a user-requested stored-credential auth refresh."""
+
+    success: bool
+    reason: str | None = None
+    retry_after_seconds: int | None = None
+
+
 class AuthRefreshRuntime:
     """Stored-credential Enlighten token refresh with coalescing and cooldown."""
 
@@ -42,11 +54,7 @@ class AuthRefreshRuntime:
         """Attempt to refresh authentication using stored credentials."""
 
         coord = self.coordinator
-        if (
-            not coord._email
-            or not coord._remember_password
-            or not coord._stored_password
-        ):
+        if not self.stored_credentials_available():
             return False
 
         if coord._auth_block_active():
@@ -84,6 +92,97 @@ class AuthRefreshRuntime:
                 task.add_done_callback(self.clear_auth_refresh_task)
 
         return await asyncio.shield(task)
+
+    def stored_credentials_available(self) -> bool:
+        """Return True when stored credentials can be used for reauthentication."""
+
+        coord = self.coordinator
+        return bool(
+            coord._email and coord._remember_password and coord._stored_password
+        )
+
+    async def attempt_manual_refresh(self) -> ManualAuthRefreshResult:
+        """Run one user-requested stored-credential refresh attempt.
+
+        Manual retries intentionally bypass automatic auth-block and rejection
+        cooldown checks, but still require stored credentials and share any
+        in-flight auth task.
+        """
+
+        coord = self.coordinator
+        if not self.stored_credentials_available():
+            return ManualAuthRefreshResult(
+                success=False, reason="stored_credentials_unavailable"
+            )
+
+        if self.auth_refresh_recent_success_active():
+            return ManualAuthRefreshResult(success=True)
+
+        retry_after = self.manual_refresh_retry_after_seconds()
+        if retry_after is not None:
+            return ManualAuthRefreshResult(
+                success=False,
+                reason="manual_retry_cooldown_active",
+                retry_after_seconds=retry_after,
+            )
+
+        task = getattr(coord, "_auth_refresh_task", None)
+        if task is not None and not task.done():
+            return await self._await_manual_refresh_task(task)
+
+        async with coord._refresh_lock:
+            if self.auth_refresh_recent_success_active():
+                return ManualAuthRefreshResult(success=True)
+
+            retry_after = self.manual_refresh_retry_after_seconds()
+            if retry_after is not None:
+                return ManualAuthRefreshResult(
+                    success=False,
+                    reason="manual_retry_cooldown_active",
+                    retry_after_seconds=retry_after,
+                )
+
+            task = getattr(coord, "_auth_refresh_task", None)
+            if task is None or task.done():
+                task = asyncio.create_task(self.async_run_auto_refresh())
+                coord._auth_refresh_task = task
+                task.add_done_callback(self.clear_auth_refresh_task)
+
+        return await self._await_manual_refresh_task(task)
+
+    def manual_refresh_retry_active(self) -> bool:
+        """Return True while a failed manual retry is cooling down."""
+
+        return self.manual_refresh_retry_after_seconds() is not None
+
+    def manual_refresh_retry_after_seconds(self) -> int | None:
+        """Return remaining seconds for a failed manual retry cooldown."""
+
+        coord = self.coordinator
+        cooldown_until = getattr(coord, "_auth_refresh_manual_retry_until", None)
+        if not isinstance(cooldown_until, (int, float)):
+            return None
+        remaining = float(cooldown_until) - time.monotonic()
+        if remaining > 0:
+            return max(1, math.ceil(remaining))
+        coord._auth_refresh_manual_retry_until = None
+        return None
+
+    async def _await_manual_refresh_task(
+        self, task: asyncio.Task[bool]
+    ) -> ManualAuthRefreshResult:
+        """Await a manual refresh task and throttle only failed manual attempts."""
+
+        coord = self.coordinator
+        result = await asyncio.shield(task)
+        if result:
+            coord._auth_refresh_manual_retry_until = None
+            return ManualAuthRefreshResult(success=True)
+        else:
+            coord._auth_refresh_manual_retry_until = (
+                time.monotonic() + AUTH_REFRESH_MANUAL_RETRY_COOLDOWN_S
+            )
+            return ManualAuthRefreshResult(success=False, reason="reauth_failed")
 
     def clear_auth_refresh_task(self, task: asyncio.Task[bool]) -> None:
         """Clear the shared auth-refresh task once it completes."""
@@ -197,6 +296,7 @@ class AuthRefreshRuntime:
 
         coord._auth_refresh_rejected_until = None
         coord._auth_refresh_rejected_ends_utc = None
+        coord._auth_refresh_manual_retry_until = None
         coord._clear_auth_refresh_rejection_state()
         coord._auth_refresh_suspended_until_utc = None
         coord._auth_refresh_last_success_mono = time.monotonic()

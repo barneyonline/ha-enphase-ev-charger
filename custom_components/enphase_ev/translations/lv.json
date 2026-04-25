@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Šķiet, ka Enphase īslaicīgi bloķē vietnes {site_id} autentifikāciju. Automātiskie mēģinājumi ir apturēti līdz {blocked_until}. Veiksmīga manuāla atkārtota autentifikācija var noņemt bloķēšanu agrāk."
     },
     "rate_limited": {
       "title": "Enphase Energy ir ierobežots",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Konfigurācijas ieraksta ID",
           "description": "Neobligāts konfigurācijas ieraksta identifikators vienam Enphase vietnes ierakstam."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Mēģināt atkārtotu autentifikāciju tagad",
+      "description": "Izmanto saglabātos Enphase akreditācijas datus, lai nekavējoties mēģinātu atkārtoti autentificēt atlasīto vietni.",
+      "fields": {
+        "device_id": {
+          "name": "Vietnes ierīces",
+          "description": "Atlasiet Enphase vietnes ierīci, kurai mēģināt atkārtotu autentifikāciju."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, kad atlasīta vietnes ierīce."
         }
       }
     }

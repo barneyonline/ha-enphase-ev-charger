@@ -1581,7 +1581,7 @@
     },
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
-      "description": "Enphase appears to be temporarily blocking authentication for site {site_id}. Wait until {blocked_until} before retrying reauthentication."
+      "description": "Enphase ser ut til å blokkere autentisering midlertidig for anlegg {site_id}. Automatiske forsøk er pauset til {blocked_until}. En vellykket manuell reautentisering kan fjerne blokkeringen tidligere."
     },
     "rate_limited": {
       "title": "Enphase Energy er ratebegrenset",
@@ -1974,6 +1974,20 @@
         "config_entry_id": {
           "name": "Konfigurasjonsoppførings-ID",
           "description": "Valgfri identifikator for konfigurasjonsoppføring for én Enphase-anleggsoppføring."
+        }
+      }
+    },
+    "try_reauth_now": {
+      "name": "Prøv reautentisering nå",
+      "description": "Bruk lagrede Enphase-legitimasjoner til å forsøke reautentisering umiddelbart for det valgte anlegget.",
+      "fields": {
+        "device_id": {
+          "name": "Anleggsenheter",
+          "description": "Velg en Enphase anleggsenhet som reautentisering skal forsøkes for."
+        },
+        "site_id": {
+          "name": "Anleggs-ID",
+          "description": "Valgfri anleggsidentifikator; oppdages automatisk når en anleggsenhet velges."
         }
       }
     }
