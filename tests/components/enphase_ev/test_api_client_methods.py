@@ -8096,18 +8096,6 @@ async def test_hems_power_timeseries_success_logs_redacted_response_summary(
     assert "'latest_non_null_value': 0.0" in caplog.text
 
 
-def test_is_hems_invalid_date_error_handles_unstringable_message() -> None:
-    class _BadString:
-        def __str__(self) -> str:
-            raise RuntimeError("boom")
-
-    class _Err:
-        status = 422
-        message = _BadString()
-
-    assert api.EnphaseEVClient._is_hems_invalid_date_error(_Err()) is False
-
-
 @pytest.mark.asyncio
 async def test_hems_power_timeseries_non_date_422_reraises(monkeypatch) -> None:
     client = _make_client()

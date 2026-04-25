@@ -990,19 +990,18 @@ def normalize_hems_energy_consumption_payload(payload: object) -> dict | None:
 
     endpoint_type = clean_optional_text(payload.get("type"))
     endpoint_timestamp = payload.get("timestamp")
+    families: dict[str, object] = {
+        "heat-pump": [],
+        "evse": [],
+        "water-heater": [],
+    }
     normalized: dict[str, object] = {
         "type": endpoint_type,
         "timestamp": endpoint_timestamp,
         "endpoint_type": endpoint_type,
         "endpoint_timestamp": endpoint_timestamp,
-        "data": {
-            "heat-pump": [],
-            "evse": [],
-            "water-heater": [],
-        },
+        "data": families,
     }
-    families = normalized["data"]
-    assert isinstance(families, dict)
     for family_key in ("heat-pump", "evse", "water-heater"):
         raw_family = data.get(family_key)
         if raw_family is None:

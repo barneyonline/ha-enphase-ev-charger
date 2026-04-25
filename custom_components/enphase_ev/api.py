@@ -5919,10 +5919,7 @@ class EnphaseEVClient:
 
         if err.status != 422:
             return False
-        try:
-            text = str(err.message or "").lower()
-        except Exception:  # noqa: BLE001 - defensive casting
-            text = ""
+        text = str(err.message or "").lower()
         return any(
             token in text
             for token in (

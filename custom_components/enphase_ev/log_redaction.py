@@ -38,13 +38,7 @@ def redact_identifier(value: object) -> str:
 def redact_site_id(value: object) -> str:
     """Return a stable site marker for logs."""
 
-    if value is None:
-        return "[site]"
-    try:
-        text = str(value).strip()
-    except Exception:  # noqa: BLE001
-        return "[site]"
-    return "[site]" if text else "[site]"
+    return "[site]"
 
 
 def _key_kind(key: object) -> str:

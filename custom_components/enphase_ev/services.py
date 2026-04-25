@@ -966,11 +966,6 @@ def async_setup_services(
 
     async def _svc_sync_schedules(call: ServiceCall) -> None:
         for _device_id, sn, coord in await _resolve_charger_targets(call):
-            if not hasattr(coord, "schedule_sync"):
-                raise ServiceValidationError(
-                    translation_domain=DOMAIN,
-                    translation_key="exceptions.grid_site_required",
-                )
             await coord.schedule_sync.async_refresh(reason="service", serials=[sn])
 
     hass.services.async_register(
@@ -981,11 +976,10 @@ def async_setup_services(
     )
     hass.services.async_register(DOMAIN, "stop_charging", _svc_stop, schema=STOP_SCHEMA)
 
-    trigger_register_kwargs: dict[str, object] = {"schema": TRIGGER_SCHEMA}
-    try:
-        trigger_register_kwargs["supports_response"] = supports_response.OPTIONAL
-    except AttributeError:
-        trigger_register_kwargs["supports_response"] = supports_response
+    trigger_register_kwargs: dict[str, object] = {
+        "schema": TRIGGER_SCHEMA,
+        "supports_response": supports_response.OPTIONAL,
+    }
     hass.services.async_register(
         DOMAIN, "trigger_message", _svc_trigger, **trigger_register_kwargs
     )
@@ -1016,11 +1010,10 @@ def async_setup_services(
     hass.services.async_register(
         DOMAIN, "delete_schedule", _svc_delete_schedule, schema=DELETE_SCHEDULE_SCHEMA
     )
-    validate_register_kwargs: dict[str, object] = {"schema": VALIDATE_SCHEDULE_SCHEMA}
-    try:
-        validate_register_kwargs["supports_response"] = supports_response.OPTIONAL
-    except AttributeError:
-        validate_register_kwargs["supports_response"] = supports_response
+    validate_register_kwargs: dict[str, object] = {
+        "schema": VALIDATE_SCHEDULE_SCHEMA,
+        "supports_response": supports_response.OPTIONAL,
+    }
     hass.services.async_register(
         DOMAIN, "validate_schedule", _svc_validate_schedule, **validate_register_kwargs
     )

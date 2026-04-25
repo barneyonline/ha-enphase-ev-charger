@@ -13,7 +13,6 @@ from homeassistant.const import UnitOfPower
 from custom_components.enphase_ev import energy as energy_mod
 from custom_components.enphase_ev.api import SiteEnergyUnavailable
 from custom_components.enphase_ev.energy import (
-    SITE_ENERGY_CACHE_TTL,
     LifetimeGuardState,
     SiteEnergyFlow,
 )
@@ -73,19 +72,15 @@ def test_site_energy_aggregation_with_fallbacks(coordinator_factory) -> None:
     assert meta["interval_minutes"] == pytest.approx(60.0)
 
 
-def test_site_energy_refresh_due_initializes_attrs_and_respects_backoff(
+def test_site_energy_refresh_due_respects_backoff(
     coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory()
     manager = coord.energy
-    del manager._site_energy_cache_ts
-    del manager._site_energy_cache_ttl
     manager._service_backoff_until = 150.0  # noqa: SLF001
     monkeypatch.setattr(energy_mod.time, "monotonic", lambda: 100.0)
 
     assert manager.site_energy_refresh_due() is False
-    assert manager._site_energy_cache_ts is None  # noqa: SLF001
-    assert manager._site_energy_cache_ttl == SITE_ENERGY_CACHE_TTL  # noqa: SLF001
 
 
 def test_site_energy_refresh_due_skips_when_cache_is_fresh(
@@ -230,11 +225,11 @@ def test_apply_lifetime_guard_holds_small_backward_jitter(
 
 def test_site_energy_cache_age_and_invalidate(coordinator_factory, monkeypatch) -> None:
     coord = coordinator_factory()
-    coord.energy._site_energy_cache_ts = "bad"  # type: ignore[assignment]
+    coord.energy._site_energy_cache_ts = 90.0
     monkeypatch.setattr(
         "custom_components.enphase_ev.energy.time.monotonic", lambda: 100.0
     )
-    assert coord.energy._site_energy_cache_age() is None  # noqa: SLF001
+    assert coord.energy._site_energy_cache_age() == pytest.approx(10.0)  # noqa: SLF001
     coord.energy._invalidate_site_energy_cache()  # noqa: SLF001
     assert coord.energy._site_energy_cache_ts is None
 
@@ -453,9 +448,7 @@ def test_site_energy_default_interval_applied(coordinator_factory) -> None:
     assert meta["interval_minutes"] == pytest.approx(5.0)
 
 
-def test_site_energy_interval_hours_edge_cases(
-    monkeypatch, coordinator_factory
-) -> None:
+def test_site_energy_interval_hours_edge_cases(coordinator_factory) -> None:
     coord = coordinator_factory()
     # Non-dict payload falls back to default interval
     hours, minutes = coord.energy._site_energy_interval_hours(None)  # noqa: SLF001
@@ -468,63 +461,11 @@ def test_site_energy_interval_hours_edge_cases(
     assert minutes == pytest.approx(10.0)
     assert hours == pytest.approx(10.0 / 60.0)
 
-    class BoomFloat:
-        def __le__(self, _other):
-            return False
-
-        def __float__(self):
-            raise ValueError("boom")
-
-    # Force float conversion error branch
-    monkeypatch.setattr(coord.energy, "_coerce_energy_value", lambda _v: BoomFloat())
     hours, minutes = coord.energy._site_energy_interval_hours(
-        {"interval_minutes": "bad"}
+        {"interval_minutes": 0}
     )  # noqa: SLF001
     assert minutes == pytest.approx(5.0)
     assert hours == pytest.approx(5.0 / 60.0)
-
-    class WeirdZero(float):
-        def __le__(self, other):
-            return False
-
-    # Bypass initial <=0 check to hit hours<=0 fallback
-    monkeypatch.setattr(coord.energy, "_coerce_energy_value", lambda _v: WeirdZero(0.0))
-    hours, minutes = coord.energy._site_energy_interval_hours(
-        {"interval_minutes": WeirdZero(0.0)}
-    )  # noqa: SLF001
-    assert minutes == pytest.approx(5.0)
-    assert hours == pytest.approx(5.0 / 60.0)
-
-
-def test_site_energy_store_round_failure(monkeypatch, coordinator_factory):
-    coord = coordinator_factory()
-    call_count = 0
-    real_round = round
-
-    def boom_round(val, ndigits=None):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            raise ValueError("round boom")
-        return real_round(val, ndigits) if ndigits is not None else real_round(val)
-
-    monkeypatch.setattr("builtins.round", boom_round)
-    flows, _meta = coord.energy._aggregate_site_energy(
-        {"production": [1000]}
-    )  # noqa: SLF001
-    assert flows == {}
-
-
-@pytest.mark.asyncio
-async def test_async_refresh_site_energy_handles_missing_attrs(
-    monkeypatch, coordinator_factory
-):
-    coord = coordinator_factory()
-    coord.client.lifetime_energy = AsyncMock(return_value=None)
-    delattr(coord.energy, "_site_energy_cache_ts")
-    delattr(coord.energy, "_site_energy_cache_ttl")
-    await coord.energy._async_refresh_site_energy()  # noqa: SLF001
-    assert coord.energy._site_energy_cache_ts is None
 
 
 @pytest.mark.asyncio

@@ -2225,30 +2225,6 @@ async def test_device_service_routing_helper_guard_paths(
     )
 
 
-def test_register_services_supports_response_fallback(
-    hass: HomeAssistant, monkeypatch
-) -> None:
-    """Service setup should honor an explicit supports_response fallback."""
-    registered: dict[tuple[str, str], dict[str, object]] = {}
-
-    def fake_register(self, domain, service, handler, schema=None, **kwargs):
-        registered[(domain, service)] = {
-            "handler": handler,
-            "schema": schema,
-            "kwargs": kwargs,
-        }
-
-    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
-
-    fallback = SimpleNamespace()
-    async_setup_services(hass, supports_response=fallback)
-
-    assert (
-        registered[(DOMAIN, "trigger_message")]["kwargs"]["supports_response"]
-        is fallback
-    )
-
-
 def test_init_module_importable() -> None:
     import importlib
 
