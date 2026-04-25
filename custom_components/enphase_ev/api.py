@@ -1927,10 +1927,11 @@ class EnphaseEVClient:
         previous = self._payload_failure_log_state.pop(endpoint_key, None)
         if previous is None:
             return
+        endpoint_safe = redact_text(endpoint_key, site_ids=(self._site,))
         _LOGGER.info(
             "Payload recovered for site %s endpoint %s",
             redact_site_id(self._site),
-            endpoint_key,
+            endpoint_safe,
         )
 
     def _log_invalid_payload(self, err: InvalidPayloadError) -> None:
@@ -1942,12 +1943,13 @@ class EnphaseEVClient:
         self._payload_failure_log_state[endpoint_key] = signature
         if previous is not None:
             return
+        endpoint_safe = redact_text(endpoint_key, site_ids=(self._site,))
         _LOGGER.warning(
             "Invalid payload for site %s endpoint %s "
             "(status=%s, content_type=%s, failure_kind=%s, decode_error=%s, "
             "body_length=%s, body_sha256=%s, preview=%s)",
             redact_site_id(self._site),
-            endpoint_key,
+            endpoint_safe,
             signature.status,
             signature.content_type or "<missing>",
             signature.failure_kind or "<unknown>",
@@ -3634,8 +3636,7 @@ class EnphaseEVClient:
             _LOGGER.warning("Failed to acquire XSRF token", exc_info=True)
             return None
 
-    @staticmethod
-    def _redact_headers(headers: dict[str, str]) -> dict[str, str]:
+    def _redact_headers(self, headers: dict[str, str]) -> dict[str, str]:
         """Return a copy of headers with sensitive values masked."""
 
         redacted: dict[str, str] = {}
@@ -3650,7 +3651,7 @@ class EnphaseEVClient:
             }:
                 redacted[key] = "[redacted]"
             else:
-                redacted[key] = value
+                redacted[key] = redact_text(value, site_ids=(self._site,))
         return redacted
 
     @staticmethod
@@ -3952,6 +3953,9 @@ class EnphaseEVClient:
         )
         attempt = 0
         request_label = _request_label(method, url)
+        safe_request_label = redact_text(
+            request_label, site_ids=(self._site,), max_length=256
+        )
         endpoint = ""
         try:
             endpoint = URL(url).path
@@ -3978,28 +3982,28 @@ class EnphaseEVClient:
                             method, url, headers=base_headers, **kwargs
                         ) as r:
                             if r.status == 401:
-                                self._last_unauthorized_request = request_label
+                                self._last_unauthorized_request = safe_request_label
                                 if self._reauth_cb and attempt == 0:
                                     _LOGGER.debug(
                                         "Received 401 for %s; attempting stored-credential refresh",
-                                        request_label,
+                                        safe_request_label,
                                     )
                                     attempt += 1
                                     reauth_ok = await self._reauth_cb()
                                     if reauth_ok:
                                         _LOGGER.debug(
                                             "Stored-credential refresh succeeded for %s; retrying request",
-                                            request_label,
+                                            safe_request_label,
                                         )
                                         continue
                                     _LOGGER.debug(
                                         "Stored-credential refresh failed for %s",
-                                        request_label,
+                                        safe_request_label,
                                     )
                                 else:
                                     _LOGGER.debug(
                                         "Received 401 for %s with no stored-credential refresh available",
-                                        request_label,
+                                        safe_request_label,
                                     )
                                 raise Unauthorized()
                             if r.status in (204, 205):
@@ -4077,7 +4081,7 @@ class EnphaseEVClient:
                                         "attempt_id=%s attempt_changes=%s header_flags=%s "
                                         "cookie_names=%s headers=%s response=%s",
                                         family,
-                                        request_label,
+                                        safe_request_label,
                                         r.status,
                                         params_summary,
                                         payload_summary,
@@ -4124,10 +4128,10 @@ class EnphaseEVClient:
                                     endpoint=endpoint or None,
                                     payload=body_text,
                                 ):
-                                    self._last_unauthorized_request = request_label
+                                    self._last_unauthorized_request = safe_request_label
                                     raise self._login_wall_unauthorized(
                                         endpoint=endpoint or None,
-                                        request_label=request_label,
+                                        request_label=safe_request_label,
                                         status=status or None,
                                         content_type=content_type or None,
                                         payload=body_text,
@@ -4181,6 +4185,9 @@ class EnphaseEVClient:
         extra_headers = kwargs.pop("headers", None)
         attempt = 0
         request_label = _request_label(method, url)
+        safe_request_label = redact_text(
+            request_label, site_ids=(self._site,), max_length=256
+        )
         endpoint = ""
         try:
             endpoint = URL(url).path
@@ -4205,7 +4212,7 @@ class EnphaseEVClient:
                         method, url, headers=base_headers, **kwargs
                     ) as r:
                         if r.status == 401:
-                            self._last_unauthorized_request = request_label
+                            self._last_unauthorized_request = safe_request_label
                             if self._reauth_cb and attempt == 0:
                                 attempt += 1
                                 if await self._reauth_cb():
@@ -4216,10 +4223,10 @@ class EnphaseEVClient:
                             if _is_enphase_login_wall(
                                 endpoint=endpoint or None, payload=text
                             ):
-                                self._last_unauthorized_request = request_label
+                                self._last_unauthorized_request = safe_request_label
                                 raise self._login_wall_unauthorized(
                                     endpoint=endpoint or None,
-                                    request_label=request_label,
+                                    request_label=safe_request_label,
                                     status=int(r.status),
                                     content_type=r.headers.get("Content-Type"),
                                     payload=text,
@@ -4252,10 +4259,10 @@ class EnphaseEVClient:
                         if _is_enphase_login_wall(
                             endpoint=endpoint or None, payload=text
                         ):
-                            self._last_unauthorized_request = request_label
+                            self._last_unauthorized_request = safe_request_label
                             raise self._login_wall_unauthorized(
                                 endpoint=endpoint or None,
-                                request_label=request_label,
+                                request_label=safe_request_label,
                                 status=int(r.status),
                                 content_type=r.headers.get("Content-Type"),
                                 payload=text,

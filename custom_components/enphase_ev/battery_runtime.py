@@ -1297,14 +1297,14 @@ class BatteryRuntime:
                 _LOGGER.debug(
                     "Ignoring CFG schedule validation failure on site %s: %s",
                     redact_site_id(self.coordinator.site_id),
-                    redact_text(err),
+                    redact_text(err, site_ids=(self.coordinator.site_id,)),
                 )
             return
         except Exception as err:  # noqa: BLE001 - validation preflight is optional
             _LOGGER.debug(
                 "Ignoring CFG schedule validation exception on site %s: %s",
                 redact_site_id(self.coordinator.site_id),
-                redact_text(err),
+                redact_text(err, site_ids=(self.coordinator.site_id,)),
             )
             return
         if not isinstance(result, dict):

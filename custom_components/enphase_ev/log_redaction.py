@@ -9,7 +9,25 @@ _EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b")
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _MAC_RE = re.compile(r"(?i)\b(?:[0-9A-F]{2}[:-]){5}[0-9A-F]{2}\b")
 _DEBUG_KV_RE = re.compile(
-    r"(?P<key>[A-Za-z][A-Za-z0-9_\-]*)(?P<sep>\s*[=:]\s*)(?P<value>[^,\s)]+)"
+    r"(?P<key>[A-Za-z][A-Za-z0-9_\-]*)(?P<sep>\s*[=:]\s*)(?P<value>[^,&\s)]+)"
+)
+_SITE_URL_PATH_RE = re.compile(
+    r"(?P<prefix>/(?:systems|sites|hems|app-api|fwDetails)/)"
+    r"(?P<site>\d+)(?=$|[/?#\s])"
+    r"|(?P<service_prefix>/service/(?:enho_historical_events_ms"
+    r"|batteryConfig/api/v1/(?:siteSettings|profile|batterySettings)"
+    r"|batteryConfig/api/v1/batterySettings/acceptDisclaimer"
+    r"|batteryConfig/api/v1/(?:acceptDisclaimer|cancel/profile)"
+    r"|batteryConfig/api/v1/stormGuard(?:/toggle)?"
+    r"|batteryConfig/api/v1/battery/sites)/)"
+    r"(?P<service_site>\d+)(?=$|[/?#\s])"
+    r"|(?P<evse_prefix>/evse_controller/(?:api/v[12]/)?)"
+    r"(?P<evse_site>\d+)(?=$|[/?#\s])"
+    r"|(?P<scheduler_prefix>/service/evse_scheduler/api/v1/[^/]+/"
+    r"charging-mode/(?:GREEN_CHARGING/|SCHEDULED_CHARGING/)?)"
+    r"(?P<scheduler_site>\d+)(?=$|[/?#\s])"
+    r"|(?P<pv_settings_prefix>/pv/settings/)"
+    r"(?P<pv_settings_site>\d+)(?=$|[/?#\s])"
 )
 
 
@@ -102,6 +120,18 @@ def _redact_kv_match(match: re.Match[str]) -> str:
     return f"{key}{sep}{safe_value}"
 
 
+def _redact_site_path_match(match: re.Match[str]) -> str:
+    prefix = (
+        match.group("prefix")
+        or match.group("service_prefix")
+        or match.group("evse_prefix")
+        or match.group("scheduler_prefix")
+        or match.group("pv_settings_prefix")
+        or ""
+    )
+    return f"{prefix}[site]"
+
+
 def _normalize_iterable(values: Iterable[object] | None) -> list[str]:
     normalized: list[str] = []
     for value in values or ():
@@ -138,6 +168,7 @@ def redact_text(
     for site_id in _normalize_iterable(site_ids):
         text = text.replace(site_id, "[site]")
 
+    text = _SITE_URL_PATH_RE.sub(_redact_site_path_match, text)
     text = _EMAIL_RE.sub("[redacted]", text)
     text = _IPV4_RE.sub("[redacted]", text)
     text = _MAC_RE.sub("[redacted]", text)

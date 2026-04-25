@@ -911,7 +911,10 @@ class EvseRuntime:
             response = await coord.client.start_live_stream()
         except Exception as err:  # noqa: BLE001
             if not was_active:
-                _LOGGER.debug("Live stream start failed: %s", redact_text(err))
+                _LOGGER.debug(
+                    "Live stream start failed: %s",
+                    redact_text(err, site_ids=(coord.site_id,)),
+                )
                 return
         else:
             start_ok = self.streaming_response_ok(response)
@@ -942,7 +945,10 @@ class EvseRuntime:
         try:
             await coord.client.stop_live_stream()
         except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
+            _LOGGER.debug(
+                "Live stream stop failed: %s",
+                redact_text(err, site_ids=(coord.site_id,)),
+            )
         self.clear_streaming_state()
 
     def schedule_stream_stop(self, *, force: bool = False) -> None:
@@ -956,7 +962,10 @@ class EvseRuntime:
                 try:
                     await coord.client.stop_live_stream()
                 except Exception as err:  # noqa: BLE001
-                    _LOGGER.debug("Live stream stop failed: %s", redact_text(err))
+                    _LOGGER.debug(
+                        "Live stream stop failed: %s",
+                        redact_text(err, site_ids=(coord.site_id,)),
+                    )
                 self.clear_streaming_state()
             else:
                 await coord.async_stop_streaming()
