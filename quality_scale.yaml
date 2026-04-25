@@ -1,98 +1,77 @@
 levels:
-  silver:
-    # Core, user-facing quality items generally expected for silver
+  bronze:
     required:
-      - config_flow
-      - options_flow
-      - inject_websession
-      - common_modules
-      - entity_category
-      - integration_owner
-      - appropriate_polling
-      - log_when_unavailable
-      - integration_diagnostics
-      - system_health
-      - icon_translations
-      - docs_high_level_description
-      - docs_configuration_parameters
-      - docs_supported_functions
-      - docs_data_update
-      - docs_known_limitations
-      - docs_troubleshooting
+      - action-setup
+      - appropriate-polling
+      - brands
+      - common-modules
+      - config-flow-test-coverage
+      - config-flow
+      - dependency-transparency
+      - docs-actions
+      - docs-high-level-description
+      - docs-installation-instructions
+      - docs-removal-instructions
+      - entity-event-setup
+      - entity-unique-id
+      - has-entity-name
+      - runtime-data
+      - test-before-configure
+      - test-before-setup
+      - unique-config-entry
+  silver:
+    required:
+      - action-exceptions
+      - config-entry-unloading
+      - docs-configuration-parameters
+      - docs-installation-parameters
+      - entity-unavailable
+      - integration-owner
+      - log-when-unavailable
+      - parallel-updates
+      - reauthentication-flow
+      - test-coverage
   gold:
-    # Additional UX/docs/device metadata often associated with gold
     required:
       - devices
-      - docs_installation_instructions
-      - docs_installation_parameters
-      - docs_removal_instructions
-      - docs_supported_devices
-      - docs_actions
-      - reconfiguration_flow
+      - diagnostics
+      - discovery-update-info
+      - discovery
+      - docs-data-update
+      - docs-examples
+      - docs-known-limitations
+      - docs-supported-devices
+      - docs-supported-functions
+      - docs-troubleshooting
+      - docs-use-cases
+      - dynamic-devices
+      - entity-category
+      - entity-device-class
+      - entity-disabled-by-default
+      - entity-translations
+      - exception-translations
+      - icon-translations
+      - reconfiguration-flow
+      - repair-issues
+      - stale-devices
   platinum:
-    # Advanced capabilities commonly seen at platinum
     required:
-      - dynamic_devices
-      - discovery_update_info
+      - async-dependency
+      - inject-websession
+      - strict-typing
 
 rules:
-  # Silver rules (implemented)
-  config_flow:
+  # Bronze
+  action-setup:
     status: done
     references:
       code:
-        - custom_components/enphase_ev/config_flow.py
-      tests:
-        - tests/components/enphase_ev/test_config_flow_coverage.py
-      docs:
-        - README.md
-  options_flow:
-    status: done
-    references:
-      code:
-        - custom_components/enphase_ev/config_flow.py
-      tests:
-        - tests/components/enphase_ev/test_config_flow_coverage.py
-      docs:
-        - README.md
-  inject_websession:
-    status: done
-    references:
-      code:
-        - custom_components/enphase_ev/config_flow.py
         - custom_components/enphase_ev/__init__.py
+        - custom_components/enphase_ev/services.py
       tests:
-        - tests/components/enphase_ev/test_api_http_flow.py
-  common_modules:
-    status: done
-    references:
-      code:
-        - custom_components/enphase_ev/api.py
-        - custom_components/enphase_ev/coordinator.py
-        - custom_components/enphase_ev/runtime_helpers.py
-      tests:
-        - tests/components/enphase_ev/test_api_helpers.py
-        - tests/components/enphase_ev/test_helper_modules.py
-  entity_category:
-    status: done
-    references:
-      code:
-        - custom_components/enphase_ev/binary_sensor.py
-        - custom_components/enphase_ev/button.py
-        - custom_components/enphase_ev/sensor.py
-      tests:
-        - tests/components/enphase_ev/test_binary_sensor_module.py
-        - tests/components/enphase_ev/test_sensor_edge_cases.py
-  integration_owner:
-    status: done
-    references:
-      code:
-        - custom_components/enphase_ev/manifest.json
-      tests:
-        - tests/components/enphase_ev/test_manifest.py
-      docs:
-        - README.md
-  appropriate_polling:
+        - tests/components/enphase_ev/test_services.py
+        - tests/components/enphase_ev/test_init_module.py
+  appropriate-polling:
     status: done
     references:
       code:
@@ -104,76 +83,237 @@ rules:
         - tests/components/enphase_ev/test_rate_limit_and_switch_kick.py
       docs:
         - README.md
-  log_when_unavailable:
+  brands:
+    status: done
+    comment: Branding has been set up in home-assistant/brands and CI validates the remote brands repository/CDN assets.
+    references:
+      code:
+        - custom_components/enphase_ev/manifest.json
+        - hacs.json
+        - .github/workflows/tests.yml
+        - scripts/validate_quality_scale.py
+      docs:
+        - README.md
+  common-modules:
     status: done
     references:
       code:
+        - custom_components/enphase_ev/runtime_helpers.py
+        - custom_components/enphase_ev/parsing_helpers.py
+        - custom_components/enphase_ev/service_validation.py
+      tests:
+        - tests/components/enphase_ev/test_helper_modules.py
+        - tests/components/enphase_ev/test_services.py
+  config-flow-test-coverage:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_config_flow_coverage.py
+        - tests/components/enphase_ev/test_reconfigure_flow.py
+  config-flow:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_config_flow_coverage.py
+      docs:
+        - README.md
+  dependency-transparency:
+    status: done
+    comment: The manifest has no third-party requirements; network I/O is implemented with Home Assistant-provided aiohttp sessions.
+    references:
+      code:
+        - custom_components/enphase_ev/manifest.json
         - custom_components/enphase_ev/api.py
+      tests:
+        - tests/components/enphase_ev/test_manifest.py
+      docs:
+        - README.md
+  docs-actions:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/services.yaml
+        - custom_components/enphase_ev/services.py
+      tests:
+        - tests/components/enphase_ev/test_service_translations.py
+      docs:
+        - README.md
+  docs-high-level-description:
+    status: done
+    references:
+      docs:
+        - README.md
+  docs-installation-instructions:
+    status: done
+    references:
+      docs:
+        - README.md
+  docs-removal-instructions:
+    status: done
+    references:
+      docs:
+        - README.md
+  entity-event-setup:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/entity.py
+        - custom_components/enphase_ev/inventory_runtime.py
+      tests:
+        - tests/components/enphase_ev/test_entity_base.py
+        - tests/components/enphase_ev/test_inventory_runtime.py
+  entity-unique-id:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/binary_sensor.py
+        - custom_components/enphase_ev/button.py
+        - custom_components/enphase_ev/select.py
+      tests:
+        - tests/components/enphase_ev/test_entity_wiring.py
+        - tests/components/enphase_ev/test_buttons_and_fast.py
+  has-entity-name:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/entity.py
+        - custom_components/enphase_ev/binary_sensor.py
+        - custom_components/enphase_ev/select.py
+      tests:
+        - tests/components/enphase_ev/test_entity_wiring.py
+        - tests/components/enphase_ev/test_binary_sensor_module.py
+  runtime-data:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/runtime_data.py
+        - custom_components/enphase_ev/__init__.py
+      tests:
+        - tests/components/enphase_ev/test_runtime_data.py
+        - tests/components/enphase_ev/test_init_module.py
+  test-before-configure:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_config_flow_coverage.py
+  test-before-setup:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/__init__.py
+        - custom_components/enphase_ev/coordinator.py
+      tests:
+        - tests/components/enphase_ev/test_init_module.py
+        - tests/components/enphase_ev/test_coordinator_redesign.py
+  unique-config-entry:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_config_flow_coverage.py
+
+  # Silver
+  action-exceptions:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/services.py
+        - custom_components/enphase_ev/service_validation.py
+      tests:
+        - tests/components/enphase_ev/test_services.py
+        - tests/components/enphase_ev/test_device_action.py
+  config-entry-unloading:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/__init__.py
+      tests:
+        - tests/components/enphase_ev/test_init_module.py
+  docs-configuration-parameters:
+    status: done
+    references:
+      docs:
+        - README.md
+  docs-installation-parameters:
+    status: done
+    references:
+      docs:
+        - README.md
+  entity-unavailable:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/entity.py
+        - custom_components/enphase_ev/binary_sensor.py
+      tests:
+        - tests/components/enphase_ev/test_entity_base.py
+        - tests/components/enphase_ev/test_latency_and_connectivity.py
+  integration-owner:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/manifest.json
+      tests:
+        - tests/components/enphase_ev/test_manifest.py
+      docs:
+        - README.md
+  log-when-unavailable:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/entity.py
         - custom_components/enphase_ev/coordinator.py
       tests:
         - tests/components/enphase_ev/test_latency_and_connectivity.py
         - tests/components/enphase_ev/test_coordinator_behavior.py
-  integration_diagnostics:
+  parallel-updates:
     status: done
     references:
       code:
-        - custom_components/enphase_ev/diagnostics.py
+        - custom_components/enphase_ev/binary_sensor.py
+        - custom_components/enphase_ev/button.py
+        - custom_components/enphase_ev/select.py
+        - custom_components/enphase_ev/number.py
+        - custom_components/enphase_ev/switch.py
+        - custom_components/enphase_ev/time.py
+        - custom_components/enphase_ev/calendar.py
+        - custom_components/enphase_ev/update.py
       tests:
-        - tests/components/enphase_ev/test_diagnostics.py
-      docs:
-        - README.md
-  system_health:
+        - tests/components/enphase_ev/test_binary_sensor_module.py
+        - tests/components/enphase_ev/test_buttons_and_fast.py
+        - tests/components/enphase_ev/test_switch_module.py
+  reauthentication-flow:
     status: done
     references:
       code:
-        - custom_components/enphase_ev/system_health.py
+        - custom_components/enphase_ev/config_flow.py
+        - custom_components/enphase_ev/coordinator.py
       tests:
-        - tests/components/enphase_ev/test_system_health.py
+        - tests/components/enphase_ev/test_reconfigure_flow.py
+        - tests/components/enphase_ev/test_config_flow_coverage.py
       docs:
         - README.md
-  icon_translations:
+  test-coverage:
     status: done
+    comment: CI enforces overall integration coverage at 95% and changed-module coverage at 100%.
     references:
       code:
-        - custom_components/enphase_ev/icons.json
-        - custom_components/enphase_ev/strings.json
+        - .github/workflows/tests.yml
       tests:
-        - tests/components/enphase_ev/test_service_translations.py
-  docs_high_level_description:
-    status: done
-    references:
+        - tests/components/enphase_ev
       docs:
-        - README.md
-  docs_configuration_parameters:
-    status: done
-    references:
-      docs:
-        - README.md
-  docs_supported_functions:
-    status: done
-    references:
-      docs:
-        - README.md
-  docs_data_update:
-    status: done
-    references:
-      docs:
-        - README.md
-  docs_known_limitations:
-    status: done
-    references:
-      docs:
-        - README.md
-  docs_troubleshooting:
-    status: done
-    references:
-      docs:
-        - README.md
+        - CONTRIBUTING.md
 
-  # Gold rules (current status)
+  # Gold
   devices:
     status: done
-    comment: Charger DeviceInfo now exposes manufacturer/model/hw/sw and new chargers are created dynamically without reload.
     references:
       code:
         - custom_components/enphase_ev/entity.py
@@ -184,61 +324,73 @@ rules:
         - tests/components/enphase_ev/test_device_types.py
       docs:
         - README.md
-  docs_installation_instructions:
+  diagnostics:
     status: done
-    comment: README includes HACS and manual steps.
-    references:
-      docs:
-        - README.md
-  docs_installation_parameters:
-    status: done
-    comment: README documents required inputs and options.
-    references:
-      docs:
-        - README.md
-  docs_removal_instructions:
-    status: done
-    comment: README includes a Removing the integration section with standard steps.
-    references:
-      docs:
-        - README.md
-  docs_supported_devices:
-    status: done
-    comment: README lists supported and unsupported/not tested devices.
-    references:
-      docs:
-        - README.md
-  docs_actions:
-    status: done
-    comment: Structured Actions section in README covers all services and fields.
     references:
       code:
-        - custom_components/enphase_ev/services.yaml
-        - custom_components/enphase_ev/services.py
+        - custom_components/enphase_ev/diagnostics.py
       tests:
-        - tests/components/enphase_ev/test_device_action.py
-        - tests/components/enphase_ev/test_battery_runtime_grid_control.py
+        - tests/components/enphase_ev/test_diagnostics.py
       docs:
         - README.md
-  reconfiguration_flow:
-    status: done
-    comment: async_step_reconfigure implemented with validation and in-place update.
+  discovery-update-info:
+    status: n/a
+    comment: Cloud-only integration; it has no local discovery source whose network information can update existing entries.
+    references:
+      code:
+        - custom_components/enphase_ev/manifest.json
+      docs:
+        - README.md
+  discovery:
+    status: n/a
+    comment: Devices are discovered from the authenticated Enphase cloud account, not Home Assistant local discovery protocols.
     references:
       code:
         - custom_components/enphase_ev/config_flow.py
-      tests:
-        - tests/components/enphase_ev/test_reconfigure_flow.py
       docs:
         - README.md
-
-  # Platinum rules (current status)
-  dynamic_devices:
+  docs-data-update:
     status: done
-    comment: Platforms listen for coordinator updates and register charger entities when new serials appear at runtime.
+    references:
+      docs:
+        - README.md
+  docs-examples:
+    status: done
+    references:
+      docs:
+        - README.md
+        - blueprints
+  docs-known-limitations:
+    status: done
+    references:
+      docs:
+        - README.md
+  docs-supported-devices:
+    status: done
+    references:
+      docs:
+        - README.md
+  docs-supported-functions:
+    status: done
+    references:
+      docs:
+        - README.md
+  docs-troubleshooting:
+    status: done
+    references:
+      docs:
+        - README.md
+  docs-use-cases:
+    status: done
+    references:
+      docs:
+        - README.md
+  dynamic-devices:
+    status: done
     references:
       code:
         - custom_components/enphase_ev/inventory_runtime.py
-        - custom_components/enphase_ev/sensor.py
+        - custom_components/enphase_ev/button.py
         - custom_components/enphase_ev/switch.py
       tests:
         - tests/components/enphase_ev/test_inventory_runtime.py
@@ -246,11 +398,120 @@ rules:
         - tests/components/enphase_ev/test_switch_module.py
       docs:
         - README.md
-  discovery_update_info:
-    status: n/a
-    comment: Cloud-only integration; no local discovery (zeroconf/bluetooth/mqtt) applicable today.
+  entity-category:
+    status: done
     references:
       code:
-        - custom_components/enphase_ev/manifest.json
+        - custom_components/enphase_ev/binary_sensor.py
+        - custom_components/enphase_ev/button.py
+        - custom_components/enphase_ev/sensor.py
+      tests:
+        - tests/components/enphase_ev/test_binary_sensor_module.py
+        - tests/components/enphase_ev/test_sensor_edge_cases.py
+  entity-device-class:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/binary_sensor.py
+        - custom_components/enphase_ev/sensor.py
+        - custom_components/enphase_ev/update.py
+      tests:
+        - tests/components/enphase_ev/test_binary_sensor_attributes.py
+        - tests/components/enphase_ev/test_entities_and_flow.py
+        - tests/components/enphase_ev/test_update_module.py
+  entity-disabled-by-default:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/sensor.py
+      tests:
+        - tests/components/enphase_ev/test_sensors.py
+        - tests/components/enphase_ev/test_sensor_additional_coverage.py
+  entity-translations:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/strings.json
+        - custom_components/enphase_ev/translations/en.json
+      tests:
+        - tests/components/enphase_ev/test_service_translations.py
+  exception-translations:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/service_validation.py
+        - custom_components/enphase_ev/strings.json
+      tests:
+        - tests/components/enphase_ev/test_service_translations.py
+        - tests/components/enphase_ev/test_services.py
+  icon-translations:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/icons.json
+        - custom_components/enphase_ev/strings.json
+      tests:
+        - tests/components/enphase_ev/test_service_translations.py
+  reconfiguration-flow:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/config_flow.py
+      tests:
+        - tests/components/enphase_ev/test_reconfigure_flow.py
       docs:
         - README.md
+  repair-issues:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/coordinator_diagnostics.py
+        - custom_components/enphase_ev/services.py
+        - custom_components/enphase_ev/strings.json
+      tests:
+        - tests/components/enphase_ev/test_coordinator_behavior.py
+        - tests/components/enphase_ev/test_coordinator_edge_cases.py
+      docs:
+        - README.md
+  stale-devices:
+    status: done
+    references:
+      code:
+        - custom_components/enphase_ev/__init__.py
+        - custom_components/enphase_ev/entity_cleanup.py
+      tests:
+        - tests/components/enphase_ev/test_init_module.py
+        - tests/components/enphase_ev/test_entity_cleanup.py
+  async-dependency:
+    status: done
+    comment: The integration uses Home Assistant's event loop and aiohttp client session directly, with no synchronous third-party cloud dependency.
+    references:
+      code:
+        - custom_components/enphase_ev/api.py
+        - custom_components/enphase_ev/coordinator.py
+      tests:
+        - tests/components/enphase_ev/test_api_http_flow.py
+        - tests/components/enphase_ev/test_coordinator_behavior.py
+  inject-websession:
+    status: done
+    comment: The Enphase API helpers receive the Home Assistant shared aiohttp ClientSession via async_get_clientsession.
+    references:
+      code:
+        - custom_components/enphase_ev/__init__.py
+        - custom_components/enphase_ev/config_flow.py
+        - custom_components/enphase_ev/coordinator.py
+      tests:
+        - tests/components/enphase_ev/test_config_flow_coverage.py
+        - tests/components/enphase_ev/test_coordinator_behavior.py
+  strict-typing:
+    status: done
+    comment: Runtime data uses a typed ConfigEntry alias without an Any fallback, the package is marked typed, and CI validates the strict config-entry contract with mypy.
+    references:
+      code:
+        - .strict-typing
+        - custom_components/enphase_ev/runtime_data.py
+        - custom_components/enphase_ev/py.typed
+        - scripts/validate_quality_scale.py
+      tests:
+        - tests/components/enphase_ev/test_runtime_data.py
+        - tests/scripts/test_validate_quality_scale.py

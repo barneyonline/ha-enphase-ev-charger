@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
+from homeassistant.config_entries import ConfigEntry
 from .const import DOMAIN
 
 if TYPE_CHECKING:  # pragma: no cover
-    from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
     from .battery_schedule_editor import BatteryScheduleEditorManager
@@ -30,10 +30,7 @@ class EnphaseRuntimeData:
     skip_reload_once: bool = False
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    EnphaseConfigEntry: TypeAlias = ConfigEntry[EnphaseRuntimeData]
-else:
-    EnphaseConfigEntry = Any
+EnphaseConfigEntry: TypeAlias = ConfigEntry[EnphaseRuntimeData]
 
 
 def get_runtime_data(entry: EnphaseConfigEntry) -> EnphaseRuntimeData:

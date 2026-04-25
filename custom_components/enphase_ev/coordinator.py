@@ -19,7 +19,7 @@ from datetime import datetime, time as dt_time, timedelta
 from datetime import timezone as _tz
 from http import HTTPStatus
 from numbers import Real
-from typing import Callable, Iterable
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -167,6 +167,9 @@ from .voltage import (
     resolve_nominal_voltage_for_hass,
 )
 
+if TYPE_CHECKING:
+    from .runtime_data import EnphaseConfigEntry
+
 _LOGGER = logging.getLogger(__name__)
 DEVICES_INVENTORY_CACHE_TTL = 300.0
 HEMS_DEVICES_STALE_AFTER_S = 90.0
@@ -259,7 +262,12 @@ class RefreshPipelineContext:
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict]):
-    def __init__(self, hass: HomeAssistant, config, config_entry=None):
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config: Mapping[str, Any],
+        config_entry: EnphaseConfigEntry | None = None,
+    ) -> None:
         self.hass = hass
         self.config_entry = config_entry
         self.site_id = str(config[CONF_SITE_ID])

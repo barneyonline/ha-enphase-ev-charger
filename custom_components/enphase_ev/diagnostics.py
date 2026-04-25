@@ -6,13 +6,14 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 
 from .const import CONF_EMAIL, CONF_SITE_ID, DOMAIN
 from .device_types import parse_type_identifier
 from .energy import SiteEnergyFlow
 from .log_redaction import redact_text
-from .runtime_data import get_runtime_data
+from .runtime_data import EnphaseConfigEntry, get_runtime_data
 
 DIAGNOSTIC_CAPTURE_ERRORS = (RuntimeError, TypeError, ValueError, AttributeError)
 
@@ -428,7 +429,9 @@ def _ac_battery_status_summary_for_diagnostics(summary: Any) -> dict[str, Any]:
     }
 
 
-async def async_get_config_entry_diagnostics(hass, entry):
+async def async_get_config_entry_diagnostics(
+    hass: HomeAssistant, entry: EnphaseConfigEntry
+) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
 
     site_ids = _normalize_site_ids([entry.data.get(CONF_SITE_ID)])

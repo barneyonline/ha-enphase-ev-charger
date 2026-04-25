@@ -92,6 +92,7 @@ AC_BATTERY_ENTITY_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_last_reported",
 )
 AC_BATTERY_RETIRED_UNIQUE_SUFFIXES: tuple[str, ...] = ("_last_reported_at",)
+CURRENT_POWER_CACHE_TTL_MULTIPLIER = 2
 HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_connector_reason",
     "_session_miles",
@@ -210,6 +211,16 @@ def _restore_optional_int_value(raw_value: object) -> int | None:
         return int(round(float(raw_value)))
     except Exception:
         return None
+
+
+def _normalize_utc_datetime(value: object) -> datetime | None:
+    """Return a timezone-aware UTC datetime when value is datetime-like."""
+
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 def _site_has_battery(coord: EnphaseCoordinator) -> bool:
@@ -3221,6 +3232,7 @@ class _TimestampFromEpochSensor(EnphaseBaseEntity, SensorEntity):
 class EnphaseTypeInventorySensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
 
     def __init__(self, coord: EnphaseCoordinator, type_key: str) -> None:
         super().__init__(coord)
@@ -6312,6 +6324,7 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
         )
         self._last_good_value: float | None = None
         self._last_good_sample_utc: datetime | None = None
+        self._last_good_cached_at_utc: datetime | None = None
         self._last_good_source: str | None = None
         self._last_good_reported_units: str | None = None
         self._last_good_reported_precision: int | None = None
@@ -6340,9 +6353,7 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
         if isinstance(sample_raw, str):
             parsed = dt_util.parse_datetime(sample_raw)
             if parsed is not None:
-                if parsed.tzinfo is None:
-                    parsed = parsed.replace(tzinfo=timezone.utc)
-                self._last_good_sample_utc = parsed.astimezone(timezone.utc)
+                self._last_good_sample_utc = _normalize_utc_datetime(parsed)
         source = attrs.get("source")
         if isinstance(source, str) and source.strip():
             self._last_good_source = source
@@ -6356,6 +6367,43 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
         except Exception:  # noqa: BLE001
             self._last_good_reported_precision = None
 
+    def _cache_ttl(self) -> timedelta:
+        interval = getattr(self._coord, "update_interval", None)
+        if isinstance(interval, timedelta) and interval.total_seconds() > 0:
+            return interval * CURRENT_POWER_CACHE_TTL_MULTIPLIER
+        return timedelta(minutes=CURRENT_POWER_CACHE_TTL_MULTIPLIER)
+
+    def _freshness_reference_utc(self) -> datetime:
+        success_utc = _normalize_utc_datetime(
+            getattr(self._coord, "last_success_utc", None)
+        )
+        try:
+            now = _normalize_utc_datetime(dt_util.utcnow())
+        except Exception:  # noqa: BLE001
+            now = None
+        if success_utc is not None and now is not None:
+            return max(success_utc, now)
+        if success_utc is not None:
+            return success_utc
+        if now is not None:
+            return now
+        return datetime.now(timezone.utc)
+
+    def _cached_sample_is_fresh(self) -> bool:
+        sample_utc = self._last_good_sample_utc or self._last_good_cached_at_utc
+        if sample_utc is None:
+            return False
+        reference_utc = self._freshness_reference_utc()
+        return reference_utc - sample_utc <= self._cache_ttl()
+
+    def _clear_last_good_sample(self) -> None:
+        self._last_good_value = None
+        self._last_good_sample_utc = None
+        self._last_good_cached_at_utc = None
+        self._last_good_source = None
+        self._last_good_reported_units = None
+        self._last_good_reported_precision = None
+
     def _current_or_cached_snapshot(
         self,
     ) -> tuple[float | None, datetime | None, str | None, str | None, int | None]:
@@ -6367,11 +6415,27 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
 
         if value is not None:
             self._last_good_value = float(value)
-            self._last_good_sample_utc = sample_utc
+            self._last_good_sample_utc = _normalize_utc_datetime(sample_utc)
+            self._last_good_cached_at_utc = (
+                self._last_good_sample_utc
+                or _normalize_utc_datetime(
+                    getattr(self._coord, "last_success_utc", None)
+                )
+                or self._freshness_reference_utc()
+            )
             self._last_good_source = source
             self._last_good_reported_units = units
             self._last_good_reported_precision = precision
-            return float(value), sample_utc, source, units, precision
+            return (
+                float(value),
+                self._last_good_sample_utc,
+                source,
+                units,
+                precision,
+            )
+
+        if self._last_good_value is not None and not self._cached_sample_is_fresh():
+            self._clear_last_good_sample()
 
         return (
             self._last_good_value,
@@ -6551,7 +6615,7 @@ class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
 class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
     _attr_translation_key = "system_controller_inventory"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {
             "last_reported_utc",
@@ -6637,7 +6701,7 @@ class EnphaseSystemControllerInventorySensor(_SiteBaseEntity):
 class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
     _attr_name = "Dry Contacts"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {
             "members",
@@ -6904,7 +6968,7 @@ class EnphaseDryContactsInventorySensor(_SiteBaseEntity):
 
 class _EnphaseGatewayMeterSensor(_SiteBaseEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {
             "meter_attributes",
@@ -7016,7 +7080,7 @@ class EnphaseGatewayConsumptionMeterSensor(_EnphaseGatewayMeterSensor):
 class EnphaseGatewayIQEnergyRouterSensor(_SiteBaseEntity):
     _attr_translation_key = "gateway_iq_energy_router"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"last_reported_utc"}
     )
@@ -7230,7 +7294,7 @@ class EnphaseGatewayLastReportedSensor(_SiteBaseEntity):
     _attr_translation_key = "gateway_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"latest_reported_device"}
     )
@@ -7409,7 +7473,7 @@ class EnphaseMicroinverterLastReportedSensor(_SiteBaseEntity):
     _attr_translation_key = "microinverter_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"latest_reported_device"}
     )
@@ -7703,7 +7767,7 @@ class EnphaseHeatPumpLastReportedSensor(_SiteBaseEntity):
     _attr_translation_key = "heat_pump_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"latest_reported_device"}
     )
@@ -8204,7 +8268,7 @@ class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
     _attr_translation_key = "battery_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"latest_reported_device"}
     )
@@ -8320,7 +8384,7 @@ class EnphaseAcBatteryLastReportedSensor(_SiteBaseEntity):
     _attr_translation_key = "ac_battery_last_reported"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_entity_registry_enabled_default = True
+    _attr_entity_registry_enabled_default = False
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {"latest_reported_device"}
     )

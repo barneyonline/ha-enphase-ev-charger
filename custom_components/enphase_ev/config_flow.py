@@ -4,11 +4,10 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import Any
+from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
@@ -97,6 +96,7 @@ from .envoy_history import (
     suggest_mappings,
     validate_selected_mappings,
 )
+from .runtime_data import EnphaseConfigEntry
 from .log_redaction import redact_text
 from .runtime_helpers import normalize_poll_intervals
 from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
@@ -208,7 +208,7 @@ def _legacy_microinverters_available(payload: object) -> bool:
     )
 
 
-class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg,misc]
     VERSION = 1
     MINOR_VERSION = 1
 
@@ -225,8 +225,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._email: str | None = None
         self._remember_password = False
         self._password: str | None = None
-        self._reconfigure_entry: ConfigEntry | None = None
-        self._reauth_entry: ConfigEntry | None = None
+        self._reconfigure_entry: EnphaseConfigEntry | None = None
+        self._reauth_entry: EnphaseConfigEntry | None = None
         self._site_only = False
         self._include_inverters = True
         self._mfa_tokens: AuthTokens | None = None
@@ -812,7 +812,7 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
                 )
             )
-        return DEFAULT_SCAN_INTERVAL
+        return int(DEFAULT_SCAN_INTERVAL)
 
     def _normalize_type_keys(self, value: Any) -> list[str]:
         if isinstance(value, (list, tuple, set)):
@@ -908,12 +908,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selected.discard("microinverter")
             return [key for key in available_type_keys if key in selected]
 
-        selected = ["envoy", "encharge"]
+        fallback_selected: list[str] = ["envoy", "encharge"]
         if serials and not site_only:
-            selected.append("iqevse")
+            fallback_selected.append("iqevse")
         if include_inverters:
-            selected.append("microinverter")
-        return selected
+            fallback_selected.append("microinverter")
+        return fallback_selected
 
     def _stored_selected_type_keys(self) -> list[str]:
         if not self._reconfigure_entry:
@@ -963,11 +963,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 merged.append(key)
         return merged
 
-    def _get_reconfigure_entry(self) -> ConfigEntry:
-        return super()._get_reconfigure_entry()
+    def _get_reconfigure_entry(self) -> EnphaseConfigEntry:
+        return cast(EnphaseConfigEntry, super()._get_reconfigure_entry())
 
-    def _get_reauth_entry(self) -> ConfigEntry:
-        return super()._get_reauth_entry()
+    def _get_reauth_entry(self) -> EnphaseConfigEntry:
+        return cast(EnphaseConfigEntry, super()._get_reauth_entry())
 
     def _abort_if_unique_id_mismatch(self, *, reason: str) -> None:
         super()._abort_if_unique_id_mismatch(reason=reason)
@@ -1023,13 +1023,15 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self.async_step_user()
 
     @staticmethod
-    @callback
-    def async_get_options_flow(config_entry: ConfigEntry):
+    @callback  # type: ignore[untyped-decorator]
+    def async_get_options_flow(
+        config_entry: EnphaseConfigEntry,
+    ) -> OptionsFlowHandler:
         return OptionsFlowHandler(config_entry)
 
 
-class OptionsFlowHandler(config_entries.OptionsFlow):
-    def __init__(self, config_entry: ConfigEntry) -> None:
+class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
+    def __init__(self, config_entry: EnphaseConfigEntry) -> None:
         super().__init__()
         self._entry = config_entry
         self._migration_sources: list[EnvoyHistorySource] | None = None
@@ -1117,7 +1119,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             self._entry.options.get(OPT_NOMINAL_VOLTAGE)
         )
         if configured is not None:
-            return configured
+            return cast(int, configured)
 
         runtime_data = getattr(self._entry, "runtime_data", None)
         coordinator = getattr(runtime_data, "coordinator", None)
@@ -1126,14 +1128,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             if callable(preferred):
                 value = coerce_nominal_voltage(preferred())
                 if value is not None:
-                    return value
+                    return cast(int, value)
             nominal = coerce_nominal_voltage(
                 getattr(coordinator, "nominal_voltage", None)
             )
             if nominal is not None:
-                return nominal
+                return cast(int, nominal)
 
-        return resolve_nominal_voltage_for_hass(self.hass)
+        return int(resolve_nominal_voltage_for_hass(self.hass))
 
     def _entry_auth_tokens(self) -> AuthTokens | None:
         site_id = str(self._entry.data.get(CONF_SITE_ID, "") or "").strip()
@@ -1272,7 +1274,9 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def _async_reload_migration_source_entry(
         self,
         source: EnvoyHistorySource,
-        source_entry: ConfigEntry | None,
+        source_entry: (
+            config_entries.ConfigEntry | None
+        ),  # quality-scale: external-config-entry
     ) -> bool:
         if source_entry is None:
             return True
@@ -1290,7 +1294,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 "state",
                 config_entries.ConfigEntryState.LOADED,
             )
-        return reloaded
+        return bool(reloaded)
 
     def _migration_flow_keys(self) -> tuple[str, ...]:
         targets = self._load_migration_targets()

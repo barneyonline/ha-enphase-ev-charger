@@ -107,18 +107,26 @@ def test_current_power_consumption_sensor_edge_paths():
     assert sensor.native_value == pytest.approx(752.125)
 
 
-def test_current_power_consumption_sensor_keeps_last_good_runtime_sample():
+def test_current_power_consumption_sensor_keeps_fresh_last_good_runtime_sample(
+    monkeypatch,
+):
     from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+    from custom_components.enphase_ev import sensor as sensor_mod
 
     coord = _make_site_coord()
     coord.last_success_utc = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
     coord._current_power_consumption_w = 752.0
     coord._current_power_consumption_sample_utc = datetime(
-        2026, 3, 11, 5, 40, tzinfo=timezone.utc
+        2026, 3, 11, 5, 40, 45, tzinfo=timezone.utc
     )
     coord._current_power_consumption_reported_units = "W"
     coord._current_power_consumption_reported_precision = 0
     coord._current_power_consumption_source = "app-api:get_latest_power"
+    monkeypatch.setattr(
+        sensor_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc),
+    )
 
     sensor = EnphaseCurrentPowerConsumptionSensor(coord)
 
@@ -134,11 +142,75 @@ def test_current_power_consumption_sensor_keeps_last_good_runtime_sample():
     assert sensor.available is True
     assert sensor.native_value == 752
     assert sensor.extra_state_attributes == {
-        "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+        "sampled_at_utc": "2026-03-11T05:40:45+00:00",
         "source": "app-api:get_latest_power",
         "reported_units": "W",
         "reported_precision": 0,
     }
+
+
+def test_current_power_consumption_sensor_expires_stale_cached_sample(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+    from custom_components.enphase_ev import sensor as sensor_mod
+
+    now = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+    coord = _make_site_coord()
+    coord.last_success_utc = now
+    coord._current_power_consumption_w = 752.0
+    coord._current_power_consumption_sample_utc = now - timedelta(seconds=15)
+    coord._current_power_consumption_reported_units = "W"
+    coord._current_power_consumption_reported_precision = 0
+    coord._current_power_consumption_source = "app-api:get_latest_power"
+    monkeypatch.setattr(sensor_mod.dt_util, "utcnow", lambda: now)
+
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+    assert sensor.native_value == 752
+
+    coord._current_power_consumption_w = None
+    coord._current_power_consumption_sample_utc = None
+    coord._current_power_consumption_reported_units = None
+    coord._current_power_consumption_reported_precision = None
+    coord._current_power_consumption_source = None
+
+    assert sensor.available is True
+
+    stale_now = now + timedelta(seconds=6)
+    coord.last_success_utc = stale_now
+    monkeypatch.setattr(sensor_mod.dt_util, "utcnow", lambda: stale_now)
+
+    assert sensor.available is False
+    assert sensor.native_value is None
+
+
+def test_current_power_consumption_sensor_freshness_fallback_paths(monkeypatch):
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+    from custom_components.enphase_ev import sensor as sensor_mod
+
+    now = datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc)
+    coord = _make_site_coord()
+    coord.update_interval = None
+    coord.last_success_utc = None
+    coord.last_update_success = True
+    monkeypatch.setattr(sensor_mod.dt_util, "utcnow", lambda: now)
+
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+    assert sensor._cache_ttl() == timedelta(minutes=2)  # noqa: SLF001
+    assert sensor._freshness_reference_utc() == now  # noqa: SLF001
+
+    sensor._last_good_value = 1.0  # noqa: SLF001
+    assert sensor.available is False
+    assert sensor.native_value is None
+
+    coord.last_success_utc = now
+
+    def _raise_utcnow():
+        raise RuntimeError("clock unavailable")
+
+    monkeypatch.setattr(sensor_mod.dt_util, "utcnow", _raise_utcnow)
+    assert sensor._freshness_reference_utc() == now  # noqa: SLF001
+
+    coord.last_success_utc = None
+    assert sensor._freshness_reference_utc().tzinfo is timezone.utc  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -146,6 +218,7 @@ async def test_current_power_consumption_sensor_restores_last_good_state(
     monkeypatch,
 ):
     from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+    from custom_components.enphase_ev import sensor as sensor_mod
     from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
     coord = _make_site_coord()
@@ -155,6 +228,11 @@ async def test_current_power_consumption_sensor_restores_last_good_state(
         return None
 
     monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+    monkeypatch.setattr(
+        sensor_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc),
+    )
 
     sensor = EnphaseCurrentPowerConsumptionSensor(coord)
     sensor.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
@@ -166,7 +244,7 @@ async def test_current_power_consumption_sensor_restores_last_good_state(
             (),
             {
                 "attributes": {
-                    "sampled_at_utc": "2026-03-11T05:40:00",
+                    "sampled_at_utc": "2026-03-11T05:40:45",
                     "source": "app-api:get_latest_power",
                     "reported_units": "W",
                     "reported_precision": object(),
@@ -180,7 +258,7 @@ async def test_current_power_consumption_sensor_restores_last_good_state(
     assert sensor.available is True
     assert sensor.native_value == 752
     assert sensor.extra_state_attributes == {
-        "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+        "sampled_at_utc": "2026-03-11T05:40:45+00:00",
         "source": "app-api:get_latest_power",
         "reported_units": "W",
         "reported_precision": None,
