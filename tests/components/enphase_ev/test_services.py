@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -330,3 +331,33 @@ async def test_try_reauth_now_reports_manual_retry_cooldown(
     coord.async_start_streaming.assert_not_awaited()
     coord.async_stop_streaming.assert_not_awaited()
     coord.schedule_sync.async_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_try_reauth_now_still_returns_success_when_refresh_fails(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A follow-up refresh failure should not hide a successful reauth."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    coord.async_request_refresh.side_effect = RuntimeError("refresh boom")
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    with caplog.at_level(logging.DEBUG):
+        result = await handlers[(DOMAIN, "try_reauth_now")](
+            SimpleNamespace(data={"site_id": "evse-site"})
+        )
+
+    assert result == {"site_id": "evse-site", "success": True, "reason": None}
+    coord.async_try_reauth_now.assert_awaited_once_with()
+    coord.async_request_refresh.assert_awaited_once_with()
+    assert "Manual reauthentication succeeded for site [site]" in caplog.text
+    assert "refresh boom" in caplog.text
