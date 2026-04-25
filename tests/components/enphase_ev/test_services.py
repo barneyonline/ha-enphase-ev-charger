@@ -335,7 +335,9 @@ async def test_try_reauth_now_reports_manual_retry_cooldown(
 
 @pytest.mark.asyncio
 async def test_try_reauth_now_still_returns_success_when_refresh_fails(
-    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A follow-up refresh failure should not hide a successful reauth."""
 
