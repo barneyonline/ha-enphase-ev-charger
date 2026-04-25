@@ -211,8 +211,6 @@ def parse_inverter_last_report(value: object) -> datetime | None:
                 epoch_value = float(text)
             except Exception:
                 return None
-    if epoch_value is None:
-        return None
     if epoch_value > 1_000_000_000_000:
         epoch_value /= 1000.0
     try:

@@ -84,13 +84,9 @@ class EnergyManager:
 
     def _site_energy_cache_age(self) -> float | None:
         """Return the age of the cached site energy payload."""
-        cache_ts = getattr(self, "_site_energy_cache_ts", None)
-        if cache_ts is None:
+        if self._site_energy_cache_ts is None:
             return None
-        try:
-            return time.monotonic() - cache_ts
-        except Exception:
-            return None
+        return time.monotonic() - self._site_energy_cache_ts
 
     @property
     def site_energy_cache_age(self) -> float | None:
@@ -111,10 +107,6 @@ class EnergyManager:
     def site_energy_refresh_due(self, *, force: bool = False) -> bool:
         """Return True when the site-energy cache should be refreshed."""
 
-        if not hasattr(self, "_site_energy_cache_ts"):
-            self._site_energy_cache_ts = None
-        if not hasattr(self, "_site_energy_cache_ttl"):
-            self._site_energy_cache_ttl = SITE_ENERGY_CACHE_TTL
         force_refresh = force or self._site_energy_force_refresh
         if self._service_backoff_active():
             return False
@@ -256,15 +248,8 @@ class EnergyManager:
         minutes = self._coerce_energy_value(interval_raw)
         if minutes is None or minutes <= 0:
             minutes = SITE_ENERGY_DEFAULT_INTERVAL_MIN
-        try:
-            minutes_float = float(minutes)
-            hours = minutes_float / 60.0
-        except Exception:  # noqa: BLE001
-            minutes_float = SITE_ENERGY_DEFAULT_INTERVAL_MIN
-            hours = minutes_float / 60.0
-        if hours <= 0:
-            minutes_float = SITE_ENERGY_DEFAULT_INTERVAL_MIN
-            hours = minutes_float / 60.0
+        minutes_float = float(minutes)
+        hours = minutes_float / 60.0
         return hours, minutes_float
 
     def _sum_energy_buckets(
@@ -511,10 +496,7 @@ class EnergyManager:
                 return
             if total_wh == 0 and not allow_zero:
                 return
-            try:
-                total_kwh = round(total_wh / 1000.0, 3)
-            except Exception:  # noqa: BLE001
-                return
+            total_kwh = round(total_wh / 1000.0, 3)
             prev_entry = prev.get(flow)
             prev_value = None
             prev_reset_at = None
@@ -848,10 +830,6 @@ class EnergyManager:
 
     async def _async_refresh_site_energy(self, *, force: bool = False) -> None:
         """Refresh lifetime energy cache with TTL enforcement."""
-        if not hasattr(self, "_site_energy_cache_ts"):
-            self._site_energy_cache_ts = None
-        if not hasattr(self, "_site_energy_cache_ttl"):
-            self._site_energy_cache_ttl = SITE_ENERGY_CACHE_TTL
         force_refresh = force or self._site_energy_force_refresh
         self._site_energy_force_refresh = False
         now_mono = time.monotonic()

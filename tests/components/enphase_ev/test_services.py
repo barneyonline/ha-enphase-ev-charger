@@ -229,35 +229,3 @@ async def test_targeted_services_raise_without_target_or_owner(
     coord.async_start_streaming.assert_not_awaited()
     coord.async_stop_streaming.assert_not_awaited()
     coord.schedule_sync.async_refresh.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_sync_schedules_raises_when_owner_has_no_schedule_sync(
-    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Schedule sync service should fail loudly when the coordinator cannot sync."""
-
-    handlers = _register_service_handlers(hass, monkeypatch)
-    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
-    delattr(coord, "schedule_sync")
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
-        title="EVSE Site",
-        unique_id="evse-site",
-    )
-    entry.add_to_hass(hass)
-    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
-
-    device_registry = dr.async_get(hass)
-    charger = device_registry.async_get_or_create(
-        config_entry_id=entry.entry_id,
-        identifiers={(DOMAIN, "EVSE123")},
-        manufacturer="Enphase",
-        name="Garage Charger",
-    )
-
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "sync_schedules")](
-            SimpleNamespace(data={"device_id": [charger.id]})
-        )

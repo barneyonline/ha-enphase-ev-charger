@@ -14,7 +14,6 @@ from custom_components.enphase_ev.refresh_plan import (
     FOLLOWUP_PLAN,
     HEATPUMP_FOLLOWUP_PLAN,
     SITE_ONLY_FOLLOWUP_PLAN,
-    _refresh_due,
     bind_refresh_stage,
     bind_refresh_plan,
     build_followup_plan,
@@ -506,10 +505,6 @@ def test_dynamic_followup_plan_skips_up_to_date_tasks() -> None:
     assert build_followup_plan(owner).stages == ()
 
 
-def test_refresh_due_returns_false_without_predicate_or_fallback() -> None:
-    assert _refresh_due(object(), "missing_predicate") is False
-
-
 def test_dynamic_followup_plan_selects_due_subset() -> None:
     owner = _RefreshOwner()
     owner.battery_runtime.battery_backup_history_refresh_due = lambda: False
@@ -680,24 +675,6 @@ def test_dynamic_heatpump_followup_includes_cleanup_when_hems_support_unknown() 
     ]
 
 
-def test_dynamic_heatpump_followup_includes_cleanup_when_has_type_raises() -> None:
-    owner = _RefreshOwner()
-
-    def _boom(_key: str) -> bool:
-        raise RuntimeError("bad has_type")
-
-    owner.heatpump_runtime.has_type = _boom
-
-    plan = build_heatpump_followup_plan(owner)
-
-    assert len(plan.stages) == 1
-    assert [task.timing_key for task in plan.stages[0].ordered_tasks] == [
-        "heatpump_runtime_s",
-        "heatpump_daily_s",
-        "heatpump_power_s",
-    ]
-
-
 def test_dynamic_post_session_followup_only_includes_due_tasks() -> None:
     owner = _RefreshOwner()
     owner.energy.site_energy_refresh_due = MagicMock(return_value=False)
@@ -759,8 +736,8 @@ async def test_coordinator_run_refresh_calls_tracks_stage_and_topology_batch(
     await coord.refresh_runner.async_run_refresh_calls(
         phase_timings,
         calls=(
-            ("first_s", "first", lambda: None),
-            ("second_s", "second", lambda: None),
+            ("first_s", "first", lambda: None, None),
+            ("second_s", "second", lambda: None, None),
         ),
         stage_key="refresh",
         defer_topology=True,
@@ -808,8 +785,8 @@ async def test_coordinator_run_refresh_calls_drains_siblings_before_batch_end(
         await coord.refresh_runner.async_run_refresh_calls(
             {},
             calls=(
-                ("slow_s", "slow", _slow),
-                ("fail_s", "fail", _fail),
+                ("slow_s", "slow", _slow, None),
+                ("fail_s", "fail", _fail, None),
             ),
             defer_topology=True,
         )

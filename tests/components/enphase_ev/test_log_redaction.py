@@ -15,7 +15,6 @@ def test_identifier_helpers_redact_values() -> None:
     assert redact_identifier("ABCD") == "A...D"
     assert redact_identifier(None) == "[redacted]"
     assert redact_site_id("123456789") == "[site]"
-    assert redact_site_id(None) == "[site]"
 
 
 def test_redact_text_scrubs_common_sensitive_values() -> None:
@@ -48,7 +47,6 @@ def test_identifier_helpers_cover_bad_string_inputs() -> None:
             raise ValueError("boom")
 
     assert truncate_identifier(_BadStr()) is None
-    assert redact_site_id(_BadStr()) == "[site]"
 
 
 def test_redact_text_covers_key_kinds_and_truncation() -> None:

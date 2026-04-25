@@ -473,12 +473,6 @@ def test_helper_edge_branches() -> None:
     assert firmware_catalog._catalog_generated_at({"generated_at": _BadStr()}) is None
 
     assert firmware_catalog._iso_or_none(None) is None
-
-    class _BadDatetime:
-        def isoformat(self):
-            raise ValueError("boom")
-
-    assert firmware_catalog._iso_or_none(_BadDatetime()) is None  # type: ignore[arg-type]
     assert firmware_catalog._mono_to_utc_iso(time.monotonic() - 1) is None
     assert firmware_catalog._mono_to_utc_iso(time.monotonic() + 1) is not None
     assert firmware_catalog._parse_iso_datetime("") is None

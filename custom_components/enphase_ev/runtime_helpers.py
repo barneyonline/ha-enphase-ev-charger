@@ -53,21 +53,14 @@ def coerce_optional_text(value: object) -> str | None:
 def iso_or_none(value: datetime | None) -> str | None:
     if value is None:
         return None
-    try:
-        return value.isoformat()
-    except Exception:  # noqa: BLE001
-        return None
+    return value.isoformat()
 
 
 def monotonic_deadline_to_utc_iso(target_mono: float) -> str | None:
     now_mono = time.monotonic()
-    try:
-        target_value = float(target_mono)
-    except Exception:  # noqa: BLE001
+    if target_mono <= 0 or target_mono <= now_mono:
         return None
-    if target_value <= 0 or target_value <= now_mono:
-        return None
-    delta_seconds = target_value - now_mono
+    delta_seconds = target_mono - now_mono
     return iso_or_none(dt_util.utcnow() + timedelta(seconds=delta_seconds))
 
 
