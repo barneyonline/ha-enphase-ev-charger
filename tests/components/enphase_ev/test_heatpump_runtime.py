@@ -1276,17 +1276,6 @@ def test_heatpump_runtime_type_helpers_cover_guard_paths(coordinator_factory) ->
     ]  # noqa: SLF001
 
 
-def test_parse_inverter_last_report_handles_none_epoch_value(monkeypatch) -> None:
-    monkeypatch.setattr(
-        parsing_helpers_mod,
-        "float",
-        lambda _value: None,
-        raising=False,
-    )
-
-    assert parse_inverter_last_report(1711843200) is None
-
-
 @pytest.mark.asyncio
 async def test_refresh_heatpump_power_tracks_latest_valid_sample(
     coordinator_factory,

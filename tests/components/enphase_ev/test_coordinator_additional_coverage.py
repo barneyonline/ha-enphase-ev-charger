@@ -1412,6 +1412,7 @@ def _prepare_minimal_success_update(coord, sn: str) -> None:
         invalidate=lambda: None,
     )
     coord.evse_timeseries = SimpleNamespace(
+        refresh_due=MagicMock(return_value=True),
         async_refresh=AsyncMock(),
         merge_charger_payloads=MagicMock(),
         diagnostics=lambda: {},

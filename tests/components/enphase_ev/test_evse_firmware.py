@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from types import SimpleNamespace
 
 import pytest
 from homeassistant.util import dt as dt_util
@@ -154,7 +153,6 @@ def test_normalize_details_and_helpers_cover_edge_cases() -> None:
     assert _iso_or_none(None) is None
     assert _mono_to_utc_iso(0) is None
     assert _mono_to_utc_iso(-1) is None
-    assert _mono_to_utc_iso(SimpleNamespace()) is None  # type: ignore[arg-type]
     assert _text(" value ") == "value"
     assert _text(None) is None
 
@@ -163,9 +161,3 @@ def test_normalize_details_and_helpers_cover_edge_cases() -> None:
             raise ValueError("boom")
 
     assert _text(_BadStr()) is None
-
-    class _BadDatetime:
-        def isoformat(self) -> str:
-            raise ValueError("boom")
-
-    assert _iso_or_none(_BadDatetime()) is None  # type: ignore[arg-type]

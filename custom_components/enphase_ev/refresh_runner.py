@@ -34,15 +34,6 @@ _SKIPPABLE_REFRESH_ERRORS = (
 )
 
 
-def _unpack_refresh_call(
-    call: BoundRefreshCall | tuple[str, str, Callable[[], object]],
-) -> tuple[str, str, Callable[[], object], str | None]:
-    if len(call) == 3:
-        timing_key, log_label, callback_factory = call
-        return timing_key, log_label, callback_factory, None
-    return call
-
-
 class RefreshRunner:
     """Execute refresh plans and startup warmup on behalf of the coordinator."""
 
@@ -98,7 +89,7 @@ class RefreshRunner:
         self,
         phase_timings: dict[str, float],
         *,
-        calls: tuple[BoundRefreshCall | tuple[str, str, Callable[[], object]], ...],
+        calls: tuple[BoundRefreshCall, ...],
         stage_key: str | None = None,
         defer_topology: bool = False,
     ) -> None:
@@ -117,9 +108,7 @@ class RefreshRunner:
                         endpoint_family=endpoint_family,
                     )
                 )
-                for timing_key, log_label, callback_factory, endpoint_family in (
-                    _unpack_refresh_call(call) for call in calls
-                )
+                for timing_key, log_label, callback_factory, endpoint_family in calls
             ]
             results = await asyncio.gather(*tasks)
         except (asyncio.CancelledError, Exception):
@@ -143,7 +132,7 @@ class RefreshRunner:
         self,
         phase_timings: dict[str, float],
         *,
-        calls: tuple[BoundRefreshCall | tuple[str, str, Callable[[], object]], ...],
+        calls: tuple[BoundRefreshCall, ...],
         stage_key: str | None = None,
         defer_topology: bool = False,
     ) -> None:
@@ -152,9 +141,7 @@ class RefreshRunner:
 
         group_started = time.monotonic()
         try:
-            for timing_key, log_label, callback_factory, endpoint_family in (
-                _unpack_refresh_call(call) for call in calls
-            ):
+            for timing_key, log_label, callback_factory, endpoint_family in calls:
                 key, duration = await self.async_run_refresh_call(
                     timing_key,
                     log_label,
@@ -174,12 +161,8 @@ class RefreshRunner:
         self,
         phase_timings: dict[str, float],
         *,
-        parallel_calls: tuple[
-            BoundRefreshCall | tuple[str, str, Callable[[], object]], ...
-        ] = (),
-        ordered_calls: tuple[
-            BoundRefreshCall | tuple[str, str, Callable[[], object]], ...
-        ] = (),
+        parallel_calls: tuple[BoundRefreshCall, ...] = (),
+        ordered_calls: tuple[BoundRefreshCall, ...] = (),
         stage_key: str | None = None,
         defer_topology: bool = False,
     ) -> None:

@@ -455,29 +455,10 @@ def _plan_from_stages(*stages: RefreshStage | None) -> RefreshPlan:
     return RefreshPlan(stages=filtered)
 
 
-def _refresh_due(
-    target: object,
-    predicate_name: str,
-    *,
-    fallback_due: Callable[[], bool] | None = None,
-    **kwargs: object,
-) -> bool:
-    predicate = getattr(target, predicate_name, None)
-    if callable(predicate):
-        return bool(predicate(**kwargs))
-    if fallback_due is None:
-        return False
-    return bool(fallback_due())
-
-
 def _heatpump_power_covers_dependency_refreshes(runtime: object) -> bool:
-    has_type = getattr(runtime, "has_type", None)
-    if callable(has_type):
-        try:
-            if not bool(has_type("heatpump")):
-                return False
-        except Exception:
-            return False
+    has_type = getattr(runtime, "has_type")
+    if not bool(has_type("heatpump")):
+        return False
     client = getattr(runtime, "client", None)
     if getattr(client, "hems_site_supported", None) is not True:
         return False
@@ -718,12 +699,7 @@ def build_post_session_followup_plan(
         return post_session_followup_plan(day_local_default)
     parallel: list[RefreshTask] = []
     evse_timeseries = getattr(owner, "evse_timeseries")
-    if _refresh_due(
-        evse_timeseries,
-        "refresh_due",
-        day_local=day_local_default,
-        fallback_due=lambda: callable(getattr(evse_timeseries, "async_refresh", None)),
-    ):
+    if evse_timeseries.refresh_due(day_local=day_local_default):
         parallel.append(
             callback_task(
                 "evse_timeseries_s",
@@ -734,13 +710,7 @@ def build_post_session_followup_plan(
             )
         )
     energy = getattr(owner, "energy")
-    if _refresh_due(
-        energy,
-        "site_energy_refresh_due",
-        fallback_due=lambda: callable(
-            getattr(energy, "_async_refresh_site_energy", None)
-        ),
-    ):
+    if energy.site_energy_refresh_due():
         parallel.append(
             callback_task(
                 "site_energy_s",
@@ -749,11 +719,7 @@ def build_post_session_followup_plan(
             )
         )
     inventory = getattr(owner, "inventory_runtime")
-    if _refresh_due(
-        inventory,
-        "inverters_refresh_due",
-        fallback_due=lambda: callable(getattr(owner, "_async_refresh_inverters", None)),
-    ):
+    if inventory.inverters_refresh_due():
         parallel.append(
             method_task("inverters_s", "inverters", "_async_refresh_inverters")
         )

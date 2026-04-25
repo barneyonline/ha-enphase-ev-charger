@@ -1084,7 +1084,7 @@ async def test_refresh_runner_helpers_cover_stage_and_topology_paths(
         phase_timings,
         stage_key="ordered",
         defer_topology=True,
-        calls=(("first_s", "first", AsyncMock(return_value=None)),),
+        calls=(("first_s", "first", AsyncMock(return_value=None), None),),
     )
 
     assert "first_s" in phase_timings
