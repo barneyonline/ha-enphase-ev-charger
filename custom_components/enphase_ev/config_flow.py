@@ -1,3 +1,5 @@
+"""Handle Enphase Enlighten authentication, discovery, and options flows."""
+
 from __future__ import annotations
 import logging
 import re
@@ -257,6 +259,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._remember_password = remember
                 self._password = password if remember else None
                 if isinstance(err.tokens, AuthTokens) and err.tokens.raw_cookies:
+                    # Enphase MFA validation depends on cookies from the first
+                    # login response, not just the OTP entered on the next form.
                     self._start_mfa(err.tokens)
                     return await self.async_step_mfa()
                 errors["base"] = "mfa_required"
@@ -424,6 +428,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return {"base": "unknown"}
 
         self._mfa_tokens = updated
+        # Enphase can temporarily block repeated OTP sends, so the flow keeps a
+        # local delay even when the backend response does not expose one.
         self._mfa_resend_available_at = time.monotonic() + MFA_RESEND_DELAY_SECONDS
         return {}
 
@@ -581,6 +587,8 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_INCLUDE_INVERTERS: bool(include_inverters),
             CONF_SELECTED_TYPE_KEYS: list(dict.fromkeys(selected_type_keys)),
         }
+        # Stored credentials are optional and only retained when the user opted
+        # in; cookies/tokens are still needed for normal cloud refreshes.
         prior_heatpump_discovery_handled = bool(
             self._reconfigure_entry
             and self._reconfigure_entry.data.get(CONF_HEATPUMP_DISCOVERY_HANDLED, False)

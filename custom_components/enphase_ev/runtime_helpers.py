@@ -1,3 +1,5 @@
+"""Provide shared coercion, diagnostics, and time helpers for runtimes."""
+
 from __future__ import annotations
 
 import time
@@ -161,6 +163,8 @@ def resolve_site_local_current_date(
         else None
     )
     if inventory_payload is not None:
+        # Enphase inventory payloads sometimes include the site's current date
+        # directly.
         direct = normalize_iso_date(inventory_payload.get("curr_date_site"))
         if direct:
             return direct
@@ -187,6 +191,8 @@ def resolve_site_local_current_date(
 
 
 def redact_battery_payload(value: object) -> object:
+    """Return a diagnostics-safe copy of nested Enphase payload data."""
+
     sensitive = {
         "email",
         "authorization",

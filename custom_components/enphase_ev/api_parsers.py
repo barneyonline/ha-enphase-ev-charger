@@ -103,6 +103,8 @@ def normalize_sites(payload: object) -> list[SiteInfo]:
 
     data = payload
     if isinstance(data, dict):
+        # Enlighten account search has returned each of these wrapper keys in
+        # different browser and API flows.
         for key in ("sites", "data", "items", "systems"):
             value = data.get(key)
             if isinstance(value, list):
@@ -151,6 +153,8 @@ def normalize_chargers(payload: object) -> list[ChargerInfo]:
             data = nested
 
     if isinstance(data, dict):
+        # Charger discovery may come from EVSE-specific or generic inventory
+        # routes, so accept both naming families.
         for key in ("chargers", "evChargerData", "evses", "devices", "items"):
             value = data.get(key)
             if isinstance(value, list):
@@ -251,6 +255,7 @@ def parse_latest_power_payload(payload: object) -> LatestPowerSample | None:
         sample_time_val = coerce_non_boolean_number(sample_time)
         if sample_time_val is not None:
             if sample_time_val > 10**12:
+                # Some app-api payloads report milliseconds instead of seconds.
                 sample_time_val /= 1000.0
             try:
                 sample_time_int = int(sample_time_val)
@@ -300,6 +305,8 @@ def normalize_lifetime_energy_payload(payload: object) -> dict | None:
         "water_heater",
     }
     array_field_aliases = {
+        # HEMS and site-energy payloads use slightly different names for the
+        # same flows depending on endpoint family.
         "evse_charging": "evse",
         "heat_pump": "heatpump",
         "heat-pump": "heatpump",
@@ -380,6 +387,7 @@ def parse_evse_timeseries_date_key(value: object) -> str | None:
         try:
             ts_val = float(value)
             if ts_val > 10**12:
+                # Timeseries keys have appeared as Unix milliseconds.
                 ts_val /= 1000.0
             return datetime.fromtimestamp(ts_val, tz=timezone.utc).date().isoformat()
         except Exception:  # noqa: BLE001

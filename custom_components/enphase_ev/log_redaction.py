@@ -1,3 +1,5 @@
+"""Redact Enphase identifiers and credentials before logging."""
+
 from __future__ import annotations
 
 import re
@@ -52,6 +54,7 @@ def _key_kind(key: object) -> str:
     if compact in {"site", "siteid", "sitename"}:
         return "site"
     if compact in {"entityid"}:
+        # Entity IDs are user-visible Home Assistant names, not Enphase secrets.
         return "text"
     if any(
         token in compact
@@ -120,6 +123,8 @@ def redact_text(
 ) -> str:
     """Return compact text with common Enphase identifiers removed."""
 
+    # Apply caller-provided replacements before generic regex passes so exact
+    # site IDs and serials are removed even when they are embedded in URLs.
     try:
         text = " ".join(str(value or "").split()).strip()
     except Exception:  # noqa: BLE001

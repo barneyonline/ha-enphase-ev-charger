@@ -1,3 +1,5 @@
+"""Button entities for Enphase charger and battery service actions."""
+
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
@@ -177,6 +179,8 @@ async def async_setup_entry(
         if not inventory_ready:
             return
 
+        # Prune only after inventory is ready so a transient discovery miss does
+        # not remove user-customized entity registry entries.
         active_charger_unique_ids = set()
         for sn in current_serials:
             active_charger_unique_ids.update(

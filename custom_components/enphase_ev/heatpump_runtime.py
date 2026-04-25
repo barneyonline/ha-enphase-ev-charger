@@ -1,3 +1,5 @@
+"""Coordinate HEMS heat-pump runtime refreshes and diagnostics snapshots."""
+
 from __future__ import annotations
 
 import inspect
@@ -47,6 +49,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _LOGGER = logging.getLogger(__name__)
 
+# The power endpoints report cumulative buckets, so derived watts need a delta window.
 _HEATPUMP_IDLE_POWER_MAX_W = 20.0
 _HEATPUMP_POWER_DEFAULT_WINDOW_S = 300.0
 _HEATPUMP_POWER_MIN_DELTA_WH = 0.5
@@ -316,6 +319,8 @@ class HeatpumpRuntime:
         """Capture optional live/detail payloads used by heat-pump runtime views."""
 
         if not self.has_type("heatpump"):
+            # Home Assistant keeps entities registered after discovery, so clear runtime
+            # payloads without treating a missing inventory type as an unload event.
             self._heatpump_runtime_diagnostics_cache_until = None
             self._show_livestream_payload = None
             self._heatpump_events_payloads = []
@@ -382,6 +387,7 @@ class HeatpumpRuntime:
                     redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
                 )
             else:
+                # Diagnostics may include account-scoped battery data from shared APIs.
                 redacted_payload = self._redact_battery_payload(payload)
                 if isinstance(redacted_payload, dict):
                     self._show_livestream_payload = redacted_payload
@@ -424,6 +430,8 @@ class HeatpumpRuntime:
                             or err.__class__.__name__
                         )
                     else:
+                        # Event payloads can include opaque device links and
+                        # identifiers.
                         redacted_payload = self._redact_battery_payload(payload)
                         if redacted_payload is None:
                             payload_entry["payload"] = None
@@ -527,6 +535,7 @@ class HeatpumpRuntime:
 
         await self._async_refresh_hems_support_preflight(force=force)
         if getattr(self.client, "hems_site_supported", None) is False:
+            # Enphase returns HEMS-only runtime data for supported sites only.
             self._heatpump_mark_runtime_state_stale(
                 now=now,
                 error="HEMS runtime endpoint unavailable for this site",
@@ -561,6 +570,7 @@ class HeatpumpRuntime:
         except Exception as err:  # noqa: BLE001
             error = redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
             self._heatpump_mark_runtime_state_stale(now=now, error=error)
+            # Backoff preserves recent snapshots while the cloud endpoint is unhealthy.
             self._heatpump_runtime_state_backoff_until = (
                 now + HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S
             )
@@ -1257,6 +1267,8 @@ class HeatpumpRuntime:
                 and previous_snapshot.get("day_key") == marker[0]
                 and previous_snapshot.get("timezone") == marker[1]
             )
+            # Site-level totals remain useful when the optional split endpoint
+            # fails.
             used_stale_split = same_day and self._heatpump_mark_daily_split_stale(
                 now=now,
                 error=split_error,
@@ -1410,6 +1422,7 @@ class HeatpumpRuntime:
                 return completed_sample
             if completed_sample is None:
                 return open_sample
+            # The newest bucket is often provisional until Enphase closes the interval.
             if _is_provisional_open_bucket(open_sample[1], completed_sample[1]):
                 return completed_sample
             return open_sample

@@ -1,3 +1,5 @@
+"""Keep EVSE schedule editor form state in sync with scheduler slots."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -203,6 +205,8 @@ def evse_schedule_inventory(
             continue
         schedule_type = str(slot.get("scheduleType") or "CUSTOM").strip().upper()
         if schedule_type == "OFF_PEAK":
+            # Off-peak schedules are backend-managed and not editable through the
+            # custom schedule form.
             continue
         start_time = slot.get("startTime")
         end_time = slot.get("endTime")
@@ -261,6 +265,8 @@ class EvseScheduleEditorManager:
         for schedule in schedules:
             label = raw_labels[schedule.slot_id]
             if counts[label] > 1:
+                # Duplicate windows are common, so include a short slot suffix
+                # only when the label would otherwise collide.
                 labels[schedule.slot_id] = f"{label} [{schedule.slot_id[-6:]}]"
             else:
                 labels[schedule.slot_id] = label
@@ -468,6 +474,7 @@ class EvseScheduleEditorManager:
         if schedule_sync is not None and existing_id:
             existing_slot = schedule_sync.get_slot(sn, existing_id)
         slot: dict[str, Any] = dict(existing_slot or {})
+        # Start from the existing slot so scheduler-owned fields survive edits.
         slot["id"] = existing_id or f"{self.coordinator.site_id}:{sn}:{uuid.uuid4()}"
         slot["startTime"] = form.start_time
         slot["endTime"] = form.end_time

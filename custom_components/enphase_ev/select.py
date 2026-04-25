@@ -1,3 +1,5 @@
+"""Select entities for Enphase charge modes and schedule editors."""
+
 from __future__ import annotations
 
 import asyncio
@@ -85,6 +87,8 @@ def _smart_charging_context(coord: EnphaseCoordinator, sn: str | None = None) ->
 
 def _solar_mode(coord: EnphaseCoordinator, sn: str | None = None) -> tuple[str, str]:
     if _smart_charging_context(coord, sn):
+        # The Enphase UI can present the same solar option as Smart Charging
+        # when battery profile preferences are active.
         return "SMART_CHARGING", charge_mode_label("SMART_CHARGING", hass=coord.hass)
     return "GREEN_CHARGING", charge_mode_label("GREEN_CHARGING", hass=coord.hass)
 
@@ -240,6 +244,8 @@ async def async_setup_entry(
             battery_schedule_editor_added = False
         if not inventory_ready:
             return
+        # Site-level selects are dynamic because BatteryConfig permissions and
+        # AC Battery support are learned after setup.
         prune_managed_entities(
             ent_reg,
             entry.entry_id,
@@ -702,13 +708,15 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 code == "iqevc_sch_10031"
                 or (display and "No Schedules enabled" in display)
             ):
+                # Scheduler returns this opaque code when Scheduled Charging is
+                # selected before any schedule is enabled.
                 raise ServiceValidationError(
                     "Enable at least one schedule before selecting Scheduled charging.",
                     translation_domain=DOMAIN,
                     translation_key="exceptions.schedule_required",
                 )
             raise
-        # Update cache immediately to reflect in UI, then refresh
+        # Update cache immediately to reflect in UI while the scheduler catches up.
         self._coord.set_charge_mode_cache(self._sn, mode)
         await self._coord.async_request_refresh()
 

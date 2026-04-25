@@ -1,4 +1,4 @@
-"""Shared debug helpers for payload shape logging (coordinator, inventory, EVSE)."""
+"""Summarize payload shapes for debug logs without including raw payload data."""
 
 from __future__ import annotations
 
@@ -38,6 +38,8 @@ def debug_field_keys(members: object) -> list[str]:
 def debug_payload_shape(payload: object) -> dict[str, Any]:
     """Return a payload-shape summary suitable for debug logging."""
 
+    # Shape summaries help diagnose Enphase payload drift while avoiding values
+    # that can contain account, site, or device identifiers.
     if isinstance(payload, dict):
         shape: dict[str, Any] = {
             "kind": "dict",

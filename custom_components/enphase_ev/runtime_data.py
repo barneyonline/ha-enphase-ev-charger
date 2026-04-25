@@ -1,3 +1,5 @@
+"""Define runtime objects stored on Home Assistant config entries."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -41,6 +43,7 @@ def get_runtime_data(entry: EnphaseConfigEntry) -> EnphaseRuntimeData:
     if isinstance(runtime_data, EnphaseRuntimeData):
         return runtime_data
 
+    # Home Assistant only populates runtime_data while the config entry is loaded.
     raise RuntimeError(f"Missing runtime data for entry {entry.entry_id}")
 
 
@@ -59,6 +62,7 @@ def iter_coordinators(
         site_id = str(getattr(coord, "site_id", ""))
         if site_ids and site_id not in site_ids:
             continue
+        # Multiple entries can reference the same Enphase site during reload workflows.
         if site_id in seen:
             continue
         seen.add(site_id)

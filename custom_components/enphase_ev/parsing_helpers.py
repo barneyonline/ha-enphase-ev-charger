@@ -1,3 +1,5 @@
+"""Parse mixed Enphase scalar values into normalized integration state."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -104,6 +106,8 @@ def heatpump_status_bucket(value: object) -> str:
     if text is None:
         return "unknown"
     normalized = text.lower().replace("-", "_").replace(" ", "_")
+    # HEMS heat-pump status strings are not normalized across lifecycle and
+    # operational fields, so bucket by semantic tokens.
     if any(token in normalized for token in ("fault", "error", "critical")):
         return "error"
     if "warn" in normalized:
@@ -200,6 +204,8 @@ def parse_inverter_last_report(value: object) -> datetime | None:
         if not text:
             return None
         if text.endswith("[UTC]"):
+            # Inverter inventory sometimes appends a literal timezone marker
+            # that Python's ISO parser does not accept.
             text = text[:-5]
         if text.endswith("Z"):
             text = text[:-1] + "+00:00"
