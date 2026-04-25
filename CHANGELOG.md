@@ -11,7 +11,23 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### 🐛 Bug fixes
-- Seed AC Battery status and last-reported data from the battery status endpoint when the dedicated AC Battery devices page does not return parsed rows.
+- None
+
+### 🔧 Improvements
+- None
+
+### 🔄 Other changes
+- None
+
+## v2.9.2 - 2026-04-25
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
 - Routed IQ EV Charger device services through the target device's owning site or config entry so multi-site installs do not send start, stop, trigger, or schedule-sync requests to the wrong site when another entry has no discovered serials yet.
 - Kept the "Store password for automatic reauthentication" checkbox aligned with the existing entry setting during reconfigure and reauthentication flows instead of defaulting back to storing newly entered passwords.
 - Treated scheduler login-wall responses as authentication failures so Enphase auth blocks are detected during schedule sync instead of being logged as ordinary schedule fetch errors.
@@ -24,6 +40,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🔄 Other changes
 - Split large API, battery runtime, sensor, and coordinator helper logic into smaller typed modules with focused regression coverage.
+- Bumped the integration manifest version to `2.9.2`.
 
 ## v2.9.1 - 2026-04-24
 
