@@ -240,6 +240,13 @@ class HeatpumpState:
     _heatpump_power_start_utc: datetime | None = None
     _heatpump_power_device_uid: str | None = None
     _heatpump_power_source: str | None = None
+    _heatpump_power_raw_w: float | None = None
+    _heatpump_power_window_seconds: float | None = None
+    _heatpump_power_validation: str | None = None
+    _heatpump_power_smoothed: bool = False
+    _heatpump_power_sample_history: list[dict[str, object]] = field(
+        default_factory=list
+    )
     _heatpump_power_cache_until: float | None = None
     _heatpump_power_backoff_until: float | None = None
     _heatpump_power_last_error: str | None = None

@@ -240,6 +240,426 @@ def test_heatpump_power_summary_covers_idle_delta_edge_paths(
     assert summary["validation"] == expected_validation
 
 
+def test_heatpump_power_summary_smooths_idle_zero_from_history(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 105.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 15, tzinfo=timezone.utc),
+        },
+    ]
+    runtime._heatpump_daily_consumption_previous = (
+        _heatpump_daily_snapshot(  # noqa: SLF001
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:15:00Z",
+        )
+    )
+
+    summary = runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:20:00Z",
+        ),
+        runtime_snapshot={"heatpump_status": "IDLE"},
+    )
+
+    assert summary is not None
+    assert summary["raw_value_w"] == pytest.approx(0.0)
+    assert summary["raw_validation"] == "accepted_idle_zero"
+    assert summary["accepted_value_w"] == pytest.approx(15.0)
+    assert summary["power_window_seconds"] == pytest.approx(1200.0)
+    assert summary["power_validation"] == "smoothed_idle_delta"
+    assert summary["smoothed"] is True
+
+
+def test_heatpump_power_summary_does_not_smooth_non_idle_zero(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        }
+    ]
+    runtime._heatpump_daily_consumption_previous = (
+        _heatpump_daily_snapshot(  # noqa: SLF001
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:15:00Z",
+        )
+    )
+
+    summary = runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:20:00Z",
+        ),
+        runtime_snapshot={"heatpump_status": "RUNNING"},
+    )
+
+    assert summary is not None
+    assert summary["accepted_value_w"] == pytest.approx(0.0)
+    assert summary["power_validation"] == "accepted_zero_delta"
+    assert summary["smoothed"] is False
+
+
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_smooths_idle_zero_from_recorded_history(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_payload = {"curr_date_site": "2026-04-02"}  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "statusText": "Normal",
+                    }
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.hems_heatpump_state = AsyncMock(
+        return_value={"device_uid": "HP-1", "heatpump_status": "IDLE"}
+    )
+    coord.client.pv_system_today = AsyncMock(
+        side_effect=[
+            _site_today_payload(100.0, timestamp="2026-04-02T00:00:00Z"),
+            _site_today_payload(105.0, timestamp="2026-04-02T00:15:00Z"),
+            _site_today_payload(105.0, timestamp="2026-04-02T00:20:00Z"),
+        ]
+    )
+    coord.client.hems_energy_consumption = AsyncMock(
+        side_effect=[
+            {
+                "type": "hems-device-details",
+                "timestamp": "2026-04-02T00:00:00Z",
+                "data": {
+                    "heat-pump": [
+                        {
+                            "device_uid": "HP-1",
+                            "device_name": "Waermepumpe",
+                            "consumption": [{"details": [100.0]}],
+                        }
+                    ]
+                },
+            },
+            {
+                "type": "hems-device-details",
+                "timestamp": "2026-04-02T00:15:00Z",
+                "data": {
+                    "heat-pump": [
+                        {
+                            "device_uid": "HP-1",
+                            "device_name": "Waermepumpe",
+                            "consumption": [{"details": [105.0]}],
+                        }
+                    ]
+                },
+            },
+            {
+                "type": "hems-device-details",
+                "timestamp": "2026-04-02T00:20:00Z",
+                "data": {
+                    "heat-pump": [
+                        {
+                            "device_uid": "HP-1",
+                            "device_name": "Waermepumpe",
+                            "consumption": [{"details": [105.0]}],
+                        }
+                    ]
+                },
+            },
+        ]
+    )
+
+    await coord.heatpump_runtime._async_refresh_heatpump_power(  # noqa: SLF001
+        force=True
+    )
+    assert coord.heatpump_power_w == pytest.approx(0.0)
+    assert coord.heatpump_power_validation == "accepted_idle_seeded"
+
+    await coord.heatpump_runtime._async_refresh_heatpump_power(  # noqa: SLF001
+        force=True
+    )
+    assert coord.heatpump_power_w == pytest.approx(20.0)
+    assert coord.heatpump_power_smoothed is False
+
+    await coord.heatpump_runtime._async_refresh_heatpump_power(  # noqa: SLF001
+        force=True
+    )
+
+    assert coord.client.hems_energy_consumption.await_count == 3
+    assert coord.heatpump_power_w == pytest.approx(15.0)
+    assert coord.heatpump_power_raw_w == pytest.approx(0.0)
+    assert coord.heatpump_power_window_seconds == pytest.approx(1200.0)
+    assert coord.heatpump_power_validation == "smoothed_idle_delta"
+    assert coord.heatpump_power_smoothed is True
+    assert coord.heatpump_power_start_utc == datetime(
+        2026, 4, 2, 0, 0, tzinfo=timezone.utc
+    )
+    power_snapshot = coord.heatpump_runtime.heatpump_runtime_diagnostics()[
+        "power_snapshot"
+    ]
+    assert power_snapshot["selected_payload"]["raw_validation"] == (
+        "accepted_idle_zero"
+    )
+    assert power_snapshot["selected_payload"]["smoothed"] is True
+
+
+def test_heatpump_power_history_helpers_cover_guard_paths(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_power_sample_history = "bad-history"  # type: ignore[assignment]  # noqa: SLF001
+    assert runtime._heatpump_power_history() == []  # noqa: SLF001
+    assert runtime._heatpump_power_history_sample_time(None) is None  # noqa: SLF001
+
+    runtime._record_heatpump_power_history_sample(None)  # noqa: SLF001
+    runtime._record_heatpump_power_history_sample(  # noqa: SLF001
+        {"split_daily_energy_wh": None, "split_endpoint_timestamp": None}
+    )
+    assert runtime._heatpump_power_sample_history == []  # noqa: SLF001
+
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 90.0,
+            "sample_utc": datetime(2026, 4, 1, 23, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 99.0,
+            "sample_utc": "bad-time",
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 101.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 5, tzinfo=timezone.utc),
+        },
+    ]
+
+    runtime._record_heatpump_power_history_sample(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:05:00Z",
+        )
+    )
+
+    assert runtime._heatpump_power_sample_history == [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 105.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 5, tzinfo=timezone.utc),
+        },
+    ]
+
+
+def test_heatpump_idle_smoothing_rejects_invalid_history(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    current_sample_utc = datetime(2026, 4, 2, 0, 20, tzinfo=timezone.utc)
+    snapshot = _heatpump_daily_snapshot(
+        energy_wh=105.0,
+        timestamp="2026-04-02T00:20:00Z",
+    )
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {"sample_utc": "bad-time"},
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 90.0,
+            "sample_utc": datetime(2026, 4, 1, 23, 40, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "OTHER",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-01",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "Europe/Berlin",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": None,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "OTHER",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 101.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 5, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-01",
+            "timezone": "UTC",
+            "energy_wh": 101.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 6, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "Europe/Berlin",
+            "energy_wh": 101.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 7, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": None,
+            "sample_utc": datetime(2026, 4, 2, 0, 8, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 106.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 10, tzinfo=timezone.utc),
+        },
+    ]
+
+    assert (
+        runtime._heatpump_idle_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_value_w=1.0,
+            raw_validation="accepted_idle_delta",
+        )
+        is None
+    )
+    assert (
+        runtime._heatpump_idle_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_value_w=0.0,
+            raw_validation="accepted_idle_seeded",
+        )
+        is None
+    )
+    assert (
+        runtime._heatpump_idle_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_value_w=0.0,
+            raw_validation="accepted_idle_zero",
+        )
+        is None
+    )
+
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 104.8,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        }
+    ]
+    assert (
+        runtime._heatpump_idle_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_value_w=0.0,
+            raw_validation="accepted_idle_zero",
+        )
+        is None
+    )
+
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 80.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        }
+    ]
+    assert (
+        runtime._heatpump_idle_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_value_w=0.0,
+            raw_validation="accepted_idle_zero",
+        )
+        is None
+    )
+
+
 @pytest.mark.asyncio
 async def test_heatpump_runtime_diagnostics_refreshes_power_snapshot(
     coordinator_factory,
@@ -2273,6 +2693,19 @@ def test_heatpump_cleanup_due_treats_true_bool_as_cleanup_needed(
 
     assert (
         runtime._heatpump_cleanup_due("_heatpump_known_present") is True
+    )  # noqa: SLF001
+
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, tzinfo=timezone.utc),
+        }
+    ]
+    assert (
+        runtime._heatpump_cleanup_due("_heatpump_power_sample_history") is True
     )  # noqa: SLF001
 
 

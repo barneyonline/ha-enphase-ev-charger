@@ -2001,6 +2001,10 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     )  # noqa: SLF001
     coord._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
     coord._heatpump_power_source = "hems_energy_consumption_delta:HP-1"  # noqa: SLF001
+    coord._heatpump_power_raw_w = 0.0  # noqa: SLF001
+    coord._heatpump_power_window_seconds = 1200.0  # noqa: SLF001
+    coord._heatpump_power_validation = "smoothed_idle_delta"  # noqa: SLF001
+    coord._heatpump_power_smoothed = True  # noqa: SLF001
     coord._heatpump_power_last_error = None  # noqa: SLF001
     coord.heatpump_runtime._heatpump_power_last_success_utc = datetime(  # noqa: SLF001
         2026, 2, 27, 9, 16, tzinfo=timezone.utc
@@ -2083,6 +2087,10 @@ def test_heatpump_diagnostic_sensors_expose_inventory_and_power(
     power_attrs = power_sensor.extra_state_attributes
     assert power_attrs["device_uid"] == "HP-1"
     assert power_attrs["source"] == "hems_energy_consumption_delta:HP-1"
+    assert power_attrs["raw_power_w"] == pytest.approx(0.0)
+    assert power_attrs["power_window_seconds"] == pytest.approx(1200.0)
+    assert power_attrs["power_validation"] == "smoothed_idle_delta"
+    assert power_attrs["smoothed"] is True
     assert "using_stale" in power_attrs
     assert "last_success_utc" in power_attrs
 
