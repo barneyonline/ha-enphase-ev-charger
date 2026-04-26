@@ -464,6 +464,38 @@ def test_clear_auth_refresh_rejection_state_resets_counter_and_cooldown(hass):
     assert coord._auth_refresh_rejected_ends_utc is None
 
 
+@pytest.mark.asyncio
+async def test_post_status_first_refresh_clears_auth_refresh_rejection(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import RefreshPipelineContext
+
+    coord = coordinator_factory()
+    coord.refresh_runner.async_run_refresh_call = AsyncMock(
+        return_value=("tariff_s", 0.123)
+    )
+    coord._auth_refresh_rejected_count = 2
+    coord._auth_refresh_rejected_until = time.monotonic() + 60
+    coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
+        seconds=60
+    )
+    context = RefreshPipelineContext(
+        started_mono=time.monotonic(),
+        refresh_started_utc=datetime.now(timezone.utc),
+        phase_timings={},
+        fallback_data={},
+        first_refresh=True,
+    )
+
+    await coord._async_run_post_status_refresh_pipeline(context)
+
+    coord.refresh_runner.async_run_refresh_call.assert_awaited_once()
+    assert context.phase_timings["tariff_s"] == 0.123
+    assert coord._auth_refresh_rejected_count == 0
+    assert coord._auth_refresh_rejected_until is None
+    assert coord._auth_refresh_rejected_ends_utc is None
+
+
 def test_coordinator_init_restores_auth_refresh_state(hass, monkeypatch):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator

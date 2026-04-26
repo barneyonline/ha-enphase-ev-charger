@@ -587,6 +587,14 @@ class DummyCoordinator(SimpleNamespace):
             2026, 3, 1, 0, 0, tzinfo=timezone.utc
         )
         self._heatpump_runtime_diagnostics_error = None
+        self.tariff_runtime = SimpleNamespace(
+            diagnostics=lambda: {
+                "billing_available": True,
+                "import_rate_available": True,
+                "export_rate_available": False,
+                "endpoint_family": {"support_state": "supported"},
+            }
+        )
 
     def collect_site_metrics(self):
         return {
@@ -987,6 +995,12 @@ async def test_config_entry_diagnostics_includes_coordinator(
         diag["coordinator"]["scheduler"]["backoff_ends_utc"]
         == "2025-01-01T00:00:00+00:00"
     )
+    assert diag["coordinator"]["tariff"] == {
+        "billing_available": True,
+        "import_rate_available": True,
+        "export_rate_available": False,
+        "endpoint_family": {"support_state": "supported"},
+    }
 
 
 @pytest.mark.asyncio

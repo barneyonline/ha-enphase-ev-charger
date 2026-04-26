@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Brána naposledy hlášena"
       },
+      "tariff_billing_cycle": {
+        "name": "Pristi datum fakturace",
+        "state_attributes": {
+          "start_date": {
+            "name": "Datum zacatku"
+          },
+          "billing_frequency": {
+            "name": "Frekvence fakturace"
+          },
+          "billing_interval_value": {
+            "name": "Hodnota fakturacniho intervalu"
+          },
+          "last_refresh_utc": {
+            "name": "Posledni aktualizace (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Fakturacni cyklus"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Importni tarif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura tarifu"
+          },
+          "variation_type": {
+            "name": "Typ varianty"
+          },
+          "source": {
+            "name": "Zdroj"
+          },
+          "currency": {
+            "name": "Mena"
+          },
+          "seasons": {
+            "name": "Sezony"
+          },
+          "last_refresh_utc": {
+            "name": "Posledni aktualizace (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Importni tarif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura tarifu"
+          },
+          "variation_type": {
+            "name": "Typ varianty"
+          },
+          "source": {
+            "name": "Zdroj"
+          },
+          "currency": {
+            "name": "Mena"
+          },
+          "season_id": {
+            "name": "ID sezóny"
+          },
+          "start_month": {
+            "name": "Počáteční měsíc"
+          },
+          "end_month": {
+            "name": "Koncový měsíc"
+          },
+          "day_group_id": {
+            "name": "ID skupiny dnů"
+          },
+          "days": {
+            "name": "Dny"
+          },
+          "period_id": {
+            "name": "ID období"
+          },
+          "period_type": {
+            "name": "Typ období"
+          },
+          "start_time": {
+            "name": "Čas začátku"
+          },
+          "end_time": {
+            "name": "Čas konce"
+          },
+          "rate": {
+            "name": "Sazba"
+          },
+          "formatted_rate": {
+            "name": "Formátovaná sazba"
+          },
+          "tier_id": {
+            "name": "ID pásma"
+          },
+          "start_value": {
+            "name": "Počáteční hodnota"
+          },
+          "end_value": {
+            "name": "Koncová hodnota"
+          },
+          "unbounded": {
+            "name": "Bez horní hranice"
+          },
+          "last_refresh_utc": {
+            "name": "Posledni aktualizace (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Exportni tarif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura tarifu"
+          },
+          "variation_type": {
+            "name": "Typ varianty"
+          },
+          "source": {
+            "name": "Zdroj"
+          },
+          "currency": {
+            "name": "Mena"
+          },
+          "export_plan": {
+            "name": "Exportni plan"
+          },
+          "seasons": {
+            "name": "Sezony"
+          },
+          "last_refresh_utc": {
+            "name": "Posledni aktualizace (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Exportni tarif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura tarifu"
+          },
+          "variation_type": {
+            "name": "Typ varianty"
+          },
+          "source": {
+            "name": "Zdroj"
+          },
+          "currency": {
+            "name": "Mena"
+          },
+          "export_plan": {
+            "name": "Exportni plan"
+          },
+          "season_id": {
+            "name": "ID sezóny"
+          },
+          "start_month": {
+            "name": "Počáteční měsíc"
+          },
+          "end_month": {
+            "name": "Koncový měsíc"
+          },
+          "day_group_id": {
+            "name": "ID skupiny dnů"
+          },
+          "days": {
+            "name": "Dny"
+          },
+          "period_id": {
+            "name": "ID období"
+          },
+          "period_type": {
+            "name": "Typ období"
+          },
+          "start_time": {
+            "name": "Čas začátku"
+          },
+          "end_time": {
+            "name": "Čas konce"
+          },
+          "rate": {
+            "name": "Sazba"
+          },
+          "formatted_rate": {
+            "name": "Formátovaná sazba"
+          },
+          "tier_id": {
+            "name": "ID pásma"
+          },
+          "start_value": {
+            "name": "Počáteční hodnota"
+          },
+          "end_value": {
+            "name": "Koncová hodnota"
+          },
+          "unbounded": {
+            "name": "Bez horní hranice"
+          },
+          "last_refresh_utc": {
+            "name": "Posledni aktualizace (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Stav připojení mikroinvertorů"
       },

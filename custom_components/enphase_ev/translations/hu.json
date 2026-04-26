@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "A Gateway legutóbbi jelentése"
       },
+      "tariff_billing_cycle": {
+        "name": "Kovetkezo szamlazasi datum",
+        "state_attributes": {
+          "start_date": {
+            "name": "Kezdo datum"
+          },
+          "billing_frequency": {
+            "name": "Szamlazasi gyakorisag"
+          },
+          "billing_interval_value": {
+            "name": "Szamlazasi intervallum erteke"
+          },
+          "last_refresh_utc": {
+            "name": "Utolso frissites (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Szamlazasi ciklus"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Import tarifa",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifaszerkezet"
+          },
+          "variation_type": {
+            "name": "Valtozattipus"
+          },
+          "source": {
+            "name": "Forras"
+          },
+          "currency": {
+            "name": "Penznem"
+          },
+          "seasons": {
+            "name": "Idoszakok"
+          },
+          "last_refresh_utc": {
+            "name": "Utolso frissites (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Import tarifa {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifaszerkezet"
+          },
+          "variation_type": {
+            "name": "Valtozattipus"
+          },
+          "source": {
+            "name": "Forras"
+          },
+          "currency": {
+            "name": "Penznem"
+          },
+          "season_id": {
+            "name": "Szezon azonosítója"
+          },
+          "start_month": {
+            "name": "Kezdő hónap"
+          },
+          "end_month": {
+            "name": "Záró hónap"
+          },
+          "day_group_id": {
+            "name": "Napcsoport azonosítója"
+          },
+          "days": {
+            "name": "Napok"
+          },
+          "period_id": {
+            "name": "Időszak azonosítója"
+          },
+          "period_type": {
+            "name": "Időszak típusa"
+          },
+          "start_time": {
+            "name": "Kezdési idő"
+          },
+          "end_time": {
+            "name": "Befejezési idő"
+          },
+          "rate": {
+            "name": "Díj"
+          },
+          "formatted_rate": {
+            "name": "Formázott díj"
+          },
+          "tier_id": {
+            "name": "Sáv azonosítója"
+          },
+          "start_value": {
+            "name": "Kezdő érték"
+          },
+          "end_value": {
+            "name": "Záró érték"
+          },
+          "unbounded": {
+            "name": "Felső korlát nélkül"
+          },
+          "last_refresh_utc": {
+            "name": "Utolso frissites (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Export tarifa",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifaszerkezet"
+          },
+          "variation_type": {
+            "name": "Valtozattipus"
+          },
+          "source": {
+            "name": "Forras"
+          },
+          "currency": {
+            "name": "Penznem"
+          },
+          "export_plan": {
+            "name": "Exportterv"
+          },
+          "seasons": {
+            "name": "Idoszakok"
+          },
+          "last_refresh_utc": {
+            "name": "Utolso frissites (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Export tarifa {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifaszerkezet"
+          },
+          "variation_type": {
+            "name": "Valtozattipus"
+          },
+          "source": {
+            "name": "Forras"
+          },
+          "currency": {
+            "name": "Penznem"
+          },
+          "export_plan": {
+            "name": "Exportterv"
+          },
+          "season_id": {
+            "name": "Szezon azonosítója"
+          },
+          "start_month": {
+            "name": "Kezdő hónap"
+          },
+          "end_month": {
+            "name": "Záró hónap"
+          },
+          "day_group_id": {
+            "name": "Napcsoport azonosítója"
+          },
+          "days": {
+            "name": "Napok"
+          },
+          "period_id": {
+            "name": "Időszak azonosítója"
+          },
+          "period_type": {
+            "name": "Időszak típusa"
+          },
+          "start_time": {
+            "name": "Kezdési idő"
+          },
+          "end_time": {
+            "name": "Befejezési idő"
+          },
+          "rate": {
+            "name": "Díj"
+          },
+          "formatted_rate": {
+            "name": "Formázott díj"
+          },
+          "tier_id": {
+            "name": "Sáv azonosítója"
+          },
+          "start_value": {
+            "name": "Kezdő érték"
+          },
+          "end_value": {
+            "name": "Záró érték"
+          },
+          "unbounded": {
+            "name": "Felső korlát nélkül"
+          },
+          "last_refresh_utc": {
+            "name": "Utolso frissites (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Mikroinverterek kapcsolati állapota"
       },

@@ -3729,6 +3729,47 @@ async def test_battery_site_settings_passes_params_and_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_tariff_billing_details_passes_tariff_headers() -> None:
+    token = _make_token({"user_id": "77"})
+    client = _make_client()
+    client.update_credentials(
+        eauth=token,
+        cookie="session=1; XSRF-TOKEN=xsrf-token; other=1",
+    )
+    client._json = AsyncMock(return_value={"billingFrequency": "MONTH"})
+
+    out = await client.site_tariff_billing_details()
+
+    assert out == {"billingFrequency": "MONTH"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "/service/tariff/tariff-ms/systems/SITE/billing-details" in args[1]
+    assert (
+        kwargs["headers"]["Accept"] == "application/json, text/javascript, */*; q=0.01"
+    )
+    assert kwargs["headers"]["Cookie"] == "session=1; XSRF-TOKEN=xsrf-token; other=1"
+    assert kwargs["headers"]["e-auth-token"] == token
+    assert kwargs["headers"]["Username"] == "77"
+    assert kwargs["headers"]["X-Requested-With"] == "XMLHttpRequest"
+    assert kwargs["headers"]["x-xsrf-token"] == "xsrf-token"
+    assert "Requestid" in kwargs["headers"]
+
+
+@pytest.mark.asyncio
+async def test_site_tariff_passes_include_site_details() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"purchase": {"typeId": "flat"}})
+
+    out = await client.site_tariff()
+
+    assert out == {"purchase": {"typeId": "flat"}}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "/service/tariff/tariff-ms/systems/SITE/tariff" in args[1]
+    assert kwargs["params"] == {"include-site-details": "true"}
+
+
+@pytest.mark.asyncio
 async def test_battery_settings_details_passes_params_and_headers() -> None:
     token = _make_token({"user_id": "99"})
     client = _make_client()

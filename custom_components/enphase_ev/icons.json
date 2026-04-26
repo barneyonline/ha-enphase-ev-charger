@@ -609,6 +609,75 @@
       "gateway_last_reported": {
         "default": "mdi:clock-outline"
       },
+      "tariff_billing_cycle": {
+        "default": "mdi:calendar-month",
+        "state_attributes": {
+          "start_date": {
+            "default": "mdi:calendar-start"
+          },
+          "billing_frequency": {
+            "default": "mdi:calendar-sync"
+          },
+          "billing_interval_value": {
+            "default": "mdi:counter"
+          },
+          "billing_cycle": {
+            "default": "mdi:calendar-sync"
+          },
+          "last_refresh_utc": {
+            "default": "mdi:clock-outline"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "default": "mdi:cash-minus",
+        "state_attributes": {
+          "rate_structure": {
+            "default": "mdi:format-list-bulleted-type"
+          },
+          "variation_type": {
+            "default": "mdi:tune-variant"
+          },
+          "source": {
+            "default": "mdi:source-branch"
+          },
+          "currency": {
+            "default": "mdi:currency-usd"
+          },
+          "seasons": {
+            "default": "mdi:calendar-range"
+          },
+          "last_refresh_utc": {
+            "default": "mdi:clock-outline"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "default": "mdi:cash-plus",
+        "state_attributes": {
+          "rate_structure": {
+            "default": "mdi:format-list-bulleted-type"
+          },
+          "variation_type": {
+            "default": "mdi:tune-variant"
+          },
+          "source": {
+            "default": "mdi:source-branch"
+          },
+          "currency": {
+            "default": "mdi:currency-usd"
+          },
+          "export_plan": {
+            "default": "mdi:solar-power-variant"
+          },
+          "seasons": {
+            "default": "mdi:calendar-range"
+          },
+          "last_refresh_utc": {
+            "default": "mdi:clock-outline"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "default": "mdi:solar-power-variant",
         "state": {

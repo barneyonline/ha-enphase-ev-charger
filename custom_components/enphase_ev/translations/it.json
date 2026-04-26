@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Ultimo gateway segnalato"
       },
+      "tariff_billing_cycle": {
+        "name": "Prossima data di fatturazione",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data di inizio"
+          },
+          "billing_frequency": {
+            "name": "Frequenza di fatturazione"
+          },
+          "billing_interval_value": {
+            "name": "Valore intervallo di fatturazione"
+          },
+          "last_refresh_utc": {
+            "name": "Ultimo aggiornamento (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Ciclo di fatturazione"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Tariffa di importazione",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struttura tariffaria"
+          },
+          "variation_type": {
+            "name": "Tipo di variazione"
+          },
+          "source": {
+            "name": "Origine"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "seasons": {
+            "name": "Stagioni"
+          },
+          "last_refresh_utc": {
+            "name": "Ultimo aggiornamento (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Tariffa di importazione {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struttura tariffaria"
+          },
+          "variation_type": {
+            "name": "Tipo di variazione"
+          },
+          "source": {
+            "name": "Origine"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "ID stagione"
+          },
+          "start_month": {
+            "name": "Mese di inizio"
+          },
+          "end_month": {
+            "name": "Mese di fine"
+          },
+          "day_group_id": {
+            "name": "ID gruppo giorni"
+          },
+          "days": {
+            "name": "Giorni"
+          },
+          "period_id": {
+            "name": "ID periodo"
+          },
+          "period_type": {
+            "name": "Tipo periodo"
+          },
+          "start_time": {
+            "name": "Ora di inizio"
+          },
+          "end_time": {
+            "name": "Ora di fine"
+          },
+          "rate": {
+            "name": "Tariffa"
+          },
+          "formatted_rate": {
+            "name": "Tariffa formattata"
+          },
+          "tier_id": {
+            "name": "ID scaglione"
+          },
+          "start_value": {
+            "name": "Valore iniziale"
+          },
+          "end_value": {
+            "name": "Valore finale"
+          },
+          "unbounded": {
+            "name": "Senza limite superiore"
+          },
+          "last_refresh_utc": {
+            "name": "Ultimo aggiornamento (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Tariffa di esportazione",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struttura tariffaria"
+          },
+          "variation_type": {
+            "name": "Tipo di variazione"
+          },
+          "source": {
+            "name": "Origine"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Piano di esportazione"
+          },
+          "seasons": {
+            "name": "Stagioni"
+          },
+          "last_refresh_utc": {
+            "name": "Ultimo aggiornamento (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Tariffa di esportazione {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struttura tariffaria"
+          },
+          "variation_type": {
+            "name": "Tipo di variazione"
+          },
+          "source": {
+            "name": "Origine"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Piano di esportazione"
+          },
+          "season_id": {
+            "name": "ID stagione"
+          },
+          "start_month": {
+            "name": "Mese di inizio"
+          },
+          "end_month": {
+            "name": "Mese di fine"
+          },
+          "day_group_id": {
+            "name": "ID gruppo giorni"
+          },
+          "days": {
+            "name": "Giorni"
+          },
+          "period_id": {
+            "name": "ID periodo"
+          },
+          "period_type": {
+            "name": "Tipo periodo"
+          },
+          "start_time": {
+            "name": "Ora di inizio"
+          },
+          "end_time": {
+            "name": "Ora di fine"
+          },
+          "rate": {
+            "name": "Tariffa"
+          },
+          "formatted_rate": {
+            "name": "Tariffa formattata"
+          },
+          "tier_id": {
+            "name": "ID scaglione"
+          },
+          "start_value": {
+            "name": "Valore iniziale"
+          },
+          "end_value": {
+            "name": "Valore finale"
+          },
+          "unbounded": {
+            "name": "Senza limite superiore"
+          },
+          "last_refresh_utc": {
+            "name": "Ultimo aggiornamento (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Stato connettività microinverter"
       },

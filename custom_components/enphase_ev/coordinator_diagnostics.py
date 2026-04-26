@@ -26,6 +26,7 @@ from .const import (
 )
 from .coordinator_refresh_metrics import refresh_performance_summary
 from .log_redaction import redact_text
+from .tariff import TARIFF_ENDPOINT_FAMILY
 
 if TYPE_CHECKING:  # pragma: no cover
     from .coordinator import EnphaseCoordinator
@@ -230,6 +231,26 @@ class CoordinatorDiagnostics:
             battery_status_summary.get("site_available_power_kw")
         )
         ac_battery_power = _parsed_float(ac_battery_status_summary.get("power_w"))
+        endpoint_family_health = self.endpoint_family_health_diagnostics()
+        tariff_health = endpoint_family_health.get(TARIFF_ENDPOINT_FAMILY)
+        tariff_service_status = "unknown"
+        tariff_available = None
+        tariff_failures = None
+        tariff_last_error = None
+        tariff_backoff_active = None
+        tariff_backoff_ends_utc = None
+        if isinstance(tariff_health, dict):
+            tariff_failures = int(tariff_health.get("consecutive_failures") or 0)
+            tariff_last_error = tariff_health.get("last_error")
+            tariff_backoff_active = bool(tariff_health.get("cooldown_active"))
+            tariff_backoff_ends_utc = tariff_health.get("next_retry_utc")
+            tariff_degraded = (
+                tariff_backoff_active
+                or tariff_failures > 0
+                or bool(tariff_health.get("suppressed"))
+            )
+            tariff_service_status = "degraded" if tariff_degraded else "available"
+            tariff_available = not tariff_degraded
 
         metrics: dict[str, object] = {
             "site_id": coord.site_id,
@@ -271,7 +292,13 @@ class CoordinatorDiagnostics:
             "type_device_keys": type_keys,
             "type_device_counts": type_counts,
             "payload_health": self.payload_health_diagnostics(),
-            "endpoint_family_health": self.endpoint_family_health_diagnostics(),
+            "endpoint_family_health": endpoint_family_health,
+            "tariff_available": tariff_available,
+            "tariff_service_status": tariff_service_status,
+            "tariff_failures": tariff_failures,
+            "tariff_last_error": tariff_last_error,
+            "tariff_backoff_active": tariff_backoff_active,
+            "tariff_backoff_ends_utc": tariff_backoff_ends_utc,
             "auth_refresh_suspended_active": coord._auth_refresh_suspended_active(),
             "auth_refresh_suspended_until": _iso(
                 getattr(coord, "_auth_refresh_suspended_until_utc", None)
@@ -823,6 +850,21 @@ class CoordinatorDiagnostics:
 
         if evse_timeseries is not None:
             metrics["evse_timeseries"] = evse_timeseries.diagnostics()
+
+        degraded_services = [
+            service
+            for service, available_key in (
+                ("scheduler", "scheduler_available"),
+                ("auth_settings", "auth_settings_available"),
+                ("session_history", "session_history_available"),
+                ("site_energy", "site_energy_available"),
+                ("evse_timeseries", "evse_timeseries_available"),
+            )
+            if metrics.get(available_key) is False
+        ]
+        if tariff_service_status == "degraded":
+            degraded_services.append(TARIFF_ENDPOINT_FAMILY)
+        metrics["degraded_services"] = degraded_services
 
         firmware_catalog_manager = getattr(coord, "firmware_catalog_manager", None)
         status_snapshot = getattr(firmware_catalog_manager, "status_snapshot", None)

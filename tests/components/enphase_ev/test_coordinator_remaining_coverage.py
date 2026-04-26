@@ -182,6 +182,30 @@ def test_endpoint_family_suppression_recovery_and_metrics(
     assert recovered.next_retry_utc is None
 
 
+def test_tariff_endpoint_family_failure_reports_degraded_service(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    monkeypatch.setattr(coord_mod.random, "uniform", lambda _a, _b: 1.0)
+
+    err = OptionalEndpointUnavailable("Tariff payload did not include data")
+
+    assert coord._note_endpoint_family_failure("tariff", err) is True  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+    tariff_health = metrics["endpoint_family_health"]["tariff"]
+    assert tariff_health["consecutive_failures"] == 1
+    assert tariff_health["last_error"] == "Tariff payload did not include data"
+    assert tariff_health["next_retry_utc"] is not None
+    assert metrics["tariff_available"] is False
+    assert metrics["tariff_service_status"] == "degraded"
+    assert metrics["tariff_failures"] == 1
+    assert metrics["tariff_last_error"] == "Tariff payload did not include data"
+    assert metrics["tariff_backoff_active"] is True
+    assert metrics["tariff_backoff_ends_utc"] == tariff_health["next_retry_utc"]
+    assert "tariff" in metrics["degraded_services"]
+
+
 def test_endpoint_family_misc_branches_and_diagnostics(
     coordinator_factory, monkeypatch
 ) -> None:
@@ -951,6 +975,7 @@ async def test_async_update_data_session_end_fix_handles_invalid_timestamp(
     coordinator_factory, monkeypatch
 ):
     coord = coordinator_factory()
+    coord.tariff_runtime.async_refresh = AsyncMock()
     sn = RANDOM_SERIAL
     coord._last_charging[sn] = True
 
@@ -999,6 +1024,7 @@ async def test_async_update_data_session_end_fix_default_branch(
     coordinator_factory,
 ):
     coord = coordinator_factory()
+    coord.tariff_runtime.async_refresh = AsyncMock()
     sn = RANDOM_SERIAL
     coord._last_charging[sn] = True
     coord.client.status = AsyncMock(
@@ -1035,6 +1061,7 @@ async def test_async_update_data_session_end_fix_default_branch(
 @pytest.mark.asyncio
 async def test_async_update_data_handles_invalid_global_timestamp(coordinator_factory):
     coord = coordinator_factory()
+    coord.tariff_runtime.async_refresh = AsyncMock()
     sn = RANDOM_SERIAL
     coord.client.status = AsyncMock(
         return_value={

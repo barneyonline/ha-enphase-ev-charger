@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway pēdējo reizi ziņots"
       },
+      "tariff_billing_cycle": {
+        "name": "Nakamais rekina datums",
+        "state_attributes": {
+          "start_date": {
+            "name": "Sakuma datums"
+          },
+          "billing_frequency": {
+            "name": "Rekinu biezums"
+          },
+          "billing_interval_value": {
+            "name": "Rekinu intervala vertiba"
+          },
+          "last_refresh_utc": {
+            "name": "Pedeja atjaunosana (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Rekina cikls"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Importa tarifs",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifa struktura"
+          },
+          "variation_type": {
+            "name": "Variacijas tips"
+          },
+          "source": {
+            "name": "Avots"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "seasons": {
+            "name": "Sezonas"
+          },
+          "last_refresh_utc": {
+            "name": "Pedeja atjaunosana (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Importa tarifs {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifa struktura"
+          },
+          "variation_type": {
+            "name": "Variacijas tips"
+          },
+          "source": {
+            "name": "Avots"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Sezonas ID"
+          },
+          "start_month": {
+            "name": "Sākuma mēnesis"
+          },
+          "end_month": {
+            "name": "Beigu mēnesis"
+          },
+          "day_group_id": {
+            "name": "Dienu grupas ID"
+          },
+          "days": {
+            "name": "Dienas"
+          },
+          "period_id": {
+            "name": "Perioda ID"
+          },
+          "period_type": {
+            "name": "Perioda tips"
+          },
+          "start_time": {
+            "name": "Sākuma laiks"
+          },
+          "end_time": {
+            "name": "Beigu laiks"
+          },
+          "rate": {
+            "name": "Tarifs"
+          },
+          "formatted_rate": {
+            "name": "Formatēts tarifs"
+          },
+          "tier_id": {
+            "name": "Pakāpes ID"
+          },
+          "start_value": {
+            "name": "Sākuma vērtība"
+          },
+          "end_value": {
+            "name": "Beigu vērtība"
+          },
+          "unbounded": {
+            "name": "Bez augšējās robežas"
+          },
+          "last_refresh_utc": {
+            "name": "Pedeja atjaunosana (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Eksporta tarifs",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifa struktura"
+          },
+          "variation_type": {
+            "name": "Variacijas tips"
+          },
+          "source": {
+            "name": "Avots"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksporta plans"
+          },
+          "seasons": {
+            "name": "Sezonas"
+          },
+          "last_refresh_utc": {
+            "name": "Pedeja atjaunosana (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Eksporta tarifs {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifa struktura"
+          },
+          "variation_type": {
+            "name": "Variacijas tips"
+          },
+          "source": {
+            "name": "Avots"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksporta plans"
+          },
+          "season_id": {
+            "name": "Sezonas ID"
+          },
+          "start_month": {
+            "name": "Sākuma mēnesis"
+          },
+          "end_month": {
+            "name": "Beigu mēnesis"
+          },
+          "day_group_id": {
+            "name": "Dienu grupas ID"
+          },
+          "days": {
+            "name": "Dienas"
+          },
+          "period_id": {
+            "name": "Perioda ID"
+          },
+          "period_type": {
+            "name": "Perioda tips"
+          },
+          "start_time": {
+            "name": "Sākuma laiks"
+          },
+          "end_time": {
+            "name": "Beigu laiks"
+          },
+          "rate": {
+            "name": "Tarifs"
+          },
+          "formatted_rate": {
+            "name": "Formatēts tarifs"
+          },
+          "tier_id": {
+            "name": "Pakāpes ID"
+          },
+          "start_value": {
+            "name": "Sākuma vērtība"
+          },
+          "end_value": {
+            "name": "Beigu vērtība"
+          },
+          "unbounded": {
+            "name": "Bez augšējās robežas"
+          },
+          "last_refresh_utc": {
+            "name": "Pedeja atjaunosana (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Mikroinvertoru savienojuma statuss"
       },

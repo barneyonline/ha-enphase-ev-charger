@@ -313,6 +313,112 @@ def test_battery_settings_entity_strings_exist_for_all_locales() -> None:
             assert value.strip(), f"{locale.name} missing value for {path}"
 
 
+def test_tariff_entity_strings_exist_for_all_locales() -> None:
+    """Ensure tariff entity and attribute labels exist in every locale."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    rate_value_attrs = [
+        "rate_structure",
+        "variation_type",
+        "source",
+        "currency",
+        "season_id",
+        "start_month",
+        "end_month",
+        "day_group_id",
+        "days",
+        "period_id",
+        "period_type",
+        "start_time",
+        "end_time",
+        "rate",
+        "formatted_rate",
+        "tier_id",
+        "start_value",
+        "end_value",
+        "unbounded",
+        "last_refresh_utc",
+    ]
+    paths = [
+        "entity.sensor.tariff_billing_cycle.name",
+        "entity.sensor.tariff_billing_cycle.state_attributes.start_date.name",
+        "entity.sensor.tariff_billing_cycle.state_attributes.billing_frequency.name",
+        "entity.sensor.tariff_billing_cycle.state_attributes.billing_interval_value.name",
+        "entity.sensor.tariff_billing_cycle.state_attributes.billing_cycle.name",
+        "entity.sensor.tariff_billing_cycle.state_attributes.last_refresh_utc.name",
+        "entity.sensor.tariff_import_rate.name",
+        "entity.sensor.tariff_import_rate.state_attributes.rate_structure.name",
+        "entity.sensor.tariff_import_rate.state_attributes.variation_type.name",
+        "entity.sensor.tariff_import_rate.state_attributes.source.name",
+        "entity.sensor.tariff_import_rate.state_attributes.currency.name",
+        "entity.sensor.tariff_import_rate.state_attributes.seasons.name",
+        "entity.sensor.tariff_import_rate.state_attributes.last_refresh_utc.name",
+        "entity.sensor.tariff_export_rate.name",
+        "entity.sensor.tariff_export_rate.state_attributes.rate_structure.name",
+        "entity.sensor.tariff_export_rate.state_attributes.variation_type.name",
+        "entity.sensor.tariff_export_rate.state_attributes.source.name",
+        "entity.sensor.tariff_export_rate.state_attributes.currency.name",
+        "entity.sensor.tariff_export_rate.state_attributes.export_plan.name",
+        "entity.sensor.tariff_export_rate.state_attributes.seasons.name",
+        "entity.sensor.tariff_export_rate.state_attributes.last_refresh_utc.name",
+    ]
+    for family in ("import", "export"):
+        key = f"tariff_{family}_rate_value"
+        paths.append(f"entity.sensor.{key}.name")
+        attrs = list(rate_value_attrs)
+        if family == "export":
+            attrs.append("export_plan")
+        for attr in attrs:
+            paths.append(f"entity.sensor.{key}.state_attributes.{attr}.name")
+    for locale in translations_dir.glob("*.json"):
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{locale.name} missing value for {path}"
+
+
+def test_tariff_entity_strings_localized_for_non_english_locales() -> None:
+    """Guard tariff labels from silently falling back to English."""
+
+    translations_dir = (
+        pathlib.Path(__file__).resolve().parents[3]
+        / "custom_components"
+        / "enphase_ev"
+        / "translations"
+    )
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    paths = [
+        "entity.sensor.tariff_billing_cycle.name",
+        "entity.sensor.tariff_billing_cycle.state_attributes.start_date.name",
+        "entity.sensor.tariff_billing_cycle.state_attributes.billing_cycle.name",
+        "entity.sensor.tariff_import_rate.name",
+        "entity.sensor.tariff_import_rate.state_attributes.rate_structure.name",
+        "entity.sensor.tariff_import_rate_value.name",
+        "entity.sensor.tariff_import_rate_value.state_attributes.period_type.name",
+        "entity.sensor.tariff_import_rate_value.state_attributes.formatted_rate.name",
+        "entity.sensor.tariff_export_rate.name",
+        "entity.sensor.tariff_export_rate.state_attributes.export_plan.name",
+        "entity.sensor.tariff_export_rate_value.name",
+        "entity.sensor.tariff_export_rate_value.state_attributes.rate.name",
+    ]
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        if name == "en.json" or name.startswith("en-"):
+            continue
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            assert value != _at_path(
+                en_data, path
+            ), f"{name} should localize {path} (still matches English)"
+
+
 def test_battery_cfg_schedule_status_strings_localized_for_non_english_locales() -> (
     None
 ):

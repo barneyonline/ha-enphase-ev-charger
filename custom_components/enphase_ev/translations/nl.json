@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway Laatst gerapporteerd"
       },
+      "tariff_billing_cycle": {
+        "name": "Volgende factuurdatum",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "billing_frequency": {
+            "name": "Factureringsfrequentie"
+          },
+          "billing_interval_value": {
+            "name": "Factureringsintervalwaarde"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Factuurcyclus"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Importtarief",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "seasons": {
+            "name": "Seizoenen"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Importtarief {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Seizoens-ID"
+          },
+          "start_month": {
+            "name": "Startmaand"
+          },
+          "end_month": {
+            "name": "Eindmaand"
+          },
+          "day_group_id": {
+            "name": "Daggroep-ID"
+          },
+          "days": {
+            "name": "Dagen"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttijd"
+          },
+          "end_time": {
+            "name": "Eindtijd"
+          },
+          "rate": {
+            "name": "Tarief"
+          },
+          "formatted_rate": {
+            "name": "Opgemaakt tarief"
+          },
+          "tier_id": {
+            "name": "Schijf-ID"
+          },
+          "start_value": {
+            "name": "Startwaarde"
+          },
+          "end_value": {
+            "name": "Eindwaarde"
+          },
+          "unbounded": {
+            "name": "Zonder bovengrens"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Exporttarief",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "seasons": {
+            "name": "Seizoenen"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Exporttarief {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "season_id": {
+            "name": "Seizoens-ID"
+          },
+          "start_month": {
+            "name": "Startmaand"
+          },
+          "end_month": {
+            "name": "Eindmaand"
+          },
+          "day_group_id": {
+            "name": "Daggroep-ID"
+          },
+          "days": {
+            "name": "Dagen"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttijd"
+          },
+          "end_time": {
+            "name": "Eindtijd"
+          },
+          "rate": {
+            "name": "Tarief"
+          },
+          "formatted_rate": {
+            "name": "Opgemaakt tarief"
+          },
+          "tier_id": {
+            "name": "Schijf-ID"
+          },
+          "start_value": {
+            "name": "Startwaarde"
+          },
+          "end_value": {
+            "name": "Eindwaarde"
+          },
+          "unbounded": {
+            "name": "Zonder bovengrens"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Verbindingsstatus micro-omvormers"
       },

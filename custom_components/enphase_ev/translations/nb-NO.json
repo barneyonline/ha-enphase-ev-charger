@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway sist rapportert"
       },
+      "tariff_billing_cycle": {
+        "name": "Neste faktureringsdato",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "billing_frequency": {
+            "name": "Faktureringsfrekvens"
+          },
+          "billing_interval_value": {
+            "name": "Faktureringsintervallverdi"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Faktureringssyklus"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Importtariff",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "seasons": {
+            "name": "Sesonger"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Importtariff {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Sesong-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Sluttmåned"
+          },
+          "day_group_id": {
+            "name": "Daggruppe-ID"
+          },
+          "days": {
+            "name": "Dager"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formatert pris"
+          },
+          "tier_id": {
+            "name": "Trinn-ID"
+          },
+          "start_value": {
+            "name": "Startverdi"
+          },
+          "end_value": {
+            "name": "Sluttverdi"
+          },
+          "unbounded": {
+            "name": "Uten øvre grense"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Eksporttariff",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksportplan"
+          },
+          "seasons": {
+            "name": "Sesonger"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Eksporttariff {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksportplan"
+          },
+          "season_id": {
+            "name": "Sesong-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Sluttmåned"
+          },
+          "day_group_id": {
+            "name": "Daggruppe-ID"
+          },
+          "days": {
+            "name": "Dager"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formatert pris"
+          },
+          "tier_id": {
+            "name": "Trinn-ID"
+          },
+          "start_value": {
+            "name": "Startverdi"
+          },
+          "end_value": {
+            "name": "Sluttverdi"
+          },
+          "unbounded": {
+            "name": "Uten øvre grense"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Tilkoblingsstatus for mikroinvertere"
       },

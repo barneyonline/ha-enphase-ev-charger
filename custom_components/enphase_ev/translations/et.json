@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway viimati teatatud"
       },
+      "tariff_billing_cycle": {
+        "name": "Jargmine arvelduskuupaev",
+        "state_attributes": {
+          "start_date": {
+            "name": "Alguskuupaev"
+          },
+          "billing_frequency": {
+            "name": "Arvelduse sagedus"
+          },
+          "billing_interval_value": {
+            "name": "Arveldusintervalli vaartus"
+          },
+          "last_refresh_utc": {
+            "name": "Viimane varskendus (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Arveldustsukkel"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Imporditariif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariifi struktuur"
+          },
+          "variation_type": {
+            "name": "Variatsiooni tuup"
+          },
+          "source": {
+            "name": "Allikas"
+          },
+          "currency": {
+            "name": "Valuuta"
+          },
+          "seasons": {
+            "name": "Hooajad"
+          },
+          "last_refresh_utc": {
+            "name": "Viimane varskendus (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Imporditariif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariifi struktuur"
+          },
+          "variation_type": {
+            "name": "Variatsiooni tuup"
+          },
+          "source": {
+            "name": "Allikas"
+          },
+          "currency": {
+            "name": "Valuuta"
+          },
+          "season_id": {
+            "name": "Hooaja ID"
+          },
+          "start_month": {
+            "name": "Alguskuu"
+          },
+          "end_month": {
+            "name": "Lõppkuu"
+          },
+          "day_group_id": {
+            "name": "Päevarühma ID"
+          },
+          "days": {
+            "name": "Päevad"
+          },
+          "period_id": {
+            "name": "Perioodi ID"
+          },
+          "period_type": {
+            "name": "Perioodi tüüp"
+          },
+          "start_time": {
+            "name": "Algusaeg"
+          },
+          "end_time": {
+            "name": "Lõppaeg"
+          },
+          "rate": {
+            "name": "Hind"
+          },
+          "formatted_rate": {
+            "name": "Vormindatud hind"
+          },
+          "tier_id": {
+            "name": "Astme ID"
+          },
+          "start_value": {
+            "name": "Algväärtus"
+          },
+          "end_value": {
+            "name": "Lõppväärtus"
+          },
+          "unbounded": {
+            "name": "Ülemise piirita"
+          },
+          "last_refresh_utc": {
+            "name": "Viimane varskendus (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Eksporditariif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariifi struktuur"
+          },
+          "variation_type": {
+            "name": "Variatsiooni tuup"
+          },
+          "source": {
+            "name": "Allikas"
+          },
+          "currency": {
+            "name": "Valuuta"
+          },
+          "export_plan": {
+            "name": "Ekspordiplaan"
+          },
+          "seasons": {
+            "name": "Hooajad"
+          },
+          "last_refresh_utc": {
+            "name": "Viimane varskendus (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Eksporditariif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariifi struktuur"
+          },
+          "variation_type": {
+            "name": "Variatsiooni tuup"
+          },
+          "source": {
+            "name": "Allikas"
+          },
+          "currency": {
+            "name": "Valuuta"
+          },
+          "export_plan": {
+            "name": "Ekspordiplaan"
+          },
+          "season_id": {
+            "name": "Hooaja ID"
+          },
+          "start_month": {
+            "name": "Alguskuu"
+          },
+          "end_month": {
+            "name": "Lõppkuu"
+          },
+          "day_group_id": {
+            "name": "Päevarühma ID"
+          },
+          "days": {
+            "name": "Päevad"
+          },
+          "period_id": {
+            "name": "Perioodi ID"
+          },
+          "period_type": {
+            "name": "Perioodi tüüp"
+          },
+          "start_time": {
+            "name": "Algusaeg"
+          },
+          "end_time": {
+            "name": "Lõppaeg"
+          },
+          "rate": {
+            "name": "Hind"
+          },
+          "formatted_rate": {
+            "name": "Vormindatud hind"
+          },
+          "tier_id": {
+            "name": "Astme ID"
+          },
+          "start_value": {
+            "name": "Algväärtus"
+          },
+          "end_value": {
+            "name": "Lõppväärtus"
+          },
+          "unbounded": {
+            "name": "Ülemise piirita"
+          },
+          "last_refresh_utc": {
+            "name": "Viimane varskendus (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Mikroinverterite ühenduvuse olek"
       },

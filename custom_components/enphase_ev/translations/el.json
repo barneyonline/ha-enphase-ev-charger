@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Τελευταία αναφορά Gateway"
       },
+      "tariff_billing_cycle": {
+        "name": "Epomeni imerominia chreosis",
+        "state_attributes": {
+          "start_date": {
+            "name": "Imerominia enarxis"
+          },
+          "billing_frequency": {
+            "name": "Sychnotita chreosis"
+          },
+          "billing_interval_value": {
+            "name": "Timi diastimatos chreosis"
+          },
+          "last_refresh_utc": {
+            "name": "Teleutaia ananeosi (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Kyklos chreosis"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Timologio eisagogis",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Domi timologiou"
+          },
+          "variation_type": {
+            "name": "Typos metavolis"
+          },
+          "source": {
+            "name": "Pigi"
+          },
+          "currency": {
+            "name": "Nomisma"
+          },
+          "seasons": {
+            "name": "Epoches"
+          },
+          "last_refresh_utc": {
+            "name": "Teleutaia ananeosi (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Timologio eisagogis {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Domi timologiou"
+          },
+          "variation_type": {
+            "name": "Typos metavolis"
+          },
+          "source": {
+            "name": "Pigi"
+          },
+          "currency": {
+            "name": "Nomisma"
+          },
+          "season_id": {
+            "name": "Αναγνωριστικό εποχής"
+          },
+          "start_month": {
+            "name": "Μήνας έναρξης"
+          },
+          "end_month": {
+            "name": "Μήνας λήξης"
+          },
+          "day_group_id": {
+            "name": "Αναγνωριστικό ομάδας ημερών"
+          },
+          "days": {
+            "name": "Ημέρες"
+          },
+          "period_id": {
+            "name": "Αναγνωριστικό περιόδου"
+          },
+          "period_type": {
+            "name": "Τύπος περιόδου"
+          },
+          "start_time": {
+            "name": "Ώρα έναρξης"
+          },
+          "end_time": {
+            "name": "Ώρα λήξης"
+          },
+          "rate": {
+            "name": "Τιμή"
+          },
+          "formatted_rate": {
+            "name": "Μορφοποιημένη τιμή"
+          },
+          "tier_id": {
+            "name": "Αναγνωριστικό κλιμακίου"
+          },
+          "start_value": {
+            "name": "Τιμή έναρξης"
+          },
+          "end_value": {
+            "name": "Τιμή λήξης"
+          },
+          "unbounded": {
+            "name": "Χωρίς ανώτατο όριο"
+          },
+          "last_refresh_utc": {
+            "name": "Teleutaia ananeosi (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Timologio eksagogis",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Domi timologiou"
+          },
+          "variation_type": {
+            "name": "Typos metavolis"
+          },
+          "source": {
+            "name": "Pigi"
+          },
+          "currency": {
+            "name": "Nomisma"
+          },
+          "export_plan": {
+            "name": "Schedio eksagogis"
+          },
+          "seasons": {
+            "name": "Epoches"
+          },
+          "last_refresh_utc": {
+            "name": "Teleutaia ananeosi (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Timologio eksagogis {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Domi timologiou"
+          },
+          "variation_type": {
+            "name": "Typos metavolis"
+          },
+          "source": {
+            "name": "Pigi"
+          },
+          "currency": {
+            "name": "Nomisma"
+          },
+          "export_plan": {
+            "name": "Schedio eksagogis"
+          },
+          "season_id": {
+            "name": "Αναγνωριστικό εποχής"
+          },
+          "start_month": {
+            "name": "Μήνας έναρξης"
+          },
+          "end_month": {
+            "name": "Μήνας λήξης"
+          },
+          "day_group_id": {
+            "name": "Αναγνωριστικό ομάδας ημερών"
+          },
+          "days": {
+            "name": "Ημέρες"
+          },
+          "period_id": {
+            "name": "Αναγνωριστικό περιόδου"
+          },
+          "period_type": {
+            "name": "Τύπος περιόδου"
+          },
+          "start_time": {
+            "name": "Ώρα έναρξης"
+          },
+          "end_time": {
+            "name": "Ώρα λήξης"
+          },
+          "rate": {
+            "name": "Τιμή"
+          },
+          "formatted_rate": {
+            "name": "Μορφοποιημένη τιμή"
+          },
+          "tier_id": {
+            "name": "Αναγνωριστικό κλιμακίου"
+          },
+          "start_value": {
+            "name": "Τιμή έναρξης"
+          },
+          "end_value": {
+            "name": "Τιμή λήξης"
+          },
+          "unbounded": {
+            "name": "Χωρίς ανώτατο όριο"
+          },
+          "last_refresh_utc": {
+            "name": "Teleutaia ananeosi (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Κατάσταση συνδεσιμότητας μικρομετατροπέων"
       },

@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway Raportat ultima dată"
       },
+      "tariff_billing_cycle": {
+        "name": "Urmatoarea data de facturare",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data de inceput"
+          },
+          "billing_frequency": {
+            "name": "Frecventa de facturare"
+          },
+          "billing_interval_value": {
+            "name": "Valoare interval de facturare"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Ciclu de facturare"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Tarif de import",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "seasons": {
+            "name": "Sezoane"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Tarif de import {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "season_id": {
+            "name": "ID sezon"
+          },
+          "start_month": {
+            "name": "Luna de început"
+          },
+          "end_month": {
+            "name": "Luna de sfârșit"
+          },
+          "day_group_id": {
+            "name": "ID grup de zile"
+          },
+          "days": {
+            "name": "Zile"
+          },
+          "period_id": {
+            "name": "ID perioadă"
+          },
+          "period_type": {
+            "name": "Tip perioadă"
+          },
+          "start_time": {
+            "name": "Ora de început"
+          },
+          "end_time": {
+            "name": "Ora de sfârșit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Tarif formatat"
+          },
+          "tier_id": {
+            "name": "ID nivel"
+          },
+          "start_value": {
+            "name": "Valoare inițială"
+          },
+          "end_value": {
+            "name": "Valoare finală"
+          },
+          "unbounded": {
+            "name": "Fără limită superioară"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Tarif de export",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "export_plan": {
+            "name": "Plan de export"
+          },
+          "seasons": {
+            "name": "Sezoane"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Tarif de export {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "export_plan": {
+            "name": "Plan de export"
+          },
+          "season_id": {
+            "name": "ID sezon"
+          },
+          "start_month": {
+            "name": "Luna de început"
+          },
+          "end_month": {
+            "name": "Luna de sfârșit"
+          },
+          "day_group_id": {
+            "name": "ID grup de zile"
+          },
+          "days": {
+            "name": "Zile"
+          },
+          "period_id": {
+            "name": "ID perioadă"
+          },
+          "period_type": {
+            "name": "Tip perioadă"
+          },
+          "start_time": {
+            "name": "Ora de început"
+          },
+          "end_time": {
+            "name": "Ora de sfârșit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Tarif formatat"
+          },
+          "tier_id": {
+            "name": "ID nivel"
+          },
+          "start_value": {
+            "name": "Valoare inițială"
+          },
+          "end_value": {
+            "name": "Valoare finală"
+          },
+          "unbounded": {
+            "name": "Fără limită superioară"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Stare conectivitate microinvertoare"
       },

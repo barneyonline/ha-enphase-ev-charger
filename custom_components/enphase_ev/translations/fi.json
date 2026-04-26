@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway viimeksi raportoitu"
       },
+      "tariff_billing_cycle": {
+        "name": "Seuraava laskutuspaiva",
+        "state_attributes": {
+          "start_date": {
+            "name": "Aloituspaiva"
+          },
+          "billing_frequency": {
+            "name": "Laskutustiheys"
+          },
+          "billing_interval_value": {
+            "name": "Laskutusvalin arvo"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Laskutusjakso"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Tuontitariffi",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "seasons": {
+            "name": "Kaudet"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Tuontitariffi {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "season_id": {
+            "name": "Kauden tunnus"
+          },
+          "start_month": {
+            "name": "Aloituskuukausi"
+          },
+          "end_month": {
+            "name": "Päättymiskuukausi"
+          },
+          "day_group_id": {
+            "name": "Päiväryhmän tunnus"
+          },
+          "days": {
+            "name": "Päivät"
+          },
+          "period_id": {
+            "name": "Jakson tunnus"
+          },
+          "period_type": {
+            "name": "Jakson tyyppi"
+          },
+          "start_time": {
+            "name": "Aloitusaika"
+          },
+          "end_time": {
+            "name": "Päättymisaika"
+          },
+          "rate": {
+            "name": "Hinta"
+          },
+          "formatted_rate": {
+            "name": "Muotoiltu hinta"
+          },
+          "tier_id": {
+            "name": "Portaan tunnus"
+          },
+          "start_value": {
+            "name": "Alkuarvo"
+          },
+          "end_value": {
+            "name": "Loppuarvo"
+          },
+          "unbounded": {
+            "name": "Ilman ylärajaa"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Vientitariffi",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "export_plan": {
+            "name": "Vientisuunnitelma"
+          },
+          "seasons": {
+            "name": "Kaudet"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Vientitariffi {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "export_plan": {
+            "name": "Vientisuunnitelma"
+          },
+          "season_id": {
+            "name": "Kauden tunnus"
+          },
+          "start_month": {
+            "name": "Aloituskuukausi"
+          },
+          "end_month": {
+            "name": "Päättymiskuukausi"
+          },
+          "day_group_id": {
+            "name": "Päiväryhmän tunnus"
+          },
+          "days": {
+            "name": "Päivät"
+          },
+          "period_id": {
+            "name": "Jakson tunnus"
+          },
+          "period_type": {
+            "name": "Jakson tyyppi"
+          },
+          "start_time": {
+            "name": "Aloitusaika"
+          },
+          "end_time": {
+            "name": "Päättymisaika"
+          },
+          "rate": {
+            "name": "Hinta"
+          },
+          "formatted_rate": {
+            "name": "Muotoiltu hinta"
+          },
+          "tier_id": {
+            "name": "Portaan tunnus"
+          },
+          "start_value": {
+            "name": "Alkuarvo"
+          },
+          "end_value": {
+            "name": "Loppuarvo"
+          },
+          "unbounded": {
+            "name": "Ilman ylärajaa"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Mikroinvertterien yhteystila"
       },
