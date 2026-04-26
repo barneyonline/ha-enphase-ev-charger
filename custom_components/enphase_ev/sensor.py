@@ -7960,6 +7960,10 @@ class EnphaseHeatPumpPowerSensor(_SiteBaseEntity):
             ),
             "device_uid": self._coord.heatpump_power_device_uid,
             "source": self._coord.heatpump_power_source,
+            "raw_power_w": self._coord.heatpump_power_raw_w,
+            "power_window_seconds": self._coord.heatpump_power_window_seconds,
+            "power_validation": self._coord.heatpump_power_validation,
+            "smoothed": self._coord.heatpump_power_smoothed,
             "using_stale": bool(
                 getattr(self._coord, "heatpump_power_using_stale", False)
             ),

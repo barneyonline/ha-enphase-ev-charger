@@ -1061,11 +1061,27 @@ def test_heatpump_power_properties_handle_invalid_internal_values(
     coord._heatpump_power_w = float("inf")  # noqa: SLF001
     assert coord.heatpump_power_w is None
 
+    coord._heatpump_power_raw_w = BadFloat()  # noqa: SLF001
+    assert coord.heatpump_power_raw_w is None
+    coord._heatpump_power_raw_w = float("nan")  # noqa: SLF001
+    assert coord.heatpump_power_raw_w is None
+    coord._heatpump_power_raw_w = float("inf")  # noqa: SLF001
+    assert coord.heatpump_power_raw_w is None
+
+    coord._heatpump_power_window_seconds = BadFloat()  # noqa: SLF001
+    assert coord.heatpump_power_window_seconds is None
+    coord._heatpump_power_window_seconds = float("nan")  # noqa: SLF001
+    assert coord.heatpump_power_window_seconds is None
+    coord._heatpump_power_window_seconds = float("inf")  # noqa: SLF001
+    assert coord.heatpump_power_window_seconds is None
+
     coord._heatpump_power_device_uid = BadStr()  # noqa: SLF001
     coord._heatpump_power_source = BadStr()  # noqa: SLF001
+    coord._heatpump_power_validation = BadStr()  # noqa: SLF001
     coord._heatpump_power_last_error = BadStr()  # noqa: SLF001
     assert coord.heatpump_power_device_uid is None
     assert coord.heatpump_power_source is None
+    assert coord.heatpump_power_validation is None
     assert coord.heatpump_power_last_error is None
 
 

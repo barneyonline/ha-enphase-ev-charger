@@ -5993,6 +5993,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return self.heatpump_runtime.heatpump_power_source
 
     @property
+    def heatpump_power_raw_w(self) -> float | None:
+        return self.heatpump_runtime.heatpump_power_raw_w
+
+    @property
+    def heatpump_power_window_seconds(self) -> float | None:
+        return self.heatpump_runtime.heatpump_power_window_seconds
+
+    @property
+    def heatpump_power_validation(self) -> str | None:
+        return self.heatpump_runtime.heatpump_power_validation
+
+    @property
+    def heatpump_power_smoothed(self) -> bool:
+        return self.heatpump_runtime.heatpump_power_smoothed
+
+    @property
     def heatpump_power_using_stale(self) -> bool:
         return self.heatpump_runtime.heatpump_power_using_stale
 
