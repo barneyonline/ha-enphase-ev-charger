@@ -98,7 +98,10 @@ Example response:
 | PowerMatch UI flags | `GET` | `/app-api/<site_id>/powermatch_details` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
 | Site today snapshot | `GET` | `/pv/systems/<site_id>/today` | authenticated Enlighten session cookies | Yes |
 | Legacy site tariff flags | `GET` | `/app-api/<site_id>/tariff.json?country=<country>` | authenticated session cookies + `e-auth-token` | No (documented from mobile/web HAR) |
-| Site tariff configuration | `GET` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` | bearer token + `e-auth-token` + cookies | No (documented from web UI) |
+| Site billing-cycle details | `GET/POST` | `/service/tariff/tariff-ms/systems/<site_id>/billing-details[?date=<YYYY-MM-DD>]` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | No (documented from web UI) |
+| Site tariff configuration | `GET/PUT` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` and `/service/tariff/tariff-ms/systems/<site_id>/tariff?user-id=<user_id>` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`, `X-Requested-With`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | No (documented from web UI) |
+| Tariff settings MQTT authorizer | `GET` | `/pv/aws_sigv4/tariff_settings_response_stream?serial_number=<gateway_sn>` | authenticated Enlighten session cookies + `e-auth-token` + `x-xsrf-token` | No (documented from web UI) |
+| EVSE tariff-change notification | `PUT` | `/service/evse_scheduler/api/v1/siteConfig/<site_id>/tariff_change` | tariff web write headers + JSON `null` body | No (documented from web UI) |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies + optional `Authorization: Bearer <token>` (current implementation adds bearer when available) | No (documented from web UI) |
 | System dashboard master data | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/data/master-data` | dashboard-read headers: authenticated cookies, optional bearer, XSRF when present | No (documented from web UI) |
 | Activation checklist | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/updated_activation_checklist` | dashboard-read headers: authenticated cookies, optional bearer | No (documented from web UI) |
@@ -2487,17 +2490,93 @@ Observed structure:
 - `modems` expose provisioning state (`status`, `plan_end`, `part_number_with_sku`) instead of the gateway-style network payload.
 - These endpoints expose sensitive infrastructure details such as IP addresses, MAC-derived identifiers, and direct dashboard links; redact aggressively before sharing traces.
 
-### 2.9.8.a Site Tariff Configuration
+### 2.9.8.a Site Tariff and Billing Configuration
 ```
 GET /service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true
+PUT /service/tariff/tariff-ms/systems/<site_id>/tariff?user-id=<user_id>
+GET /service/tariff/tariff-ms/systems/<site_id>/billing-details
+POST /service/tariff/tariff-ms/systems/<site_id>/billing-details?date=<YYYY-MM-DD>
+GET /pv/aws_sigv4/tariff_settings_response_stream?serial_number=<gateway_sn>
+PUT /service/evse_scheduler/api/v1/siteConfig/<site_id>/tariff_change
 Headers:
   Accept: application/json, text/javascript, */*; q=0.01
-  Authorization: Bearer <jwt>
   Cookie: <authenticated Enlighten session cookies>
   e-auth-token: <session_id>
+  Requestid: <uuid>
+  Username: <user_id>
   X-Requested-With: XMLHttpRequest
+  x-xsrf-token: <BP-XSRF-Token>  # observed on tariff GET/PUT, authorizer, and writes
 ```
-Returns the tariff profile used for site cost calculations and tariff-aware battery / EV charging UI flows.
+Returns and updates the tariff profile used for site cost calculations and tariff-aware battery / EV charging UI flows.
+The browser flow also reads and writes billing-cycle metadata, fetches a short-lived MQTT response-stream authorizer for tariff settings,
+and notifies the EVSE scheduler service after billing or tariff changes.
+
+#### Billing Details
+```
+GET /service/tariff/tariff-ms/systems/<site_id>/billing-details
+POST /service/tariff/tariff-ms/systems/<site_id>/billing-details?date=<YYYY-MM-DD>
+```
+
+Example `GET` response:
+```json
+{
+  "id": 1234567,
+  "billingFrequency": "MONTH",
+  "anyBillPeriodStartDate": "2025-08-18",
+  "billingIntervalValue": 1
+}
+```
+
+Example `POST` request body:
+```json
+{
+  "anyBillPeriodStartDate": "2025-08-17",
+  "billingFrequency": "MONTH",
+  "billingIntervalValue": 1
+}
+```
+
+Example `POST` response:
+```json
+{
+  "id": 1234567,
+  "billingFrequency": "MONTH",
+  "anyBillPeriodStartDate": "2025-08-17",
+  "billingIntervalValue": 1
+}
+```
+
+Example day-based `POST` request body:
+```json
+{
+  "anyBillPeriodStartDate": "2025-08-17",
+  "billingFrequency": "DAY",
+  "billingIntervalValue": 30
+}
+```
+
+Example day-based `POST` response:
+```json
+{
+  "id": 1234567,
+  "billingFrequency": "DAY",
+  "anyBillPeriodStartDate": "2025-08-17",
+  "billingIntervalValue": 30
+}
+```
+
+Observed billing fields:
+- `anyBillPeriodStartDate`: ISO local date for any known bill-period start. The UI renders this as "Bill Start Date".
+- `billingFrequency`: interval unit; observed payload values are `MONTH` and `DAY`.
+- `billingIntervalValue`: interval count; observed values include `1` for month-based billing and `30` for day-based billing.
+- The UI constrains Bill Start Date to no earlier than the year the site was commissioned and no later than 12 months in the future.
+- The UI supports bill frequency units of months or days. Month intervals can be configured from `1` through `24`; day intervals can be configured from `1` through `100`.
+- The `POST` query parameter `date` was the browser's current local date (`2026-04-26` in the capture), not the bill start date.
+
+#### Tariff Read
+```
+GET /service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true
+```
 
 Example response (anonymized; representative values only):
 ```json
@@ -2600,23 +2679,555 @@ Example response (anonymized; representative values only):
 }
 ```
 
+#### Tariff Update
+```
+PUT /service/tariff/tariff-ms/systems/<site_id>/tariff?user-id=<user_id>
+```
+The web UI sends a full replacement tariff object rather than a patch. The request body preserves the top-level site metadata
+from the latest read response and replaces the selected `purchase` and/or `buyback` tariff branch. The captured UI included
+`"status": "success"` in the request body; preserve unknown top-level fields if round-tripping the payload.
+
+Example response:
+```json
+{
+  "message": "success"
+}
+```
+
+Example update body for a single-season time-of-use import tariff and time-varying net feed-in export tariff:
+```json
+{
+  "site_id": 1234567,
+  "country": "AU",
+  "currency": "$",
+  "zipcode": "9999",
+  "hasAcb": false,
+  "chargeFromGrid": true,
+  "chargeBeginTime": 120,
+  "chargeEndTime": 300,
+  "showBatteryConfig": true,
+  "hideChargeFromGrid": true,
+  "supports_mqtt": true,
+  "calibrationProgress": false,
+  "purchase": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "hasNetMetering": false,
+    "source": "manual",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {
+                "id": "off-peak",
+                "startTime": "",
+                "endTime": "",
+                "rate": "0.1",
+                "type": "off-peak",
+                "rateComponents": []
+              },
+              {
+                "id": "peak-1",
+                "startTime": "900",
+                "endTime": "1260",
+                "rate": "0.3",
+                "type": "peak",
+                "rateComponents": []
+              }
+            ],
+            "updatedValue": "",
+            "must_charge_start": "0",
+            "must_charge_duration": "0",
+            "must_charge_mode": "CP"
+          }
+        ]
+      }
+    ]
+  },
+  "buyback": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "source": "netFit",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {
+                "id": "off-peak",
+                "startTime": "",
+                "endTime": "",
+                "rate": "0.002",
+                "type": "off-peak",
+                "rateComponents": []
+              },
+              {
+                "id": "peak-1",
+                "startTime": "1080",
+                "endTime": "1380",
+                "rate": "0.05",
+                "type": "peak",
+                "rateComponents": []
+              }
+            ],
+            "updatedValue": ""
+          }
+        ]
+      }
+    ],
+    "exportPlan": "netFit"
+  },
+  "nemVersion": "",
+  "installDate": "2024-01-15",
+  "showDTQuestion": false,
+  "dtCustomChargeEnabled": true,
+  "status": "success"
+}
+```
+
+Example `purchase` branch for seasonal time-of-use import rates:
+```json
+{
+  "typeKind": "seasonal",
+  "typeId": "tou",
+  "hasNetMetering": false,
+  "source": "manual",
+  "seasons": [
+    {
+      "id": "summer",
+      "startMonth": "12",
+      "endMonth": "5",
+      "days": [
+        {
+          "id": "week",
+          "days": [1, 2, 3, 4, 5, 6, 7],
+          "periods": [
+            {"id": "off-peak", "rate": "0.02", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.03", "type": "peak", "startTime": 540, "endTime": 660}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "winter",
+      "startMonth": "6",
+      "endMonth": "11",
+      "days": [
+        {
+          "id": "week",
+          "days": [1, 2, 3, 4, 5, 6, 7],
+          "periods": [
+            {"id": "off-peak", "rate": "0.03", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.04", "type": "peak", "startTime": 600, "endTime": 1380}
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Example `purchase` branches for flat import rates:
+```json
+{
+  "typeKind": "single",
+  "typeId": "flat",
+  "hasNetMetering": false,
+  "source": "manual",
+  "seasons": [
+    {
+      "id": "default",
+      "startMonth": "1",
+      "endMonth": "12",
+      "days": [
+        {
+          "id": "week",
+          "days": [1, 2, 3, 4, 5, 6, 7],
+          "periods": [{"id": "off-peak", "rate": "0.03", "type": "off-peak", "startTime": "", "endTime": ""}]
+        }
+      ]
+    }
+  ]
+}
+```
+
+```json
+{
+  "typeKind": "seasonal",
+  "typeId": "flat",
+  "hasNetMetering": false,
+  "source": "manual",
+  "seasons": [
+    {
+      "id": "summer",
+      "startMonth": "12",
+      "endMonth": "5",
+      "days": [
+        {
+          "id": "week",
+          "days": [1, 2, 3, 4, 5, 6, 7],
+          "periods": [{"id": "off-peak", "rate": "0.02", "type": "off-peak", "startTime": "", "endTime": ""}]
+        }
+      ]
+    },
+    {
+      "id": "winter",
+      "startMonth": "6",
+      "endMonth": "11",
+      "days": [
+        {
+          "id": "week",
+          "days": [1, 2, 3, 4, 5, 6, 7],
+          "periods": [{"id": "off-peak", "rate": "0.03", "type": "off-peak", "startTime": "", "endTime": ""}]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Example `purchase` branch for weekend-specific time-of-use import rates:
+```json
+{
+  "typeKind": "weekends",
+  "typeId": "tou",
+  "hasNetMetering": false,
+  "source": "manual",
+  "seasons": [
+    {
+      "id": "default",
+      "startMonth": "1",
+      "endMonth": "12",
+      "days": [
+        {
+          "id": "weekdays",
+          "days": [1, 2, 3, 4, 5],
+          "periods": [
+            {"id": "off-peak", "rate": "0.03", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.04", "type": "peak", "startTime": 600, "endTime": 660}
+          ]
+        },
+        {
+          "id": "weekend",
+          "days": [6, 7],
+          "periods": [
+            {"id": "off-peak", "rate": "0.04", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.05", "type": "peak", "startTime": 600, "endTime": 660}
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Example `purchase` branch for seasonal and weekend-specific time-of-use import rates:
+```json
+{
+  "typeKind": "seasonal-and-weekends",
+  "typeId": "tou",
+  "hasNetMetering": false,
+  "source": "manual",
+  "seasons": [
+    {
+      "id": "summer",
+      "startMonth": "12",
+      "endMonth": "5",
+      "days": [
+        {
+          "id": "weekdays",
+          "days": [1, 2, 3, 4, 5],
+          "periods": [
+            {"id": "off-peak", "rate": "0.02", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.03", "type": "peak", "startTime": 600, "endTime": 660}
+          ]
+        },
+        {
+          "id": "weekend",
+          "days": [6, 7],
+          "periods": [
+            {"id": "off-peak", "rate": "0.03", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.04", "type": "peak", "startTime": 600, "endTime": 660}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "winter",
+      "startMonth": "6",
+      "endMonth": "11",
+      "days": [
+        {
+          "id": "weekdays",
+          "days": [1, 2, 3, 4, 5],
+          "periods": [
+            {"id": "off-peak", "rate": "0.05", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.06", "type": "peak", "startTime": 600, "endTime": 660}
+          ]
+        },
+        {
+          "id": "weekend",
+          "days": [6, 7],
+          "periods": [
+            {"id": "off-peak", "rate": "0.07", "type": "off-peak", "startTime": "", "endTime": ""},
+            {"id": "peak-1", "rate": "0.08", "type": "peak", "startTime": 600, "endTime": 660}
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Example `purchase` branch for single-season tiered import rates:
+```json
+{
+  "typeKind": "single",
+  "typeId": "tiered",
+  "hasNetMetering": false,
+  "source": "manual",
+  "seasons": [
+    {
+      "id": "default",
+      "startMonth": "1",
+      "endMonth": "12",
+      "tiers": [
+        {"id": "tier-1", "rate": "0.06", "startValue": "10", "endValue": "20"},
+        {"id": "tier-2", "rate": "0.10", "startValue": "20", "endValue": -1}
+      ],
+      "offPeak": "0.04"
+    }
+  ]
+}
+```
+
+Example `purchase` branch for seasonal tiered import rates:
+```json
+{
+  "typeKind": "seasonal",
+  "typeId": "tiered",
+  "hasNetMetering": false,
+  "source": "manual",
+  "seasons": [
+    {
+      "id": "summer",
+      "startMonth": "12",
+      "endMonth": "5",
+      "tiers": [
+        {"id": "tier-1", "rate": "0.05", "startValue": "5", "endValue": "10"},
+        {"id": "tier-2", "rate": "0.08", "startValue": "10", "endValue": -1}
+      ],
+      "offPeak": "0.03"
+    },
+    {
+      "id": "winter",
+      "startMonth": "6",
+      "endMonth": "11",
+      "tiers": [
+        {"id": "tier-1", "rate": "0.09", "startValue": "5", "endValue": "10"},
+        {"id": "tier-2", "rate": "0.10", "startValue": "10", "endValue": -1}
+      ],
+      "offPeak": "0.04"
+    }
+  ]
+}
+```
+
+Example export tariff branches:
+```json
+{
+  "buyback": {
+    "typeKind": "single",
+    "typeId": "flat",
+    "hasNetMetering": false,
+    "source": "netFit",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [{"id": "off-peak", "rate": "0.01", "type": "off-peak", "startTime": "", "endTime": ""}]
+          }
+        ]
+      }
+    ],
+    "exportPlan": "netFit"
+  }
+}
+```
+
+```json
+{
+  "buyback": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "hasNetMetering": false,
+    "source": "netFit",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {"id": "off-peak", "rate": "0.01", "type": "off-peak", "startTime": "", "endTime": ""},
+              {"id": "peak-1", "rate": "0.2", "type": "peak", "startTime": 1020, "endTime": 1260}
+            ]
+          }
+        ]
+      }
+    ],
+    "exportPlan": "netFit"
+  }
+}
+```
+
+```json
+{
+  "buyback": {
+    "typeKind": "single",
+    "typeId": "tou",
+    "hasNetMetering": false,
+    "source": "manual",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [
+              {"id": "off-peak", "rate": "0.1", "type": "off-peak", "startTime": "", "endTime": ""},
+              {"id": "peak-1", "rate": "0.3", "type": "peak", "startTime": 900, "endTime": 1260}
+            ]
+          }
+        ]
+      }
+    ],
+    "exportPlan": "nem"
+  }
+}
+```
+
+```json
+{
+  "buyback": {
+    "typeKind": "single",
+    "typeId": "flat",
+    "source": "grossFit",
+    "seasons": [
+      {
+        "id": "default",
+        "startMonth": "1",
+        "endMonth": "12",
+        "days": [
+          {
+            "id": "week",
+            "days": [1, 2, 3, 4, 5, 6, 7],
+            "periods": [{"id": "off-peak", "rate": "0.06", "type": "off-peak", "startTime": "", "endTime": ""}]
+          }
+        ]
+      }
+    ],
+    "exportPlan": "grossFit"
+  }
+}
+```
+
+#### Tariff Settings Response Stream
+```
+GET /pv/aws_sigv4/tariff_settings_response_stream?serial_number=<gateway_sn>
+```
+
+Example response:
+```json
+{
+  "aws_iot_endpoint": "a1b2c3d4e5f6g7-ats.iot.us-east-1.amazonaws.com",
+  "aws_authorizer": "aws-lambda-authoriser-prod",
+  "aws_token_key": "enph_token",
+  "aws_token_value": "<session_id>",
+  "aws_digest": "<base64_signature>",
+  "duration": 900,
+  "topic": "v1/response-stream/<stream_id>"
+}
+```
+
+Observed notes:
+- The query parameter is named `serial_number` and used the gateway/IQ Gateway serial number in the browser capture.
+- The response shape is similar to the Live Status and BatteryConfig MQTT authorizers, but the topic prefix was `v1/response-stream/`.
+- The UI did not expose a separate "start stream" action; the capture only confirms the authorizer request and response.
+
+#### EVSE Scheduler Tariff-Change Notification
+```
+PUT /service/evse_scheduler/api/v1/siteConfig/<site_id>/tariff_change
+```
+
+Example request body:
+```json
+null
+```
+
+Example response:
+```json
+{
+  "meta": {
+    "serverTimeStamp": "2026-04-26T03:17:37.096+00:00"
+  },
+  "data": "Request Accepted",
+  "error": {}
+}
+```
+
+Observed notes:
+- The browser called this endpoint after tariff and billing-detail changes.
+- Success status was `202 Accepted`.
+- This appears to notify the EVSE scheduler/site-config service that tariff-aware schedule calculations may need to refresh; it does not carry the tariff body itself.
+
 Observed request fields:
 - Path parameter `site_id`: numeric site identifier embedded in the `/systems/<site_id>/...` path.
 - Query parameter `include-site-details`: observed as `true`; when set, the response includes top-level site metadata such as `country`, `currency`, `zipcode`, `installDate`, and battery-related capability flags.
+- Query parameter `user-id`: observed on tariff `PUT`; value is the authenticated user id.
+- Query parameter `serial_number`: observed on the tariff settings response stream; use the gateway serial number and redact it from shared traces.
+- Write requests used `Content-Type: application/json`, `Origin: https://enlighten.enphaseenergy.com`, `Username`, `Requestid`, `e-auth-token`, and `x-xsrf-token`.
 
-Observed response structure:
-- The response is a flat JSON object with no `data` / `meta` wrapper.
-- `purchase` describes import tariffs and `buyback` describes export compensation. Both use the same nested `seasons[] -> days[] -> periods[]` shape.
-- `periods[].startTime` and `periods[].endTime` are stringified minutes-after-midnight values (for example `"840"` = 14:00 local time). Empty strings were observed for all-day/default periods.
+Observed tariff payload structure:
+- The tariff read response is a flat JSON object with no `data` / `meta` wrapper; tariff writes respond with `{"message": "success"}`.
+- `purchase` describes import tariffs and `buyback` describes export compensation. Time-of-use and flat tariffs use the nested `seasons[] -> days[] -> periods[]` shape; tiered tariffs use `seasons[] -> tiers[]` plus an `offPeak` baseline field.
+- `typeKind` controls season/day variation. Observed values: `single`, `seasonal`, `weekends`, `seasonal-and-weekends`.
+- `typeId` controls rate structure. Observed values: `flat`, `tou`, `tiered`.
+- `purchase.source` was `manual` in all observed updates. `buyback.source` was observed as `manual`, `netFit`, and `grossFit`; `buyback.exportPlan` was observed as `nem`, `netFit`, and `grossFit`.
+- `periods[].startTime` and `periods[].endTime` are minutes after midnight. The read payload returned strings such as `"900"`; some write payloads emitted numbers such as `540`. Empty strings were observed for all-day/default periods.
+- The UI rejects overlapping peak/mid-peak time ranges within the same day or season block and displays the validation message "This period is overlapping with one of the other periods"; the `UPDATE` action remains disabled until the overlap is fixed.
 - `periods[].rate` is returned as a string, not a numeric JSON value.
-- `days[].days` uses numeric weekday values; the capture showed `[1, 2, 3, 4, 5, 6, 7]` for an every-day schedule.
+- `days[].id` labels include `week`, `weekdays`, and `weekend`; `days[].days` uses numeric weekday values. Observed mappings were `[1, 2, 3, 4, 5, 6, 7]` for every day, `[1, 2, 3, 4, 5]` for weekdays, and `[6, 7]` for weekends.
 - `purchase.days[].must_charge_start`, `must_charge_duration`, and `must_charge_mode` appear to be EV/battery charge-policy hints attached to the import tariff definition.
+- Tiered `tiers[].startValue` was observed as a string. `tiers[].endValue` may be a string for bounded tiers or `-1` for the final unbounded tier.
+- Tiered `offPeak` appears to be the baseline import rate before the configured usage threshold.
 - Top-level `chargeBeginTime` / `chargeEndTime` are integer minutes after midnight and align with the charge-from-grid window exposed by the BatteryConfig APIs.
 - Top-level flags such as `showBatteryConfig`, `hideChargeFromGrid`, `supports_mqtt`, `calibrationProgress`, and `dtCustomChargeEnabled` appear to gate related UI behavior.
 
 Notes:
-- The observed browser request included live bearer tokens, cookies, site identifiers, postcode data, and account-linked metadata. Those values are intentionally replaced here with placeholders or representative examples.
-- `Authorization: Bearer <jwt>` was present in the capture, unlike many read-only site endpoints that rely on cookies plus `e-auth-token` alone.
+- The observed browser request included live JWT-bearing cookies, XSRF tokens, session IDs, user IDs, site identifiers, gateway serial numbers, postcode data, account-linked metadata, and AWS IoT authorizer signatures. Those values are intentionally replaced here with placeholders or representative examples.
 - `source` values under `purchase` / `buyback` are backend-origin labels (`manual`, `netFit` in the capture) and should be preserved verbatim until more variants are observed.
 
 ### 2.10 Homeowner Events History
