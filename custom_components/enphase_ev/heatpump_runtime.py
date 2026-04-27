@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    DEFAULT_FAST_POLL_INTERVAL,
     HEMS_SUPPORT_PREFLIGHT_CACHE_TTL,
     HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL,
     HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S,
@@ -22,6 +23,7 @@ from .const import (
     HEATPUMP_RUNTIME_STATE_CACHE_TTL,
     HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S,
     HEATPUMP_RUNTIME_STATE_STALE_AFTER_S,
+    OPT_FAST_POLL_INTERVAL,
 )
 from .device_types import normalize_type_key
 from .log_redaction import redact_site_id, redact_text, truncate_identifier
@@ -259,6 +261,21 @@ class HeatpumpRuntime:
                 return True
         return False
 
+    def hems_refresh_floor_s(self) -> float:
+        floor = float(DEFAULT_FAST_POLL_INTERVAL)
+        config_entry = getattr(self.coordinator, "config_entry", None)
+        options = getattr(config_entry, "options", None)
+        if options is None:
+            return floor
+        try:
+            configured = float(options.get(OPT_FAST_POLL_INTERVAL, floor))
+        except (AttributeError, TypeError, ValueError):
+            return floor
+        return max(floor, configured)
+
+    def hems_support_preflight_cache_ttl_s(self) -> float:
+        return max(HEMS_SUPPORT_PREFLIGHT_CACHE_TTL, self.hems_refresh_floor_s())
+
     @staticmethod
     async def _async_call_refreshable_fetcher(
         fetcher, *, force: bool = False
@@ -285,15 +302,14 @@ class HeatpumpRuntime:
             return
 
         now = time.monotonic()
+        cache_ttl = self.hems_support_preflight_cache_ttl_s()
         if not force and self._hems_support_preflight_cache_until is not None:
             if now < self._hems_support_preflight_cache_until:
                 return
 
         fetcher = getattr(self.client, "system_dashboard_summary", None)
         if not callable(fetcher):
-            self._hems_support_preflight_cache_until = (
-                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
-            )
+            self._hems_support_preflight_cache_until = now + cache_ttl
             return
 
         try:
@@ -304,9 +320,7 @@ class HeatpumpRuntime:
                 redact_site_id(self.site_id),
                 redact_text(err, site_ids=(self.site_id,)),
             )
-            self._hems_support_preflight_cache_until = (
-                now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
-            )
+            self._hems_support_preflight_cache_until = now + cache_ttl
             return
 
         if isinstance(payload, dict):
@@ -314,9 +328,7 @@ class HeatpumpRuntime:
             if is_hems is not None:
                 self.client._hems_site_supported = is_hems  # noqa: SLF001
 
-        self._hems_support_preflight_cache_until = (
-            now + HEMS_SUPPORT_PREFLIGHT_CACHE_TTL
-        )
+        self._hems_support_preflight_cache_until = now + cache_ttl
 
     async def async_refresh_hems_support_preflight(
         self, *, force: bool = False

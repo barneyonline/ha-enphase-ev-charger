@@ -189,6 +189,10 @@ class EvseRuntime:
             )
         return {}
 
+    @staticmethod
+    def _unique_serials(serials: Iterable[str]) -> list[str]:
+        return [sn for sn in dict.fromkeys(serials) if sn]
+
     def sum_session_energy(self, sessions: list[dict]) -> float:
         manager = getattr(self.coordinator, "session_history", None)
         if manager is not None:
@@ -590,26 +594,12 @@ class EvseRuntime:
     async def async_resolve_charge_modes(
         self, serials: Iterable[str]
     ) -> dict[str, ChargeModeResolution]:
-        coord = self.coordinator
-        results: dict[str, ChargeModeResolution] = {}
+        results = self.resolve_cached_charge_modes(serials)
         pending: dict[str, asyncio.Task[str | None]] = {}
-        if coord._scheduler_backoff_active():
-            for sn in dict.fromkeys(serials):
-                if not sn:
-                    continue
-                cached = self.cached_charge_mode_preference(sn)
-                if cached is not None:
-                    results[sn] = ChargeModeResolution(cached, "cache_backoff")
-            return results
-        for sn in dict.fromkeys(serials):
-            if not sn:
-                continue
-            cached = self.cached_charge_mode_preference(sn)
-            if cached is not None:
-                results[sn] = ChargeModeResolution(cached, "cache")
-                continue
+        for sn in self.charge_mode_lookup_candidates(serials):
             pending[sn] = self.async_get_charge_mode(sn)
         if pending:
+            coord = self.coordinator
             for sn, response in (await self._run_lookup_tasks(pending)).items():
                 if isinstance(response, Exception):
                     _LOGGER.debug(
@@ -1418,27 +1408,12 @@ class EvseRuntime:
     async def async_resolve_green_battery_settings(
         self, serials: Iterable[str]
     ) -> dict[str, tuple[bool | None, bool]]:
-        coord = self.coordinator
-        results: dict[str, tuple[bool | None, bool]] = {}
+        results = self.resolve_cached_green_battery_settings(serials)
         pending: dict[str, asyncio.Task[tuple[bool | None, bool] | None]] = {}
-        now = time.monotonic()
-        if coord._scheduler_backoff_active():
-            for sn in dict.fromkeys(serials):
-                if not sn:
-                    continue
-                cached = coord._green_battery_cache.get(sn)
-                if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
-                    results[sn] = (cached[0], cached[1])
-            return results
-        for sn in dict.fromkeys(serials):
-            if not sn:
-                continue
-            cached = coord._green_battery_cache.get(sn)
-            if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
-                results[sn] = (cached[0], cached[1])
-                continue
+        for sn in self.green_battery_lookup_candidates(serials):
             pending[sn] = self.async_get_green_battery_setting(sn)
         if pending:
+            coord = self.coordinator
             for sn, response in (await self._run_lookup_tasks(pending)).items():
                 if isinstance(response, Exception):
                     _LOGGER.debug(
@@ -1465,30 +1440,15 @@ class EvseRuntime:
     async def async_resolve_auth_settings(
         self, serials: Iterable[str]
     ) -> dict[str, tuple[bool | None, bool | None, bool, bool]]:
-        coord = self.coordinator
-        results: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
+        results = self.resolve_cached_auth_settings(serials)
         pending: dict[
             str,
             asyncio.Task[tuple[bool | None, bool | None, bool, bool] | None],
         ] = {}
-        now = time.monotonic()
-        if coord._auth_settings_backoff_active():
-            for sn in dict.fromkeys(serials):
-                if not sn:
-                    continue
-                cached = coord._auth_settings_cache.get(sn)
-                if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
-                    results[sn] = cached[0], cached[1], cached[2], cached[3]
-            return results
-        for sn in dict.fromkeys(serials):
-            if not sn:
-                continue
-            cached = coord._auth_settings_cache.get(sn)
-            if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
-                results[sn] = cached[0], cached[1], cached[2], cached[3]
-                continue
+        for sn in self.auth_settings_lookup_candidates(serials):
             pending[sn] = self.async_get_auth_settings(sn)
         if pending:
+            coord = self.coordinator
             for sn, response in (await self._run_lookup_tasks(pending)).items():
                 if isinstance(response, Exception):
                     _LOGGER.debug(
@@ -1533,22 +1493,9 @@ class EvseRuntime:
         if not requested:
             return {}
 
-        results: dict[str, dict[str, object]] = {}
+        results = self.resolve_cached_charger_config(serials, keys=requested)
         pending: dict[str, asyncio.Task[dict[str, object] | None]] = {}
-        now = time.monotonic()
-        for sn in dict.fromkeys(serials):
-            if not sn:
-                continue
-            cached = coord._charger_config_cache.get(sn)
-            if cached and (now - cached[1] < CHARGER_CONFIG_CACHE_TTL):
-                cached_values = dict(cached[0])
-                if all(key in cached_values for key in requested):
-                    results[sn] = {
-                        key: cached_values[key]
-                        for key in requested
-                        if key in cached_values
-                    }
-                    continue
+        for sn in self.charger_config_lookup_candidates(serials, keys=requested):
             pending[sn] = self.async_get_charger_config(sn, keys=requested)
         if pending:
             for sn, response in (await self._run_lookup_tasks(pending)).items():
@@ -1576,6 +1523,149 @@ class EvseRuntime:
                 if response:
                     results[sn] = response
         return results
+
+    def resolve_cached_charge_modes(
+        self,
+        serials: Iterable[str],
+        *,
+        now: float | None = None,
+    ) -> dict[str, ChargeModeResolution]:
+        if now is None:
+            now = time.monotonic()
+        source = (
+            "cache_backoff" if self.coordinator._scheduler_backoff_active() else "cache"
+        )
+        results: dict[str, ChargeModeResolution] = {}
+        for sn in self._unique_serials(serials):
+            cached = self.cached_charge_mode_preference(sn, now=now)
+            if cached is not None:
+                results[sn] = ChargeModeResolution(cached, source)
+        return results
+
+    def charge_mode_lookup_candidates(
+        self,
+        serials: Iterable[str],
+        *,
+        now: float | None = None,
+    ) -> list[str]:
+        if self.coordinator._scheduler_backoff_active():
+            return []
+        if now is None:
+            now = time.monotonic()
+        return [
+            sn
+            for sn in self._unique_serials(serials)
+            if self.cached_charge_mode_preference(sn, now=now) is None
+        ]
+
+    def resolve_cached_green_battery_settings(
+        self,
+        serials: Iterable[str],
+        *,
+        now: float | None = None,
+    ) -> dict[str, tuple[bool | None, bool]]:
+        if now is None:
+            now = time.monotonic()
+        results: dict[str, tuple[bool | None, bool]] = {}
+        for sn in self._unique_serials(serials):
+            cached = self.coordinator._green_battery_cache.get(sn)
+            if cached and (now - cached[2] < GREEN_BATTERY_CACHE_TTL):
+                results[sn] = (cached[0], cached[1])
+        return results
+
+    def green_battery_lookup_candidates(
+        self,
+        serials: Iterable[str],
+        *,
+        now: float | None = None,
+    ) -> list[str]:
+        if self.coordinator._scheduler_backoff_active():
+            return []
+        if now is None:
+            now = time.monotonic()
+        return [
+            sn
+            for sn in self._unique_serials(serials)
+            if sn not in self.resolve_cached_green_battery_settings((sn,), now=now)
+        ]
+
+    def resolve_cached_auth_settings(
+        self,
+        serials: Iterable[str],
+        *,
+        now: float | None = None,
+    ) -> dict[str, tuple[bool | None, bool | None, bool, bool]]:
+        if now is None:
+            now = time.monotonic()
+        results: dict[str, tuple[bool | None, bool | None, bool, bool]] = {}
+        for sn in self._unique_serials(serials):
+            cached = self.coordinator._auth_settings_cache.get(sn)
+            if cached and (now - cached[4] < AUTH_SETTINGS_CACHE_TTL):
+                results[sn] = cached[0], cached[1], cached[2], cached[3]
+        return results
+
+    def auth_settings_lookup_candidates(
+        self,
+        serials: Iterable[str],
+        *,
+        now: float | None = None,
+    ) -> list[str]:
+        if self.coordinator._auth_settings_backoff_active():
+            return []
+        if now is None:
+            now = time.monotonic()
+        return [
+            sn
+            for sn in self._unique_serials(serials)
+            if sn not in self.resolve_cached_auth_settings((sn,), now=now)
+        ]
+
+    def resolve_cached_charger_config(
+        self,
+        serials: Iterable[str],
+        *,
+        keys: Iterable[str],
+        now: float | None = None,
+    ) -> dict[str, dict[str, object]]:
+        if now is None:
+            now = time.monotonic()
+        requested = tuple(keys)
+        results: dict[str, dict[str, object]] = {}
+        for sn in self._unique_serials(serials):
+            cached = self.coordinator._charger_config_cache.get(sn)
+            if not cached or now - cached[1] >= CHARGER_CONFIG_CACHE_TTL:
+                continue
+            cached_values = dict(cached[0])
+            if all(key in cached_values for key in requested):
+                results[sn] = {
+                    key: cached_values[key] for key in requested if key in cached_values
+                }
+        return results
+
+    def charger_config_lookup_candidates(
+        self,
+        serials: Iterable[str],
+        *,
+        keys: Iterable[str],
+        now: float | None = None,
+    ) -> list[str]:
+        if now is None:
+            now = time.monotonic()
+        requested = tuple(keys)
+        cached_results = self.resolve_cached_charger_config(
+            serials,
+            keys=requested,
+            now=now,
+        )
+        candidates: list[str] = []
+        for sn in self._unique_serials(serials):
+            if sn in cached_results:
+                continue
+            backoff_until = self.coordinator._charger_config_backoff_until.get(sn)
+            if backoff_until is not None and backoff_until > now:
+                continue
+            candidates.append(sn)
+        return candidates
 
     def resolve_charge_mode_pref(self, sn: str) -> str | None:
         sn_str = str(sn)

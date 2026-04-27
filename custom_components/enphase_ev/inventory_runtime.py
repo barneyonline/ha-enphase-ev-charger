@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
 
+from .const import DEFAULT_FAST_POLL_INTERVAL
 from .device_types import (
     member_is_retired as device_member_is_retired,
     normalize_type_key,
@@ -168,6 +169,19 @@ class InventoryRuntime:
 
     def _redact_battery_payload(self, payload: object) -> object:
         return redact_battery_payload(payload)
+
+    def _hems_refresh_floor_s(self) -> float:
+        runtime = getattr(self.coordinator, "heatpump_runtime", None)
+        helper = getattr(runtime, "hems_refresh_floor_s", None)
+        if callable(helper):
+            try:
+                return max(float(helper()), float(DEFAULT_FAST_POLL_INTERVAL))
+            except (TypeError, ValueError):
+                pass
+        return float(DEFAULT_FAST_POLL_INTERVAL)
+
+    def _hems_devices_cache_ttl_s(self) -> float:
+        return max(HEMS_DEVICES_CACHE_TTL, self._hems_refresh_floor_s())
 
     @staticmethod
     def _debug_sorted_keys(value: object) -> list[str]:
@@ -1800,6 +1814,7 @@ class InventoryRuntime:
 
     async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
         now = time.monotonic()
+        cache_ttl = self._hems_devices_cache_ttl_s()
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
@@ -1813,9 +1828,7 @@ class InventoryRuntime:
                 _hems_inventory_ready=True,
             )
             self._merge_heatpump_type_bucket()
-            self._set_shared_state_attr(
-                "_hems_devices_cache_until", now + HEMS_DEVICES_CACHE_TTL
-            )
+            self._set_shared_state_attr("_hems_devices_cache_until", now + cache_ttl)
             self._debug_log_summary_if_changed(
                 "hems_inventory",
                 "HEMS discovery summary",
@@ -1845,7 +1858,7 @@ class InventoryRuntime:
                     _hems_devices_payload=None,
                     _hems_devices_using_stale=False,
                     _hems_inventory_ready=True,
-                    _hems_devices_cache_until=now + HEMS_DEVICES_CACHE_TTL,
+                    _hems_devices_cache_until=now + cache_ttl,
                 )
             elif stale_allowed:
                 # A short stale window avoids removing heat-pump entities during
@@ -1854,14 +1867,14 @@ class InventoryRuntime:
                     _hems_devices_payload=previous_payload,
                     _hems_devices_using_stale=True,
                     _hems_inventory_ready=True,
-                    _hems_devices_cache_until=now + HEMS_DEVICES_CACHE_TTL,
+                    _hems_devices_cache_until=now + cache_ttl,
                 )
             else:
                 self._update_shared_state(
                     _hems_devices_payload=None,
                     _hems_devices_using_stale=False,
                     _hems_inventory_ready=False,
-                    _hems_devices_cache_until=now + HEMS_DEVICES_CACHE_TTL,
+                    _hems_devices_cache_until=now + cache_ttl,
                 )
             self._merge_heatpump_type_bucket()
             self._debug_log_summary_if_changed(
@@ -1880,7 +1893,7 @@ class InventoryRuntime:
                 )
                 self._merge_heatpump_type_bucket()
                 self._set_shared_state_attr(
-                    "_hems_devices_cache_until", now + HEMS_DEVICES_CACHE_TTL
+                    "_hems_devices_cache_until", now + cache_ttl
                 )
                 self._debug_log_summary_if_changed(
                     "hems_inventory",
@@ -1896,7 +1909,7 @@ class InventoryRuntime:
                 )
                 self._merge_heatpump_type_bucket()
                 self._set_shared_state_attr(
-                    "_hems_devices_cache_until", now + HEMS_DEVICES_CACHE_TTL
+                    "_hems_devices_cache_until", now + cache_ttl
                 )
                 self._debug_log_summary_if_changed(
                     "hems_inventory",
@@ -1910,9 +1923,7 @@ class InventoryRuntime:
                 _hems_inventory_ready=False,
             )
             self._merge_heatpump_type_bucket()
-            self._set_shared_state_attr(
-                "_hems_devices_cache_until", now + HEMS_DEVICES_CACHE_TTL
-            )
+            self._set_shared_state_attr("_hems_devices_cache_until", now + cache_ttl)
             self._debug_log_summary_if_changed(
                 "hems_inventory",
                 "HEMS discovery summary",
@@ -1934,9 +1945,7 @@ class InventoryRuntime:
             _hems_inventory_ready=True,
         )
         self._merge_heatpump_type_bucket()
-        self._set_shared_state_attr(
-            "_hems_devices_cache_until", now + HEMS_DEVICES_CACHE_TTL
-        )
+        self._set_shared_state_attr("_hems_devices_cache_until", now + cache_ttl)
         self._debug_log_summary_if_changed(
             "hems_inventory",
             "HEMS discovery summary",

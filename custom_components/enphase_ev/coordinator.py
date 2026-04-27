@@ -1111,6 +1111,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return base_ttl
         return max(base_ttl, soft_ttl + SESSION_HISTORY_IDLE_HARD_TTL_GRACE_S)
 
+    def _session_history_prioritize_inline_refresh(self, payload: dict) -> bool:
+        cache_ttl = self._session_history_cache_ttl
+        base_ttl = float(cache_ttl or DEFAULT_SESSION_HISTORY_INTERVAL_MIN * 60)
+        return self._session_history_soft_ttl(payload) < base_ttl
+
     async def _async_fetch_sessions_today(
         self,
         sn: str,
@@ -2248,56 +2253,102 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     ]:
         if first_refresh:
             return {}, {}, {}, {}
+        charger_config_keys = (
+            DEFAULT_CHARGE_LEVEL_SETTING,
+            PHASE_SWITCH_CONFIG_SETTING,
+        )
         tasks: dict[str, asyncio.Task[object]] = {}
+        now = time.monotonic()
         unique_candidates = list(dict.fromkeys(charge_mode_candidates))
         serials = [sn for sn, _obj in records]
-        if unique_candidates:
+        charge_modes = self.evse_runtime.resolve_cached_charge_modes(
+            unique_candidates,
+            now=now,
+        )
+        green_settings = self.evse_runtime.resolve_cached_green_battery_settings(
+            serials,
+            now=now,
+        )
+        auth_settings = self.evse_runtime.resolve_cached_auth_settings(
+            serials,
+            now=now,
+        )
+        charger_config = self.evse_runtime.resolve_cached_charger_config(
+            serials,
+            keys=charger_config_keys,
+            now=now,
+        )
+        charge_mode_lookup_candidates = self.evse_runtime.charge_mode_lookup_candidates(
+            unique_candidates,
+            now=now,
+        )
+        if charge_mode_lookup_candidates:
             tasks["charge_modes"] = asyncio.create_task(
                 self._async_run_timed_refresh_lookup(
                     phase_timings,
                     "charge_mode_s",
                     lambda: self.evse_runtime.async_resolve_charge_modes(
-                        unique_candidates
+                        charge_mode_lookup_candidates
                     ),
                 )
             )
-        if serials:
+        green_lookup_candidates = self.evse_runtime.green_battery_lookup_candidates(
+            serials,
+            now=now,
+        )
+        if green_lookup_candidates:
             tasks["green_settings"] = asyncio.create_task(
                 self._async_run_timed_refresh_lookup(
                     phase_timings,
                     "green_settings_s",
-                    lambda: self._async_resolve_green_battery_settings(serials),
+                    lambda: self._async_resolve_green_battery_settings(
+                        green_lookup_candidates
+                    ),
                 )
             )
+        auth_lookup_candidates = self.evse_runtime.auth_settings_lookup_candidates(
+            serials,
+            now=now,
+        )
+        if auth_lookup_candidates:
             tasks["auth_settings"] = asyncio.create_task(
                 self._async_run_timed_refresh_lookup(
                     phase_timings,
                     "auth_settings_s",
-                    lambda: self._async_resolve_auth_settings(serials),
+                    lambda: self._async_resolve_auth_settings(auth_lookup_candidates),
                 )
             )
+        charger_config_lookup_candidates = (
+            self.evse_runtime.charger_config_lookup_candidates(
+                serials,
+                keys=charger_config_keys,
+                now=now,
+            )
+        )
+        if charger_config_lookup_candidates:
             tasks["charger_config"] = asyncio.create_task(
                 self._async_run_timed_refresh_lookup(
                     phase_timings,
                     "charger_config_s",
                     lambda: self._async_resolve_charger_config(
-                        serials,
-                        keys=(
-                            DEFAULT_CHARGE_LEVEL_SETTING,
-                            PHASE_SWITCH_CONFIG_SETTING,
-                        ),
+                        charger_config_lookup_candidates,
+                        keys=charger_config_keys,
                     ),
                 )
             )
         if not tasks:
-            return {}, {}, {}, {}
+            return charge_modes, green_settings, auth_settings, charger_config
         results = await asyncio.gather(*tasks.values())
         resolved = dict(zip(tasks.keys(), results, strict=False))
+        charge_modes.update(resolved.get("charge_modes", {}))
+        green_settings.update(resolved.get("green_settings", {}))
+        auth_settings.update(resolved.get("auth_settings", {}))
+        charger_config.update(resolved.get("charger_config", {}))
         return (
-            resolved.get("charge_modes", {}),
-            resolved.get("green_settings", {}),
-            resolved.get("auth_settings", {}),
-            resolved.get("charger_config", {}),
+            charge_modes,
+            green_settings,
+            auth_settings,
+            charger_config,
         )
 
     def _start_refresh_pipeline(self) -> RefreshPipelineContext:
@@ -4161,7 +4212,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         sn
                     )
                     continue
-                immediate_by_day.setdefault((day_key, max_cache_age), []).append(sn)
+                target = (
+                    immediate_by_day
+                    if self._session_history_prioritize_inline_refresh(cur)
+                    else background_by_day
+                )
+                target.setdefault((day_key, max_cache_age), []).append(sn)
                 continue
             if first_refresh:
                 background_by_day.setdefault((day_key, max_cache_age), []).append(sn)
