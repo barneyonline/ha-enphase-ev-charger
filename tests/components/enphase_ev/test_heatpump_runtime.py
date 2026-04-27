@@ -170,6 +170,25 @@ async def test_heatpump_runtime_public_async_wrappers(
     )
 
 
+@pytest.mark.asyncio
+async def test_heatpump_runtime_preflight_uses_fast_poll_cache_floor(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.heatpump_runtime
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(return_value=None)
+
+    await runtime._async_refresh_hems_support_preflight()  # noqa: SLF001
+
+    coord.client.system_dashboard_summary.assert_awaited_once_with()
+    assert runtime.hems_support_preflight_cache_ttl_s() == pytest.approx(30.0)
+    assert runtime._hems_support_preflight_cache_until is not None  # noqa: SLF001
+    assert (
+        runtime._hems_support_preflight_cache_until >= time.monotonic() + 29.0
+    )  # noqa: SLF001
+
+
 @pytest.mark.parametrize(
     ("current_snapshot", "previous_snapshot", "expected_validation"),
     [

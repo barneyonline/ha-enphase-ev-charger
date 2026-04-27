@@ -105,6 +105,17 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
     }
 
 
+def test_inventory_runtime_hems_refresh_floor_falls_back_on_bad_runtime_value(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.heatpump_runtime.hems_refresh_floor_s = lambda: "bad"  # type: ignore[method-assign]  # noqa: SLF001
+
+    assert runtime._hems_refresh_floor_s() == 30.0  # noqa: SLF001
+    assert runtime._hems_devices_cache_ttl_s() == 30.0  # noqa: SLF001
+
+
 def test_inventory_runtime_summary_and_inverter_helper_paths(
     coordinator_factory,
 ) -> None:
@@ -2048,6 +2059,32 @@ async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_
     await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
     assert runtime._hems_devices_payload is None  # noqa: SLF001
     assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_refresh_hems_devices_uses_fast_poll_cache_floor(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(
+        return_value={"data": {"hems-devices": {"heat-pump": []}}}
+    )
+    monkeypatch.setattr(
+        inventory_runtime_mod, "redact_battery_payload", lambda payload: payload
+    )
+
+    await runtime._async_refresh_hems_devices()
+
+    coord.client.hems_devices.assert_awaited_once_with(refresh_data=False)
+    assert runtime._hems_devices_cache_until is not None  # noqa: SLF001
+    assert runtime._hems_devices_last_success_mono is not None  # noqa: SLF001
+    assert runtime._hems_devices_cache_ttl_s() == pytest.approx(30.0)  # noqa: SLF001
+    assert (
+        runtime._hems_devices_cache_until
+        - runtime._hems_devices_last_success_mono  # noqa: SLF001
+    ) == pytest.approx(30.0)
 
 
 @pytest.mark.asyncio

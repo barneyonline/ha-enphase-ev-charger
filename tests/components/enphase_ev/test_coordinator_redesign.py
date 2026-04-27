@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -9,6 +10,7 @@ import aiohttp
 import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
+from custom_components.enphase_ev.evse_runtime import ChargeModeResolution
 from custom_components.enphase_ev.refresh_plan import (
     FOLLOWUP_STAGE,
     FOLLOWUP_PLAN,
@@ -914,6 +916,46 @@ async def test_post_status_evse_enrichments_run_concurrently(
     assert "green_settings_s" in phase_timings
     assert "auth_settings_s" in phase_timings
     assert "charger_config_s" in phase_timings
+
+
+@pytest.mark.asyncio
+async def test_post_status_evse_enrichments_reuse_fresh_cache_without_lookup_tasks(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    phase_timings: dict[str, float] = {}
+    now = time.monotonic()
+    coord._charge_mode_cache = {"SERIAL-1": ("SMART_CHARGING", now)}  # noqa: SLF001
+    coord._green_battery_cache = {"SERIAL-1": (True, True, now)}  # noqa: SLF001
+    coord._auth_settings_cache = {  # noqa: SLF001
+        "SERIAL-1": (True, False, True, True, now)
+    }
+    coord._charger_config_cache = {  # noqa: SLF001
+        "SERIAL-1": ({"DefaultChargeLevel": 32, "phase_switch_config": "auto"}, now)
+    }
+    coord.evse_runtime.async_resolve_charge_modes = AsyncMock()
+    coord._async_resolve_green_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_charger_config = AsyncMock()  # noqa: SLF001
+
+    result = await coord._async_resolve_post_status_evse_enrichments(
+        phase_timings,
+        records=[("SERIAL-1", {"sn": "SERIAL-1"})],
+        charge_mode_candidates=["SERIAL-1"],
+        first_refresh=False,
+    )
+
+    assert result == (
+        {"SERIAL-1": ChargeModeResolution("SMART_CHARGING", "cache")},
+        {"SERIAL-1": (True, True)},
+        {"SERIAL-1": (True, False, True, True)},
+        {"SERIAL-1": {"DefaultChargeLevel": 32, "phase_switch_config": "auto"}},
+    )
+    coord.evse_runtime.async_resolve_charge_modes.assert_not_awaited()
+    coord._async_resolve_green_battery_settings.assert_not_awaited()  # noqa: SLF001
+    coord._async_resolve_auth_settings.assert_not_awaited()  # noqa: SLF001
+    coord._async_resolve_charger_config.assert_not_awaited()  # noqa: SLF001
+    assert phase_timings == {}
 
 
 @pytest.mark.asyncio
