@@ -57,6 +57,7 @@ def test_current_power_consumption_sensor_value_and_attributes():
     assert sensor.native_value == 752
     assert sensor.extra_state_attributes == {
         "sampled_at_utc": "2026-03-11T05:40:00+00:00",
+        "cached_at_utc": "2026-03-11T05:40:00+00:00",
         "source": "app-api:get_latest_power",
         "reported_units": "W",
         "reported_precision": 0,
@@ -143,6 +144,7 @@ def test_current_power_consumption_sensor_keeps_fresh_last_good_runtime_sample(
     assert sensor.native_value == 752
     assert sensor.extra_state_attributes == {
         "sampled_at_utc": "2026-03-11T05:40:45+00:00",
+        "cached_at_utc": "2026-03-11T05:40:45+00:00",
         "source": "app-api:get_latest_power",
         "reported_units": "W",
         "reported_precision": 0,
@@ -259,6 +261,7 @@ async def test_current_power_consumption_sensor_restores_last_good_state(
     assert sensor.native_value == 752
     assert sensor.extra_state_attributes == {
         "sampled_at_utc": "2026-03-11T05:40:45+00:00",
+        "cached_at_utc": None,
         "source": "app-api:get_latest_power",
         "reported_units": "W",
         "reported_precision": None,
@@ -292,6 +295,60 @@ async def test_current_power_consumption_sensor_restore_tolerates_last_state_err
 
     assert sensor.available is False
     assert sensor.native_value is None
+
+
+@pytest.mark.asyncio
+async def test_current_power_consumption_sensor_restore_prefers_cached_at_freshness(
+    monkeypatch,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseCurrentPowerConsumptionSensor
+    from custom_components.enphase_ev import sensor as sensor_mod
+    from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+    coord = _make_site_coord()
+    coord.last_update_success = True
+
+    async def _noop(self):
+        return None
+
+    monkeypatch.setattr(CoordinatorEntity, "async_added_to_hass", _noop)
+    monkeypatch.setattr(
+        sensor_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 3, 11, 5, 41, tzinfo=timezone.utc),
+    )
+
+    sensor = EnphaseCurrentPowerConsumptionSensor(coord)
+    sensor.async_get_last_sensor_data = AsyncMock(  # type: ignore[method-assign]
+        return_value=type("LastSensorData", (), {"native_value": "752.0"})()
+    )
+    sensor.async_get_last_state = AsyncMock(  # type: ignore[method-assign]
+        return_value=type(
+            "LastState",
+            (),
+            {
+                "attributes": {
+                    "sampled_at_utc": "2026-03-11T05:35:00+00:00",
+                    "cached_at_utc": "2026-03-11T05:40:45+00:00",
+                    "source": "app-api:get_latest_power",
+                    "reported_units": "W",
+                    "reported_precision": 0,
+                }
+            },
+        )()
+    )
+
+    await sensor.async_added_to_hass()
+
+    assert sensor.available is True
+    assert sensor.native_value == 752
+    assert sensor.extra_state_attributes == {
+        "sampled_at_utc": "2026-03-11T05:35:00+00:00",
+        "cached_at_utc": "2026-03-11T05:40:45+00:00",
+        "source": "app-api:get_latest_power",
+        "reported_units": "W",
+        "reported_precision": 0,
+    }
 
 
 def test_site_cloud_reachable_binary_sensor_states():

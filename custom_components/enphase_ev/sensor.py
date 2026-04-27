@@ -6354,6 +6354,11 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
             parsed = dt_util.parse_datetime(sample_raw)
             if parsed is not None:
                 self._last_good_sample_utc = _normalize_utc_datetime(parsed)
+        cached_raw = attrs.get("cached_at_utc")
+        if isinstance(cached_raw, str):
+            parsed_cached = dt_util.parse_datetime(cached_raw)
+            if parsed_cached is not None:
+                self._last_good_cached_at_utc = _normalize_utc_datetime(parsed_cached)
         source = attrs.get("source")
         if isinstance(source, str) and source.strip():
             self._last_good_source = source
@@ -6390,7 +6395,7 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
         return datetime.now(timezone.utc)
 
     def _cached_sample_is_fresh(self) -> bool:
-        sample_utc = self._last_good_sample_utc or self._last_good_cached_at_utc
+        sample_utc = self._last_good_cached_at_utc or self._last_good_sample_utc
         if sample_utc is None:
             return False
         reference_utc = self._freshness_reference_utc()
@@ -6474,6 +6479,11 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
         return {
             "sampled_at_utc": (
                 sample_utc.isoformat() if sample_utc is not None else None
+            ),
+            "cached_at_utc": (
+                self._last_good_cached_at_utc.isoformat()
+                if self._last_good_cached_at_utc is not None
+                else None
             ),
             "source": source,
             "reported_units": units,
