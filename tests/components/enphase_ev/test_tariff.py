@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -782,6 +783,8 @@ def test_export_rate_value_sensor_exposes_rate_state_and_attributes(
 
     assert sensor.available is False
     assert sensor.native_value is None
+    assert sensor.native_unit_of_measurement is None
+    assert sensor.extra_state_attributes == {}
 
 
 def test_import_rate_value_sensor_exposes_rate_state_and_attributes(
@@ -888,6 +891,41 @@ def test_tariff_sensor_falls_back_to_cloud_device(coordinator_factory) -> None:
     assert ("enphase_ev", f"type:{coord.site_id}:cloud") in sensor.device_info[
         "identifiers"
     ]
+
+
+def test_tariff_sensor_uses_cloud_type_device_when_gateway_absent(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    cloud_info = {"identifiers": {(DOMAIN, "cloud_type")}}
+
+    def type_device_info(type_key):
+        return cloud_info if type_key == "cloud" else None
+
+    coord.inventory_view.type_device_info = type_device_info
+    coord.tariff_billing = parse_tariff_billing(
+        {
+            "anyBillPeriodStartDate": "2026-04-01",
+            "billingFrequency": "DAY",
+            "billingIntervalValue": 1,
+        }
+    )
+
+    sensor = EnphaseTariffBillingSensor(coord)
+
+    assert sensor.device_info is cloud_info
+
+
+def test_tariff_sensors_handle_missing_snapshots(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    billing_sensor = EnphaseTariffBillingSensor(coord)
+    import_sensor = EnphaseTariffRateSensor(coord, True)
+
+    assert billing_sensor.available is False
+    assert billing_sensor.native_value is None
+    assert billing_sensor.extra_state_attributes == {}
+    assert import_sensor.available is False
+    assert import_sensor.extra_state_attributes == {}
 
 
 @pytest.mark.asyncio
@@ -1107,6 +1145,231 @@ async def test_tariff_dynamic_rate_entities_preserved_without_current_context(
     assert [
         entity.unique_id for entity in added if "tariff" in str(entity.unique_id)
     ] == [f"{DOMAIN}_site_{coord.site_id}_tariff_billing_cycle"]
+
+
+@pytest.mark.asyncio
+async def test_tariff_setup_registry_filter_branches(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import sensor as sensor_module
+
+    coord = coordinator_factory()
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: (lambda: None),
+        raising=False,
+    )
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"type": "peak", "rate": "0.31"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    current_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_tariff_import_rate_default_week_peak"
+    )
+    fake_registry = SimpleNamespace(
+        entities={
+            "binary_sensor.skip": SimpleNamespace(
+                domain=None,
+                entity_id="binary_sensor.skip",
+                platform=DOMAIN,
+                config_entry_id=config_entry.entry_id,
+                unique_id=current_unique_id,
+            ),
+            "sensor.other_platform": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.other_platform",
+                platform="other",
+                config_entry_id=config_entry.entry_id,
+                unique_id=current_unique_id,
+            ),
+            "sensor.other_entry": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.other_entry",
+                platform=DOMAIN,
+                config_entry_id="other-entry",
+                unique_id=current_unique_id,
+            ),
+            "sensor.current": SimpleNamespace(
+                domain="sensor",
+                entity_id="sensor.current",
+                platform=DOMAIN,
+                config_entry_id=config_entry.entry_id,
+                unique_id=current_unique_id,
+            ),
+        },
+        async_get_entity_id=MagicMock(return_value=None),
+        async_remove=MagicMock(),
+    )
+    monkeypatch.setattr(sensor_module.er, "async_get", lambda hass: fake_registry)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    added = []
+
+    await async_setup_entry(
+        hass, config_entry, lambda entities, **_: added.extend(entities)
+    )
+
+    assert current_unique_id in {entity.unique_id for entity in added}
+    fake_registry.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_tariff_setup_handles_registry_without_values(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import sensor as sensor_module
+
+    coord = coordinator_factory()
+    listeners = []
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: listeners.append(callback) or (lambda: None),
+        raising=False,
+    )
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [{"id": "week", "periods": [{"rate": "0.20"}]}],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    fake_registry = SimpleNamespace(
+        entities={},
+        async_get_entity_id=MagicMock(return_value=None),
+        async_remove=MagicMock(),
+    )
+    monkeypatch.setattr(sensor_module.er, "async_get", lambda hass: fake_registry)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    added = []
+
+    await async_setup_entry(
+        hass, config_entry, lambda entities, **_: added.extend(entities)
+    )
+
+    assert any("tariff_import_rate" in str(entity.unique_id) for entity in added)
+    fake_registry.entities = object()
+    for listener in listeners:
+        listener()
+    fake_registry.async_remove.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_tariff_setup_adds_export_value_sensor(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: (lambda: None),
+        raising=False,
+    )
+    coord.tariff_export_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "buyback": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"type": "peak", "rate": "0.06"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "buyback",
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    added = []
+
+    await async_setup_entry(
+        hass, config_entry, lambda entities, **_: added.extend(entities)
+    )
+
+    assert f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate_default_week_peak" in {
+        entity.unique_id for entity in added
+    }
+
+
+@pytest.mark.asyncio
+async def test_tariff_setup_prunes_dynamic_export_for_summary_snapshot(
+    hass, config_entry, coordinator_factory, monkeypatch
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    coord = coordinator_factory()
+    monkeypatch.setattr(
+        coord,
+        "async_add_topology_listener",
+        lambda callback: (lambda: None),
+        raising=False,
+    )
+    coord.tariff_export_rate = TariffRateSnapshot(
+        state="Flat",
+        rate_structure="Flat",
+        variation_type="Single",
+        source="manual",
+        currency="$",
+        export_plan=None,
+        seasons=(),
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    old_export_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate_default_week_peak"
+    )
+    ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        old_export_unique_id,
+        config_entry=config_entry,
+    )
+    added = []
+
+    await async_setup_entry(
+        hass, config_entry, lambda entities, **_: added.extend(entities)
+    )
+
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_export_unique_id) is None
+    assert f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate" in {
+        entity.unique_id for entity in added
+    }
 
 
 @pytest.mark.asyncio

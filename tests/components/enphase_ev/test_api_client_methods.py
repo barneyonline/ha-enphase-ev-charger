@@ -3770,6 +3770,24 @@ async def test_site_tariff_passes_include_site_details() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_tariff_bundle_fetches_billing_and_tariff() -> None:
+    client = _make_client()
+    client.site_tariff_billing_details = AsyncMock(
+        return_value={"billingFrequency": "MONTH"}
+    )
+    client.site_tariff = AsyncMock(return_value={"purchase": {"typeId": "flat"}})
+
+    out = await client.site_tariff_bundle()
+
+    assert out == (
+        {"billingFrequency": "MONTH"},
+        {"purchase": {"typeId": "flat"}},
+    )
+    client.site_tariff_billing_details.assert_awaited_once_with()
+    client.site_tariff.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
 async def test_battery_settings_details_passes_params_and_headers() -> None:
     token = _make_token({"user_id": "99"})
     client = _make_client()

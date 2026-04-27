@@ -1052,6 +1052,21 @@ async def test_config_entry_diagnostics_handles_firmware_catalog_snapshot_error(
 
 
 @pytest.mark.asyncio
+async def test_config_entry_diagnostics_handles_tariff_diagnostics_error(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord.tariff_runtime = SimpleNamespace(
+        diagnostics=lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    assert diag["coordinator"]["tariff"] == {}
+
+
+@pytest.mark.asyncio
 async def test_config_entry_diagnostics_handles_scheduler_backoff_format_error(
     hass, config_entry
 ) -> None:
