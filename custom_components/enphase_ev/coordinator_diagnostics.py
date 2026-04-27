@@ -20,6 +20,7 @@ from .const import (
     ISSUE_REAUTH_REQUIRED,
     ISSUE_AUTH_SETTINGS_UNAVAILABLE,
     ISSUE_AUTH_BLOCKED,
+    ISSUE_TOO_MANY_ACTIVE_SESSIONS,
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
@@ -1222,6 +1223,7 @@ class CoordinatorDiagnostics:
     def clear_reauth_issue(self) -> None:
         self._delete_issue(ISSUE_REAUTH_REQUIRED)
         self._delete_issue(ISSUE_AUTH_BLOCKED)
+        self._delete_issue(ISSUE_TOO_MANY_ACTIVE_SESSIONS)
         self.coordinator._auth_block_issue_reported = False
 
     def create_reauth_issue(self) -> None:
@@ -1233,9 +1235,20 @@ class CoordinatorDiagnostics:
 
     def clear_auth_block_issue(self) -> None:
         self._clear_reported_issue("_auth_block_issue_reported", ISSUE_AUTH_BLOCKED)
+        self._delete_issue(ISSUE_TOO_MANY_ACTIVE_SESSIONS)
 
     def create_auth_block_issue(self) -> None:
         coord = self.coordinator
+        issue_id = (
+            ISSUE_TOO_MANY_ACTIVE_SESSIONS
+            if getattr(coord, "_auth_block_reason", None) == "too_many_active_sessions"
+            else ISSUE_AUTH_BLOCKED
+        )
+        stale_issue_id = (
+            ISSUE_AUTH_BLOCKED
+            if issue_id == ISSUE_TOO_MANY_ACTIVE_SESSIONS
+            else ISSUE_TOO_MANY_ACTIVE_SESSIONS
+        )
         placeholders: dict[str, str] = {}
         blocked_until = coord._format_auth_blocked_until(
             getattr(coord, "_auth_blocked_until_utc", None)
@@ -1243,10 +1256,11 @@ class CoordinatorDiagnostics:
         if blocked_until:
             placeholders["blocked_until"] = blocked_until
         self._delete_issue(ISSUE_REAUTH_REQUIRED)
+        self._delete_issue(stale_issue_id)
         coord._auth_block_issue_reported = False
         self._report_flagged_issue(
             "_auth_block_issue_reported",
-            ISSUE_AUTH_BLOCKED,
+            issue_id,
             severity=ir.IssueSeverity.ERROR,
             placeholders=placeholders,
         )

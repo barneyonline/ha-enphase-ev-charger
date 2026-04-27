@@ -125,6 +125,10 @@ class EnlightenAuthInvalidCredentials(EnlightenAuthError):
     """Raised when credentials are rejected."""
 
 
+class EnlightenAuthTooManySessions(EnlightenAuthError):
+    """Raised when Enlighten rejects login because the account session quota is full."""
+
+
 class EnlightenAuthMFARequired(EnlightenAuthError):
     """Raised when the API signals multi-factor authentication is required."""
 
@@ -844,6 +848,34 @@ def _extract_login_session(payload: Any) -> tuple[str | None, str | None]:
     )
 
 
+def _is_too_many_active_sessions_response(payload: Any) -> bool:
+    """Return True when an Enlighten auth response reports session exhaustion."""
+
+    def _contains_session_limit(value: Any) -> bool:
+        if isinstance(value, dict):
+            return any(_contains_session_limit(item) for item in value.values())
+        if isinstance(value, list):
+            return any(_contains_session_limit(item) for item in value)
+        if not isinstance(value, str):
+            return False
+        text = value.strip().lower()
+        if not text:
+            return False
+        if "too many active sessions" in text:
+            return True
+        if "active sessions" in text and "too many" in text:
+            return True
+        if text.startswith("{") or text.startswith("["):
+            try:
+                parsed = json.loads(text)
+            except (TypeError, ValueError):
+                return False
+            return _contains_session_limit(parsed)
+        return False
+
+    return _contains_session_limit(payload)
+
+
 def is_scheduler_unavailable_error(
     message: str | None,
     status: int | None = None,
@@ -1033,14 +1065,33 @@ async def _request_json(
                     raise EnlightenAuthUnavailable(
                         f"Server error {resp.status} at {url}"
                     )
+                if resp.status >= 400:
+                    body_text = ""
+                    try:
+                        body_text = await resp.text()
+                    except Exception:  # noqa: BLE001 - best effort auth diagnostics
+                        body_text = ""
+                    if _is_too_many_active_sessions_response(body_text):
+                        raise EnlightenAuthTooManySessions(
+                            "Too many active Enlighten sessions"
+                        )
                 resp.raise_for_status()
                 ctype = resp.headers.get("Content-Type", "")
                 if "json" not in ctype:
                     text = await resp.text()
+                    if _is_too_many_active_sessions_response(text):
+                        raise EnlightenAuthTooManySessions(
+                            "Too many active Enlighten sessions"
+                        )
                     raise EnlightenAuthUnavailable(
                         f"Unexpected response content-type {ctype!r} at {url}: {text[:120]}"
                     )
-                return await resp.json()
+                payload = await resp.json()
+                if _is_too_many_active_sessions_response(payload):
+                    raise EnlightenAuthTooManySessions(
+                        "Too many active Enlighten sessions"
+                    )
+                return payload
 
 
 async def _request_mfa_json(
@@ -1068,19 +1119,39 @@ async def _request_mfa_json(
                 raise EnlightenAuthUnavailable(f"Server error {resp.status} at {url}")
             if resp.status in (204, 205):
                 return {}
+            if resp.status >= 400:
+                body_text = ""
+                try:
+                    body_text = await resp.text()
+                except Exception:  # noqa: BLE001 - best effort auth diagnostics
+                    body_text = ""
+                if _is_too_many_active_sessions_response(body_text):
+                    raise EnlightenAuthTooManySessions(
+                        "Too many active Enlighten sessions"
+                    )
             resp.raise_for_status()
             ctype = resp.headers.get("Content-Type", "")
             if "json" in ctype:
-                return await resp.json()
+                payload = await resp.json()
+                if _is_too_many_active_sessions_response(payload):
+                    raise EnlightenAuthTooManySessions(
+                        "Too many active Enlighten sessions"
+                    )
+                return payload
             text = await resp.text()
+            if _is_too_many_active_sessions_response(text):
+                raise EnlightenAuthTooManySessions("Too many active Enlighten sessions")
             if not text.strip():
                 return {}
             try:
-                return json.loads(text)
+                payload = json.loads(text)
             except json.JSONDecodeError as err:
                 raise EnlightenAuthUnavailable(
                     f"Unexpected response content-type {ctype!r} at {url}: {text[:120]}"
                 ) from err
+            if _is_too_many_active_sessions_response(payload):
+                raise EnlightenAuthTooManySessions("Too many active Enlighten sessions")
+            return payload
 
 
 def _mfa_headers(cookies: dict[str, str] | None) -> dict[str, str]:
@@ -1162,12 +1233,18 @@ async def _submit_login_form(
             headers=_login_form_headers(),
             data=payload,
         ) as resp:
+            body_text = ""
             if resp.status >= 500:
                 raise EnlightenAuthUnavailable(
                     f"Server error {resp.status} at {LOGIN_FORM_URL}"
                 )
+            try:
+                body_text = await resp.text()
+            except Exception:  # noqa: BLE001 - best effort auth diagnostics
+                body_text = ""
+            if _is_too_many_active_sessions_response(body_text):
+                raise EnlightenAuthTooManySessions("Too many active Enlighten sessions")
             resp.raise_for_status()
-            await resp.text()
 
     _, cookie_map = _serialize_cookie_jar(session.cookie_jar, (BASE_URL, ENTREZ_URL))
     return _extract_login_session_from_cookies(cookie_map)

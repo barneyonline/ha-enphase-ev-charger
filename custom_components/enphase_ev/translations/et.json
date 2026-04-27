@@ -61,6 +61,7 @@
       "invalid_auth": "Vigased mandaadid või aegunud seanss.",
       "cannot_connect": "Enphase teenuseni ei saa ühendust.",
       "service_unavailable": "Enphase on ajutiselt kättesaamatu. Proovige hiljem uuesti.",
+      "too_many_active_sessions": "Enphase lükkas sisselogimise tagasi, sest kontol on liiga palju aktiivseid seansse. Logige teistest Enphase rakenduse või brauseri seanssidest välja ja proovige hiljem uuesti.",
       "mfa_required": "Konto nõuab mitmetegurilist autentimist.",
       "otp_required": "Sisestage ühekordne kood.",
       "otp_invalid": "Vigane või aegunud kood. Proovige uuesti.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase näib ajutiselt blokeerivat saidi {site_id} autentimist. Automaatsed katsed on peatatud kuni {blocked_until}. Edukas käsitsi taasautentimine võib blokeeringu varem eemaldada."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy kontol on liiga palju aktiivseid seansse",
+      "description": "Enphase lükkas saidi {site_id} autentimise tagasi, sest kontol on liiga palju aktiivseid seansse. Automaatsed korduskatsed on peatatud kuni {blocked_until}. Logige teistest Enphase rakenduse või brauseri seanssidest välja ja proovige seejärel uuesti autentida."
     },
     "rate_limited": {
       "title": "Enphase Energy on piiratud",

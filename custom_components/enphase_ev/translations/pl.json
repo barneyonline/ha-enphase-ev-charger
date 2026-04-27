@@ -61,6 +61,7 @@
       "invalid_auth": "Nieprawidłowe dane uwierzytelniające lub wygasła sesja.",
       "cannot_connect": "Nie można połączyć się z usługą Enphase.",
       "service_unavailable": "Enphase chwilowo niedostępny. Spróbuj ponownie później.",
+      "too_many_active_sessions": "Enphase odrzuciło logowanie, ponieważ konto ma zbyt wiele aktywnych sesji. Wyloguj się z innych sesji aplikacji lub przeglądarki Enphase i spróbuj ponownie później.",
       "mfa_required": "Konto wymaga uwierzytelniania wieloskładnikowego.",
       "otp_required": "Wprowadź jednorazowy kod.",
       "otp_invalid": "Nieprawidłowy lub wygasły kod. Spróbuj ponownie.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Wygląda na to, że Enphase tymczasowo blokuje uwierzytelnianie dla lokalizacji {site_id}. Automatyczne próby są wstrzymane do {blocked_until}. Udane ręczne ponowne uwierzytelnienie może wcześniej usunąć blokadę."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy ma zbyt wiele aktywnych sesji",
+      "description": "Enphase odrzuciło uwierzytelnianie dla lokalizacji {site_id}, ponieważ konto ma zbyt wiele aktywnych sesji. Automatyczne ponawianie jest wstrzymane do {blocked_until}. Wyloguj się z innych sesji aplikacji lub przeglądarki Enphase, a następnie ponów uwierzytelnianie."
     },
     "rate_limited": {
       "title": "Enphase Energy ma ograniczenie zapytań",

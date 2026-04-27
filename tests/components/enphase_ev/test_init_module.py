@@ -48,6 +48,7 @@ from custom_components.enphase_ev.const import (
     CONF_SELECTED_TYPE_KEYS,
     CONF_SITE_ID,
     ISSUE_AUTH_BLOCKED,
+    ISSUE_TOO_MANY_ACTIVE_SESSIONS,
 )
 from custom_components.enphase_ev.device_types import type_identifier
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
@@ -1696,6 +1697,9 @@ async def test_registered_services_cover_branches(
         "auth_blocked",
         f"{ISSUE_AUTH_BLOCKED}_{site_id}",
         f"{ISSUE_AUTH_BLOCKED}_explicit-site",
+        ISSUE_TOO_MANY_ACTIVE_SESSIONS,
+        f"{ISSUE_TOO_MANY_ACTIVE_SESSIONS}_{site_id}",
+        f"{ISSUE_TOO_MANY_ACTIVE_SESSIONS}_explicit-site",
         "reauth_required",
         f"reauth_required_{site_id}",
         "reauth_required_explicit-site",

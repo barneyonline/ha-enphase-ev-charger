@@ -32,6 +32,9 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
     translations_dir = root / "translations"
     paths = [
         "issues.auth_blocked.description",
+        "issues.too_many_active_sessions.title",
+        "issues.too_many_active_sessions.description",
+        "config.error.too_many_active_sessions",
         "services.try_reauth_now.name",
         "services.try_reauth_now.description",
         "services.try_reauth_now.fields.device_id.name",
@@ -75,6 +78,11 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         assert "{site_id}" in issue, f"{name} missing {{site_id}} placeholder"
         assert (
             "{blocked_until}" in issue
+        ), f"{name} missing {{blocked_until}} placeholder"
+        sessions_issue = _at_path(data, "issues.too_many_active_sessions.description")
+        assert "{site_id}" in sessions_issue, f"{name} missing {{site_id}} placeholder"
+        assert (
+            "{blocked_until}" in sessions_issue
         ), f"{name} missing {{blocked_until}} placeholder"
 
 

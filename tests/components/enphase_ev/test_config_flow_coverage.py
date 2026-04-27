@@ -21,6 +21,7 @@ from custom_components.enphase_ev.api import (
     EnlightenAuthInvalidOTP,
     EnlightenAuthMFARequired,
     EnlightenAuthOTPBlocked,
+    EnlightenAuthTooManySessions,
     EnlightenAuthUnavailable,
     SiteInfo,
 )
@@ -128,6 +129,7 @@ def _patch_entry_lookup(monkeypatch, hass, *entries: MockConfigEntry) -> None:
     ("exc", "expected"),
     [
         (EnlightenAuthInvalidCredentials(), "invalid_auth"),
+        (EnlightenAuthTooManySessions(), "too_many_active_sessions"),
         (EnlightenAuthUnavailable(), "service_unavailable"),
         (ValueError("boom"), "unknown"),
     ],
@@ -487,6 +489,26 @@ async def test_mfa_step_resend_invalid_auth_restarts(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_mfa_step_resend_too_many_sessions_shows_error(hass) -> None:
+    flow = _make_flow(hass)
+    flow._mfa_tokens = AuthTokens(
+        cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"}
+    )
+    flow._email = "user@example.com"
+    flow._mfa_resend_available_at = None
+
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_resend_login_otp",
+        AsyncMock(side_effect=EnlightenAuthTooManySessions()),
+    ):
+        result = await flow.async_step_mfa({CONF_RESEND_CODE: True})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "mfa"
+    assert result["errors"] == {"base": "too_many_active_sessions"}
+
+
+@pytest.mark.asyncio
 async def test_mfa_step_auto_send_invalid_auth_restarts(hass) -> None:
     flow = _make_flow(hass)
     flow._mfa_tokens = AuthTokens(
@@ -556,6 +578,25 @@ async def test_mfa_step_validate_invalid_auth_restarts(hass) -> None:
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
     assert result["errors"] == {"base": "invalid_auth"}
+
+
+@pytest.mark.asyncio
+async def test_mfa_step_validate_too_many_sessions_shows_error(hass) -> None:
+    flow = _make_flow(hass)
+    flow._mfa_tokens = AuthTokens(
+        cookie="jar=1", raw_cookies={"login_otp_nonce": "nonce"}
+    )
+    flow._email = "user@example.com"
+
+    with patch(
+        "custom_components.enphase_ev.config_flow.async_validate_login_otp",
+        AsyncMock(side_effect=EnlightenAuthTooManySessions()),
+    ):
+        result = await flow.async_step_mfa({CONF_OTP: "123456"})
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "mfa"
+    assert result["errors"] == {"base": "too_many_active_sessions"}
 
 
 @pytest.mark.asyncio

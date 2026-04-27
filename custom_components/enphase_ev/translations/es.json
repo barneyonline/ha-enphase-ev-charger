@@ -61,6 +61,7 @@
       "invalid_auth": "Credenciales no válidas o sesión expirada.",
       "cannot_connect": "No se puede contactar con el servicio de Enphase.",
       "service_unavailable": "Enphase no está disponible temporalmente. Inténtelo de nuevo más tarde.",
+      "too_many_active_sessions": "Enphase rechazó el inicio de sesión porque hay demasiadas sesiones de cuenta activas. Cierre sesión en otras sesiones de la aplicación o del navegador de Enphase e inténtelo de nuevo más tarde.",
       "mfa_required": "La cuenta requiere autenticación multifactor.",
       "otp_required": "Introduzca el código de un solo uso.",
       "otp_invalid": "Código inválido o caducado. Inténtelo de nuevo.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase parece estar bloqueando temporalmente la autenticación del sitio {site_id}. Los reintentos automáticos están pausados hasta {blocked_until}. Una reautenticación manual correcta puede eliminar el bloqueo antes."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy tiene demasiadas sesiones activas",
+      "description": "Enphase rechazó la autenticación del sitio {site_id} porque hay demasiadas sesiones de cuenta activas. Los reintentos automáticos están pausados hasta {blocked_until}. Cierre sesión en otras sesiones de la aplicación o del navegador de Enphase y vuelva a intentar la reautenticación."
     },
     "rate_limited": {
       "title": "Enphase Energy tiene limitación",

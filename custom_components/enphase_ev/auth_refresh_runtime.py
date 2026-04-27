@@ -16,6 +16,7 @@ from homeassistant.util import dt as dt_util
 from .api import (
     EnlightenAuthInvalidCredentials,
     EnlightenAuthMFARequired,
+    EnlightenAuthTooManySessions,
     EnlightenAuthUnavailable,
     async_authenticate,
 )
@@ -280,6 +281,13 @@ class AuthRefreshRuntime:
         except EnlightenAuthMFARequired:
             self.note_auth_refresh_rejected(
                 "Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate"
+            )
+            return False
+        except EnlightenAuthTooManySessions:
+            self.note_login_wall_block(reason="too_many_active_sessions")
+            _LOGGER.warning(
+                "Enphase rejected stored-credential reauthentication because too many account sessions are active; automatic retries are paused for %s seconds",
+                int(AUTH_BLOCKED_COOLDOWN_S),
             )
             return False
         except EnlightenAuthUnavailable:

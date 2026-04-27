@@ -988,6 +988,10 @@ async def test_attempt_auto_refresh_coalesces_concurrent_calls(monkeypatch, hass
     coord._auth_refresh_task = None
     coord._auth_refresh_rejected_until = None
     coord._auth_refresh_rejected_ends_utc = None
+    coord.diagnostics = SimpleNamespace(
+        create_auth_block_issue=MagicMock(),
+        clear_auth_block_issue=MagicMock(),
+    )
     coord.client = SimpleNamespace(update_credentials=MagicMock())
     coord._persist_tokens = MagicMock()
 
@@ -1047,6 +1051,7 @@ async def test_attempt_auto_refresh_invalid_credentials_enter_cooldown(
     coord._auth_refresh_task = None
     coord._auth_refresh_rejected_until = None
     coord._auth_refresh_rejected_ends_utc = None
+    coord.diagnostics = SimpleNamespace(create_auth_block_issue=MagicMock())
     coord.client = SimpleNamespace(update_credentials=MagicMock())
     coord._persist_tokens = MagicMock()
 
@@ -1067,6 +1072,43 @@ async def test_attempt_auto_refresh_invalid_credentials_enter_cooldown(
     assert await coord._attempt_auto_refresh() is False
     assert calls == 1
     assert coord._auth_refresh_rejected_active() is True
+    coord.client.update_credentials.assert_not_called()
+    coord._persist_tokens.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_attempt_auto_refresh_too_many_sessions_enters_auth_block(
+    monkeypatch, hass
+):
+    from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.api import EnlightenAuthTooManySessions
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = None
+    coord.diagnostics = SimpleNamespace(create_auth_block_issue=MagicMock())
+    coord.client = SimpleNamespace(update_credentials=MagicMock())
+    coord._persist_tokens = MagicMock()
+
+    monkeypatch.setattr(
+        arr_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        arr_mod,
+        "async_authenticate",
+        AsyncMock(side_effect=EnlightenAuthTooManySessions()),
+    )
+
+    assert await coord._attempt_auto_refresh() is False
+    assert coord._auth_block_active() is True
+    assert coord._auth_block_reason == "too_many_active_sessions"
     coord.client.update_credentials.assert_not_called()
     coord._persist_tokens.assert_not_called()
 

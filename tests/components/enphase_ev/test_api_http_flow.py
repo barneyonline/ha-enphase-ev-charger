@@ -138,6 +138,20 @@ def test_extract_login_session_non_dict() -> None:
     assert api._extract_login_session(["session"]) == (None, None)
 
 
+def test_too_many_active_sessions_detection() -> None:
+    assert api._is_too_many_active_sessions_response(
+        {"message": "Too many active sessions.."}
+    )
+    assert api._is_too_many_active_sessions_response(
+        [{"error": "Too many current active sessions"}]
+    )
+    assert api._is_too_many_active_sessions_response(
+        '{"error":{"message":"Too many active sessions.."}}'
+    )
+    assert not api._is_too_many_active_sessions_response("[not-json")
+    assert not api._is_too_many_active_sessions_response({"message": "invalid login"})
+
+
 @pytest.mark.asyncio
 async def test_request_json_success_builds_kwargs() -> None:
     session = FakeSession([FakeResponse(json_body={"ok": True})])
@@ -167,6 +181,53 @@ async def test_request_json_raises_on_server_error() -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_json_raises_too_many_sessions_from_error_body() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                status=400,
+                headers={"Content-Type": "application/json"},
+                text_body='{"message":"Too many active sessions.."}',
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_json(session, "POST", api.LOGIN_URL, timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_json_error_body_text_unavailable_raises_response_error() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                status=400,
+                headers={"Content-Type": "application/json"},
+                raise_text=True,
+            )
+        ]
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await api._request_json(session, "POST", api.LOGIN_URL, timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_json_raises_too_many_sessions_from_success_payload() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "application/json"},
+                json_body={"message": "Too many active sessions.."},
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_json(session, "POST", api.LOGIN_URL, timeout=5)
+
+
+@pytest.mark.asyncio
 async def test_request_json_rejects_non_json_content() -> None:
     session = FakeSession(
         [
@@ -183,6 +244,21 @@ async def test_request_json_rejects_non_json_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_request_json_raises_too_many_sessions_from_non_json_body() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/plain"},
+                text_body="Too many active sessions..",
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_json(session, "POST", api.LOGIN_URL, timeout=5)
+
+
+@pytest.mark.asyncio
 async def test_request_mfa_json_allows_text_json() -> None:
     session = FakeSession(
         [
@@ -196,6 +272,102 @@ async def test_request_mfa_json_allows_text_json() -> None:
         session, "GET", "https://example.test", timeout=5
     )
     assert payload == {"success": True}
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_raises_too_many_sessions_from_json_payload() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "application/json"},
+                json_body={"message": "Too many active sessions.."},
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_mfa_json(session, "POST", api.MFA_VALIDATE_URL, timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_raises_too_many_sessions_from_text_payload() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/plain"},
+                text_body='{"message":"Too many active sessions.."}',
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_mfa_json(session, "POST", api.MFA_VALIDATE_URL, timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_raises_too_many_sessions_from_error_body() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                status=400,
+                headers={"Content-Type": "application/json"},
+                text_body='{"message":"Too many active sessions.."}',
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_mfa_json(session, "POST", api.MFA_VALIDATE_URL, timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_error_body_text_unavailable_raises_response_error() -> (
+    None
+):
+    session = FakeSession(
+        [
+            FakeResponse(
+                status=400,
+                headers={"Content-Type": "application/json"},
+                raise_text=True,
+            )
+        ]
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await api._request_mfa_json(session, "POST", api.MFA_VALIDATE_URL, timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_raises_too_many_sessions_from_escaped_text_json() -> (
+    None
+):
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/plain"},
+                text_body='{"message":"Too many active sess\\u0069ons.."}',
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_mfa_json(session, "POST", api.MFA_VALIDATE_URL, timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_request_mfa_json_raises_too_many_sessions_from_json_string() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/plain"},
+                text_body='"Too many active sess\\u0069ons.."',
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._request_mfa_json(session, "POST", api.MFA_VALIDATE_URL, timeout=5)
 
 
 @pytest.mark.asyncio
@@ -356,6 +528,53 @@ async def test_submit_login_form_raises_unavailable_on_server_error() -> None:
 
     with pytest.raises(api.EnlightenAuthUnavailable):
         await api._submit_login_form(session, "user@example.com", "secret", timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_submit_login_form_raises_too_many_sessions() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                status=400,
+                headers={"Content-Type": "application/json"},
+                text_body='{"message":"Too many active sessions.."}',
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._submit_login_form(session, "user@example.com", "secret", timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_submit_login_form_raises_too_many_sessions_from_success_body() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/html"},
+                text_body='{"message":"Too many active sessions.."}',
+            )
+        ]
+    )
+
+    with pytest.raises(api.EnlightenAuthTooManySessions):
+        await api._submit_login_form(session, "user@example.com", "secret", timeout=5)
+
+
+@pytest.mark.asyncio
+async def test_submit_login_form_ignores_unreadable_success_body() -> None:
+    session = FakeSession(
+        [
+            FakeResponse(
+                headers={"Content-Type": "text/html"},
+                raise_text=True,
+            )
+        ]
+    )
+
+    assert await api._submit_login_form(
+        session, "user@example.com", "secret", timeout=5
+    ) == (None, None)
 
 
 @pytest.mark.asyncio

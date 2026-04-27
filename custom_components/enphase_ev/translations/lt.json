@@ -61,6 +61,7 @@
       "invalid_auth": "Neteisingi prisijungimo duomenys arba pasibaigusi sesija.",
       "cannot_connect": "Nepavyksta pasiekti Enphase paslaugos.",
       "service_unavailable": "Enphase laikinai nepasiekiamas. Bandykite vėliau.",
+      "too_many_active_sessions": "Enphase atmetė prisijungimą, nes paskyroje yra per daug aktyvių seansų. Atsijunkite nuo kitų Enphase programos ar naršyklės seansų ir bandykite dar kartą vėliau.",
       "mfa_required": "Paskyrai reikalingas kelių veiksnių autentifikavimas.",
       "otp_required": "Įveskite vienkartinį kodą.",
       "otp_invalid": "Neteisingas arba pasibaigęs kodas. Bandykite dar kartą.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Atrodo, kad Enphase laikinai blokuoja svetainės {site_id} autentifikavimą. Automatiniai bandymai pristabdyti iki {blocked_until}. Sėkmingas rankinis pakartotinis autentifikavimas gali panaikinti bloką anksčiau."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy turi per daug aktyvių seansų",
+      "description": "Enphase atmetė svetainės {site_id} autentifikavimą, nes paskyroje yra per daug aktyvių seansų. Automatiniai pakartotiniai bandymai pristabdyti iki {blocked_until}. Atsijunkite nuo kitų Enphase programos ar naršyklės seansų ir tada bandykite autentifikuoti iš naujo."
     },
     "rate_limited": {
       "title": "Enphase Energy ribojamas",

@@ -61,6 +61,7 @@
       "invalid_auth": "Virheelliset kirjautumistiedot tai vanhentunut istunto.",
       "cannot_connect": "Enphase-palveluun ei saada yhteyttä.",
       "service_unavailable": "Enphase tilapäisesti poissa käytöstä. Yritä myöhemmin uudelleen.",
+      "too_many_active_sessions": "Enphase hylkäsi kirjautumisen, koska tilillä on liian monta aktiivista istuntoa. Kirjaudu ulos muista Enphase-sovelluksen tai selaimen istunnoista ja yritä myöhemmin uudelleen.",
       "mfa_required": "Tili vaatii monivaiheisen todennuksen.",
       "otp_required": "Syötä kertakoodi.",
       "otp_invalid": "Virheellinen tai vanhentunut koodi. Yritä uudelleen.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase näyttää estävän sivuston {site_id} todennuksen tilapäisesti. Automaattiset yritykset on keskeytetty aikaan {blocked_until} asti. Onnistunut manuaalinen uudelleentodennus voi poistaa eston aiemmin."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energyllä on liian monta aktiivista istuntoa",
+      "description": "Enphase hylkäsi sivuston {site_id} todennuksen, koska tilillä on liian monta aktiivista istuntoa. Automaattiset uudelleenyritykset on keskeytetty aikaan {blocked_until} asti. Kirjaudu ulos muista Enphase-sovelluksen tai selaimen istunnoista ja yritä sitten todennusta uudelleen."
     },
     "rate_limited": {
       "title": "Enphase Energy:n nopeus on rajoitettu",

@@ -61,6 +61,7 @@
       "invalid_auth": "Érvénytelen hitelesítő adatok vagy lejárt munkamenet.",
       "cannot_connect": "Nem érhető el az Enphase szolgáltatás.",
       "service_unavailable": "Az Enphase ideiglenesen nem elérhető. Próbálja meg később.",
+      "too_many_active_sessions": "Az Enphase elutasította a bejelentkezést, mert túl sok aktív fiókmunkamenet van. Jelentkezzen ki a többi Enphase alkalmazás- vagy böngészőmunkamenetből, majd próbálja újra később.",
       "mfa_required": "A fiók többtényezős hitelesítést igényel.",
       "otp_required": "Adja meg az egyszer használatos kódot.",
       "otp_invalid": "Érvénytelen vagy lejárt kód. Próbálja újra.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Úgy tűnik, az Enphase ideiglenesen blokkolja a(z) {site_id} hely hitelesítését. Az automatikus próbálkozások {blocked_until} időpontig szünetelnek. A sikeres kézi újrahitelesítés korábban is feloldhatja a blokkolást."
+    },
+    "too_many_active_sessions": {
+      "title": "Az Enphase Energy túl sok aktív munkamenettel rendelkezik",
+      "description": "Az Enphase elutasította a(z) {site_id} hely hitelesítését, mert túl sok aktív fiókmunkamenet van. Az automatikus újrapróbálkozások {blocked_until} időpontig szünetelnek. Jelentkezzen ki a többi Enphase alkalmazás- vagy böngészőmunkamenetből, majd próbálja meg újra a hitelesítést."
     },
     "rate_limited": {
       "title": "Enphase Energy korlátozott",

@@ -20,6 +20,7 @@ from .api import (
     EnlightenAuthInvalidOTP,
     EnlightenAuthMFARequired,
     EnlightenAuthOTPBlocked,
+    EnlightenAuthTooManySessions,
     EnlightenAuthUnavailable,
     async_authenticate,
     async_fetch_hems_devices,
@@ -254,6 +255,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                 tokens, sites = await async_authenticate(session, email, password)
             except EnlightenAuthInvalidCredentials:
                 errors["base"] = "invalid_auth"
+            except EnlightenAuthTooManySessions:
+                _LOGGER.warning(
+                    "Enlighten rejected login because too many account sessions are active"
+                )
+                errors["base"] = "too_many_active_sessions"
             except EnlightenAuthMFARequired as err:
                 self._email = email
                 self._remember_password = remember
@@ -377,6 +383,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                     except EnlightenAuthOTPBlocked:
                         _LOGGER.warning("MFA validation blocked by Enlighten")
                         errors["base"] = "otp_blocked"
+                    except EnlightenAuthTooManySessions:
+                        _LOGGER.warning(
+                            "Enlighten rejected MFA validation because too many account sessions are active"
+                        )
+                        errors["base"] = "too_many_active_sessions"
                     except EnlightenAuthInvalidCredentials:
                         return await self._restart_login_with_error("invalid_auth")
                     except EnlightenAuthUnavailable:
@@ -415,6 +426,11 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         except EnlightenAuthOTPBlocked:
             _LOGGER.warning("Enlighten MFA resend blocked")
             return {"base": "otp_blocked"}
+        except EnlightenAuthTooManySessions:
+            _LOGGER.warning(
+                "Enlighten rejected MFA resend because too many account sessions are active"
+            )
+            return {"base": "too_many_active_sessions"}
         except EnlightenAuthInvalidCredentials:
             return {"base": "invalid_auth"}
         except EnlightenAuthUnavailable:
