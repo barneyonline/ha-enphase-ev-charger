@@ -14,6 +14,7 @@ REFRESH_TASK_ENDPOINT_FAMILIES: dict[str, str] = {
     "battery_schedules_s": "battery_schedules",
     "storm_guard_s": "storm_guard",
     "storm_alert_s": "storm_alert",
+    "tariff_s": "tariff",
     "grid_control_check_s": "grid_control_check",
     "dry_contact_settings_s": "dry_contact_settings",
     "battery_status_s": "battery_status",
@@ -265,6 +266,12 @@ SITE_ONLY_FOLLOWUP_STAGE = RefreshStage(
             "storm_guard_s", "storm guard", "_async_refresh_storm_guard_profile"
         ),
         method_task("storm_alert_s", "storm alert", "_async_refresh_storm_alert"),
+        object_method_task(
+            "tariff_s",
+            "tariff",
+            "tariff_runtime",
+            "async_refresh",
+        ),
         object_method_task(
             "grid_control_check_s",
             "grid control",
@@ -566,6 +573,16 @@ def build_followup_plan(owner: object, *, force_full: bool = False) -> RefreshPl
                 "storm_alert_s",
                 "storm alert",
                 "_async_refresh_storm_alert",
+            )
+        )
+    tariff = getattr(owner, "tariff_runtime")
+    if tariff.refresh_due():
+        parallel.append(
+            object_method_task(
+                "tariff_s",
+                "tariff",
+                "tariff_runtime",
+                "async_refresh",
             )
         )
     if battery.grid_control_check_refresh_due():

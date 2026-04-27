@@ -40,6 +40,7 @@ Cloud-based Home Assistant integration for Enphase Energy systems.
 - Advisory firmware update entities for gateway and EV charger devices with locale-aware release-note links
 - Heat-pump runtime status, connectivity, SG-Ready mode, power, and current-day consumption details sourced from HEMS endpoints
 - Site and battery energy telemetry, including derived grid-import, grid-export, and battery power sensors for Home Assistant Energy Dashboard use
+- Read-only site tariff visibility for next billing date, import rate values, and export rate values when Enphase exposes tariff data; tariff values refresh with normal sensor polling and retain the last known values while the tariff backend is unavailable
 - Health diagnostics, service-availability tracking, and actionable repair issues
 - Detailed diagnostic and inventory entities remain available but are disabled by default when they are mainly useful for troubleshooting
 - Broad localization support across all user-facing integration strings

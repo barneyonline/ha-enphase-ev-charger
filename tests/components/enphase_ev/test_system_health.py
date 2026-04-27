@@ -63,6 +63,13 @@ async def test_system_health_info_reports_state(
         "firmware_catalog_source_age_seconds": 60.0,
         "last_failure_status": None,
         "last_failure_description": None,
+        "tariff_available": False,
+        "tariff_service_status": "degraded",
+        "tariff_last_error": "Tariff payload did not include data",
+        "tariff_failures": 1,
+        "tariff_backoff_active": True,
+        "tariff_backoff_ends_utc": "2026-04-26T01:00:00+00:00",
+        "degraded_services": ["tariff"],
     }
 
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
@@ -91,6 +98,13 @@ async def test_system_health_info_reports_state(
     assert info["session_cache_ttl_s"] == 300
     assert info["firmware_catalog_generated_at"] == "2026-03-01T00:00:00Z"
     assert info["firmware_catalog_source_age_seconds"] == 60.0
+    assert info["tariff_available"] is False
+    assert info["tariff_service_status"] == "degraded"
+    assert info["tariff_last_error"] == "Tariff payload did not include data"
+    assert info["tariff_failures"] == 1
+    assert info["tariff_backoff_active"] is True
+    assert info["tariff_backoff_ends_utc"] == "2026-04-26T01:00:00+00:00"
+    assert info["degraded_services"] == ["tariff"]
 
 
 @pytest.mark.asyncio

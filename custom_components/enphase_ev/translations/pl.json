@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Ostatni raport dotyczący bramy"
       },
+      "tariff_billing_cycle": {
+        "name": "Nastepna data rozliczenia",
+        "state_attributes": {
+          "start_date": {
+            "name": "Data poczatku"
+          },
+          "billing_frequency": {
+            "name": "Czestotliwosc rozliczen"
+          },
+          "billing_interval_value": {
+            "name": "Wartosc interwalu rozliczen"
+          },
+          "last_refresh_utc": {
+            "name": "Ostatnie odswiezenie (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Cykl rozliczeniowy"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Taryfa importu",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura taryfy"
+          },
+          "variation_type": {
+            "name": "Typ wariantu"
+          },
+          "source": {
+            "name": "Zrodlo"
+          },
+          "currency": {
+            "name": "Waluta"
+          },
+          "seasons": {
+            "name": "Sezony"
+          },
+          "last_refresh_utc": {
+            "name": "Ostatnie odswiezenie (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Taryfa importu {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura taryfy"
+          },
+          "variation_type": {
+            "name": "Typ wariantu"
+          },
+          "source": {
+            "name": "Zrodlo"
+          },
+          "currency": {
+            "name": "Waluta"
+          },
+          "season_id": {
+            "name": "ID sezonu"
+          },
+          "start_month": {
+            "name": "Miesiąc początkowy"
+          },
+          "end_month": {
+            "name": "Miesiąc końcowy"
+          },
+          "day_group_id": {
+            "name": "ID grupy dni"
+          },
+          "days": {
+            "name": "Dni"
+          },
+          "period_id": {
+            "name": "ID okresu"
+          },
+          "period_type": {
+            "name": "Typ okresu"
+          },
+          "start_time": {
+            "name": "Czas rozpoczęcia"
+          },
+          "end_time": {
+            "name": "Czas zakończenia"
+          },
+          "rate": {
+            "name": "Stawka"
+          },
+          "formatted_rate": {
+            "name": "Sformatowana stawka"
+          },
+          "tier_id": {
+            "name": "ID progu"
+          },
+          "start_value": {
+            "name": "Wartość początkowa"
+          },
+          "end_value": {
+            "name": "Wartość końcowa"
+          },
+          "unbounded": {
+            "name": "Bez górnego limitu"
+          },
+          "last_refresh_utc": {
+            "name": "Ostatnie odswiezenie (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Taryfa eksportu",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura taryfy"
+          },
+          "variation_type": {
+            "name": "Typ wariantu"
+          },
+          "source": {
+            "name": "Zrodlo"
+          },
+          "currency": {
+            "name": "Waluta"
+          },
+          "export_plan": {
+            "name": "Plan eksportu"
+          },
+          "seasons": {
+            "name": "Sezony"
+          },
+          "last_refresh_utc": {
+            "name": "Ostatnie odswiezenie (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Taryfa eksportu {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura taryfy"
+          },
+          "variation_type": {
+            "name": "Typ wariantu"
+          },
+          "source": {
+            "name": "Zrodlo"
+          },
+          "currency": {
+            "name": "Waluta"
+          },
+          "export_plan": {
+            "name": "Plan eksportu"
+          },
+          "season_id": {
+            "name": "ID sezonu"
+          },
+          "start_month": {
+            "name": "Miesiąc początkowy"
+          },
+          "end_month": {
+            "name": "Miesiąc końcowy"
+          },
+          "day_group_id": {
+            "name": "ID grupy dni"
+          },
+          "days": {
+            "name": "Dni"
+          },
+          "period_id": {
+            "name": "ID okresu"
+          },
+          "period_type": {
+            "name": "Typ okresu"
+          },
+          "start_time": {
+            "name": "Czas rozpoczęcia"
+          },
+          "end_time": {
+            "name": "Czas zakończenia"
+          },
+          "rate": {
+            "name": "Stawka"
+          },
+          "formatted_rate": {
+            "name": "Sformatowana stawka"
+          },
+          "tier_id": {
+            "name": "ID progu"
+          },
+          "start_value": {
+            "name": "Wartość początkowa"
+          },
+          "end_value": {
+            "name": "Wartość końcowa"
+          },
+          "unbounded": {
+            "name": "Bez górnego limitu"
+          },
+          "last_refresh_utc": {
+            "name": "Ostatnie odswiezenie (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Stan łączności mikroinwerterów"
       },

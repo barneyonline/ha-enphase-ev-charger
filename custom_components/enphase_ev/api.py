@@ -2365,6 +2365,24 @@ class EnphaseEVClient:
                 headers["X-XSRF-Token"] = xsrf
         return headers
 
+    def _tariff_headers(self) -> dict[str, str | None]:
+        """Return headers for tariff microservice read calls."""
+
+        token, user_id = self._battery_config_auth_context()
+        headers: dict[str, str | None] = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Cookie": self._cookie or None,
+            "e-auth-token": token,
+            "Requestid": str(uuid.uuid4()),
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        if user_id:
+            headers["Username"] = user_id
+        xsrf = self._xsrf_token()
+        if xsrf:
+            headers["x-xsrf-token"] = xsrf
+        return headers
+
     def _battery_config_cookie_eauth_headers(
         self,
         *,
@@ -4912,6 +4930,34 @@ class EnphaseEVClient:
         url = f"{BASE_URL}/service/batteryConfig/api/v1/siteSettings/{self._site}"
         params = self._battery_config_params()
         return await self._battery_config_request("GET", url, params=params)
+
+    async def site_tariff_billing_details(self) -> dict:
+        """Return site tariff billing-cycle details."""
+
+        url = (
+            f"{BASE_URL}/service/tariff/tariff-ms/systems/{self._site}/billing-details"
+        )
+        return await self._json("GET", url, headers=self._tariff_headers())
+
+    async def site_tariff(self) -> dict:
+        """Return site import/export tariff configuration."""
+
+        url = f"{BASE_URL}/service/tariff/tariff-ms/systems/{self._site}/tariff"
+        return await self._json(
+            "GET",
+            url,
+            params={"include-site-details": "true"},
+            headers=self._tariff_headers(),
+        )
+
+    async def site_tariff_bundle(self) -> tuple[dict, dict]:
+        """Return billing details and tariff configuration for the site."""
+
+        billing, tariff = await asyncio.gather(
+            self.site_tariff_billing_details(),
+            self.site_tariff(),
+        )
+        return billing, tariff
 
     async def battery_profile_details(self, *, locale: str | None = None) -> dict:
         """Return BatteryConfig profile details for system + EVSE settings."""

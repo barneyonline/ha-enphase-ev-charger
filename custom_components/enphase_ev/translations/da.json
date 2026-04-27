@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway sidst rapporteret"
       },
+      "tariff_billing_cycle": {
+        "name": "Naeste faktureringsdato",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdato"
+          },
+          "billing_frequency": {
+            "name": "Faktureringsfrekvens"
+          },
+          "billing_interval_value": {
+            "name": "Faktureringsintervalvaerdi"
+          },
+          "last_refresh_utc": {
+            "name": "Seneste opdatering (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Faktureringscyklus"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Importtarif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "seasons": {
+            "name": "Saesoner"
+          },
+          "last_refresh_utc": {
+            "name": "Seneste opdatering (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Importtarif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Sæson-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Slutmåned"
+          },
+          "day_group_id": {
+            "name": "Dagsgruppe-ID"
+          },
+          "days": {
+            "name": "Dage"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Takst"
+          },
+          "formatted_rate": {
+            "name": "Formateret takst"
+          },
+          "tier_id": {
+            "name": "Trin-ID"
+          },
+          "start_value": {
+            "name": "Startværdi"
+          },
+          "end_value": {
+            "name": "Slutværdi"
+          },
+          "unbounded": {
+            "name": "Uden øvre grænse"
+          },
+          "last_refresh_utc": {
+            "name": "Seneste opdatering (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Eksporttarif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksportplan"
+          },
+          "seasons": {
+            "name": "Saesoner"
+          },
+          "last_refresh_utc": {
+            "name": "Seneste opdatering (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Eksporttarif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksportplan"
+          },
+          "season_id": {
+            "name": "Sæson-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Slutmåned"
+          },
+          "day_group_id": {
+            "name": "Dagsgruppe-ID"
+          },
+          "days": {
+            "name": "Dage"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Takst"
+          },
+          "formatted_rate": {
+            "name": "Formateret takst"
+          },
+          "tier_id": {
+            "name": "Trin-ID"
+          },
+          "start_value": {
+            "name": "Startværdi"
+          },
+          "end_value": {
+            "name": "Slutværdi"
+          },
+          "unbounded": {
+            "name": "Uden øvre grænse"
+          },
+          "last_refresh_utc": {
+            "name": "Seneste opdatering (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Forbindelsesstatus for mikroinvertere"
       },

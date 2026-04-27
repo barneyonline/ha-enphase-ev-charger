@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Последно докладван шлюз"
       },
+      "tariff_billing_cycle": {
+        "name": "Sledvashta data na fakturirane",
+        "state_attributes": {
+          "start_date": {
+            "name": "Nachalna data"
+          },
+          "billing_frequency": {
+            "name": "Chestota na fakturirane"
+          },
+          "billing_interval_value": {
+            "name": "Stoynost na intervala za fakturirane"
+          },
+          "last_refresh_utc": {
+            "name": "Posledno opresnyavane (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Cikul na fakturirane"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Tarifa za vnos",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura na tarifata"
+          },
+          "variation_type": {
+            "name": "Tip variacia"
+          },
+          "source": {
+            "name": "Iztochnik"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "seasons": {
+            "name": "Sezoni"
+          },
+          "last_refresh_utc": {
+            "name": "Posledno opresnyavane (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Tarifa za vnos {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura na tarifata"
+          },
+          "variation_type": {
+            "name": "Tip variacia"
+          },
+          "source": {
+            "name": "Iztochnik"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "ID на сезон"
+          },
+          "start_month": {
+            "name": "Начален месец"
+          },
+          "end_month": {
+            "name": "Краен месец"
+          },
+          "day_group_id": {
+            "name": "ID на група дни"
+          },
+          "days": {
+            "name": "Дни"
+          },
+          "period_id": {
+            "name": "ID на период"
+          },
+          "period_type": {
+            "name": "Тип период"
+          },
+          "start_time": {
+            "name": "Начален час"
+          },
+          "end_time": {
+            "name": "Краен час"
+          },
+          "rate": {
+            "name": "Тарифа"
+          },
+          "formatted_rate": {
+            "name": "Форматирана тарифа"
+          },
+          "tier_id": {
+            "name": "ID на стъпало"
+          },
+          "start_value": {
+            "name": "Начална стойност"
+          },
+          "end_value": {
+            "name": "Крайна стойност"
+          },
+          "unbounded": {
+            "name": "Без горна граница"
+          },
+          "last_refresh_utc": {
+            "name": "Posledno opresnyavane (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Tarifa za iznos",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura na tarifata"
+          },
+          "variation_type": {
+            "name": "Tip variacia"
+          },
+          "source": {
+            "name": "Iztochnik"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Plan za iznos"
+          },
+          "seasons": {
+            "name": "Sezoni"
+          },
+          "last_refresh_utc": {
+            "name": "Posledno opresnyavane (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Tarifa za iznos {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Struktura na tarifata"
+          },
+          "variation_type": {
+            "name": "Tip variacia"
+          },
+          "source": {
+            "name": "Iztochnik"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Plan za iznos"
+          },
+          "season_id": {
+            "name": "ID на сезон"
+          },
+          "start_month": {
+            "name": "Начален месец"
+          },
+          "end_month": {
+            "name": "Краен месец"
+          },
+          "day_group_id": {
+            "name": "ID на група дни"
+          },
+          "days": {
+            "name": "Дни"
+          },
+          "period_id": {
+            "name": "ID на период"
+          },
+          "period_type": {
+            "name": "Тип период"
+          },
+          "start_time": {
+            "name": "Начален час"
+          },
+          "end_time": {
+            "name": "Краен час"
+          },
+          "rate": {
+            "name": "Тарифа"
+          },
+          "formatted_rate": {
+            "name": "Форматирана тарифа"
+          },
+          "tier_id": {
+            "name": "ID на стъпало"
+          },
+          "start_value": {
+            "name": "Начална стойност"
+          },
+          "end_value": {
+            "name": "Крайна стойност"
+          },
+          "unbounded": {
+            "name": "Без горна граница"
+          },
+          "last_refresh_utc": {
+            "name": "Posledno opresnyavane (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Състояние на свързаността на микроинверторите"
       },

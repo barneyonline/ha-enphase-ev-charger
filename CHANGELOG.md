@@ -8,7 +8,8 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added read-only site tariff sensors for next billing date, import rate values, and export rate values, attached to the IQ Gateway device when available.
+- Tariff sensors now refresh with normal sensor polling and keep their last known values while the Enphase tariff backend is degraded.
 
 ### 🐛 Bug fixes
 - Bounded the `Current Production Power` live-sample cache so stale values are not reused indefinitely when the latest-power endpoint stops returning valid samples.

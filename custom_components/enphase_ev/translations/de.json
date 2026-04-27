@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Zuletzt gemeldetes Gateway"
       },
+      "tariff_billing_cycle": {
+        "name": "Naechstes Abrechnungsdatum",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "billing_frequency": {
+            "name": "Abrechnungshaeufigkeit"
+          },
+          "billing_interval_value": {
+            "name": "Abrechnungsintervallwert"
+          },
+          "last_refresh_utc": {
+            "name": "Letzte Aktualisierung (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Abrechnungszyklus"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Importtarif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Quelle"
+          },
+          "currency": {
+            "name": "Waehrung"
+          },
+          "seasons": {
+            "name": "Saisons"
+          },
+          "last_refresh_utc": {
+            "name": "Letzte Aktualisierung (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Importtarif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Quelle"
+          },
+          "currency": {
+            "name": "Waehrung"
+          },
+          "season_id": {
+            "name": "Saison-ID"
+          },
+          "start_month": {
+            "name": "Startmonat"
+          },
+          "end_month": {
+            "name": "Endmonat"
+          },
+          "day_group_id": {
+            "name": "Tagesgruppen-ID"
+          },
+          "days": {
+            "name": "Tage"
+          },
+          "period_id": {
+            "name": "Perioden-ID"
+          },
+          "period_type": {
+            "name": "Periodentyp"
+          },
+          "start_time": {
+            "name": "Startzeit"
+          },
+          "end_time": {
+            "name": "Endzeit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Formatierter Tarif"
+          },
+          "tier_id": {
+            "name": "Stufen-ID"
+          },
+          "start_value": {
+            "name": "Startwert"
+          },
+          "end_value": {
+            "name": "Endwert"
+          },
+          "unbounded": {
+            "name": "Unbegrenzt"
+          },
+          "last_refresh_utc": {
+            "name": "Letzte Aktualisierung (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Exporttarif",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Quelle"
+          },
+          "currency": {
+            "name": "Waehrung"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "seasons": {
+            "name": "Saisons"
+          },
+          "last_refresh_utc": {
+            "name": "Letzte Aktualisierung (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Exporttarif {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Quelle"
+          },
+          "currency": {
+            "name": "Waehrung"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "season_id": {
+            "name": "Saison-ID"
+          },
+          "start_month": {
+            "name": "Startmonat"
+          },
+          "end_month": {
+            "name": "Endmonat"
+          },
+          "day_group_id": {
+            "name": "Tagesgruppen-ID"
+          },
+          "days": {
+            "name": "Tage"
+          },
+          "period_id": {
+            "name": "Perioden-ID"
+          },
+          "period_type": {
+            "name": "Periodentyp"
+          },
+          "start_time": {
+            "name": "Startzeit"
+          },
+          "end_time": {
+            "name": "Endzeit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Formatierter Tarif"
+          },
+          "tier_id": {
+            "name": "Stufen-ID"
+          },
+          "start_value": {
+            "name": "Startwert"
+          },
+          "end_value": {
+            "name": "Endwert"
+          },
+          "unbounded": {
+            "name": "Unbegrenzt"
+          },
+          "last_refresh_utc": {
+            "name": "Letzte Aktualisierung (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Konnektivitätsstatus der Mikrowechselrichter"
       },

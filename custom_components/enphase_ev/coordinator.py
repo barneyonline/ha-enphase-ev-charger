@@ -149,6 +149,7 @@ from .refresh_plan import (
     build_site_only_followup_plan,
 )
 from .refresh_runner import RefreshRunner
+from .tariff import TariffRuntime
 from .service_validation import raise_translated_service_validation
 from .state_models import (
     BatteryControlCapability,
@@ -219,6 +220,7 @@ COORDINATOR_RUNTIME_CLASSES: dict[str, type] = {
     "current_power_runtime": CurrentPowerRuntime,
     "auth_refresh_runtime": AuthRefreshRuntime,
     "evse_feature_flags_runtime": EvseFeatureFlagsRuntime,
+    "tariff_runtime": TariffRuntime,
 }
 
 
@@ -493,6 +495,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._ensure_coordinator_runtime("current_power_runtime")
         self._ensure_coordinator_runtime("auth_refresh_runtime")
         self._ensure_coordinator_runtime("evse_feature_flags_runtime")
+        self._ensure_coordinator_runtime("tariff_runtime")
         self.inventory_runtime = InventoryRuntime(self)
         self.discovery_snapshot = DiscoverySnapshotManager(self)
         self.inventory_view = InventoryView(self)
@@ -652,6 +655,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 success_ttl_s=60.0,
                 failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
                 max_backoff_s=3600.0,
+                support_state_on_success=True,
+            ),
+            "tariff": EndpointFamilyPolicy(
+                success_ttl_s=None,
+                stale_after_s=86400.0,
+                failure_backoff_schedule_s=(60.0, 60.0, 60.0, 60.0),
+                max_backoff_s=60.0,
+                optional=True,
+                suppress_after_failures=3,
                 support_state_on_success=True,
             ),
             "inventory_topology": EndpointFamilyPolicy(
@@ -2333,7 +2345,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.discovery_snapshot.sync_site_energy_discovery_state()
         self._sync_site_energy_issue()
         phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
-        if not context.first_refresh:
+        if context.first_refresh:
+            timing_key, duration = await self.refresh_runner.async_run_refresh_call(
+                "tariff_s",
+                "tariff",
+                lambda: self.tariff_runtime.async_refresh(force=True),
+                endpoint_family="tariff",
+            )
+            if duration is not None:
+                phase_timings[timing_key] = duration
+        else:
             followup_plan = build_site_only_followup_plan(
                 self,
                 force_full=self.endpoint_manual_bypass_active(),
@@ -2382,7 +2403,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self,
         context: RefreshPipelineContext,
     ) -> None:
-        if not context.first_refresh:
+        if context.first_refresh:
+            timing_key, duration = await self.refresh_runner.async_run_refresh_call(
+                "tariff_s",
+                "tariff",
+                lambda: self.tariff_runtime.async_refresh(force=True),
+                endpoint_family="tariff",
+            )
+            if duration is not None:
+                context.phase_timings[timing_key] = duration
+        else:
             followup_plan = build_followup_plan(
                 self,
                 force_full=self.endpoint_manual_bypass_active(),

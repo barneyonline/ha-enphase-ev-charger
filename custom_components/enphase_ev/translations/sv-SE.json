@@ -1138,6 +1138,208 @@
       "gateway_last_reported": {
         "name": "Gateway senast rapporterad"
       },
+      "tariff_billing_cycle": {
+        "name": "Nasta faktureringsdatum",
+        "state_attributes": {
+          "start_date": {
+            "name": "Startdatum"
+          },
+          "billing_frequency": {
+            "name": "Faktureringsfrekvens"
+          },
+          "billing_interval_value": {
+            "name": "Faktureringsintervallvaerde"
+          },
+          "last_refresh_utc": {
+            "name": "Senaste uppdatering (UTC)"
+          },
+          "billing_cycle": {
+            "name": "Faktureringscykel"
+          }
+        }
+      },
+      "tariff_import_rate": {
+        "name": "Importtariff",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Kaella"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "seasons": {
+            "name": "Saesonger"
+          },
+          "last_refresh_utc": {
+            "name": "Senaste uppdatering (UTC)"
+          }
+        }
+      },
+      "tariff_import_rate_value": {
+        "name": "Importtariff {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Kaella"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Säsongs-ID"
+          },
+          "start_month": {
+            "name": "Startmånad"
+          },
+          "end_month": {
+            "name": "Slutmånad"
+          },
+          "day_group_id": {
+            "name": "Daggrupps-ID"
+          },
+          "days": {
+            "name": "Dagar"
+          },
+          "period_id": {
+            "name": "Period-ID"
+          },
+          "period_type": {
+            "name": "Periodtyp"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formaterat pris"
+          },
+          "tier_id": {
+            "name": "Nivå-ID"
+          },
+          "start_value": {
+            "name": "Startvärde"
+          },
+          "end_value": {
+            "name": "Slutvärde"
+          },
+          "unbounded": {
+            "name": "Utan övre gräns"
+          },
+          "last_refresh_utc": {
+            "name": "Senaste uppdatering (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate": {
+        "name": "Exporttariff",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Kaella"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "seasons": {
+            "name": "Saesonger"
+          },
+          "last_refresh_utc": {
+            "name": "Senaste uppdatering (UTC)"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Exporttariff {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variationstyp"
+          },
+          "source": {
+            "name": "Kaella"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "season_id": {
+            "name": "Säsongs-ID"
+          },
+          "start_month": {
+            "name": "Startmånad"
+          },
+          "end_month": {
+            "name": "Slutmånad"
+          },
+          "day_group_id": {
+            "name": "Daggrupps-ID"
+          },
+          "days": {
+            "name": "Dagar"
+          },
+          "period_id": {
+            "name": "Period-ID"
+          },
+          "period_type": {
+            "name": "Periodtyp"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formaterat pris"
+          },
+          "tier_id": {
+            "name": "Nivå-ID"
+          },
+          "start_value": {
+            "name": "Startvärde"
+          },
+          "end_value": {
+            "name": "Slutvärde"
+          },
+          "unbounded": {
+            "name": "Utan övre gräns"
+          },
+          "last_refresh_utc": {
+            "name": "Senaste uppdatering (UTC)"
+          }
+        }
+      },
       "microinverter_connectivity_status": {
         "name": "Anslutningsstatus för mikroväxelriktare"
       },
