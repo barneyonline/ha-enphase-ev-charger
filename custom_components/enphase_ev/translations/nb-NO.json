@@ -61,6 +61,7 @@
       "invalid_auth": "Ugyldige legitimasjonsopplysninger eller utløpt økt.",
       "cannot_connect": "Kan ikke nå Enphase-tjenesten.",
       "service_unavailable": "Enphase er midlertidig utilgjengelig. Prøv igjen senere.",
+      "too_many_active_sessions": "Enphase avviste innloggingen fordi kontoen har for mange aktive økter. Logg ut av andre Enphase-app- eller nettleserøkter, og prøv igjen senere.",
       "mfa_required": "Kontoen krever tofaktorautentisering.",
       "otp_required": "Skriv inn engangskoden.",
       "otp_invalid": "Ugyldig eller utløpt kode. Prøv igjen.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase ser ut til å blokkere autentisering midlertidig for anlegg {site_id}. Automatiske forsøk er pauset til {blocked_until}. En vellykket manuell reautentisering kan fjerne blokkeringen tidligere."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy har for mange aktive økter",
+      "description": "Enphase avviste autentisering for stedet {site_id} fordi kontoen har for mange aktive økter. Automatiske forsøk er satt på pause til {blocked_until}. Logg ut av andre Enphase-app- eller nettleserøkter, og prøv deretter å autentisere på nytt."
     },
     "rate_limited": {
       "title": "Enphase Energy er ratebegrenset",

@@ -61,6 +61,7 @@
       "invalid_auth": "Ongeldige inloggegevens of verlopen sessie.",
       "cannot_connect": "Kan de Enphase-service niet bereiken.",
       "service_unavailable": "Enphase tijdelijk niet beschikbaar. Probeer het later opnieuw.",
+      "too_many_active_sessions": "Enphase heeft de aanmelding geweigerd omdat er te veel accountsessies actief zijn. Meld u af bij andere Enphase-app- of browsersessies en probeer het later opnieuw.",
       "mfa_required": "Account vereist multi-factor authenticatie.",
       "otp_required": "Voer de eenmalige code in.",
       "otp_invalid": "Ongeldige of verlopen code. Probeer opnieuw.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase lijkt de authenticatie voor site {site_id} tijdelijk te blokkeren. Automatische pogingen zijn gepauzeerd tot {blocked_until}. Een geslaagde handmatige herauthenticatie kan de blokkade eerder opheffen."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy heeft te veel actieve sessies",
+      "description": "Enphase heeft de authenticatie voor locatie {site_id} geweigerd omdat er te veel accountsessies actief zijn. Automatische pogingen zijn gepauzeerd tot {blocked_until}. Meld u af bij andere Enphase-app- of browsersessies en probeer daarna opnieuw te authenticeren."
     },
     "rate_limited": {
       "title": "Enphase Energy is beperkt door rate limiting",

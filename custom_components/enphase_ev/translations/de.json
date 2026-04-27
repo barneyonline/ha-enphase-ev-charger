@@ -61,6 +61,7 @@
       "invalid_auth": "Ungültige Zugangsdaten oder Sitzung abgelaufen.",
       "cannot_connect": "Enphase-Dienst nicht erreichbar.",
       "service_unavailable": "Enphase ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut.",
+      "too_many_active_sessions": "Enphase hat die Anmeldung abgelehnt, weil zu viele Kontositzungen aktiv sind. Melden Sie sich von anderen Enphase-App- oder Browser-Sitzungen ab und versuchen Sie es später erneut.",
       "mfa_required": "Für dieses Konto ist eine Multi-Faktor-Authentifizierung erforderlich.",
       "otp_required": "Bitte den Einmalcode eingeben.",
       "otp_invalid": "Ungültiger oder abgelaufener Code. Bitte erneut versuchen.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase scheint die Authentifizierung für Standort {site_id} vorübergehend zu blockieren. Automatische Versuche sind bis {blocked_until} pausiert. Eine erfolgreiche manuelle erneute Authentifizierung kann die Blockierung früher aufheben."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy hat zu viele aktive Sitzungen",
+      "description": "Enphase hat die Authentifizierung für Standort {site_id} abgelehnt, weil zu viele Kontositzungen aktiv sind. Automatische Wiederholungen sind bis {blocked_until} pausiert. Melden Sie sich von anderen Enphase-App- oder Browser-Sitzungen ab und versuchen Sie die erneute Authentifizierung danach erneut."
     },
     "rate_limited": {
       "title": "Enphase Energy ist rate-limitiert",

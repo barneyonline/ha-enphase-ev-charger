@@ -61,6 +61,7 @@
       "invalid_auth": "Nederīgi pieteikšanās dati vai beigusies sesija.",
       "cannot_connect": "Nevar sasniegt Enphase pakalpojumu.",
       "service_unavailable": "Enphase īslaicīgi nav pieejams. Mēģiniet vēlāk.",
+      "too_many_active_sessions": "Enphase noraidīja pieteikšanos, jo kontā ir pārāk daudz aktīvu sesiju. Izrakstieties no citām Enphase lietotnes vai pārlūkprogrammas sesijām un mēģiniet vēlreiz vēlāk.",
       "mfa_required": "Kontam ir nepieciešama daudzfaktoru autentifikācija.",
       "otp_required": "Ievadiet vienreiz lietojamo kodu.",
       "otp_invalid": "Nederīgs vai beidzies kods. Mēģiniet vēlreiz.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Šķiet, ka Enphase īslaicīgi bloķē vietnes {site_id} autentifikāciju. Automātiskie mēģinājumi ir apturēti līdz {blocked_until}. Veiksmīga manuāla atkārtota autentifikācija var noņemt bloķēšanu agrāk."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy ir pārāk daudz aktīvu sesiju",
+      "description": "Enphase noraidīja vietnes {site_id} autentifikāciju, jo kontā ir pārāk daudz aktīvu sesiju. Automātiskie atkārtotie mēģinājumi ir apturēti līdz {blocked_until}. Izrakstieties no citām Enphase lietotnes vai pārlūkprogrammas sesijām un pēc tam mēģiniet autentificēties vēlreiz."
     },
     "rate_limited": {
       "title": "Enphase Energy ir ierobežots",

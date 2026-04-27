@@ -61,6 +61,7 @@
       "invalid_auth": "Neplatné přihlašovací údaje nebo vypršená relace.",
       "cannot_connect": "Nelze se připojit ke službě Enphase.",
       "service_unavailable": "Enphase je dočasně nedostupné. Zkuste to později.",
+      "too_many_active_sessions": "Enphase odmítlo přihlášení, protože je aktivních příliš mnoho relací účtu. Odhlaste se z jiných relací aplikace nebo prohlížeče Enphase a zkuste to později znovu.",
       "mfa_required": "Účet vyžaduje vícefaktorové ověření.",
       "otp_required": "Zadejte jednorázový kód.",
       "otp_invalid": "Neplatný nebo vypršený kód. Zkuste to znovu.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase zřejmě dočasně blokuje ověření pro lokalitu {site_id}. Automatické pokusy jsou pozastaveny do {blocked_until}. Úspěšné ruční opětovné ověření může blokování ukončit dříve."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy má příliš mnoho aktivních relací",
+      "description": "Enphase odmítlo ověření pro lokalitu {site_id}, protože je aktivních příliš mnoho relací účtu. Automatické opakování je pozastaveno do {blocked_until}. Odhlaste se z jiných relací aplikace nebo prohlížeče Enphase a poté zkuste ověření znovu."
     },
     "rate_limited": {
       "title": "Enphase Energy je omezeno limitem",

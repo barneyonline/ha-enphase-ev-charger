@@ -19,7 +19,12 @@ from .battery_schedule_editor import (
     battery_schedule_overlap_placeholders,
     battery_schedule_overlap_record,
 )
-from .const import DOMAIN, ISSUE_AUTH_BLOCKED, ISSUE_REAUTH_REQUIRED
+from .const import (
+    DOMAIN,
+    ISSUE_AUTH_BLOCKED,
+    ISSUE_REAUTH_REQUIRED,
+    ISSUE_TOO_MANY_ACTIVE_SESSIONS,
+)
 from .device_types import parse_type_identifier
 from .log_redaction import redact_site_id
 from .parsing_helpers import coerce_optional_bool
@@ -679,10 +684,15 @@ def async_setup_services(
         if explicit:
             site_ids.add(str(explicit))
 
-        issue_ids = {ISSUE_REAUTH_REQUIRED, ISSUE_AUTH_BLOCKED}
+        issue_ids = {
+            ISSUE_REAUTH_REQUIRED,
+            ISSUE_AUTH_BLOCKED,
+            ISSUE_TOO_MANY_ACTIVE_SESSIONS,
+        }
         for site_id in site_ids:
             issue_ids.add(f"{ISSUE_REAUTH_REQUIRED}_{site_id}")
             issue_ids.add(f"{ISSUE_AUTH_BLOCKED}_{site_id}")
+            issue_ids.add(f"{ISSUE_TOO_MANY_ACTIVE_SESSIONS}_{site_id}")
         for issue_id in issue_ids:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
 

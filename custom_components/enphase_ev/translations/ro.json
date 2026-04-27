@@ -61,6 +61,7 @@
       "invalid_auth": "Credențiale invalide sau sesiune expirată.",
       "cannot_connect": "Nu se poate contacta serviciul Enphase.",
       "service_unavailable": "Enphase este temporar indisponibil. Încercați din nou mai târziu.",
+      "too_many_active_sessions": "Enphase a respins autentificarea deoarece există prea multe sesiuni active ale contului. Deconectați-vă din alte sesiuni ale aplicației sau browserului Enphase și încercați din nou mai târziu.",
       "mfa_required": "Contul necesită autentificare multifactor.",
       "otp_required": "Introduceți codul de unică folosință.",
       "otp_invalid": "Cod invalid sau expirat. Încercați din nou.",
@@ -1784,6 +1785,10 @@
     "auth_blocked": {
       "title": "Enphase Energy authentication temporarily blocked",
       "description": "Enphase pare să blocheze temporar autentificarea pentru site-ul {site_id}. Încercările automate sunt întrerupte până la {blocked_until}. O reautentificare manuală reușită poate elimina blocarea mai devreme."
+    },
+    "too_many_active_sessions": {
+      "title": "Enphase Energy are prea multe sesiuni active",
+      "description": "Enphase a respins autentificarea pentru site-ul {site_id} deoarece există prea multe sesiuni active ale contului. Reîncercările automate sunt suspendate până la {blocked_until}. Deconectați-vă din alte sesiuni ale aplicației sau browserului Enphase, apoi reîncercați autentificarea."
     },
     "rate_limited": {
       "title": "Enphase Energy are limitare de rată",
