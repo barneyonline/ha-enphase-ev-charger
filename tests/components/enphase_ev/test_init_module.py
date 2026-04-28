@@ -1431,12 +1431,13 @@ async def test_registered_services_cover_branches(
     class FakeHAService:
         def __init__(self) -> None:
             self.calls = 0
+            self.referenced_device_ids: list[str] = []
 
         def async_extract_referenced_device_ids(self, hass_, call):
             self.calls += 1
             if self.calls == 1:
                 raise RuntimeError("boom")
-            return ["ref-device"]
+            return list(self.referenced_device_ids)
 
     fake_service_helper = FakeHAService()
     monkeypatch.setattr(
@@ -1622,12 +1623,16 @@ async def test_registered_services_cover_branches(
             )
         )
 
-    await svc_sync(
-        SimpleNamespace(data={"device_id": [charger_two.id, site_device.id]})
-    )
+    await svc_sync(SimpleNamespace(data={"device_id": [charger_two.id]}))
     assert call(reason="service", serials=[second_serial]) in (
         coord_primary.schedule_sync.async_refresh.await_args_list
     )
+    fake_service_helper.referenced_device_ids = ["missing-device-id"]
+    with pytest.raises(ServiceValidationError):
+        await svc_sync(
+            SimpleNamespace(data={"device_id": [charger_two.id, site_device.id]})
+        )
+    fake_service_helper.referenced_device_ids = []
     with pytest.raises(ServiceValidationError):
         await svc_sync(SimpleNamespace(data={"device_id": [lonely_device.id]}))
     await svc_request_grid_otp(SimpleNamespace(data={"site_id": site_id}))
@@ -1658,7 +1663,7 @@ async def test_registered_services_cover_branches(
 
     start_call = SimpleNamespace(
         data={
-            "device_id": [charger_one.id, site_device.id, charger_two.id],
+            "device_id": [charger_one.id, charger_two.id],
             "charging_level": 30,
             "connector_id": 2,
         }
@@ -1670,6 +1675,18 @@ async def test_registered_services_cover_branches(
     assert call(second_serial, requested_amps=30, connector_id=2) in await_args
     assert coord_primary.async_start_charging.await_count == 2
     coord_site_only.async_start_charging.assert_not_awaited()
+    fake_service_helper.referenced_device_ids = ["missing-device-id"]
+    with pytest.raises(ServiceValidationError):
+        await svc_start(
+            SimpleNamespace(
+                data={
+                    "device_id": [charger_one.id, site_device.id, charger_two.id],
+                    "charging_level": 30,
+                    "connector_id": 2,
+                }
+            )
+        )
+    fake_service_helper.referenced_device_ids = []
 
     stop_call = SimpleNamespace(data={"device_id": charger_one.id})
     await svc_stop(stop_call)
@@ -2276,6 +2293,7 @@ async def test_service_helper_resolve_functions_cover_none_branches(
 
     dev_reg = dr.async_get(hass)
     assert await resolve_device_routing_context("does-not-exist") is None
+    assert await resolve_site("does-not-exist") is None
 
     site_device = dev_reg.async_get_or_create(
         config_entry_id=config_entry.entry_id,

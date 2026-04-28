@@ -730,11 +730,6 @@ def async_setup_services(
                 )
             targets.append((device_id, sn, coord))
 
-        if not targets:
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="exceptions.grid_site_required",
-            )
         return targets
 
     async def _svc_force_refresh(call: ServiceCall) -> None:
