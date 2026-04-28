@@ -460,6 +460,13 @@ def test_helper_edge_branches(
     assert firmware_catalog_module.fetch_previous_runtime_catalog() == {
         "schema_version": 1
     }
+    assert firmware_catalog_module._previous_catalog_device(None, "envoy") is None
+    assert (
+        firmware_catalog_module._previous_catalog_source_device(
+            {"source": {"type": "x"}}, "envoy"
+        )
+        is None
+    )
 
     assert (
         firmware_catalog_module.choose_generated_at(
@@ -716,6 +723,191 @@ def test_build_catalog_success_and_error_paths(
             {"Release notes": 217} if alias == "document" else {}
         ),
     )
+    with pytest.raises(RuntimeError, match="IQ Gateway software"):
+        firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+
+
+def test_build_catalog_skips_later_missing_product_id(
+    firmware_catalog_module,
+    fixture_dir: Path,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root_html = (fixture_dir / "enphase_root.html").read_text(encoding="utf-8")
+    apps_html = (fixture_dir / "enphase_apps_facets.html").read_text(encoding="utf-8")
+    gateway_card = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.3.5286)",
+        version="8.3.5286",
+        release_date="2026-04-20",
+        media_id="24000",
+        langcode="und",
+        summary="Gateway release",
+        countries_text=None,
+    )
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-04-29T00:00:00Z"
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "REGION_SITE_ROUTE_ROWS",
+        [
+            {
+                "label": "United States",
+                "country_code": "US",
+                "locale": "en",
+                "site_url": "https://enphase.com/",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_text",
+        lambda url, timeout=30: (
+            root_html
+            if url.endswith("/installers/resources/documentation")
+            else apps_html
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda _html, alias: (
+            {"Release notes": 217}
+            if alias == "document"
+            else {"IQ Gateway software": 5002}
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "crawl_release_cards",
+        lambda **kwargs: (
+            [gateway_card] if kwargs["product_media_name_id"] == 5002 else [],
+            ["https://example.test/p0"],
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: {
+            "schema_version": 1,
+            "generated_at": "2026-04-28T00:00:00Z",
+            "source": {
+                "devices": {
+                    "iqevse": {
+                        "docs_url": "https://enphase.com/installers/resources/documentation/apps",
+                        "docs_path": "/installers/resources/documentation/apps",
+                        "product_type": 216,
+                        "document_topic_id": 217,
+                        "product_media_name_id": 6001,
+                    }
+                }
+            },
+            "devices": {
+                "iqevse": {
+                    "product_media_name_id": 6001,
+                    "document_topic_id": 217,
+                    "latest_by_locale": {
+                        "en": {
+                            "version": "25.37.1.14",
+                            "urls_by_locale": {"en": "https://example.test/charger"},
+                        }
+                    },
+                    "latest_by_country": {},
+                    "latest_global": {
+                        "version": "25.37.1.14",
+                        "urls_by_locale": {"en": "https://example.test/charger"},
+                    },
+                }
+            },
+        },
+    )
+
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime = json.loads(
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    product_sources = json.loads(
+        (
+            tmp_path / "sources" / "enphase_doc_center" / "product_media_name_ids.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert runtime["devices"]["envoy"]["latest_global"]["version"] == "8.3.5286"
+    assert runtime["devices"]["iqevse"]["latest_global"]["version"] == "25.37.1.14"
+    assert runtime["source"]["crawl"]["iqevse"]["skipped"] is True
+    assert runtime["source"]["crawl"]["iqevse"]["using_previous_catalog_device"] is True
+    assert (
+        "IQ EV Charger software" in runtime["source"]["crawl"]["iqevse"]["skip_reason"]
+    )
+    assert product_sources["targets"] == {
+        "envoy": {"label": "IQ Gateway software", "product_media_name_id": 5002},
+        "iqevse": {"label": "IQ EV Charger software", "product_media_name_id": 6001},
+    }
+
+
+def test_build_catalog_required_product_is_explicit(
+    firmware_catalog_module,
+    fixture_dir: Path,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root_html = (fixture_dir / "enphase_root.html").read_text(encoding="utf-8")
+    apps_html = (fixture_dir / "enphase_apps_facets.html").read_text(encoding="utf-8")
+
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "TARGET_PRODUCTS",
+        {
+            "iqevse": {
+                "label": "IQ EV Charger software",
+                "docs_path": firmware_catalog_module.TARGET_CATEGORY_PATH,
+                "required": False,
+            },
+            "envoy": {
+                "label": "IQ Gateway software",
+                "docs_path": firmware_catalog_module.COMMUNICATION_CATEGORY_PATH,
+                "required": True,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "REGION_SITE_ROUTE_ROWS",
+        [
+            {
+                "label": "United States",
+                "country_code": "US",
+                "locale": "en",
+                "site_url": "https://enphase.com/",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_text",
+        lambda url, timeout=30: (
+            root_html
+            if url.endswith("/installers/resources/documentation")
+            else apps_html
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda _html, alias: {"Release notes": 217} if alias == "document" else {},
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: {
+            "devices": {"iqevse": {"product_media_name_id": 6001}},
+            "source": {"devices": {"iqevse": {"product_media_name_id": 6001}}},
+        },
+    )
+
     with pytest.raises(RuntimeError, match="IQ Gateway software"):
         firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
 

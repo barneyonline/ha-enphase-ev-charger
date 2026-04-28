@@ -389,6 +389,14 @@ async def test_gateway_update_entity_states_and_release_url_selection(hass) -> N
     assert entity.state_attributes["release_url"] == "https://example.test/envoy/fr"
     assert entity.state_attributes["skipped_version"] is None
 
+    coord._gateway_version = "8.3.5286"
+    entity._refresh_from_catalog(manager.cached_catalog)
+    assert entity.installed_version == "8.3.5286"
+    assert entity.latest_version == "8.3.5286"
+    assert entity.state == "off"
+    assert entity.release_url is None
+    assert entity.release_summary is None
+
     coord._gateway_version = "8.2.4300"
     entity._refresh_from_catalog(manager.cached_catalog)
     await entity.async_skip()
@@ -502,9 +510,19 @@ async def test_charger_update_entity_uses_fw_details_payload(hass) -> None:
     assert entity.state_attributes["release_url"] == "https://example.test/charger/fr"
     assert entity.state_attributes["skipped_version"] is None
 
+    manager.cached_details[TEST_EVSE_SERIAL]["currentFwVersion"] = "25.37.1.15"
+    manager.cached_details[TEST_EVSE_SERIAL]["targetFwVersion"] = "25.37.1.14"
+    entity._refresh_from_details(manager.cached_details)
+    assert entity.installed_version == "25.37.1.15"
+    assert entity.latest_version == "25.37.1.15"
+    assert entity.state == "off"
+    assert entity.release_url is None
+    assert entity.release_summary is None
+
     manager.cached_details[TEST_EVSE_SERIAL]["currentFwVersion"] = "25.37.1.13"
     manager.cached_details[TEST_EVSE_SERIAL]["targetFwVersion"] = "25.37.1.14"
     entity._refresh_from_details(manager.cached_details)
+    entity._refresh_from_catalog(catalog_manager.cached_catalog)
     await entity.async_skip()
     manager.cached_details[TEST_EVSE_SERIAL]["currentFwVersion"] = "25.37.1.13"
     manager.cached_details[TEST_EVSE_SERIAL]["targetFwVersion"] = "25.37.1.15"
