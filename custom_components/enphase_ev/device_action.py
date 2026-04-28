@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import voluptuous as vol
-from homeassistant.components.device_automation.const import CONF_TYPE
-from homeassistant.const import CONF_DEVICE_ID
+from homeassistant.const import CONF_DEVICE_ID, CONF_TYPE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType

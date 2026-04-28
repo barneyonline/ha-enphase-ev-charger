@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from .const import DOMAIN
@@ -30,7 +30,7 @@ class EnphaseRuntimeData:
     skip_reload_once: bool = False
 
 
-EnphaseConfigEntry: TypeAlias = ConfigEntry[EnphaseRuntimeData]
+type EnphaseConfigEntry = ConfigEntry[EnphaseRuntimeData]
 
 
 def get_runtime_data(entry: EnphaseConfigEntry) -> EnphaseRuntimeData:

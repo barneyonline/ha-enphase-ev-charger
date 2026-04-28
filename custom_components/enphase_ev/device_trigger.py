@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.automation.triggers import state as state_trigger
+try:
+    from homeassistant.components.automation.triggers import state as state_trigger
+except ModuleNotFoundError:
+    from homeassistant.components.homeassistant.triggers import state as state_trigger
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er

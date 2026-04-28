@@ -1,8 +1,9 @@
 """Typed API boundary models for the Enphase EV client."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
+
+type CookieJar = dict[str, str]
+type HeaderMap = dict[str, str]
 
 
 @dataclass(slots=True)
@@ -13,7 +14,7 @@ class AuthTokens:
     session_id: str | None = None
     access_token: str | None = None
     token_expires_at: int | None = None
-    raw_cookies: dict[str, str] | None = None
+    raw_cookies: CookieJar | None = None
 
 
 @dataclass(slots=True)
@@ -39,5 +40,5 @@ class TextResponse:
     status: int
     text: str
     url: str
-    headers: dict[str, str]
+    headers: HeaderMap
     location: str | None = None

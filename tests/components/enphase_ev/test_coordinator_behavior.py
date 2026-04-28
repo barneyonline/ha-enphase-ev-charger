@@ -3615,7 +3615,7 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
 
     create_calls: list[object] = []
 
-    def _capture_create_task(coro):
+    def _capture_create_task(coro, *, name=None):
         create_calls.append(coro)
         coro.close()
         return None
@@ -3779,7 +3779,8 @@ async def test_startup_warmup_runner_and_task_edge_paths(
 
     coord._warmup_task = None  # noqa: SLF001
     await coord.async_start_startup_warmup()
-    assert create_calls == [f"{DOMAIN}_warmup_{coord.site_id}", None]
+    assert create_calls == [f"{DOMAIN}_warmup_site", None]
+    assert coord.site_id not in str(create_calls[0])
     assert coord._warmup_task == "task"  # noqa: SLF001
 
 

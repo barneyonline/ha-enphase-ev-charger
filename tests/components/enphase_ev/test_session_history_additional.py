@@ -58,11 +58,14 @@ async def test_async_enrich_sessions_handles_task_errors(monkeypatch):
         client_getter=lambda: None,
         cache_ttl=60,
     )
+    serial = "123456789012"
+    names: list[str | None] = []
 
     async def fake_gather(*tasks, **kwargs):
         return [RuntimeError("boom")]
 
-    def fake_task(coro):
+    def fake_task(coro, *, name=None):
+        names.append(name)
         coro.close()
         return None
 
@@ -70,9 +73,12 @@ async def test_async_enrich_sessions_handles_task_errors(monkeypatch):
     monkeypatch.setattr(sh_mod.asyncio, "create_task", fake_task)
 
     updates = await manager._async_enrich_sessions(
-        ["SN"], day_local=datetime.now(timezone.utc)
+        [serial], day_local=datetime.now(timezone.utc)
     )
     assert updates == {}
+    assert len(names) == 1
+    assert serial not in str(names[0])
+    assert "1234...9012" in str(names[0])
 
 
 @pytest.mark.asyncio

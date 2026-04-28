@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
 
-from .const import DEFAULT_FAST_POLL_INTERVAL
+from .const import DEFAULT_FAST_POLL_INTERVAL, DOMAIN
 from .device_types import (
     member_is_retired as device_member_is_retired,
     normalize_type_key,
@@ -2023,12 +2023,18 @@ class InventoryRuntime:
                         return source_type, None, err
                 return source_type, payload if isinstance(payload, dict) else None, None
 
-            detail_results = await asyncio.gather(
-                *(
-                    _fetch_detail(source_type)
-                    for source_type in SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES
-                )
-            )
+            detail_tasks: list[
+                asyncio.Task[tuple[str, dict[str, object] | None, Exception | None]]
+            ] = []
+            async with asyncio.TaskGroup() as task_group:
+                for source_type in SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES:
+                    detail_tasks.append(
+                        task_group.create_task(
+                            _fetch_detail(source_type),
+                            name=f"{DOMAIN}_system_dashboard_detail_{source_type}",
+                        )
+                    )
+            detail_results = [task.result() for task in detail_tasks]
             for source_type, payload, err in detail_results:
                 if err is not None:
                     if first_error is None:

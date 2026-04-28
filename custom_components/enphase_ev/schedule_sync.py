@@ -153,9 +153,17 @@ class ScheduleSync:
         @callback
         def _run(_now) -> None:
             self._pending_patch_refresh.discard(sn)
-            self.hass.async_create_task(
-                self.async_refresh(reason="patch", serials=[sn])
-            )
+            coro = self.async_refresh(reason="patch", serials=[sn])
+            try:
+                self.hass.async_create_task(
+                    coro,
+                    name=f"{DOMAIN}_schedule_patch_refresh_{redact_identifier(sn)}",
+                )
+            except TypeError:
+                coro.close()
+                self.hass.async_create_task(
+                    self.async_refresh(reason="patch", serials=[sn])
+                )
 
         async_call_later(self.hass, PATCH_REFRESH_DELAY_S, _run)
 
@@ -413,11 +421,27 @@ class ScheduleSync:
 
     @callback
     def _handle_interval(self, *_args) -> None:
-        self.hass.async_create_task(self.async_refresh(reason="interval"))
+        coro = self.async_refresh(reason="interval")
+        try:
+            self.hass.async_create_task(
+                coro,
+                name=f"{DOMAIN}_schedule_interval_refresh",
+            )
+        except TypeError:
+            coro.close()
+            self.hass.async_create_task(self.async_refresh(reason="interval"))
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        self.hass.async_create_task(self._refresh_if_stale())
+        coro = self._refresh_if_stale()
+        try:
+            self.hass.async_create_task(
+                coro,
+                name=f"{DOMAIN}_schedule_coordinator_refresh",
+            )
+        except TypeError:
+            coro.close()
+            self.hass.async_create_task(self._refresh_if_stale())
 
     async def _refresh_if_stale(self) -> None:
         if not self._last_sync:
@@ -462,9 +486,16 @@ class ScheduleSync:
                     async with semaphore:
                         return (sn, *await self._async_fetch_serial_sync(sn))
 
-                results = await asyncio.gather(
-                    *(_fetch_one(sn) for sn in unique_serials)
-                )
+                tasks = []
+                async with asyncio.TaskGroup() as group:
+                    for sn in unique_serials:
+                        tasks.append(
+                            group.create_task(
+                                _fetch_one(sn),
+                                name=f"{DOMAIN}_schedule_fetch_{redact_identifier(sn)}",
+                            )
+                        )
+                results = [task.result() for task in tasks]
                 auth_result = next(
                     (
                         result

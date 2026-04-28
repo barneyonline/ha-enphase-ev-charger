@@ -557,8 +557,10 @@ async def test_evse_runtime_schedule_amp_restart_uses_coordinator_override(
 
     coord.__dict__["_async_restart_after_amp_change"] = _fake_restart
     tasks: list[asyncio.Task[None]] = []
+    names: list[str | None] = []
 
     def _capture(coro, name=None):
+        names.append(name)
         task = asyncio.create_task(coro)
         tasks.append(task)
         return task
@@ -570,6 +572,7 @@ async def test_evse_runtime_schedule_amp_restart_uses_coordinator_override(
     assert pending.cancelled()
     await tasks[0]
     assert calls == [("EV1", 12)]
+    assert names == ["enphase_ev_amp_restart_E...1"]
 
 
 @pytest.mark.asyncio

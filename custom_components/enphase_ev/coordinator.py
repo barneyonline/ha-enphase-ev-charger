@@ -364,7 +364,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if callable(set_reauth_cb):
             result = set_reauth_cb(self._handle_client_unauthorized)
             if inspect.isawaitable(result):
-                self.hass.async_create_task(result)
+                try:
+                    self.hass.async_create_task(
+                        result, name=f"{DOMAIN}_set_reauth_callback"
+                    )
+                except TypeError:
+                    self.hass.async_create_task(result)
         from .schedule_sync import ScheduleSync
 
         self.schedule_sync = ScheduleSync(hass, self, config_entry)
@@ -2290,7 +2295,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     lambda: self.evse_runtime.async_resolve_charge_modes(
                         charge_mode_lookup_candidates
                     ),
-                )
+                ),
+                name=f"{DOMAIN}_resolve_charge_modes",
             )
         green_lookup_candidates = self.evse_runtime.green_battery_lookup_candidates(
             serials,
@@ -2304,7 +2310,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     lambda: self._async_resolve_green_battery_settings(
                         green_lookup_candidates
                     ),
-                )
+                ),
+                name=f"{DOMAIN}_resolve_green_battery_settings",
             )
         auth_lookup_candidates = self.evse_runtime.auth_settings_lookup_candidates(
             serials,
@@ -2316,7 +2323,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     phase_timings,
                     "auth_settings_s",
                     lambda: self._async_resolve_auth_settings(auth_lookup_candidates),
-                )
+                ),
+                name=f"{DOMAIN}_resolve_auth_settings",
             )
         charger_config_lookup_candidates = (
             self.evse_runtime.charger_config_lookup_candidates(
@@ -2334,7 +2342,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                         charger_config_lookup_candidates,
                         keys=charger_config_keys,
                     ),
-                )
+                ),
+                name=f"{DOMAIN}_resolve_charger_config",
             )
         if not tasks:
             return charge_modes, green_settings, auth_settings, charger_config
@@ -6317,7 +6326,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._clear_backoff_timer()
             self._backoff_until = None
             self.backoff_ends_utc = None
-            self.hass.async_create_task(self.async_request_refresh())
+            self.hass.async_create_task(
+                self.async_request_refresh(), name=f"{DOMAIN}_backoff_refresh"
+            )
             return
         self._clear_backoff_timer()
         try:

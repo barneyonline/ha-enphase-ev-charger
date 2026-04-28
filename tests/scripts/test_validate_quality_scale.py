@@ -490,6 +490,22 @@ def test_strict_typing_contract_requires_strict_typing_entry(
     assert "must include custom_components/enphase_ev" in "\n".join(messages)
 
 
+def test_strict_typing_contract_accepts_python314_type_alias(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".strict-typing").write_text("custom_components/enphase_ev\n")
+    integration_dir = tmp_path / "custom_components" / "enphase_ev"
+    integration_dir.mkdir(parents=True)
+    (integration_dir / "py.typed").write_text("")
+    (integration_dir / "runtime_data.py").write_text(
+        "type EnphaseConfigEntry = ConfigEntry[EnphaseRuntimeData]\n"
+    )
+
+    messages = validate_quality_scale._validate_strict_typing_contract(tmp_path)
+
+    assert messages == []
+
+
 def test_strict_typing_contract_reports_missing_runtime_data(
     tmp_path: Path,
 ) -> None:

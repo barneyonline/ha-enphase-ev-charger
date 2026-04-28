@@ -642,13 +642,15 @@ async def test_schedule_sync_post_patch_refresh_dedupes(hass, monkeypatch) -> No
     sync = ScheduleSync(hass, SimpleNamespace(), None)
     callbacks: list[callable] = []
     created: list[bool] = []
+    names: list[str | None] = []
 
     def _fake_call_later(_hass, _delay, action):
         callbacks.append(action)
         return lambda: None
 
-    def _create_task(coro):
+    def _create_task(coro, *, name=None):
         created.append(True)
+        names.append(name)
         coro.close()
 
     monkeypatch.setattr(schedule_sync_mod, "async_call_later", _fake_call_later)
@@ -662,6 +664,9 @@ async def test_schedule_sync_post_patch_refresh_dedupes(hass, monkeypatch) -> No
     callbacks[0](None)
 
     assert created == [True]
+    assert len(names) == 1
+    assert RANDOM_SERIAL not in str(names[0])
+    assert "..." in str(names[0])
     assert RANDOM_SERIAL not in sync._pending_patch_refresh
 
 
@@ -1149,6 +1154,46 @@ async def test_schedule_sync_callbacks_trigger_refresh(hass) -> None:
     sync._handle_coordinator_update()
     await hass.async_block_till_done()
     assert sync.async_refresh.await_count >= 3
+
+
+@pytest.mark.asyncio
+async def test_schedule_sync_callbacks_fall_back_for_legacy_create_task(
+    hass, monkeypatch
+) -> None:
+    slot_id = f"{RANDOM_SITE_ID}:{RANDOM_SERIAL}:slot-9"
+    payload = {
+        "meta": {"serverTimeStamp": "2025-01-01T00:00:00.000+00:00"},
+        "config": {},
+        "slots": [_slot(slot_id)],
+    }
+    entry = MockConfigEntry(domain=DOMAIN, data={"site_id": RANDOM_SITE_ID}, options={})
+    sync, _client = await _setup_sync(hass, entry, payload)
+    sync.async_refresh = AsyncMock()
+
+    tasks: list[asyncio.Task] = []
+    callbacks: list[callable] = []
+
+    def _legacy_create_task(coro, *, name=None):
+        if name is not None:
+            raise TypeError("legacy")
+        task = asyncio.create_task(coro)
+        tasks.append(task)
+        return task
+
+    def _fake_call_later(_hass, _delay, action):
+        callbacks.append(action)
+        return lambda: None
+
+    monkeypatch.setattr(hass, "async_create_task", _legacy_create_task)
+    monkeypatch.setattr(schedule_sync_mod, "async_call_later", _fake_call_later)
+    sync._handle_interval()
+    sync._last_sync = dt_util.utcnow() - timedelta(minutes=10)
+    sync._handle_coordinator_update()
+    sync._schedule_post_patch_refresh(RANDOM_SERIAL)
+    callbacks[0](None)
+    await asyncio.gather(*tasks)
+
+    assert sync.async_refresh.await_count == 3
 
 
 @pytest.mark.asyncio

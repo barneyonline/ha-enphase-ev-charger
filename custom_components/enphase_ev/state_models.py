@@ -6,6 +6,11 @@ from typing import Any
 
 from .const import BATTERY_PROFILE_DEFAULT_RESERVE
 
+type PayloadMap = dict[str, object]
+type PayloadRecords = list[PayloadMap]
+type PayloadMapByKey = dict[str, PayloadMap]
+type CacheSource = tuple[object, ...]
+
 
 @dataclass(slots=True)
 class DiscoveryState:
@@ -16,36 +21,32 @@ class DiscoveryState:
     _warmup_in_progress: bool = False
     _warmup_last_error: str | None = None
     _restored_site_energy_channels: set[str] = field(default_factory=set)
-    _restored_gateway_iq_energy_router_records: list[dict[str, object]] = field(
+    _restored_gateway_iq_energy_router_records: PayloadRecords = field(
         default_factory=list
     )
     _topology_listeners: list[Any] = field(default_factory=list)
     _topology_snapshot_cache: object | None = None
-    _gateway_inventory_summary_cache: dict[str, object] = field(default_factory=dict)
-    _gateway_inventory_summary_source: tuple[object, ...] | None = None
-    _microinverter_inventory_summary_cache: dict[str, object] = field(
-        default_factory=dict
-    )
-    _microinverter_inventory_summary_source: tuple[object, ...] | None = None
-    _heatpump_inventory_summary_cache: dict[str, object] = field(default_factory=dict)
-    _heatpump_inventory_summary_source: tuple[object, ...] | None = None
-    _heatpump_type_summaries_cache: dict[str, dict[str, object]] = field(
-        default_factory=dict
-    )
-    _heatpump_type_summaries_source: tuple[object, ...] | None = None
-    _gateway_iq_energy_router_records_cache: list[dict[str, object]] = field(
+    _gateway_inventory_summary_cache: PayloadMap = field(default_factory=dict)
+    _gateway_inventory_summary_source: CacheSource | None = None
+    _microinverter_inventory_summary_cache: PayloadMap = field(default_factory=dict)
+    _microinverter_inventory_summary_source: CacheSource | None = None
+    _heatpump_inventory_summary_cache: PayloadMap = field(default_factory=dict)
+    _heatpump_inventory_summary_source: CacheSource | None = None
+    _heatpump_type_summaries_cache: PayloadMapByKey = field(default_factory=dict)
+    _heatpump_type_summaries_source: CacheSource | None = None
+    _gateway_iq_energy_router_records_cache: PayloadRecords = field(
         default_factory=list
     )
-    _gateway_iq_energy_router_records_source: tuple[object, ...] | None = None
-    _gateway_iq_energy_router_records_by_key_cache: dict[str, dict[str, object]] = (
-        field(default_factory=dict)
+    _gateway_iq_energy_router_records_source: CacheSource | None = None
+    _gateway_iq_energy_router_records_by_key_cache: PayloadMapByKey = field(
+        default_factory=dict
     )
     _topology_refresh_suppressed: int = 0
     _topology_refresh_pending: bool = False
     _site_energy_discovery_ready: bool = False
     _hems_inventory_ready: bool = False
     _devices_inventory_ready: bool = False
-    _debug_summary_log_cache: dict[str, object] = field(default_factory=dict)
+    _debug_summary_log_cache: PayloadMap = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,7 +132,7 @@ class RefreshHealthState:
     _auth_block_issue_reported: bool = False
     _session_history_issue_reported: bool = False
     _site_energy_issue_reported: bool = False
-    _payload_health: dict[str, dict[str, object]] = field(default_factory=dict)
+    _payload_health: PayloadMapByKey = field(default_factory=dict)
     _phase_timings: dict[str, float] = field(default_factory=dict)
     _bootstrap_phase_timings: dict[str, float] = field(default_factory=dict)
     _warmup_phase_timings: dict[str, float] = field(default_factory=dict)
@@ -155,33 +156,29 @@ class RefreshHealthState:
 class InventoryState:
     _inverters_inventory_cache_until: float | None = None
     _devices_inventory_cache_until: float | None = None
-    _devices_inventory_payload: dict[str, object] | None = None
-    _status_payload_cache: dict[str, object] | None = None
+    _devices_inventory_payload: PayloadMap | None = None
+    _status_payload_cache: PayloadMap | None = None
     _system_dashboard_cache_until: float | None = None
-    _system_dashboard_devices_tree_raw: dict[str, object] | None = None
-    _system_dashboard_devices_tree_payload: dict[str, object] | None = None
-    _system_dashboard_devices_details_raw: dict[str, dict[str, dict[str, object]]] = (
-        field(default_factory=dict)
+    _system_dashboard_devices_tree_raw: PayloadMap | None = None
+    _system_dashboard_devices_tree_payload: PayloadMap | None = None
+    _system_dashboard_devices_details_raw: dict[str, dict[str, PayloadMap]] = field(
+        default_factory=dict
     )
-    _system_dashboard_devices_details_payloads: dict[str, dict[str, object]] = field(
+    _system_dashboard_devices_details_payloads: PayloadMapByKey = field(
         default_factory=dict
     )
     _system_dashboard_detail_failures: dict[str, str] = field(default_factory=dict)
-    _system_dashboard_hierarchy_index: dict[str, dict[str, object]] = field(
-        default_factory=dict
-    )
-    _system_dashboard_hierarchy_summary: dict[str, object] = field(default_factory=dict)
-    _system_dashboard_type_summaries: dict[str, dict[str, object]] = field(
-        default_factory=dict
-    )
-    _inverters_inventory_payload: dict[str, object] | None = None
+    _system_dashboard_hierarchy_index: PayloadMapByKey = field(default_factory=dict)
+    _system_dashboard_hierarchy_summary: PayloadMap = field(default_factory=dict)
+    _system_dashboard_type_summaries: PayloadMapByKey = field(default_factory=dict)
+    _inverters_inventory_payload: PayloadMap | None = None
     _inverter_status_cache_until: float | None = None
-    _inverter_status_payload: dict[str, object] | None = None
+    _inverter_status_payload: PayloadMap | None = None
     _inverter_production_cache_until: float | None = None
-    _inverter_production_payload: dict[str, object] | None = None
-    _inverter_data: dict[str, dict[str, object]] = field(default_factory=dict)
+    _inverter_production_payload: PayloadMap | None = None
+    _inverter_data: PayloadMapByKey = field(default_factory=dict)
     _inverter_order: list[str] = field(default_factory=list)
-    _inverter_panel_info: dict[str, object] | None = None
+    _inverter_panel_info: PayloadMap | None = None
     _inverter_status_type_counts: dict[str, int] = field(default_factory=dict)
     _inverter_summary_counts: dict[str, int] = field(
         default_factory=lambda: {
@@ -193,7 +190,7 @@ class InventoryState:
         }
     )
     _inverter_model_counts: dict[str, int] = field(default_factory=dict)
-    _type_device_buckets: dict[str, dict[str, object]] = field(default_factory=dict)
+    _type_device_buckets: PayloadMapByKey = field(default_factory=dict)
     _type_device_order: list[str] = field(default_factory=list)
     _inverter_production_cache_key: tuple[str, str] | None = None
 
@@ -202,15 +199,15 @@ class InventoryState:
 class HeatpumpState:
     _hems_support_preflight_cache_until: float | None = None
     _hems_devices_cache_until: float | None = None
-    _hems_devices_payload: dict[str, object] | None = None
+    _hems_devices_payload: PayloadMap | None = None
     _hems_devices_last_success_mono: float | None = None
     _hems_devices_last_success_utc: datetime | None = None
     _hems_devices_using_stale: bool = False
     _heatpump_runtime_diagnostics_cache_until: float | None = None
-    _show_livestream_payload: dict[str, object] | None = None
-    _heatpump_events_payloads: list[dict[str, object]] = field(default_factory=list)
+    _show_livestream_payload: PayloadMap | None = None
+    _heatpump_events_payloads: PayloadRecords = field(default_factory=list)
     _heatpump_runtime_diagnostics_error: str | None = None
-    _heatpump_runtime_state: dict[str, object] | None = None
+    _heatpump_runtime_state: PayloadMap | None = None
     _heatpump_runtime_state_cache_until: float | None = None
     _heatpump_runtime_state_backoff_until: float | None = None
     _heatpump_runtime_state_last_error: str | None = None
@@ -218,7 +215,7 @@ class HeatpumpState:
     _heatpump_runtime_state_last_success_utc: datetime | None = None
     _heatpump_runtime_state_using_stale: bool = False
     _heatpump_known_present: bool = False
-    _heatpump_daily_consumption: dict[str, object] | None = None
+    _heatpump_daily_consumption: PayloadMap | None = None
     _heatpump_daily_consumption_cache_until: float | None = None
     _heatpump_daily_consumption_backoff_until: float | None = None
     _heatpump_daily_consumption_last_error: str | None = None
@@ -244,9 +241,7 @@ class HeatpumpState:
     _heatpump_power_window_seconds: float | None = None
     _heatpump_power_validation: str | None = None
     _heatpump_power_smoothed: bool = False
-    _heatpump_power_sample_history: list[dict[str, object]] = field(
-        default_factory=list
-    )
+    _heatpump_power_sample_history: PayloadRecords = field(default_factory=list)
     _heatpump_power_cache_until: float | None = None
     _heatpump_power_backoff_until: float | None = None
     _heatpump_power_last_error: str | None = None
@@ -256,7 +251,7 @@ class HeatpumpState:
     _heatpump_power_selection_marker: tuple[tuple[str, str, str, str], ...] | None = (
         None
     )
-    _heatpump_power_snapshot: dict[str, object] | None = None
+    _heatpump_power_snapshot: PayloadMap | None = None
 
 
 @dataclass(slots=True)
@@ -266,7 +261,7 @@ class EVSEState:
         default_factory=dict
     )
     _green_battery_pending: dict[str, tuple[bool, float]] = field(default_factory=dict)
-    _charger_config_cache: dict[str, tuple[dict[str, object], float]] = field(
+    _charger_config_cache: dict[str, tuple[PayloadMap, float]] = field(
         default_factory=dict
     )
     _charger_config_backoff_until: dict[str, float] = field(default_factory=dict)
@@ -275,21 +270,17 @@ class EVSEState:
     ] = field(default_factory=dict)
     _app_auth_pending: dict[str, tuple[bool, float]] = field(default_factory=dict)
     _evse_feature_flags_cache_until: float | None = None
-    _evse_feature_flags_payload: dict[str, object] | None = None
-    _evse_site_feature_flags: dict[str, object] = field(default_factory=dict)
-    _evse_feature_flags_by_serial: dict[str, dict[str, object]] = field(
-        default_factory=dict
-    )
+    _evse_feature_flags_payload: PayloadMap | None = None
+    _evse_site_feature_flags: PayloadMap = field(default_factory=dict)
+    _evse_feature_flags_by_serial: PayloadMapByKey = field(default_factory=dict)
     _last_charging: dict[str, bool] = field(default_factory=dict)
     _last_actual_charging: dict[str, bool | None] = field(default_factory=dict)
     _pending_charging: dict[str, tuple[bool, float]] = field(default_factory=dict)
     _desired_charging: dict[str, bool] = field(default_factory=dict)
     _auto_resume_attempts: dict[str, float] = field(default_factory=dict)
     _session_end_fix: dict[str, int] = field(default_factory=dict)
-    _evse_power_snapshots: dict[str, dict[str, object]] = field(default_factory=dict)
-    _evse_transition_snapshots: dict[str, list[dict[str, object]]] = field(
-        default_factory=dict
-    )
+    _evse_power_snapshots: PayloadMapByKey = field(default_factory=dict)
+    _evse_transition_snapshots: dict[str, PayloadRecords] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -300,13 +291,13 @@ class BatteryState:
     _storm_guard_pending_expires_mono: float | None = None
     _storm_alert_active: bool | None = None
     _storm_alert_critical_override: bool | None = None
-    _storm_alerts: list[dict[str, object]] = field(default_factory=list)
+    _storm_alerts: PayloadRecords = field(default_factory=list)
     _storm_guard_cache_until: float | None = None
     _storm_alert_cache_until: float | None = None
     _grid_control_check_cache_until: float | None = None
     _grid_control_check_last_success_mono: float | None = None
     _grid_control_check_failures: int = 0
-    _grid_control_check_payload: dict[str, object] | None = None
+    _grid_control_check_payload: PayloadMap | None = None
     _grid_control_disable: bool | None = None
     _grid_control_active_download: bool | None = None
     _grid_control_sunlight_backup_system_check: bool | None = None
@@ -316,12 +307,10 @@ class BatteryState:
     _dry_contact_settings_cache_until: float | None = None
     _dry_contact_settings_last_success_mono: float | None = None
     _dry_contact_settings_failures: int = 0
-    _dry_contact_settings_payload: dict[str, object] | None = None
+    _dry_contact_settings_payload: PayloadMap | None = None
     _dry_contact_settings_supported: bool | None = None
-    _dry_contact_settings_entries: list[dict[str, object]] = field(default_factory=list)
-    _dry_contact_unmatched_settings: list[dict[str, object]] = field(
-        default_factory=list
-    )
+    _dry_contact_settings_entries: PayloadRecords = field(default_factory=list)
+    _dry_contact_unmatched_settings: PayloadRecords = field(default_factory=list)
     _battery_site_settings_cache_until: float | None = None
     _battery_show_production: bool | None = None
     _battery_show_consumption: bool | None = None
@@ -342,7 +331,7 @@ class BatteryState:
     _battery_region: str | None = None
     _battery_locale: str | None = None
     _battery_timezone: str | None = None
-    _battery_feature_details: dict[str, object] = field(default_factory=dict)
+    _battery_feature_details: PayloadMap = field(default_factory=dict)
     _battery_user_is_owner: bool | None = None
     _battery_user_is_installer: bool | None = None
     _battery_site_status_code: str | None = None
@@ -366,9 +355,9 @@ class BatteryState:
     _battery_cfg_control: BatteryControlCapability | None = None
     _battery_rbd_control: BatteryControlCapability | None = None
     _battery_system_task: bool | None = None
-    _battery_profile_evse_device: dict[str, object] | None = None
+    _battery_profile_evse_device: PayloadMap | None = None
     _battery_use_battery_for_self_consumption: bool | None = None
-    _battery_profile_devices: list[dict[str, object]] = field(default_factory=list)
+    _battery_profile_devices: PayloadRecords = field(default_factory=list)
     _battery_pending_profile: str | None = None
     _battery_pending_reserve: int | None = None
     _battery_pending_sub_type: str | None = None
@@ -426,48 +415,55 @@ class BatteryState:
     _battery_rbd_schedule_status: str | None = None
     _battery_rbd_schedule_enabled: bool | None = None
     _battery_rbd_toggle_target_enabled: bool | None = None
-    _battery_schedules_payload: dict[str, object] | None = None
+    _battery_schedules_payload: PayloadMap | None = None
     _battery_accepted_itc_disclaimer: str | None = None
     _battery_very_low_soc: int | None = None
     _battery_very_low_soc_min: int | None = None
     _battery_very_low_soc_max: int | None = None
-    _battery_site_settings_payload: dict[str, object] | None = None
-    _battery_profile_payload: dict[str, object] | None = None
-    _battery_settings_payload: dict[str, object] | None = None
+    _battery_site_settings_payload: PayloadMap | None = None
+    _battery_profile_payload: PayloadMap | None = None
+    _battery_settings_payload: PayloadMap | None = None
     _battery_status_cache_until: float | None = None
-    _battery_status_payload: dict[str, object] | None = None
-    _battery_backup_history_payload: dict[str, object] | None = None
-    _battery_backup_history_events: list[dict[str, object]] = field(
-        default_factory=list
-    )
+    _battery_status_payload: PayloadMap | None = None
+    _battery_backup_history_payload: PayloadMap | None = None
+    _battery_backup_history_events: PayloadRecords = field(default_factory=list)
     _battery_backup_history_cache_until: float | None = None
-    _battery_storage_data: dict[str, dict[str, object]] = field(default_factory=dict)
+    _battery_storage_data: PayloadMapByKey = field(default_factory=dict)
     _battery_storage_order: list[str] = field(default_factory=list)
     _battery_aggregate_charge_pct: float | None = None
     _battery_aggregate_status: str | None = None
-    _battery_aggregate_status_details: dict[str, object] = field(default_factory=dict)
+    _battery_aggregate_status_details: PayloadMap = field(default_factory=dict)
     _battery_summary_sample_utc: datetime | None = None
     _ac_battery_devices_cache_until: float | None = None
-    _ac_battery_devices_payload: dict[str, object] | None = None
-    _ac_battery_devices_html_payload: dict[str, object] | None = None
+    _ac_battery_devices_payload: PayloadMap | None = None
+    _ac_battery_devices_html_payload: PayloadMap | None = None
     _ac_battery_telemetry_cache_until: float | None = None
-    _ac_battery_telemetry_payloads: dict[str, object] = field(default_factory=dict)
-    _ac_battery_events_payloads: dict[str, object] = field(default_factory=dict)
-    _ac_battery_data: dict[str, dict[str, object]] = field(default_factory=dict)
+    _ac_battery_telemetry_payloads: PayloadMap = field(default_factory=dict)
+    _ac_battery_events_payloads: PayloadMap = field(default_factory=dict)
+    _ac_battery_data: PayloadMapByKey = field(default_factory=dict)
     _ac_battery_order: list[str] = field(default_factory=list)
     _ac_battery_aggregate_status: str | None = None
-    _ac_battery_aggregate_status_details: dict[str, object] = field(
-        default_factory=dict
-    )
+    _ac_battery_aggregate_status_details: PayloadMap = field(default_factory=dict)
     _ac_battery_power_w: float | None = None
     _ac_battery_summary_sample_utc: datetime | None = None
     _ac_battery_selected_sleep_min_soc: int | None = None
     _ac_battery_sleep_state: str | None = None
     _ac_battery_control_pending: bool = False
-    _ac_battery_last_command: dict[str, object] | None = None
+    _ac_battery_last_command: PayloadMap | None = None
 
 
-STATE_MODELS = {
+type CoordinatorState = (
+    DiscoveryState
+    | RefreshHealthState
+    | InventoryState
+    | HeatpumpState
+    | EVSEState
+    | BatteryState
+)
+type StateModelRegistry = dict[str, type[CoordinatorState]]
+
+
+STATE_MODELS: StateModelRegistry = {
     "discovery_state": DiscoveryState,
     "refresh_state": RefreshHealthState,
     "inventory_state": InventoryState,

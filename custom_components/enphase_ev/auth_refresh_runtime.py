@@ -88,7 +88,10 @@ class AuthRefreshRuntime:
 
             task = getattr(coord, "_auth_refresh_task", None)
             if task is None or task.done():
-                task = asyncio.create_task(self.async_run_auto_refresh())
+                task = asyncio.create_task(
+                    self.async_run_auto_refresh(),
+                    name="enphase_ev_auth_refresh",
+                )
                 coord._auth_refresh_task = task
                 task.add_done_callback(self.clear_auth_refresh_task)
 
@@ -145,7 +148,10 @@ class AuthRefreshRuntime:
 
             task = getattr(coord, "_auth_refresh_task", None)
             if task is None or task.done():
-                task = asyncio.create_task(self.async_run_auto_refresh())
+                task = asyncio.create_task(
+                    self.async_run_auto_refresh(),
+                    name="enphase_ev_auth_refresh",
+                )
                 coord._auth_refresh_task = task
                 task.add_done_callback(self.clear_auth_refresh_task)
 

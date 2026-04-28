@@ -1364,7 +1364,7 @@ async def test_session_history_clear_cancels_tasks_and_clears_state(hass) -> Non
     manager._block_until["EV-01"] = time.monotonic() + 60
     manager._criteria_checked_mono = time.monotonic()
     manager._refresh_in_progress.add("EV-01")
-    task = hass.loop.create_task(asyncio.sleep(30))
+    task = asyncio.create_task(asyncio.sleep(30))
     manager._enrichment_tasks.add(task)
 
     manager.clear()

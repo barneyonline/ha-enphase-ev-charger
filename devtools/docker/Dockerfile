@@ -2,7 +2,7 @@
 # Based on official Home Assistant developer guide for Docker environments:
 # https://developers.home-assistant.io/docs/development_environment
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONDONTWRITEBYTECODE=1 \
