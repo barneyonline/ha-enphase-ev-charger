@@ -30,14 +30,16 @@ TARGET_CATEGORY_PATH = "/installers/resources/documentation/apps"
 COMMUNICATION_CATEGORY_PATH = "/installers/resources/documentation/communication"
 DEFAULT_PRODUCT_TYPE = "216"
 
-TARGET_PRODUCTS: dict[str, dict[str, str]] = {
+TARGET_PRODUCTS: dict[str, dict[str, Any]] = {
     "envoy": {
         "label": "IQ Gateway software",
         "docs_path": COMMUNICATION_CATEGORY_PATH,
+        "required": True,
     },
     "iqevse": {
         "label": "IQ EV Charger software",
         "docs_path": TARGET_CATEGORY_PATH,
+        "required": False,
     },
 }
 
@@ -1354,6 +1356,31 @@ def fetch_previous_runtime_catalog(
     return payload
 
 
+def _previous_catalog_device(
+    previous_catalog: dict[str, Any] | None, device_key: str
+) -> dict[str, Any] | None:
+    devices = (
+        previous_catalog.get("devices") if isinstance(previous_catalog, dict) else None
+    )
+    if not isinstance(devices, dict):
+        return None
+    device = devices.get(device_key)
+    return device if isinstance(device, dict) else None
+
+
+def _previous_catalog_source_device(
+    previous_catalog: dict[str, Any] | None, device_key: str
+) -> dict[str, Any] | None:
+    source = (
+        previous_catalog.get("source") if isinstance(previous_catalog, dict) else None
+    )
+    source_devices = source.get("devices") if isinstance(source, dict) else None
+    if not isinstance(source_devices, dict):
+        return None
+    source_device = source_devices.get(device_key)
+    return source_device if isinstance(source_device, dict) else None
+
+
 def _bootstrap_target(
     target: dict[str, Any], *, timeout: int, docs_path: str
 ) -> dict[str, Any]:
@@ -1469,6 +1496,7 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
     global_product_facets: dict[str, Any] = {}
     language_options: dict[str, str] = {}
     alt_language_options: dict[str, str] = {}
+    previous_runtime_catalog = fetch_previous_runtime_catalog(timeout=timeout)
 
     for device_key, product_meta in TARGET_PRODUCTS.items():
         device_targets = [dict(target) for target in crawl_targets]
@@ -1482,6 +1510,43 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             _bootstrap_target(global_target, timeout=timeout, docs_path=docs_path)
         )
         global_target["bootstrap_error"] = None
+
+        global_product_id_raw = global_target["product_ids"].get(device_key)
+        if global_product_id_raw is None:
+            missing_message = (
+                f"Could not discover product id for '{product_meta['label']}'"
+            )
+            if bool(product_meta.get("required")):
+                raise RuntimeError(missing_message)
+            previous_device = _previous_catalog_device(
+                previous_runtime_catalog, device_key
+            )
+            if isinstance(previous_device, dict):
+                devices_catalog[device_key] = previous_device
+            previous_source_device = _previous_catalog_source_device(
+                previous_runtime_catalog, device_key
+            )
+            if isinstance(previous_source_device, dict):
+                source_devices[device_key] = previous_source_device
+            crawl_meta[device_key] = {
+                "count": 0,
+                "targets": {},
+                "missing_product_media_id_targets": [global_target_key],
+                "used_global_product_media_id_targets": [],
+                "empty_release_targets": [],
+                "bootstrap_error_targets": [],
+                "crawl_error_targets": [],
+                "skipped": True,
+                "skip_reason": missing_message,
+                "using_previous_catalog_device": isinstance(previous_device, dict),
+            }
+            _LOGGER.warning(
+                "Firmware catalog skipping device %s: %s",
+                device_key,
+                missing_message,
+            )
+            continue
+        global_product_id = int(global_product_id_raw)
 
         for target in device_targets:
             if str(target["key"]) == global_target_key:
@@ -1514,12 +1579,6 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                     err,
                 )
 
-        global_product_id_raw = global_target["product_ids"].get(device_key)
-        if global_product_id_raw is None:
-            raise RuntimeError(
-                f"Could not discover product id for '{product_meta['label']}'"
-            )
-        global_product_id = int(global_product_id_raw)
         global_topic_id = int(global_target["topic_id"])
         global_product_type = str(global_target["product_type"])
         global_apps_url = str(global_target["apps_url"])
@@ -1708,7 +1767,6 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         },
         "devices": devices_catalog,
     }
-    previous_runtime_catalog = fetch_previous_runtime_catalog(timeout=timeout)
     generated_at = choose_generated_at(
         current_catalog=runtime_catalog,
         previous_catalog=previous_runtime_catalog,
@@ -1757,6 +1815,7 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                     ),
                 }
                 for key in TARGET_PRODUCTS
+                if key in devices_catalog
             },
         },
     )

@@ -261,18 +261,20 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
 
         raw_latest = _text(entry.get("version"))
         normalized_latest = normalize_version_token(raw_latest)
-        comparable_update = compare_versions(normalized_latest, normalized_installed)
 
         self._raw_latest_version = raw_latest
-        if comparable_update is None:
-            # Conservative fallback: avoid false-positive update state.
-            self._attr_latest_version = None
-        else:
-            self._attr_latest_version = normalized_latest
+        self._attr_latest_version = _latest_version_for_state(
+            latest=normalized_latest,
+            installed=normalized_installed,
+        )
+        release_metadata_matches = _release_metadata_matches_state(
+            catalog_version=normalized_latest,
+            latest_version=self._attr_latest_version,
+        )
 
         urls = entry.get("urls_by_locale")
         release_url = None
-        if isinstance(urls, dict):
+        if release_metadata_matches and isinstance(urls, dict):
             chosen_key = (
                 self._locale_used
                 if self._locale_used in urls
@@ -283,7 +285,9 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
                 self._locale_used = chosen_key
 
         self._attr_release_url = release_url
-        self._attr_release_summary = _text(entry.get("summary"))
+        self._attr_release_summary = (
+            _text(entry.get("summary")) if release_metadata_matches else None
+        )
         _reconcile_skipped_version(self)
 
 
@@ -323,6 +327,7 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
         self._locale_used: str = "en"
         self._source_scope: str | None = None
         self._catalog_generated_at: str | None = None
+        self._catalog_latest_version: str | None = None
 
         self._refresh_from_details(self._manager.cached_details)
         self._refresh_from_catalog(self._catalog_manager.cached_catalog)
@@ -457,12 +462,12 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
 
         raw_latest = _text(details.get("targetFwVersion")) if details else None
         normalized_latest = normalize_version_token(raw_latest)
-        comparable_update = compare_versions(normalized_latest, normalized_installed)
         self._raw_latest_version = raw_latest
-        if comparable_update is None:
-            self._attr_latest_version = None
-        else:
-            self._attr_latest_version = normalized_latest
+        self._attr_latest_version = _latest_version_for_state(
+            latest=normalized_latest,
+            installed=normalized_installed,
+        )
+        self._clear_release_metadata_if_mismatch()
 
         self._upgrade_status = (
             _as_int(details.get("upgradeStatus")) if details else None
@@ -498,16 +503,20 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
             if isinstance(catalog, dict) and catalog.get("generated_at") is not None
             else None
         )
+        self._catalog_latest_version = None
 
         entry = selected.entry if isinstance(selected.entry, dict) else None
         if entry is None:
             self._attr_release_url = None
             self._attr_release_summary = None
             return
+        self._catalog_latest_version = normalize_version_token(
+            _text(entry.get("version"))
+        )
 
         urls = entry.get("urls_by_locale")
         release_url = None
-        if isinstance(urls, dict):
+        if self._release_metadata_matches_state() and isinstance(urls, dict):
             chosen_key = (
                 self._locale_used
                 if self._locale_used in urls
@@ -518,7 +527,23 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
                 self._locale_used = chosen_key
 
         self._attr_release_url = release_url
-        self._attr_release_summary = _text(entry.get("summary"))
+        self._attr_release_summary = (
+            _text(entry.get("summary"))
+            if self._release_metadata_matches_state()
+            else None
+        )
+
+    def _release_metadata_matches_state(self) -> bool:
+        return _release_metadata_matches_state(
+            catalog_version=self._catalog_latest_version,
+            latest_version=self.latest_version,
+        )
+
+    def _clear_release_metadata_if_mismatch(self) -> None:
+        if self._release_metadata_matches_state():
+            return
+        self._attr_release_url = None
+        self._attr_release_summary = None
 
 
 def _charger_serials(coord: EnphaseCoordinator) -> list[str]:
@@ -624,6 +649,24 @@ def _evse_firmware_rollout_enabled(
         return feature_flag_enabled("iqevse_itk_fw_upgrade_status", serial)
     except Exception:  # noqa: BLE001
         return None
+
+
+def _latest_version_for_state(
+    *, latest: str | None, installed: str | None
+) -> str | None:
+    comparable_update = compare_versions(latest, installed)
+    if comparable_update is None:
+        # Conservative fallback: avoid false-positive update state.
+        return None
+    if comparable_update:
+        return latest
+    return installed
+
+
+def _release_metadata_matches_state(
+    *, catalog_version: str | None, latest_version: str | None
+) -> bool:
+    return catalog_version is not None and catalog_version == latest_version
 
 
 def _reconcile_skipped_version(entity: UpdateEntity) -> None:
