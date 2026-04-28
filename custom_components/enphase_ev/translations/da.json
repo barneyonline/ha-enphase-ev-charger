@@ -814,6 +814,12 @@
         "name": "Cloud-fejlkode",
         "state": {
           "none": "Ingen",
+          "rate_limited": "Frekvensbegrænset",
+          "auth_blocked": "Godkendelse midlertidigt blokeret",
+          "authentication_error": "Godkendelsesfejl",
+          "request_error": "Forespørgselsfejl",
+          "service_unavailable": "Tjenesten er utilgængelig",
+          "invalid_payload": "Ugyldigt cloudsvar",
           "dns_error": "DNS-fejl",
           "network_error": "Netværksfejl"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase afviste godkendelse for stedet {site_id}, fordi der er for mange aktive kontosessioner. Automatiske forsøg er sat på pause indtil {blocked_until}. Log ud af andre Enphase app- eller browsersessioner, og prøv derefter at godkende igen."
     },
     "rate_limited": {
-      "title": "Enphase Energy er rate-begrænset",
-      "description": "Cloud-API'et returnerede rate limiting. Polling vil midlertidigt blive langsommere."
+      "title": "Enphase Energy er frekvensbegrænset",
+      "description": "Cloud-API’et returnerede en frekvensbegrænsning. Forespørgsler sænkes indtil {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy cloud ikke tilgængelig",

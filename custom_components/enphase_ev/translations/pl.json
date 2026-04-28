@@ -814,6 +814,12 @@
         "name": "Kod błędu chmury",
         "state": {
           "none": "Brak",
+          "rate_limited": "Ograniczenie częstotliwości",
+          "auth_blocked": "Uwierzytelnianie tymczasowo zablokowane",
+          "authentication_error": "Błąd uwierzytelniania",
+          "request_error": "Błąd żądania",
+          "service_unavailable": "Usługa niedostępna",
+          "invalid_payload": "Nieprawidłowa odpowiedź chmury",
           "dns_error": "Błąd DNS",
           "network_error": "Błąd sieci"
         }
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy ma ograniczenie zapytań",
-      "description": "API chmury zwróciło ograniczenie zapytań. Odpytywanie tymczasowo zwolni."
+      "description": "Interfejs API chmury zwrócił ograniczenie częstotliwości. Odpytywanie zostanie spowolnione do {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Chmura Enphase Energy nieosiągalna",

@@ -814,6 +814,12 @@
         "name": "Debesies klaidos kodas",
         "state": {
           "none": "Nėra",
+          "rate_limited": "Ribojamas užklausų dažnis",
+          "auth_blocked": "Autentifikavimas laikinai užblokuotas",
+          "authentication_error": "Autentifikavimo klaida",
+          "request_error": "Užklausos klaida",
+          "service_unavailable": "Paslauga nepasiekiama",
+          "invalid_payload": "Netinkamas debesijos atsakymas",
           "dns_error": "DNS klaida",
           "network_error": "Tinklo klaida"
         }
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy ribojamas",
-      "description": "Debesies API grąžino greičio ribojimą. Apklausa laikinai sulėtės."
+      "description": "Debesijos API grąžino užklausų dažnio ribojimą. Apklausos bus sulėtintos iki {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy debesis nepasiekiamas",

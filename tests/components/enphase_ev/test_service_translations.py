@@ -86,6 +86,62 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         ), f"{name} missing {{blocked_until}} placeholder"
 
 
+def test_cloud_error_code_states_exist_for_all_locales() -> None:
+    """Ensure cloud diagnostic error states can be translated in the UI."""
+
+    from custom_components.enphase_ev.sensor import CLOUD_ERROR_CODE_STATES
+
+    root = (
+        pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "enphase_ev"
+    )
+    translations_dir = root / "translations"
+    paths = [
+        "entity.sensor.cloud_error_code.state.none",
+        "entity.sensor.cloud_error_code.state.rate_limited",
+        "entity.sensor.cloud_error_code.state.auth_blocked",
+        "entity.sensor.cloud_error_code.state.authentication_error",
+        "entity.sensor.cloud_error_code.state.request_error",
+        "entity.sensor.cloud_error_code.state.service_unavailable",
+        "entity.sensor.cloud_error_code.state.invalid_payload",
+        "entity.sensor.cloud_error_code.state.dns_error",
+        "entity.sensor.cloud_error_code.state.network_error",
+    ]
+    strings_data = json.loads((root / "strings.json").read_text(encoding="utf-8"))
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    assert set(strings_data["entity"]["sensor"]["cloud_error_code"]["state"]) == set(
+        CLOUD_ERROR_CODE_STATES
+    )
+    for path in paths:
+        value = _at_path(strings_data, path)
+        assert value.strip(), f"strings.json missing value for {path}"
+    rate_limited_issue = _at_path(strings_data, "issues.rate_limited.description")
+    assert "{backoff_ends}" in rate_limited_issue
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        assert set(data["entity"]["sensor"]["cloud_error_code"]["state"]) == set(
+            CLOUD_ERROR_CODE_STATES
+        ), f"{name} cloud error states differ from sensor options"
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
+        rate_limited_issue = _at_path(data, "issues.rate_limited.description")
+        assert (
+            "{backoff_ends}" in rate_limited_issue
+        ), f"{name} missing {{backoff_ends}} placeholder"
+        if name != "en.json" and not name.startswith("en-"):
+            assert rate_limited_issue != _at_path(
+                en_data, "issues.rate_limited.description"
+            ), f"{name} should localize issues.rate_limited.description"
+            assert _at_path(data, "issues.rate_limited.title") != _at_path(
+                en_data, "issues.rate_limited.title"
+            ), f"{name} should localize issues.rate_limited.title"
+
+
 def _at_path(data: dict, path: str) -> str:
     cur = data
     for part in path.split("."):

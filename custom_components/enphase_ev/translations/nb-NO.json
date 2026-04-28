@@ -814,6 +814,12 @@
         "name": "Sky-feilkode",
         "state": {
           "none": "Ingen",
+          "rate_limited": "Frekvensbegrenset",
+          "auth_blocked": "Autentisering midlertidig blokkert",
+          "authentication_error": "Autentiseringsfeil",
+          "request_error": "Forespørselsfeil",
+          "service_unavailable": "Tjenesten er utilgjengelig",
+          "invalid_payload": "Ugyldig skysvar",
           "dns_error": "DNS-feil",
           "network_error": "Nettverksfeil"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase avviste autentisering for stedet {site_id} fordi kontoen har for mange aktive økter. Automatiske forsøk er satt på pause til {blocked_until}. Logg ut av andre Enphase-app- eller nettleserøkter, og prøv deretter å autentisere på nytt."
     },
     "rate_limited": {
-      "title": "Enphase Energy er ratebegrenset",
-      "description": "Sky-API-et returnerte rate limiting. Oppdatering vil midlertidig gå saktere."
+      "title": "Enphase Energy er frekvensbegrenset",
+      "description": "Sky-API-et returnerte frekvensbegrensning. Spørringer bremses til {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy sky utilgjengelig",

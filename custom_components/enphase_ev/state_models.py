@@ -106,6 +106,8 @@ class RefreshHealthState:
     _network_issue_reported: bool = False
     _dns_failures: int = 0
     _dns_issue_reported: bool = False
+    _rate_limit_issue_reported: bool = False
+    _rate_limit_issue_clear_checked: bool = False
     _scheduler_available: bool = True
     _scheduler_failures: int = 0
     _scheduler_last_error: str | None = None

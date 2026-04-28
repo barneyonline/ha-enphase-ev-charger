@@ -411,8 +411,24 @@ def test_site_error_code_sensor_state_and_attributes():
     coord.payload_using_stale = True
     coord.payload_failure_kind = "json_decode"
 
-    assert sensor.native_value == "429"
+    assert sensor.native_value == "invalid_payload"
+    assert "rate_limited" in sensor.options
     assert sensor.extra_state_attributes == {}
+
+    coord.payload_failure_kind = None
+    assert sensor.native_value == "rate_limited"
+
+    coord.last_failure_status = 401
+    assert sensor.native_value == "authentication_error"
+
+    coord.last_failure_status = 404
+    assert sensor.native_value == "request_error"
+
+    coord.last_failure_status = "unavailable"
+    assert sensor.native_value == "request_error"
+
+    coord.last_failure_status = 503
+    assert sensor.native_value == "service_unavailable"
 
     coord.last_success_utc = failure_time + timedelta(seconds=1)
     assert sensor.native_value == "none"
@@ -436,6 +452,20 @@ def test_site_error_code_sensor_state_and_attributes():
     # Non-network failures without status fall back to none
     coord.last_failure_source = "other"
     assert sensor.native_value == "none"
+
+    coord.last_failure_source = "auth"
+    assert sensor.native_value == "authentication_error"
+
+    coord._last_error = "auth_blocked"
+    assert sensor.native_value == "auth_blocked"
+
+    coord._last_error = None
+    coord.last_failure_status = 401
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+    assert sensor.native_value == "auth_blocked"
+
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) - timedelta(minutes=1)
+    assert sensor.native_value == "authentication_error"
 
 
 def test_site_backoff_sensor_handles_none_and_datetime(monkeypatch):

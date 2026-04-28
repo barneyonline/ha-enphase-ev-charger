@@ -817,6 +817,12 @@
         "name": "Cloud Error Code",
         "state": {
           "none": "None",
+          "rate_limited": "Rate limited",
+          "auth_blocked": "Authentication temporarily blocked",
+          "authentication_error": "Authentication error",
+          "request_error": "Request error",
+          "service_unavailable": "Service unavailable",
+          "invalid_payload": "Invalid cloud response",
           "dns_error": "DNS error",
           "network_error": "Network error"
         }
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy is rate limited",
-      "description": "The cloud API returned rate limiting. Polling will slow temporarily."
+      "description": "The cloud API returned rate limiting. Polling will slow until {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy cloud unreachable",

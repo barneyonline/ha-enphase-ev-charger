@@ -132,6 +132,76 @@ def test_endpoint_family_failure_classification_and_core_backoff(
     assert coord._endpoint_family_should_run("core_realtime") is False  # noqa: SLF001
 
 
+def test_endpoint_family_retry_after_numeric_overrides_policy_cap(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: 1_000.0)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: now)
+    monkeypatch.setattr(coord_mod.random, "uniform", lambda _a, _b: 1.0)
+
+    err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=429,
+        message="Too Many Requests",
+        headers={"Retry-After": "120"},
+    )
+
+    assert coord._note_endpoint_family_failure("tariff", err) is True  # noqa: SLF001
+
+    health = coord._endpoint_family_state("tariff")  # noqa: SLF001
+    assert health.next_retry_mono == pytest.approx(1_120.0)
+    assert health.next_retry_utc == now + timedelta(seconds=120)
+
+
+def test_endpoint_family_retry_after_http_date_and_invalid_fallback(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    now = datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: 2_000.0)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: now)
+    monkeypatch.setattr(coord_mod.random, "uniform", lambda _a, _b: 1.0)
+
+    dated_err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=503,
+        message="Service Unavailable",
+        headers={"Retry-After": "Wed, 01 Jan 2025 12:01:30 GMT"},
+    )
+
+    assert (
+        coord._note_endpoint_family_failure("core_realtime", dated_err) is True
+    )  # noqa: SLF001
+    health = coord._endpoint_family_state("core_realtime")  # noqa: SLF001
+    assert health.next_retry_mono == pytest.approx(2_090.0)
+    assert health.next_retry_utc == now + timedelta(seconds=90)
+
+    invalid_err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=503,
+        message="Service Unavailable",
+        headers={"Retry-After": "invalid"},
+    )
+    missing_retry_after_err = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=503,
+        message="Service Unavailable",
+        headers={"Date": "Wed, 01 Jan 2025 12:00:00 GMT"},
+    )
+    assert coord._retry_after_delay(missing_retry_after_err) is None  # noqa: SLF001
+    assert (
+        coord._note_endpoint_family_failure("battery_status", invalid_err) is True
+    )  # noqa: SLF001
+    battery_health = coord._endpoint_family_state("battery_status")  # noqa: SLF001
+    assert battery_health.next_retry_mono == pytest.approx(2_300.0)
+
+
 def test_endpoint_family_suppression_recovery_and_metrics(
     coordinator_factory, monkeypatch
 ) -> None:

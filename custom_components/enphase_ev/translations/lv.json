@@ -814,6 +814,12 @@
         "name": "Mākoņa kļūdas kods",
         "state": {
           "none": "Nav",
+          "rate_limited": "Ierobežots pieprasījumu biežums",
+          "auth_blocked": "Autentifikācija īslaicīgi bloķēta",
+          "authentication_error": "Autentifikācijas kļūda",
+          "request_error": "Pieprasījuma kļūda",
+          "service_unavailable": "Pakalpojums nav pieejams",
+          "invalid_payload": "Nederīga mākoņa atbilde",
           "dns_error": "DNS kļūda",
           "network_error": "Tīkla kļūda"
         }
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy ir ierobežots",
-      "description": "Mākoņa API atgrieza ātruma ierobežojumu. Aptauja uz laiku palēnināsies."
+      "description": "Mākoņa API atgrieza pieprasījumu biežuma ierobežojumu. Aptauja tiks palēnināta līdz {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy mākonis nav sasniedzams",

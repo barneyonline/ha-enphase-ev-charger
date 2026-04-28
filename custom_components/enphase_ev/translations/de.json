@@ -814,6 +814,12 @@
         "name": "Cloud-Fehlercode",
         "state": {
           "none": "Keiner",
+          "rate_limited": "Durch Ratenlimit begrenzt",
+          "auth_blocked": "Authentifizierung vorübergehend blockiert",
+          "authentication_error": "Authentifizierungsfehler",
+          "request_error": "Anfragefehler",
+          "service_unavailable": "Dienst nicht verfügbar",
+          "invalid_payload": "Ungültige Cloud-Antwort",
           "dns_error": "DNS-Fehler",
           "network_error": "Netzwerkfehler"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase hat die Authentifizierung für Standort {site_id} abgelehnt, weil zu viele Kontositzungen aktiv sind. Automatische Wiederholungen sind bis {blocked_until} pausiert. Melden Sie sich von anderen Enphase-App- oder Browser-Sitzungen ab und versuchen Sie die erneute Authentifizierung danach erneut."
     },
     "rate_limited": {
-      "title": "Enphase Energy ist rate-limitiert",
-      "description": "Die Cloud-API hat eine Limitierung gemeldet. Die Abfrage wird vorübergehend langsamer."
+      "title": "Enphase Energy ist durch ein Ratenlimit begrenzt",
+      "description": "Die Cloud-API hat ein Ratenlimit gemeldet. Die Abfrage wird bis {backoff_ends} verlangsamt."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy-Cloud nicht erreichbar",

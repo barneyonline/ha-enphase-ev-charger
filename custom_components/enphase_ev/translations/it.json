@@ -814,6 +814,12 @@
         "name": "Codice errore cloud",
         "state": {
           "none": "Nessuno",
+          "rate_limited": "Limite di frequenza",
+          "auth_blocked": "Autenticazione temporaneamente bloccata",
+          "authentication_error": "Errore di autenticazione",
+          "request_error": "Errore di richiesta",
+          "service_unavailable": "Servizio non disponibile",
+          "invalid_payload": "Risposta cloud non valida",
           "dns_error": "Errore DNS",
           "network_error": "Errore di rete"
         }
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy ha limitazione di frequenza",
-      "description": "L'API cloud ha restituito limitazione di frequenza. Il polling rallenterà temporaneamente."
+      "description": "L’API cloud ha restituito un limite di frequenza. Il polling rallenterà fino a {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Cloud Enphase Energy non raggiungibile",

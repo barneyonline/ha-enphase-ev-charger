@@ -814,6 +814,12 @@
         "name": "Cloud-foutcode",
         "state": {
           "none": "Geen",
+          "rate_limited": "Verzoekfrequentie beperkt",
+          "auth_blocked": "Authenticatie tijdelijk geblokkeerd",
+          "authentication_error": "Authenticatiefout",
+          "request_error": "Aanvraagfout",
+          "service_unavailable": "Service niet beschikbaar",
+          "invalid_payload": "Ongeldig cloudantwoord",
           "dns_error": "DNS-fout",
           "network_error": "Netwerkfout"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase heeft de authenticatie voor locatie {site_id} geweigerd omdat er te veel accountsessies actief zijn. Automatische pogingen zijn gepauzeerd tot {blocked_until}. Meld u af bij andere Enphase-app- of browsersessies en probeer daarna opnieuw te authenticeren."
     },
     "rate_limited": {
-      "title": "Enphase Energy is beperkt door rate limiting",
-      "description": "De cloud-API gaf rate limiting terug. Polling zal tijdelijk vertragen."
+      "title": "Enphase Energy is door een snelheidslimiet beperkt",
+      "description": "De cloud-API gaf een verzoekfrequentielimiet terug. Polling wordt vertraagd tot {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy cloud onbereikbaar",

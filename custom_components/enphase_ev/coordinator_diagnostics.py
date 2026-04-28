@@ -911,6 +911,9 @@ class CoordinatorDiagnostics:
         blocked_until = metrics.get("auth_blocked_until")
         if blocked_until:
             placeholders["blocked_until"] = str(blocked_until)
+        backoff_ends = metrics.get("backoff_ends_utc")
+        if backoff_ends:
+            placeholders["backoff_ends"] = str(backoff_ends)
         return placeholders
 
     def issue_context(self) -> tuple[dict[str, object], dict[str, str]]:
@@ -1305,10 +1308,30 @@ class CoordinatorDiagnostics:
         )
 
     def create_rate_limited_issue(self) -> None:
-        self._create_site_metrics_issue(
+        placeholders: dict[str, str] = {}
+        backoff_ends = self.coordinator._format_auth_blocked_until(
+            getattr(self.coordinator, "backoff_ends_utc", None)
+        )
+        if backoff_ends:
+            placeholders["backoff_ends"] = backoff_ends
+        self._report_flagged_issue(
+            "_rate_limit_issue_reported",
             ISSUE_RATE_LIMITED,
             severity=ir.IssueSeverity.WARNING,
+            placeholders=placeholders,
         )
+
+    def clear_rate_limited_issue(self) -> None:
+        coord = self.coordinator
+        if getattr(coord, "_rate_limit_issue_reported", False):
+            self._delete_issue(ISSUE_RATE_LIMITED)
+            coord._rate_limit_issue_reported = False
+            coord._rate_limit_issue_clear_checked = True
+            return
+        if getattr(coord, "_rate_limit_issue_clear_checked", False):
+            return
+        self._delete_issue(ISSUE_RATE_LIMITED)
+        coord._rate_limit_issue_clear_checked = True
 
     def clear_scheduler_issue(self) -> None:
         self._clear_reported_issue(

@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Detected Enphase "too many active sessions" authentication failures explicitly, paused automatic login retries, and surfaced localized config-flow and repair messages that tell users to clear other Enphase sessions.
+- Localized cloud diagnostic error states for rate limits, temporary authentication blocks, authentication failures, invalid payloads, service outages, DNS failures, and network errors; rate-limit repairs now include retry timing, de-duplicate repeated reports, and clear after a successful refresh.
 - Bounded the `Current Production Power` live-sample cache so stale values are not reused indefinitely when the latest-power endpoint stops returning valid samples.
 - Smoothed idle heat-pump power over existing low-load energy samples so whole-Wh cloud readings no longer flicker between `0 W` and standby load, while exposing the raw short-window value in diagnostics.
 - Reduced unnecessary EV charger post-status follow-up lookups, kept idle session-history catch-up off the main refresh path when cached data is still usable, and aligned HEMS preflight/device refresh cadence with fast polling to lower steady-state cloud overhead.

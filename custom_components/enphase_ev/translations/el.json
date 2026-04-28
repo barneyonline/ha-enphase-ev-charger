@@ -814,6 +814,12 @@
         "name": "Κωδικός σφάλματος cloud",
         "state": {
           "none": "Κανένα",
+          "rate_limited": "Περιορισμός ρυθμού",
+          "auth_blocked": "Ο έλεγχος ταυτότητας έχει προσωρινά αποκλειστεί",
+          "authentication_error": "Σφάλμα ελέγχου ταυτότητας",
+          "request_error": "Σφάλμα αιτήματος",
+          "service_unavailable": "Η υπηρεσία δεν είναι διαθέσιμη",
+          "invalid_payload": "Μη έγκυρη απόκριση cloud",
           "dns_error": "Σφάλμα DNS",
           "network_error": "Σφάλμα δικτύου"
         }
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Το Enphase Energy έχει περιορισμό ρυθμού",
-      "description": "Το API cloud επέστρεψε περιορισμό ρυθμού. Το polling θα επιβραδυνθεί προσωρινά."
+      "description": "Το API cloud επέστρεψε περιορισμό ρυθμού. Η περιοδική ενημέρωση θα επιβραδυνθεί έως {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Το cloud Enphase Energy δεν είναι προσβάσιμο",

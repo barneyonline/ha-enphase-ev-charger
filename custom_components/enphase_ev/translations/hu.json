@@ -814,6 +814,12 @@
         "name": "Cloud hibakód",
         "state": {
           "none": "Nincs",
+          "rate_limited": "Kérésszám korlátozva",
+          "auth_blocked": "A hitelesítés ideiglenesen blokkolva",
+          "authentication_error": "Hitelesítési hiba",
+          "request_error": "Kérési hiba",
+          "service_unavailable": "A szolgáltatás nem érhető el",
+          "invalid_payload": "Érvénytelen felhőválasz",
           "dns_error": "DNS-hiba",
           "network_error": "Hálózati hiba"
         }
@@ -2105,8 +2111,8 @@
       "description": "Az Enphase elutasította a(z) {site_id} hely hitelesítését, mert túl sok aktív fiókmunkamenet van. Az automatikus újrapróbálkozások {blocked_until} időpontig szünetelnek. Jelentkezzen ki a többi Enphase alkalmazás- vagy böngészőmunkamenetből, majd próbálja meg újra a hitelesítést."
     },
     "rate_limited": {
-      "title": "Enphase Energy korlátozott",
-      "description": "A cloud API rate limitinget adott vissza. A lekérdezés ideiglenesen lassul."
+      "title": "Az Enphase Energy kérésszáma korlátozva van",
+      "description": "A felhő API kérésszám-korlátozást jelzett. A lekérdezés {backoff_ends} időpontig lassul."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy cloud nem érhető el",
