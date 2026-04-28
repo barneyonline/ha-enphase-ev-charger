@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - Smoothed idle heat-pump power over existing low-load energy samples so whole-Wh cloud readings no longer flicker between `0 W` and standby load, while exposing the raw short-window value in diagnostics.
 - Reduced unnecessary EV charger post-status follow-up lookups, kept idle session-history catch-up off the main refresh path when cached data is still usable, and aligned HEMS preflight/device refresh cadence with fast polling to lower steady-state cloud overhead.
 - Hardened setup, polling, and EV charger service inputs by bounding scan/runtime intervals, restricting OCPP trigger messages to supported values, requiring confirmation for advanced trigger messages, and keeping raw Enphase error bodies out of raised exceptions.
+- Reported the charger-specific minimum amp value during EV charger safe-limit charging instead of always showing 8A.
 
 ### 🔧 Improvements
 - Clarified the Enphase authentication-block repair message and added a manual stored-credential reauthentication service for trying one immediate unblock attempt.

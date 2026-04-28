@@ -6082,7 +6082,7 @@ There is no single universal header set; the implementation varies headers by en
 | `maxCurrent` | Hardware max amp rating |
 | `operatingVoltage` | Nominal voltage per summary v2 |
 | `dlbEnabled` | Dynamic Load Balancing flag |
-| `safeLimitState` | DLB safe-mode indicator within `connectors[]`. Observed: `1` when DLB is enabled and the charger cannot reach the gateway, forcing a safe 8A limit. |
+| `safeLimitState` | Safe-limit indicator within `connectors[]`. Observed: `1` when the charger reverts to its lowest charge-current level; the effective limit follows the charger capability, for example 8A on some single-phase chargers and 16A on an IQ-EVSE-80R with `chargeLevelDetails.min=16`. |
 | `supportsUseBattery` | Summary v2 flag for green-mode "Use Battery" support |
 | `hoControl` | Homeowner-control capability flag from summary v2; observed value so far: `true` |
 | `activeConnection` | Active network transport label from summary v2; observed value so far: `ethernet` |

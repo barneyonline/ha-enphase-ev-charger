@@ -325,6 +325,8 @@ def test_charging_number_helper_coercions_cover_edge_inputs() -> None:
     assert ChargingAmpsNumber._charging_active("off") is False
     assert ChargingAmpsNumber._charging_active("mystery") is False
     assert ChargingAmpsNumber._charging_active(object()) is False
+    assert ChargingAmpsNumber._coerce_amp("16.0") == 16
+    assert ChargingAmpsNumber._coerce_amp("bad") is None
 
 
 @pytest.mark.asyncio
@@ -369,6 +371,8 @@ def test_charging_number_uses_pick_start_for_non_applicable_and_safe_limit(
     assert number.native_value == 26.0
     coord.data[RANDOM_SERIAL]["charge_mode_pref"] = "MANUAL"
     assert number.native_value == 8.0
+    coord.data[RANDOM_SERIAL]["min_amp"] = "16"
+    assert number.native_value == 16.0
     assert number.native_max_value == 40.0
 
 

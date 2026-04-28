@@ -806,7 +806,7 @@ async def test_async_update_data_success_handles_edge_payloads(
         "pluggedIn": True,
         "charging": False,
         "faulted": False,
-        "chargingLevel": 8,
+        "chargingLevel": 16,
         "session_d": {
             "e_c": 500.0,
             "miles": " ",
@@ -958,6 +958,7 @@ async def test_async_update_data_success_handles_edge_payloads(
     assert main["status"] == "ONLINE"
     assert main["charge_mode"] == "IDLE"
     assert main["energy_today_sessions_kwh"] == 0.0
+    assert main["charging_level"] == 16
     assert main["safe_limit_state"] == 1
     assert RANDOM_SERIAL not in coord.last_set_amps
     aux = snapshot_data["AUX"]

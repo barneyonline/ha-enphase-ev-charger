@@ -341,6 +341,22 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
             return False
         return False
 
+    @staticmethod
+    def _coerce_amp(value) -> int | None:
+        if value in (None, ""):
+            return None
+        try:
+            return int(float(str(value).strip()))
+        except Exception:  # noqa: BLE001
+            return None
+
+    @classmethod
+    def _safe_limit_amps(cls, data) -> int:
+        min_amp = cls._coerce_amp(data.get("min_amp"))
+        if min_amp is not None and min_amp > 0:
+            return min_amp
+        return SAFE_LIMIT_AMPS
+
     @property
     def native_value(self) -> float | None:
         data = self.data
@@ -349,7 +365,7 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
         if self._safe_limit_active(
             data.get("safe_limit_state")
         ) and self._charging_active(data.get("charging")):
-            return float(SAFE_LIMIT_AMPS)
+            return float(self._safe_limit_amps(data))
         lvl = data.get("charging_level")
         if lvl is None:
             # Let coordinator choose a safe default within charger limits
@@ -361,19 +377,13 @@ class ChargingAmpsNumber(EnphaseBaseEntity, NumberEntity):
 
     @property
     def native_min_value(self) -> float:
-        v = self.data.get("min_amp")
-        try:
-            return float(int(v)) if v is not None else 6.0
-        except Exception:
-            return 6.0
+        v = self._coerce_amp(self.data.get("min_amp"))
+        return float(v) if v is not None else 6.0
 
     @property
     def native_max_value(self) -> float:
-        v = self.data.get("max_amp")
-        try:
-            return float(int(v)) if v is not None else 40.0
-        except Exception:
-            return 40.0
+        v = self._coerce_amp(self.data.get("max_amp"))
+        return float(v) if v is not None else 40.0
 
     @property
     def native_step(self) -> float:

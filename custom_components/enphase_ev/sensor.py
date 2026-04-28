@@ -2698,7 +2698,7 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         if self._safe_limit_active(
             data.get("safe_limit_state")
         ) and self._charging_active(data.get("charging")):
-            return SAFE_LIMIT_AMPS
+            return self._safe_limit_amps(data)
         lvl = data.get("charging_level")
         if lvl is None:
             # Fall back to coordinator helper which respects charger limits
@@ -2713,9 +2713,16 @@ class EnphaseChargingLevelSensor(EnphaseBaseEntity, SensorEntity):
         if value in (None, ""):
             return None
         try:
-            return int(str(value).strip())
+            return int(float(str(value).strip()))
         except Exception:  # noqa: BLE001
             return None
+
+    @classmethod
+    def _safe_limit_amps(cls, data):
+        min_amp = cls._coerce_amp(data.get("min_amp"))
+        if min_amp is not None and min_amp > 0:
+            return min_amp
+        return SAFE_LIMIT_AMPS
 
     @property
     def extra_state_attributes(self):
