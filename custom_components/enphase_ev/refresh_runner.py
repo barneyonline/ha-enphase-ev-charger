@@ -110,7 +110,8 @@ class RefreshRunner:
                         log_label,
                         callback_factory,
                         endpoint_family=endpoint_family,
-                    )
+                    ),
+                    name=f"{DOMAIN}_refresh_{timing_key}",
                 )
                 for timing_key, log_label, callback_factory, endpoint_family in calls
             ]
@@ -255,7 +256,7 @@ class RefreshRunner:
         try:
             coordinator._warmup_task = coordinator.hass.async_create_task(
                 self.async_startup_warmup_runner(),
-                name=f"{DOMAIN}_warmup_{coordinator.site_id}",
+                name=f"{DOMAIN}_warmup_site",
             )
         except TypeError:
             coordinator._warmup_task = coordinator.hass.async_create_task(

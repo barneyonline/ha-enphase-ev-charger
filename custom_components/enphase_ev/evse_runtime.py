@@ -141,7 +141,10 @@ class EvseRuntime:
                 return await awaitable
 
         wrapped = {
-            sn: asyncio.create_task(_run(awaitable))
+            sn: asyncio.create_task(
+                _run(awaitable),
+                name=f"{DOMAIN}_evse_lookup_{redact_identifier(sn)}",
+            )
             for sn, awaitable in pending.items()
         }
         responses = await asyncio.gather(*wrapped.values(), return_exceptions=True)
@@ -767,7 +770,7 @@ class EvseRuntime:
         try:
             task = coord.hass.async_create_task(
                 restart(sn_str, delay),
-                name=f"enphase_ev_amp_restart_{sn_str}",
+                name=f"enphase_ev_amp_restart_{redact_identifier(sn_str)}",
             )
         except TypeError:
             task = coord.hass.async_create_task(restart(sn_str, delay))

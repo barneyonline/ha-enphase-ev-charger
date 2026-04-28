@@ -1,6 +1,8 @@
 import json
 import pathlib
 
+MIN_HOME_ASSISTANT_VERSION = "2026.3.0"
+
 
 def test_manifest_keys_present():
     manifest_path = (
@@ -47,4 +49,20 @@ def test_minimum_homeassistant_version_is_declared_in_hacs_only():
     hacs = json.loads((root / "hacs.json").read_text())
 
     assert "homeassistant" not in manifest
-    assert hacs.get("homeassistant") == "2024.12.0"
+    assert hacs.get("homeassistant") == MIN_HOME_ASSISTANT_VERSION
+
+
+def test_development_requirements_cover_minimum_homeassistant_version():
+    root = pathlib.Path(__file__).resolve().parents[3]
+
+    hacs = json.loads((root / "hacs.json").read_text())
+    requirements_dev = (
+        root / "devtools" / "docker" / "requirements-dev.txt"
+    ).read_text()
+    requirements_min_ha = (
+        root / "devtools" / "docker" / "requirements-min-ha.txt"
+    ).read_text()
+
+    assert hacs.get("homeassistant") == MIN_HOME_ASSISTANT_VERSION
+    assert f"homeassistant>={MIN_HOME_ASSISTANT_VERSION}" in requirements_dev
+    assert f"homeassistant=={MIN_HOME_ASSISTANT_VERSION}" in requirements_min_ha

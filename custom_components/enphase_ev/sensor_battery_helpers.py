@@ -2,9 +2,30 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import datetime, timezone
 import math
-from typing import Protocol
+from typing import Protocol, TypedDict
+
+type BatterySnapshot = dict[str, object]
+
+
+class BatteryLastReportedDeviceSnapshot(TypedDict):
+    """Device details attached to a battery last-reported aggregate."""
+
+    serial_number: object
+    name: object
+    status: object
+
+
+class BatteryLastReportedSnapshot(TypedDict):
+    """Aggregate battery last-reported payload exposed to sensors."""
+
+    total_batteries: int
+    without_last_report_count: int
+    latest_reported: datetime | None
+    latest_reported_utc: str | None
+    latest_reported_device: BatteryLastReportedDeviceSnapshot | None
 
 
 class BatteryLastReportedCoordinator(Protocol):
@@ -12,7 +33,7 @@ class BatteryLastReportedCoordinator(Protocol):
 
     battery_status_payload: object
 
-    def iter_battery_serials(self) -> object: ...
+    def iter_battery_serials(self) -> Iterable[str]: ...
 
     def battery_storage(self, serial: str) -> object: ...
 
@@ -80,7 +101,7 @@ def battery_optional_bool(value: object) -> bool | None:
     return None
 
 
-def battery_snapshot_last_reported(snapshot: dict[str, object]) -> datetime | None:
+def battery_snapshot_last_reported(snapshot: BatterySnapshot) -> datetime | None:
     """Return the newest last-report timestamp carried by a battery snapshot."""
 
     # Battery status API reports storages[].last_report as epoch seconds.
@@ -93,11 +114,11 @@ def battery_snapshot_last_reported(snapshot: dict[str, object]) -> datetime | No
 
 def battery_last_reported_members(
     coord: BatteryLastReportedCoordinator,
-) -> list[dict[str, object]]:
+) -> list[BatterySnapshot]:
     """Return battery members suitable for last-reported aggregation."""
 
     payload = getattr(coord, "battery_status_payload", None)
-    storage_members: list[dict[str, object]] = []
+    storage_members: list[BatterySnapshot] = []
     if isinstance(payload, dict):
         storages = payload.get("storages")
         if isinstance(storages, list):
@@ -129,12 +150,12 @@ def battery_last_reported_members(
 
 def battery_last_reported_snapshot(
     coord: BatteryLastReportedCoordinator,
-) -> dict[str, object]:
+) -> BatteryLastReportedSnapshot:
     """Return an aggregate last-reported snapshot for site battery storage."""
 
     members = battery_last_reported_members(coord)
     latest_reported: datetime | None = None
-    latest_reported_device: dict[str, object] | None = None
+    latest_reported_device: BatteryLastReportedDeviceSnapshot | None = None
     without_last_report_count = 0
     for snapshot in members:
         last_reported = battery_snapshot_last_reported(snapshot)

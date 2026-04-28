@@ -82,8 +82,9 @@ OFFICIAL_REQUIRED_RULES: dict[str, tuple[str, ...]] = {
     ),
 }
 NA_ALLOWED_RULES = {"discovery", "discovery-update-info"}
-STRICT_CONFIG_ENTRY_ALIAS = (
-    "EnphaseConfigEntry: TypeAlias = ConfigEntry[EnphaseRuntimeData]"
+STRICT_CONFIG_ENTRY_ALIASES = (
+    "EnphaseConfigEntry: TypeAlias = ConfigEntry[EnphaseRuntimeData]",
+    "type EnphaseConfigEntry = ConfigEntry[EnphaseRuntimeData]",
 )
 EXTERNAL_CONFIG_ENTRY_MARKER = "quality-scale: external-config-entry"
 BRANDS_GITHUB_API_URL = (
@@ -254,7 +255,7 @@ def _validate_strict_typing_contract(root: Path) -> list[str]:
         return messages
 
     runtime_data = runtime_data_path.read_text()
-    if STRICT_CONFIG_ENTRY_ALIAS not in runtime_data:
+    if not any(alias in runtime_data for alias in STRICT_CONFIG_ENTRY_ALIASES):
         messages.append(
             "ERROR: runtime_data.py must define EnphaseConfigEntry as "
             "ConfigEntry[EnphaseRuntimeData]"

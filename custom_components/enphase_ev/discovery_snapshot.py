@@ -349,7 +349,9 @@ class DiscoverySnapshotManager:
             self.coordinator._discovery_snapshot_save_cancel = None
             if not self.coordinator._discovery_snapshot_pending:
                 return
-            self.coordinator.hass.async_create_task(self.async_save())
+            self.coordinator.hass.async_create_task(
+                self.async_save(), name=f"{DOMAIN}_discovery_snapshot_save"
+            )
 
         self.coordinator._discovery_snapshot_save_cancel = async_call_later(
             self.coordinator.hass, DISCOVERY_SNAPSHOT_SAVE_DELAY_S, _run

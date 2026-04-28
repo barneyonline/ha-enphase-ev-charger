@@ -1208,7 +1208,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         elif callable(hass_create_background):
             hass_create_background(coro, name)
         else:
-            hass.async_create_task(coro)
+            hass.async_create_task(coro, name=name)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

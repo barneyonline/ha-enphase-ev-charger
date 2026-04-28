@@ -5,9 +5,32 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from typing import TypedDict
 
 from .api_models import ChargerInfo, SiteInfo
 from .runtime_helpers import coerce_optional_text
+
+type PayloadMap = dict[str, object]
+type DayEnergyValues = dict[str, float]
+type DateKeyParser = Callable[[object], str | None]
+type EnergyCoercer = Callable[..., float | None]
+
+
+class LatestPowerPayload(TypedDict, total=False):
+    """Payload shape returned by latest-power normalizers."""
+
+    value: float
+    units: str
+    precision: int
+    time: int
+
+
+class HeatpumpSGReadyModeDetails(TypedDict):
+    """Normalized SG Ready details derived from raw HEMS labels."""
+
+    sg_ready_mode_label: str | None
+    sg_ready_active: bool | None
+    sg_ready_contact_state: str | None
 
 
 @dataclass(slots=True, frozen=True)
@@ -19,10 +42,10 @@ class LatestPowerSample:
     precision: int | None = None
     time: int | None = None
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> LatestPowerPayload:
         """Return the payload shape used by existing API consumers."""
 
-        payload: dict[str, object] = {"value": self.value}
+        payload: LatestPowerPayload = {"value": self.value}
         if self.units is not None:
             payload["units"] = self.units
         if self.precision is not None:
@@ -37,12 +60,12 @@ class EVSEDailyEnergyEntry:
     """Normalized EVSE daily energy timeseries for one charger."""
 
     serial: str
-    day_values_kwh: dict[str, float]
+    day_values_kwh: DayEnergyValues
     energy_kwh: float | None
     current_value_kwh: float | None
-    metadata: dict[str, object]
+    metadata: PayloadMap
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> PayloadMap:
         """Return the payload shape used by existing API consumers."""
 
         return {
@@ -60,9 +83,9 @@ class EVSELifetimeEnergyEntry:
 
     serial: str
     energy_kwh: float
-    metadata: dict[str, object]
+    metadata: PayloadMap
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> PayloadMap:
         """Return the payload shape used by existing API consumers."""
 
         return {"serial": self.serial, "energy_kwh": self.energy_kwh, **self.metadata}
@@ -72,9 +95,9 @@ class EVSELifetimeEnergyEntry:
 class HEMSHeatpumpState:
     """Normalized HEMS heat pump runtime state."""
 
-    payload: dict[str, object]
+    payload: PayloadMap
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> PayloadMap:
         """Return the payload shape used by existing API consumers."""
 
         return dict(self.payload)
@@ -86,9 +109,9 @@ class HEMSDailyConsumptionEntry:
 
     device_uid: str | None
     device_name: str | None
-    consumption: list[dict[str, object]]
+    consumption: list[PayloadMap]
 
-    def to_dict(self) -> dict[str, object]:
+    def to_dict(self) -> PayloadMap:
         """Return the payload shape used by existing API consumers."""
 
         return {
@@ -270,14 +293,14 @@ def parse_latest_power_payload(payload: object) -> LatestPowerSample | None:
     )
 
 
-def normalize_latest_power_payload(payload: object) -> dict[str, object] | None:
+def normalize_latest_power_payload(payload: object) -> LatestPowerPayload | None:
     """Normalize app-api latest power payloads into a common shape."""
 
     sample = parse_latest_power_payload(payload)
     return sample.to_dict() if sample is not None else None
 
 
-def normalize_lifetime_energy_payload(payload: object) -> dict | None:
+def normalize_lifetime_energy_payload(payload: object) -> PayloadMap | None:
     """Normalize site/HEMS lifetime-energy payloads into a common shape."""
 
     data = payload
@@ -327,7 +350,7 @@ def normalize_lifetime_energy_payload(payload: object) -> dict | None:
         "systemId": "system_id",
     }
 
-    normalized: dict[str, object] = {}
+    normalized: PayloadMap = {}
     for key, value in data.items():
         canonical_key = array_field_aliases.get(key, key)
         if canonical_key in array_fields:
@@ -437,7 +460,7 @@ def coerce_evse_timeseries_energy(
     return round(numeric, 6)
 
 
-def normalize_evse_timeseries_metadata(payload: object) -> dict[str, object]:
+def normalize_evse_timeseries_metadata(payload: object) -> PayloadMap:
     """Normalize shared EVSE timeseries metadata."""
 
     if not isinstance(payload, dict):
@@ -448,7 +471,7 @@ def normalize_evse_timeseries_metadata(payload: object) -> dict[str, object]:
         or payload.get("interval_min")
         or payload.get("intervalMinutes")
     )
-    metadata: dict[str, object] = {}
+    metadata: PayloadMap = {}
     if interval is not None and interval > 0:
         metadata["interval_minutes"] = interval
     last_report = (
@@ -463,14 +486,14 @@ def normalize_evse_timeseries_metadata(payload: object) -> dict[str, object]:
 
 
 def daily_values_from_mapping(
-    payload: dict[str, object],
+    payload: PayloadMap,
     *,
-    parse_date_key: Callable[[object], str | None] = parse_evse_timeseries_date_key,
-    coerce_energy: Callable[..., float | None] = coerce_evse_timeseries_energy,
-) -> tuple[dict[str, float], float | None]:
+    parse_date_key: DateKeyParser = parse_evse_timeseries_date_key,
+    coerce_energy: EnergyCoercer = coerce_evse_timeseries_energy,
+) -> tuple[DayEnergyValues, float | None]:
     """Extract per-day EVSE values from a mapping payload."""
 
-    day_values: dict[str, float] = {}
+    day_values: DayEnergyValues = {}
     current_value: float | None = None
     unit_hint = payload.get("unit") or payload.get("source_unit")
     for key, raw in payload.items():
@@ -505,12 +528,12 @@ def daily_values_from_sequence(
     *,
     start_date_value: object | None = None,
     unit_hint: object | None = None,
-    parse_date_key: Callable[[object], str | None] = parse_evse_timeseries_date_key,
-    coerce_energy: Callable[..., float | None] = coerce_evse_timeseries_energy,
-) -> tuple[dict[str, float], float | None]:
+    parse_date_key: DateKeyParser = parse_evse_timeseries_date_key,
+    coerce_energy: EnergyCoercer = coerce_evse_timeseries_energy,
+) -> tuple[DayEnergyValues, float | None]:
     """Extract per-day EVSE values from a sequence payload."""
 
-    day_values: dict[str, float] = {}
+    day_values: DayEnergyValues = {}
     current_value: float | None = None
     start_day = parse_date_key(start_date_value)
     start_dt = None
@@ -566,14 +589,14 @@ def parse_evse_daily_entry(
     serial: str,
     payload: object,
     *,
-    base_metadata: dict[str, object] | None = None,
-    parse_date_key: Callable[[object], str | None] = parse_evse_timeseries_date_key,
-    coerce_energy: Callable[..., float | None] = coerce_evse_timeseries_energy,
+    base_metadata: PayloadMap | None = None,
+    parse_date_key: DateKeyParser = parse_evse_timeseries_date_key,
+    coerce_energy: EnergyCoercer = coerce_evse_timeseries_energy,
 ) -> EVSEDailyEnergyEntry | None:
     """Parse one EVSE daily timeseries entry."""
 
     metadata = dict(base_metadata or {})
-    day_values: dict[str, float] = {}
+    day_values: DayEnergyValues = {}
     current_value: float | None = None
     if isinstance(payload, dict):
         metadata.update(normalize_evse_timeseries_metadata(payload))
@@ -639,10 +662,10 @@ def normalize_evse_daily_entry(
     serial: str,
     payload: object,
     *,
-    base_metadata: dict[str, object] | None = None,
-    parse_date_key: Callable[[object], str | None] = parse_evse_timeseries_date_key,
-    coerce_energy: Callable[..., float | None] = coerce_evse_timeseries_energy,
-) -> dict[str, object] | None:
+    base_metadata: PayloadMap | None = None,
+    parse_date_key: DateKeyParser = parse_evse_timeseries_date_key,
+    coerce_energy: EnergyCoercer = coerce_evse_timeseries_energy,
+) -> PayloadMap | None:
     """Normalize one EVSE daily timeseries entry."""
 
     entry = parse_evse_daily_entry(
@@ -659,8 +682,8 @@ def parse_evse_lifetime_entry(
     serial: str,
     payload: object,
     *,
-    base_metadata: dict[str, object] | None = None,
-    coerce_energy: Callable[..., float | None] = coerce_evse_timeseries_energy,
+    base_metadata: PayloadMap | None = None,
+    coerce_energy: EnergyCoercer = coerce_evse_timeseries_energy,
 ) -> EVSELifetimeEnergyEntry | None:
     """Parse one EVSE lifetime timeseries entry."""
 
@@ -742,9 +765,9 @@ def normalize_evse_lifetime_entry(
     serial: str,
     payload: object,
     *,
-    base_metadata: dict[str, object] | None = None,
-    coerce_energy: Callable[..., float | None] = coerce_evse_timeseries_energy,
-) -> dict[str, object] | None:
+    base_metadata: PayloadMap | None = None,
+    coerce_energy: EnergyCoercer = coerce_evse_timeseries_energy,
+) -> PayloadMap | None:
     """Normalize one EVSE lifetime timeseries entry."""
 
     entry = parse_evse_lifetime_entry(
@@ -760,9 +783,9 @@ def normalize_evse_timeseries_payload(
     payload: object,
     *,
     daily: bool,
-    parse_date_key: Callable[[object], str | None] = parse_evse_timeseries_date_key,
-    coerce_energy: Callable[..., float | None] = coerce_evse_timeseries_energy,
-) -> dict[str, dict[str, object]] | None:
+    parse_date_key: DateKeyParser = parse_evse_timeseries_date_key,
+    coerce_energy: EnergyCoercer = coerce_evse_timeseries_energy,
+) -> dict[str, PayloadMap] | None:
     """Normalize EVSE timeseries payloads keyed by charger serial."""
 
     data = payload
@@ -780,7 +803,7 @@ def normalize_evse_timeseries_payload(
         )
         if isinstance(candidates, list):
             data = candidates
-    normalized: dict[str, dict[str, object]] = {}
+    normalized: dict[str, PayloadMap] = {}
     if isinstance(data, list):
         for item in data:
             if not isinstance(item, dict):
@@ -847,7 +870,7 @@ def clean_optional_text(value: object) -> str | None:
     return coerce_optional_text(value)
 
 
-def heatpump_sg_ready_mode_details(value: object) -> dict[str, object]:
+def heatpump_sg_ready_mode_details(value: object) -> HeatpumpSGReadyModeDetails:
     """Map raw HEMS SG Ready mode labels to app-facing semantics."""
 
     text = clean_optional_text(value)
@@ -929,7 +952,7 @@ def parse_hems_heatpump_state_payload(payload: object) -> HEMSHeatpumpState | No
     )
 
 
-def normalize_hems_heatpump_state_payload(payload: object) -> dict | None:
+def normalize_hems_heatpump_state_payload(payload: object) -> PayloadMap | None:
     """Normalize HEMS heat-pump runtime state payloads."""
 
     state = parse_hems_heatpump_state_payload(payload)
@@ -953,13 +976,13 @@ def parse_hems_daily_consumption_entry(
         if payload.get("device_name") is not None
         else payload.get("device-name")
     )
-    buckets: list[dict[str, object]] = []
+    buckets: list[PayloadMap] = []
     raw_buckets = payload.get("consumption")
     if isinstance(raw_buckets, list):
         for item in raw_buckets:
             if not isinstance(item, dict):
                 continue
-            bucket: dict[str, object] = {
+            bucket: PayloadMap = {
                 "solar": coerce_lifetime_energy_value(item.get("solar")),
                 "battery": coerce_lifetime_energy_value(item.get("battery")),
                 "grid": coerce_lifetime_energy_value(item.get("grid")),
@@ -980,14 +1003,14 @@ def parse_hems_daily_consumption_entry(
 
 def normalize_hems_daily_consumption_entry(
     payload: object,
-) -> dict[str, object] | None:
+) -> PayloadMap | None:
     """Normalize a HEMS daily-consumption device entry."""
 
     entry = parse_hems_daily_consumption_entry(payload)
     return entry.to_dict() if entry is not None else None
 
 
-def normalize_hems_energy_consumption_payload(payload: object) -> dict | None:
+def normalize_hems_energy_consumption_payload(payload: object) -> PayloadMap | None:
     """Normalize HEMS daily energy-consumption payloads."""
 
     if not isinstance(payload, dict):
@@ -998,12 +1021,12 @@ def normalize_hems_energy_consumption_payload(payload: object) -> dict | None:
 
     endpoint_type = clean_optional_text(payload.get("type"))
     endpoint_timestamp = payload.get("timestamp")
-    families: dict[str, object] = {
+    families: PayloadMap = {
         "heat-pump": [],
         "evse": [],
         "water-heater": [],
     }
-    normalized: dict[str, object] = {
+    normalized: PayloadMap = {
         "type": endpoint_type,
         "timestamp": endpoint_timestamp,
         "endpoint_type": endpoint_type,
@@ -1016,7 +1039,7 @@ def normalize_hems_energy_consumption_payload(payload: object) -> dict | None:
             raw_family = data.get(family_key.replace("-", "_"))
         if not isinstance(raw_family, list):
             continue
-        entries: list[dict[str, object]] = []
+        entries: list[PayloadMap] = []
         for item in raw_family:
             normalized_entry = normalize_hems_daily_consumption_entry(item)
             if normalized_entry is not None:
@@ -1025,13 +1048,13 @@ def normalize_hems_energy_consumption_payload(payload: object) -> dict | None:
     return normalized
 
 
-def normalize_pv_system_today_payload(payload: object) -> dict | None:
+def normalize_pv_system_today_payload(payload: object) -> PayloadMap | None:
     """Normalize site-today payloads used by heat-pump daily totals."""
 
     if not isinstance(payload, dict):
         return None
     stats = payload.get("stats")
-    normalized_stats: list[dict[str, object]] = []
+    normalized_stats: list[PayloadMap] = []
     if isinstance(stats, list):
         for item in stats:
             if not isinstance(item, dict):
@@ -1049,7 +1072,7 @@ def normalize_pv_system_today_payload(payload: object) -> dict | None:
     return normalized
 
 
-def normalize_hems_power_timeseries_payload(payload: object) -> dict | None:
+def normalize_hems_power_timeseries_payload(payload: object) -> PayloadMap | None:
     """Normalize HEMS heat-pump power timeseries payloads."""
 
     data = payload
@@ -1102,7 +1125,7 @@ def normalize_hems_power_timeseries_payload(payload: object) -> dict | None:
     else:
         values = []
 
-    normalized: dict[str, object] = {
+    normalized: PayloadMap = {
         "heat_pump_consumption": values,
     }
     device_uid = data.get("device_uid")

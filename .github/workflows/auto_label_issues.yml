@@ -74,7 +74,7 @@ jobs:
           FEATURE_AREA: ${{ steps.issue_parser.outputs.issueparser_area }}
           DEVICE_FAMILY: ${{ steps.issue_parser.outputs.issueparser_device_family }}
         with:
-          python-version: '3.x'
+          python-version: '3.14'
 
       - name: Reconcile automation labels
         env:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from importlib import import_module
+from importlib import import_module, reload
 from types import ModuleType
 from unittest.mock import AsyncMock, MagicMock
 
@@ -34,6 +34,46 @@ sys.modules["homeassistant.components.automation"].triggers = triggers_pkg
 device_trigger = import_module("custom_components.enphase_ev.device_trigger")
 const_module = import_module("custom_components.enphase_ev.const")
 DOMAIN = const_module.DOMAIN
+
+
+def test_device_trigger_import_falls_back_to_homeassistant_state_trigger():
+    """Use the Home Assistant trigger module path when automation triggers are absent."""
+    fallback_pkg = ModuleType("homeassistant.components.homeassistant.triggers")
+    fallback_state_mod = ModuleType(
+        "homeassistant.components.homeassistant.triggers.state"
+    )
+    fallback_pkg.state = fallback_state_mod
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setitem(
+            sys.modules,
+            "homeassistant.components.automation",
+            ModuleType("homeassistant.components.automation"),
+        )
+        monkeypatch.delitem(
+            sys.modules,
+            "homeassistant.components.automation.triggers",
+            raising=False,
+        )
+        monkeypatch.delitem(
+            sys.modules,
+            "homeassistant.components.automation.triggers.state",
+            raising=False,
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "homeassistant.components.homeassistant.triggers",
+            fallback_pkg,
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "homeassistant.components.homeassistant.triggers.state",
+            fallback_state_mod,
+        )
+
+        assert reload(device_trigger).state_trigger is fallback_state_mod
+
+    assert reload(device_trigger).state_trigger is state_mod
 
 
 @pytest.fixture

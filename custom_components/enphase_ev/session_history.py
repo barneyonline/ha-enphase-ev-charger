@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from .api import InvalidPayloadError, SessionHistoryUnavailable, Unauthorized
-from .log_redaction import redact_text
+from .log_redaction import redact_identifier, redact_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -453,7 +453,13 @@ class SessionHistoryManager:
                     return sn, None
                 return sn, sessions
 
-        tasks = [asyncio.create_task(_refresh(sn)) for sn in serial_list]
+        tasks = [
+            asyncio.create_task(
+                _refresh(sn),
+                name=f"enphase_ev_session_refresh_{redact_identifier(sn)}",
+            )
+            for sn in serial_list
+        ]
         responses = await asyncio.gather(*tasks, return_exceptions=True)
         updates: dict[str, list[dict]] = {}
         for response in responses:

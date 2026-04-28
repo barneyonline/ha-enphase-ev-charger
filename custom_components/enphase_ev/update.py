@@ -204,7 +204,10 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
             return
         if self._refresh_task is not None and not self._refresh_task.done():
             return
-        self._refresh_task = self.hass.async_create_task(self._async_refresh_catalog())
+        self._refresh_task = self.hass.async_create_task(
+            self._async_refresh_catalog(),
+            name=f"{DOMAIN}_firmware_catalog_refresh_{self._device_type}",
+        )
 
     async def _async_refresh_catalog(self) -> None:
         try:
@@ -391,7 +394,10 @@ class ChargerFirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateE
             return
         if self._refresh_task is not None and not self._refresh_task.done():
             return
-        self._refresh_task = self.hass.async_create_task(self._async_refresh_state())
+        self._refresh_task = self.hass.async_create_task(
+            self._async_refresh_state(),
+            name=f"{DOMAIN}_evse_firmware_refresh_{redact_identifier(self._serial)}",
+        )
 
     async def _async_refresh_details(self) -> None:
         try:
