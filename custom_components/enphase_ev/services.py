@@ -713,7 +713,10 @@ def async_setup_services(
         for device_id in device_ids:
             routing_context = await _resolve_device_routing_context(device_id)
             if routing_context is None:
-                continue
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="exceptions.grid_site_required",
+                )
             sn, site_id, config_entry_ids = routing_context
             coord = await _get_coordinator_for_sn(
                 sn,

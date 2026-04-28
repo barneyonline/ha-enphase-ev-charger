@@ -364,6 +364,63 @@ async def test_targeted_services_raise_without_target_or_owner(
 
 
 @pytest.mark.asyncio
+async def test_targeted_services_reject_mixed_valid_and_unknown_devices(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Targeted services should fail when any requested device cannot be resolved."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    device_registry = dr.async_get(hass)
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "site:evse-site")},
+        manufacturer="Enphase",
+        name="EVSE Site Device",
+    )
+    charger = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "EVSE123")},
+        manufacturer="Enphase",
+        name="Garage Charger",
+        via_device=(DOMAIN, "site:evse-site"),
+    )
+    unknown_device_id = "missing-device-id"
+
+    for service, data in (
+        (
+            "start_charging",
+            {"device_id": [charger.id, unknown_device_id], "charging_level": 24},
+        ),
+        ("stop_charging", {"device_id": [charger.id, unknown_device_id]}),
+        (
+            "trigger_message",
+            {
+                "device_id": [charger.id, unknown_device_id],
+                "requested_message": "MeterValues",
+            },
+        ),
+        ("sync_schedules", {"device_id": [charger.id, unknown_device_id]}),
+    ):
+        with pytest.raises(ServiceValidationError):
+            await handlers[(DOMAIN, service)](SimpleNamespace(data=data))
+
+    coord.async_start_charging.assert_not_awaited()
+    coord.async_stop_charging.assert_not_awaited()
+    coord.async_trigger_ocpp_message.assert_not_awaited()
+    coord.schedule_sync.async_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_try_reauth_now_uses_stored_credentials_for_selected_site(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
