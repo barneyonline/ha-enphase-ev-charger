@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Entita není tarifní sazba Enphase: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Nepodporovaná spouštěcí zpráva OCPP. Použijte jednu z těchto možností: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Chcete-li odeslat {message}, povolte pokročilé potvrzení."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Požadovaná zpráva",
           "description": "Název zprávy OCPP (např. MeterValues); odpověď služby zobrazuje výstup nabíječky."
+        },
+        "confirm_advanced": {
+          "name": "Potvrzení pokročilého spuštění",
+          "description": "Vyžaduje se pro pokročilé zprávy OCPP, které mohou vyžádat diagnostiku nabíječky, firmware nebo oznámení o spuštění."
         },
         "site_id": {
           "name": "ID lokality",

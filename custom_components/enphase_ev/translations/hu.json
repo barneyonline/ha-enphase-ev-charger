@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Az entitás nem Enphase tarifadíj: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Nem támogatott OCPP indítóüzenet. Használja ezek egyikét: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Engedélyezze a speciális megerősítést a(z) {message} küldéséhez."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Kért üzenet",
           "description": "OCPP üzenetnév (pl. MeterValues); a szolgáltatás válasza megjeleníti a töltő kimenetét."
+        },
+        "confirm_advanced": {
+          "name": "Speciális indítás megerősítése",
+          "description": "Speciális OCPP indítóüzenetekhez szükséges, amelyek töltődiagnosztikát, firmware-t vagy indítási értesítéseket kérhetnek."
         },
         "site_id": {
           "name": "Helyszín ID",

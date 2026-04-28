@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Objektas nėra Enphase tarifo kaina: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Nepalaikomas OCPP paleidimo pranešimas. Naudokite vieną iš šių: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Įjunkite išplėstinį patvirtinimą, kad išsiųstumėte {message}."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Prašomas pranešimas",
           "description": "OCPP pranešimo pavadinimas (pvz., MeterValues); paslaugos atsakas rodo įkroviklio išvestį."
+        },
+        "confirm_advanced": {
+          "name": "Patvirtinti išplėstinį paleidimą",
+          "description": "Reikalinga išplėstiniams OCPP paleidimo pranešimams, kurie gali prašyti įkroviklio diagnostikos, programinės aparatinės įrangos arba paleidimo pranešimų."
         },
         "site_id": {
           "name": "Vietos ID",

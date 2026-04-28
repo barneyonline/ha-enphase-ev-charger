@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Die Entität ist kein Enphase-Tarifsatz: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Nicht unterstützte OCPP-Triggernachricht. Verwenden Sie eine der folgenden Optionen: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Aktivieren Sie die erweiterte Bestätigung, um {message} zu senden."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Angeforderte Nachricht",
           "description": "OCPP-Nachrichtenname (z. B. MeterValues); die Serviceantwort zeigt die Ausgabe des Ladegeräts."
+        },
+        "confirm_advanced": {
+          "name": "Erweiterte Trigger bestätigen",
+          "description": "Erforderlich für erweiterte OCPP-Triggernachrichten, die Diagnose-, Firmware- oder Bootmeldungen des Ladegeräts anfordern können."
         },
         "site_id": {
           "name": "Standort-ID",

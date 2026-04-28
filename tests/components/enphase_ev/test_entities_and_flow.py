@@ -100,7 +100,7 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
 
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {CONF_TYPE_IQEVSE: True, CONF_SCAN_INTERVAL: 20},
+            {CONF_TYPE_IQEVSE: True, CONF_SCAN_INTERVAL: 30},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -112,7 +112,7 @@ async def test_config_flow_happy_path(hass: HomeAssistant) -> None:
     assert data[CONF_SITE_NAME] == "Garage Site"
     assert data[CONF_SERIALS] == ["EV123"]
     assert data[CONF_SELECTED_TYPE_KEYS] == ["iqevse"]
-    assert data[CONF_SCAN_INTERVAL] == 20
+    assert data[CONF_SCAN_INTERVAL] == 30
     assert data[CONF_COOKIE] == "jar=1"
     assert data[CONF_EAUTH] == "token123"
     assert data[CONF_SESSION_ID] == "sid123"

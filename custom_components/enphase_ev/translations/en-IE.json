@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Entity is not an Enphase tariff rate entity: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Unsupported OCPP trigger message. Use one of: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Enable advanced confirmation to send {message}."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Requested message",
           "description": "OCPP message name (e.g., MeterValues); service response shows charger output."
+        },
+        "confirm_advanced": {
+          "name": "Confirm advanced trigger",
+          "description": "Required for advanced OCPP trigger messages that may prompt charger diagnostics, firmware, or boot notifications."
         },
         "site_id": {
           "name": "Site ID",

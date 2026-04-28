@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "De entiteit is geen Enphase-tarief: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Niet-ondersteund OCPP-triggerbericht. Gebruik een van deze: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Schakel geavanceerde bevestiging in om {message} te verzenden."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Aangevraagd bericht",
           "description": "OCPP-berichtnaam (bijv. MeterValues); serviceantwoord toont laderuitvoer."
+        },
+        "confirm_advanced": {
+          "name": "Geavanceerde trigger bevestigen",
+          "description": "Vereist voor geavanceerde OCPP-triggerberichten die laderdiagnostiek, firmware of opstartmeldingen kunnen aanvragen."
         },
         "site_id": {
           "name": "Site-ID",

@@ -14,6 +14,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SLOW_POLL_INTERVAL,
+    MAX_POLL_INTERVAL,
     MIN_FAST_POLL_INTERVAL,
     MIN_SLOW_POLL_INTERVAL,
 )
@@ -89,9 +90,15 @@ def normalize_poll_intervals(
 ) -> tuple[int, int]:
     """Return sanitized fast/slow polling intervals."""
 
-    fast = max(MIN_FAST_POLL_INTERVAL, coerce_int(fast_value, default=fast_default))
+    fast = min(
+        MAX_POLL_INTERVAL,
+        max(MIN_FAST_POLL_INTERVAL, coerce_int(fast_value, default=fast_default)),
+    )
     slow_floor = max(MIN_SLOW_POLL_INTERVAL, fast)
-    slow = max(slow_floor, coerce_int(slow_value, default=slow_default))
+    slow = min(
+        MAX_POLL_INTERVAL,
+        max(slow_floor, coerce_int(slow_value, default=slow_default)),
+    )
     return fast, slow
 
 

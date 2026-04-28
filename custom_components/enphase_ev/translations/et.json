@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Olem ei ole Enphase tariifimäär: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Toetamata OCPP käivitussõnum. Kasutage ühte järgmistest: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Luba täpsem kinnitus, et saata {message}."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Taotletud sõnum",
           "description": "OCPP sõnumi nimi (nt MeterValues); teenuse vastus näitab laadija väljundit."
+        },
+        "confirm_advanced": {
+          "name": "Kinnita täpsem käivitus",
+          "description": "Nõutav täpsemate OCPP käivitussõnumite jaoks, mis võivad küsida laadija diagnostikat, püsivara või käivitusteavitusi."
         },
         "site_id": {
           "name": "Koha ID",

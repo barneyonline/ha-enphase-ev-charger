@@ -62,6 +62,25 @@ _BATTERY_CONFIG_VARIANT_LEAN = "official_web_lean"
 _BATTERY_CONFIG_VARIANT_COOKIE_EAUTH = "cookie_eauth_compatible"
 _BATTERY_CONFIG_VARIANT_MIXED = "mixed_auth_compatible"
 _ENLIGHTEN_READ_CONCURRENCY_LIMIT = 2
+OCPP_TRIGGER_MESSAGES = frozenset(
+    {
+        "BootNotification",
+        "DiagnosticsStatusNotification",
+        "FirmwareStatusNotification",
+        "Heartbeat",
+        "MeterValues",
+        "StatusNotification",
+    }
+)
+OCPP_TRIGGER_MESSAGES_REQUIRING_CONFIRMATION = frozenset(
+    {
+        "BootNotification",
+        "DiagnosticsStatusNotification",
+        "FirmwareStatusNotification",
+    }
+)
+_OCPP_TRIGGER_MESSAGE_MAX_LENGTH = 64
+_OCPP_TRIGGER_MESSAGE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,63}$")
 # Enlighten web pages and XHR endpoints share service capacity with the mobile
 # app. A module-level limiter keeps parallel refresh helpers from creating a
 # burst of browser-like reads during one Home Assistant update cycle.
@@ -315,6 +334,50 @@ def _truncate_preview(text: str, *, max_length: int = 256) -> str:
     if len(compact) > max_length:
         return f"{compact[:max_length]}..."
     return compact
+
+
+def _safe_response_error_message(
+    *,
+    status: int,
+    reason: str | None,
+    headers: object,
+    body_text: str | None,
+) -> str:
+    """Return a structured response error summary without raw response bodies."""
+
+    detail_parts = [f"status={status}"]
+    safe_reason = redact_text(reason or "", max_length=80)
+    if safe_reason:
+        detail_parts.append(f"reason={safe_reason}")
+    content_type = ""
+    try:
+        header_get = getattr(headers, "get", None)
+        if callable(header_get):
+            content_type = str(header_get("Content-Type", "")).strip()
+    except Exception:  # noqa: BLE001 - defensive header parsing
+        content_type = ""
+    if content_type:
+        detail_parts.append(f"content_type={content_type}")
+    if body_text is not None:
+        detail_parts.append(f"body_length={len(body_text)}")
+    return f"HTTP error from Enphase endpoint ({', '.join(detail_parts)})"
+
+
+def validate_ocpp_trigger_message(requested_message: object) -> str:
+    """Return a supported OCPP trigger message name or raise ValueError."""
+
+    raw_message = str(requested_message or "")
+    message = raw_message.strip()
+    if (
+        not message
+        or raw_message != message
+        or len(message) > _OCPP_TRIGGER_MESSAGE_MAX_LENGTH
+        or _OCPP_TRIGGER_MESSAGE_RE.fullmatch(message) is None
+        or message not in OCPP_TRIGGER_MESSAGES
+    ):
+        allowed = ", ".join(sorted(OCPP_TRIGGER_MESSAGES))
+        raise ValueError("Unsupported OCPP trigger message. " f"Use one of: {allowed}.")
+    return message
 
 
 def _is_enphase_login_wall(
@@ -1063,7 +1126,7 @@ async def _request_json(
             ) as resp:
                 if resp.status >= 500:
                     raise EnlightenAuthUnavailable(
-                        f"Server error {resp.status} at {url}"
+                        f"Server error {resp.status} at {_request_label(method, url)}"
                     )
                 if resp.status >= 400:
                     body_text = ""
@@ -1084,7 +1147,12 @@ async def _request_json(
                             "Too many active Enlighten sessions"
                         )
                     raise EnlightenAuthUnavailable(
-                        f"Unexpected response content-type {ctype!r} at {url}: {text[:120]}"
+                        _safe_response_error_message(
+                            status=int(resp.status),
+                            reason="Unexpected non-JSON response",
+                            headers=resp.headers,
+                            body_text=text,
+                        )
                     )
                 payload = await resp.json()
                 if _is_too_many_active_sessions_response(payload):
@@ -1116,7 +1184,9 @@ async def _request_mfa_json(
             method, url, allow_redirects=True, **req_kwargs
         ) as resp:
             if resp.status >= 500:
-                raise EnlightenAuthUnavailable(f"Server error {resp.status} at {url}")
+                raise EnlightenAuthUnavailable(
+                    f"Server error {resp.status} at {_request_label(method, url)}"
+                )
             if resp.status in (204, 205):
                 return {}
             if resp.status >= 400:
@@ -1147,7 +1217,12 @@ async def _request_mfa_json(
                 payload = json.loads(text)
             except json.JSONDecodeError as err:
                 raise EnlightenAuthUnavailable(
-                    f"Unexpected response content-type {ctype!r} at {url}: {text[:120]}"
+                    _safe_response_error_message(
+                        status=int(resp.status),
+                        reason="Unexpected MFA response",
+                        headers=resp.headers,
+                        body_text=text,
+                    )
                 ) from err
             if _is_too_many_active_sessions_response(payload):
                 raise EnlightenAuthTooManySessions("Too many active Enlighten sessions")
@@ -4110,15 +4185,19 @@ class EnphaseEVClient:
                                     self._mark_payload_healthy(endpoint or None)
                                 return {}
                             if r.status >= 400:
+                                body_text: str | None = None
                                 try:
                                     body_text = await r.text()
                                 except (
                                     Exception
                                 ):  # noqa: BLE001 - fall back to generic message
-                                    body_text = ""
-                                message = (body_text or r.reason or "").strip()
-                                if len(message) > 512:
-                                    message = f"{message[:512]}…"
+                                    body_text = None
+                                message = _safe_response_error_message(
+                                    status=int(r.status),
+                                    reason=r.reason,
+                                    headers=r.headers,
+                                    body_text=body_text,
+                                )
                                 family = _request_failure_debug_family(
                                     method,
                                     endpoint or url,
@@ -4192,7 +4271,7 @@ class EnphaseEVClient:
                                         ),
                                         self._redact_headers(base_headers),
                                         redact_text(
-                                            message,
+                                            body_text or message,
                                             site_ids=(self._site,),
                                             max_length=256,
                                         ),
@@ -4201,7 +4280,7 @@ class EnphaseEVClient:
                                     r.request_info,
                                     r.history,
                                     status=r.status,
-                                    message=message or r.reason,
+                                    message=message,
                                     headers=r.headers,
                                 )
                             try:
@@ -4340,18 +4419,22 @@ class EnphaseEVClient:
                                 location=r.headers.get("Location"),
                             )
                         if r.status >= 400:
+                            body_text: str | None = None
                             try:
                                 body_text = await r.text()
                             except Exception:  # noqa: BLE001
-                                body_text = ""
-                            message = (body_text or r.reason or "").strip()
-                            if len(message) > 512:
-                                message = f"{message[:512]}…"
+                                body_text = None
+                            message = _safe_response_error_message(
+                                status=int(r.status),
+                                reason=r.reason,
+                                headers=r.headers,
+                                body_text=body_text,
+                            )
                             raise aiohttp.ClientResponseError(
                                 r.request_info,
                                 r.history,
                                 status=r.status,
-                                message=message or r.reason,
+                                message=message,
                                 headers=r.headers,
                             )
                         text = await r.text()
@@ -4842,7 +4925,7 @@ class EnphaseEVClient:
 
     async def trigger_message(self, sn: str, requested_message: str) -> dict:
         url = f"{BASE_URL}/service/evse_controller/{self._site}/ev_charger/{sn}/trigger_message"
-        payload = {"requestedMessage": requested_message}
+        payload = {"requestedMessage": validate_ocpp_trigger_message(requested_message)}
         headers = self._today_json_headers()
         headers.update(self._control_headers())
         return await self._json("POST", url, json=payload, headers=headers)

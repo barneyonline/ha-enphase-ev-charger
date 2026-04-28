@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+import voluptuous as vol
+import yaml
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.core import HomeAssistant
@@ -11,9 +14,15 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from custom_components.enphase_ev.api import (
+    OCPP_TRIGGER_MESSAGES,
+    OCPP_TRIGGER_MESSAGES_REQUIRING_CONFIRMATION,
+)
 from custom_components.enphase_ev.const import CONF_SITE_ID, CONF_SITE_ONLY, DOMAIN
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.services import async_setup_services
+
+SERVICES_YAML = Path(__file__).parents[3] / "custom_components/enphase_ev/services.yaml"
 
 
 def _register_service_handlers(
@@ -23,6 +32,23 @@ def _register_service_handlers(
 
     def fake_register(self, domain, service, handler, schema=None, **kwargs):
         registered[(domain, service)] = handler
+
+    monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
+    async_setup_services(hass)
+    return registered
+
+
+def _register_service_metadata(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> dict[tuple[str, str], dict[str, object]]:
+    registered: dict[tuple[str, str], dict[str, object]] = {}
+
+    def fake_register(self, domain, service, handler, schema=None, **kwargs):
+        registered[(domain, service)] = {
+            "handler": handler,
+            "schema": schema,
+            "kwargs": kwargs,
+        }
 
     monkeypatch.setattr(hass.services.__class__, "async_register", fake_register)
     async_setup_services(hass)
@@ -49,6 +75,95 @@ def _fake_service_coordinator(*, site_id: str, serials: set[str]):
         _email="user@example.com",
         _remember_password=True,
         _stored_password="secret",
+    )
+
+
+def test_trigger_message_schema_restricts_requested_message(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Trigger message service accepts only known OCPP message names."""
+
+    registered = _register_service_metadata(hass, monkeypatch)
+    schema = registered[(DOMAIN, "trigger_message")]["schema"]
+
+    assert schema({"requested_message": "MeterValues"}) == {
+        "requested_message": "MeterValues",
+        "confirm_advanced": False,
+    }
+    assert schema(
+        {"requested_message": "BootNotification", "confirm_advanced": True}
+    ) == {
+        "requested_message": "BootNotification",
+        "confirm_advanced": True,
+    }
+
+    for requested_message in (
+        "status",
+        "Status",
+        "MeterValues ",
+        "DataTransfer",
+        "MeterValues;rm",
+        "M" * 65,
+    ):
+        with pytest.raises(vol.Invalid):
+            schema({"requested_message": requested_message})
+
+
+def test_trigger_message_service_options_match_allowlist() -> None:
+    """Service selector options must stay aligned with backend validation."""
+
+    services = yaml.safe_load(SERVICES_YAML.read_text())
+    options = services["trigger_message"]["fields"]["requested_message"]["selector"][
+        "select"
+    ]["options"]
+
+    assert set(options) == OCPP_TRIGGER_MESSAGES
+    assert OCPP_TRIGGER_MESSAGES_REQUIRING_CONFIRMATION < OCPP_TRIGGER_MESSAGES
+
+
+@pytest.mark.asyncio
+async def test_trigger_message_handler_restricts_requested_message_without_schema(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Direct handler calls still reject unsupported OCPP message names."""
+
+    registered = _register_service_handlers(hass, monkeypatch)
+
+    with pytest.raises(ServiceValidationError):
+        await registered[(DOMAIN, "trigger_message")](
+            SimpleNamespace(data={"requested_message": "DataTransfer"})
+        )
+
+
+@pytest.mark.asyncio
+async def test_trigger_message_handler_requires_confirmation_for_advanced_messages(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Direct handler calls require confirmation for advanced OCPP triggers."""
+
+    registered = _register_service_handlers(hass, monkeypatch)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await registered[(DOMAIN, "trigger_message")](
+            SimpleNamespace(data={"requested_message": "BootNotification"})
+        )
+
+    assert (
+        err.value.translation_key == "exceptions.trigger_message_confirmation_required"
+    )
+
+    with pytest.raises(ServiceValidationError) as err:
+        await registered[(DOMAIN, "trigger_message")](
+            SimpleNamespace(
+                data={
+                    "requested_message": "BootNotification",
+                    "confirm_advanced": "true",
+                }
+            )
+        )
+
+    assert (
+        err.value.translation_key == "exceptions.trigger_message_confirmation_required"
     )
 
 
@@ -141,6 +256,21 @@ async def test_services_route_evse_targets_to_owning_entry_with_site_only_entry(
         "EVSE123", "MeterValues"
     )
     site_only_coord.async_trigger_ocpp_message.assert_not_awaited()
+
+    evse_coord.async_trigger_ocpp_message.reset_mock()
+    trigger_result = await handlers[(DOMAIN, "trigger_message")](
+        SimpleNamespace(
+            data={
+                "device_id": [charger.id],
+                "requested_message": "BootNotification",
+                "confirm_advanced": True,
+            }
+        )
+    )
+    assert trigger_result["results"][0]["response"] == {"status": "accepted"}
+    evse_coord.async_trigger_ocpp_message.assert_awaited_once_with(
+        "EVSE123", "BootNotification"
+    )
 
     await handlers[(DOMAIN, "start_live_stream")](
         SimpleNamespace(data={"device_id": [charger.id]})

@@ -153,6 +153,43 @@ async def test_coordinator_init_normalizes_serials_and_options(hass, monkeypatch
     await captured_tasks[0]
 
 
+def test_coordinator_init_defaults_session_history_interval_on_helper_failure(
+    hass, monkeypatch
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    config = {
+        CONF_SITE_ID: "12345",
+        CONF_SERIALS: ["EV01"],
+        CONF_EAUTH: "token",
+        CONF_COOKIE: "cookie",
+        CONF_SCAN_INTERVAL: 30,
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=config,
+        options={OPT_SESSION_HISTORY_INTERVAL: "raise"},
+    )
+    entry.add_to_hass(hass)
+
+    original = coord_mod.helper_coerce_int
+
+    def _coerce(value, *, default):
+        if value == "raise":
+            raise RuntimeError("bad option")
+        return original(value, default=default)
+
+    monkeypatch.setattr(coord_mod, "helper_coerce_int", _coerce)
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+
+    coord = EnphaseCoordinator(hass, config, config_entry=entry)
+
+    assert coord._session_history_interval_min == DEFAULT_SESSION_HISTORY_INTERVAL_MIN
+
+
 def test_coordinator_init_handles_invalid_selected_type_keys(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
@@ -4723,6 +4760,7 @@ async def test_streaming_reverts_to_configured_scan_interval(hass, monkeypatch):
         CONF_SERIALS,
         CONF_SITE_ID,
         MIN_FAST_POLL_INTERVAL,
+        MIN_SLOW_POLL_INTERVAL,
         OPT_FAST_POLL_INTERVAL,
         OPT_FAST_WHILE_STREAMING,
     )
@@ -4782,7 +4820,7 @@ async def test_streaming_reverts_to_configured_scan_interval(hass, monkeypatch):
     coord._streaming = False
     coord._streaming_until = None
     await coord._async_update_data()
-    assert int(coord.update_interval.total_seconds()) == 15
+    assert int(coord.update_interval.total_seconds()) == MIN_SLOW_POLL_INTERVAL
 
 
 @pytest.mark.asyncio

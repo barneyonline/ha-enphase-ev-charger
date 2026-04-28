@@ -1,14 +1,47 @@
-# OCPP Message responses
+# OCPP Trigger Messages
 
-- Heartbeat: Success
-Request:
-'action: enphase_ev.trigger_message
+The `enphase_ev.trigger_message` service asks the Enphase cloud EVSE endpoint to request a specific OCPP message from a charger.
+
+Supported `requested_message` values:
+
+- `Heartbeat`
+- `MeterValues`
+- `StatusNotification`
+- `BootNotification`
+- `DiagnosticsStatusNotification`
+- `FirmwareStatusNotification`
+
+Advanced messages require `confirm_advanced: true`:
+
+- `BootNotification`
+- `DiagnosticsStatusNotification`
+- `FirmwareStatusNotification`
+
+Example:
+
+```yaml
+action: enphase_ev.trigger_message
 target:
   device_id: <deviceID>
 data:
-  requested_message: Heartbeat'
-Response:
-'results:
+  requested_message: MeterValues
+```
+
+Advanced example:
+
+```yaml
+action: enphase_ev.trigger_message
+target:
+  device_id: <deviceID>
+data:
+  requested_message: DiagnosticsStatusNotification
+  confirm_advanced: true
+```
+
+Example response:
+
+```yaml
+results:
   - device_id: <deviceID>
     serial: "<serial>"
     site_id: "<siteID>"
@@ -17,21 +50,7 @@ Response:
         serverTimeStamp: 1759038020185
       data:
         status: accepted
-      error: {}'
+      error: {}
+```
 
-- BootNotification: Success
-As above
-
-- StatusNotification: Success
-As above
-
-- FirmwareStatusNotification: Success
-As above
-
-- LogStatusNotification: Fail
-
-- MeterValues: Success
-
-- TransactionEvent: Fail
-
-- DisplayMessages: Fail
+Previously observed unsupported message names include `LogStatusNotification`, `TransactionEvent`, and `DisplayMessages`. Unsupported or malformed values are rejected before any cloud request is sent.

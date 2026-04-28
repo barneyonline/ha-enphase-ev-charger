@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Entitatea nu este un tarif Enphase: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Mesaj de declanșare OCPP neacceptat. Folosiți una dintre aceste valori: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Activați confirmarea avansată pentru a trimite {message}."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Mesaj solicitat",
           "description": "Nume mesaj OCPP (de ex. MeterValues); răspunsul serviciului afișează ieșirea încărcătorului."
+        },
+        "confirm_advanced": {
+          "name": "Confirmare declanșare avansată",
+          "description": "Necesară pentru mesajele de declanșare OCPP avansate care pot solicita diagnostice, firmware sau notificări de pornire ale încărcătorului."
         },
         "site_id": {
           "name": "ID locație",

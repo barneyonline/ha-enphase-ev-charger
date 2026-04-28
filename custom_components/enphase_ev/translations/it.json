@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "L’entità non è una tariffa Enphase: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Messaggio di attivazione OCPP non supportato. Usa uno di questi: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Abilita la conferma avanzata per inviare {message}."
     }
   },
   "options": {
@@ -2218,6 +2224,10 @@
         "requested_message": {
           "name": "Messaggio richiesto",
           "description": "Nome messaggio OCPP (es. MeterValues); la risposta del servizio mostra l'output del caricatore."
+        },
+        "confirm_advanced": {
+          "name": "Conferma attivazione avanzata",
+          "description": "Richiesto per messaggi di attivazione OCPP avanzati che possono richiedere diagnostica del caricatore, firmware o notifiche di avvio."
         },
         "site_id": {
           "name": "ID sito",
