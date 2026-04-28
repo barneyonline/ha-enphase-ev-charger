@@ -9,6 +9,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from custom_components.enphase_ev.const import CONF_SITE_ID, CONF_SITE_ONLY, DOMAIN
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
@@ -330,3 +331,234 @@ async def test_try_reauth_now_reports_manual_retry_cooldown(
     coord.async_start_streaming.assert_not_awaited()
     coord.async_stop_streaming.assert_not_awaited()
     coord.schedule_sync.async_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_set_tariff_rate_targets_tariff_entity(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    locator = {
+        "branch": "purchase",
+        "kind": "period",
+        "season_index": 1,
+        "day_index": 1,
+        "period_index": 1,
+    }
+    reg_entry = er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak",
+        config_entry=entry,
+    )
+    hass.states.async_set(reg_entry.entity_id, 0.18, {"tariff_locator": locator})
+
+    await handlers[(DOMAIN, "set_tariff_rate")](
+        SimpleNamespace(data={"entity_id": [reg_entry.entity_id], "rate": 0.25})
+    )
+
+    coord.tariff_runtime.async_set_tariff_rate.assert_awaited_once_with(locator, 0.25)
+
+
+@pytest.mark.asyncio
+async def test_set_tariff_rate_targets_current_tariff_sensor(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    locator = {
+        "branch": "purchase",
+        "kind": "period",
+        "season_index": 1,
+        "day_index": 1,
+        "period_index": 1,
+    }
+    reg_entry = er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_tariff-site_tariff_current_import_rate",
+        config_entry=entry,
+    )
+    hass.states.async_set(reg_entry.entity_id, 0.18, {"tariff_locator": locator})
+
+    await handlers[(DOMAIN, "set_tariff_rate")](
+        SimpleNamespace(data={"entity_id": [reg_entry.entity_id], "rate": 0.25})
+    )
+
+    coord.tariff_runtime.async_set_tariff_rate.assert_awaited_once_with(locator, 0.25)
+
+
+@pytest.mark.asyncio
+async def test_set_tariff_rate_rejects_invalid_targets(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](
+            SimpleNamespace(data={"rate": 0.25})
+        )
+
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](
+            SimpleNamespace(
+                data={"entity_id": ["sensor.one", "sensor.two"], "rate": 0.25}
+            )
+        )
+
+    hass.states.async_set("sensor.not_tariff", 1)
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](
+            SimpleNamespace(data={"entity_id": ["sensor.not_tariff"], "rate": 0.25})
+        )
+
+    other_entry = ent_reg.async_get_or_create(
+        "sensor",
+        "other_platform",
+        "external_tariff_import_rate",
+        config_entry=entry,
+    )
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](
+            SimpleNamespace(data={"entity_id": [other_entry.entity_id], "rate": 0.25})
+        )
+
+    non_tariff_entry = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_tariff-site_grid_import",
+        config_entry=entry,
+    )
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](
+            SimpleNamespace(
+                data={"entity_id": [non_tariff_entry.entity_id], "rate": 0.25}
+            )
+        )
+
+    missing_locator = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak",
+        config_entry=entry,
+    )
+    hass.states.async_set(missing_locator.entity_id, 0.18)
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](
+            SimpleNamespace(
+                data={"entity_id": [missing_locator.entity_id], "rate": 0.25}
+            )
+        )
+
+    wrong_site = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_other-site_tariff_import_rate_default_week_peak",
+    )
+    hass.states.async_set(wrong_site.entity_id, 0.18, {"tariff_locator": {}})
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](
+            SimpleNamespace(data={"entity_id": [wrong_site.entity_id], "rate": 0.25})
+        )
+
+
+@pytest.mark.asyncio
+async def test_set_tariff_rate_falls_back_to_tariff_entity_unique_id(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    locator = {
+        "branch": "purchase",
+        "kind": "period",
+        "season_index": 1,
+        "day_index": 1,
+        "period_index": 1,
+    }
+    reg_entry = er.async_get(hass).async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak",
+    )
+    hass.states.async_set(reg_entry.entity_id, 0.18, {"tariff_locator": locator})
+
+    await handlers[(DOMAIN, "set_tariff_rate")](
+        SimpleNamespace(data={"entity_id": reg_entry.entity_id, "rate": 0.25})
+    )
+
+    coord.tariff_runtime.async_set_tariff_rate.assert_awaited_once_with(locator, 0.25)
+
+
+@pytest.mark.asyncio
+async def test_set_tariff_rate_uses_legacy_entity_target_extractor(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from custom_components.enphase_ev import services as services_mod
+
+    monkeypatch.setattr(
+        services_mod.ha_target,
+        "async_extract_referenced_entity_ids",
+        None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        services_mod.ha_service,
+        "async_extract_referenced_entity_ids",
+        lambda _hass, _call: {"sensor.missing"},
+    )
+    handlers = _register_service_handlers(hass, monkeypatch)
+
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](SimpleNamespace(data={"rate": 1}))
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        services_mod.ha_service,
+        "async_extract_referenced_entity_ids",
+        _raise,
+    )
+    handlers = _register_service_handlers(hass, monkeypatch)
+
+    with pytest.raises(ServiceValidationError):
+        await handlers[(DOMAIN, "set_tariff_rate")](SimpleNamespace(data={"rate": 1}))

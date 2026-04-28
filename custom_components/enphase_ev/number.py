@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from homeassistant.components.number import NumberEntity, NumberMode
-from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent
+from homeassistant.const import PERCENTAGE, UnitOfElectricCurrent, UnitOfEnergy
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
@@ -25,6 +25,7 @@ from .runtime_helpers import (
     inventory_type_device_info as _type_device_info,
 )
 from .runtime_data import EnphaseConfigEntry, get_runtime_data
+from .tariff import tariff_rate_sensor_specs
 
 PARALLEL_UPDATES = 0
 
@@ -81,6 +82,30 @@ def _retained_site_number_unique_ids(
     return unique_ids
 
 
+def _tariff_rate_number_unique_id(
+    coord: EnphaseCoordinator, spec: dict, *, is_import: bool
+) -> str:
+    prefix = "tariff_import_rate" if is_import else "tariff_export_rate"
+    return f"{DOMAIN}_site_{coord.site_id}_{prefix}_{spec['key']}_number"
+
+
+def _tariff_rate_number_entities(coord: EnphaseCoordinator) -> dict[str, NumberEntity]:
+    entities: dict[str, NumberEntity] = {}
+    for is_import, attr in (
+        (True, "tariff_import_rate"),
+        (False, "tariff_export_rate"),
+    ):
+        for spec in tariff_rate_sensor_specs(getattr(coord, attr, None)):
+            locator = (spec.get("attributes") or {}).get("tariff_locator")
+            if not isinstance(locator, dict):
+                continue
+            unique_id = _tariff_rate_number_unique_id(coord, spec, is_import=is_import)
+            entities[unique_id] = EnphaseTariffRateNumber(
+                coord, spec, is_import=is_import
+            )
+    return entities
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -101,6 +126,11 @@ async def async_setup_entry(
             f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit",
             f"{DOMAIN}_site_{coord.site_id}_battery_new_schedule_limit",
         }
+
+    def _tariff_number_managed(unique_id: str) -> bool:
+        return unique_id.startswith(
+            f"{DOMAIN}_site_{coord.site_id}_tariff_import_rate_"
+        ) or unique_id.startswith(f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate_")
 
     def _core_site_number_unique_ids() -> set[str]:
         return {
@@ -152,9 +182,17 @@ async def async_setup_entry(
         retained_site_number_unique_ids = _retained_site_number_unique_ids(coord, entry)
         active_site_number_unique_ids: set[str] = set()
         site_entities: list[NumberEntity] = []
+        tariff_entities = _tariff_rate_number_entities(coord)
+        active_site_number_unique_ids |= set(tariff_entities)
+        site_entities.extend(
+            entity
+            for unique_id, entity in tariff_entities.items()
+            if unique_id not in added_site_number_unique_ids
+        )
         if _site_has_battery(coord) and _type_available(coord, "encharge"):
             if _battery_write_access_confirmed(coord):
                 active_site_number_unique_ids = _core_site_number_unique_ids()
+                active_site_number_unique_ids |= set(tariff_entities)
             if battery_scheduler_enabled(entry):
                 active_site_number_unique_ids |= retained_site_number_unique_ids & {
                     f"{DOMAIN}_site_{coord.site_id}_battery_schedule_edit_limit"
@@ -162,18 +200,18 @@ async def async_setup_entry(
             current_site_entities = _site_number_entities_by_unique_id(
                 retained_site_number_unique_ids
             )
-            site_entities = [
+            site_entities.extend(
                 entity
                 for unique_id, entity in current_site_entities.items()
                 if unique_id not in added_site_number_unique_ids
-            ]
-            if site_entities:
-                async_add_entities(site_entities, update_before_add=False)
-                added_site_number_unique_ids.update(
-                    entity.unique_id
-                    for entity in site_entities
-                    if isinstance(entity.unique_id, str)
-                )
+            )
+        if site_entities:
+            async_add_entities(site_entities, update_before_add=False)
+            added_site_number_unique_ids.update(
+                entity.unique_id
+                for entity in site_entities
+                if isinstance(entity.unique_id, str)
+            )
         serials = [sn for sn in current_serials if sn not in known_serials]
         if not serials:
             entities: list[NumberEntity] = []
@@ -205,6 +243,7 @@ async def async_setup_entry(
             },
             is_managed=lambda unique_id: (
                 unique_id in _managed_site_number_unique_ids()
+                or _tariff_number_managed(unique_id)
                 or unique_id.endswith(("_amps_number", "_schedule_edit_limit"))
             ),
         )
@@ -469,3 +508,94 @@ class BatteryScheduleEditLimitNumber(_BatteryScheduleEditorLimitNumber):
     async def async_set_native_value(self, value: float) -> None:
         if self._editor is not None:
             self._editor.set_edit_limit(int(value))
+
+
+class EnphaseTariffRateNumber(CoordinatorEntity, NumberEntity):
+    """Editable tariff rate value."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_min_value = 0.0
+    _attr_native_step = 0.0001
+    _attr_suggested_display_precision = 4
+
+    def __init__(self, coord: EnphaseCoordinator, spec: dict, *, is_import: bool):
+        super().__init__(coord)
+        self._coord = coord
+        self._is_import = is_import
+        self._rate_attr = "tariff_import_rate" if is_import else "tariff_export_rate"
+        self._rate_prefix = "tariff_import_rate" if is_import else "tariff_export_rate"
+        self._detail_key = str(spec.get("key") or "rate")
+        detail_name = str(
+            spec.get("name") or self._detail_key.replace("_", " ").title()
+        )
+        self._attr_translation_key = f"{self._rate_prefix}_value"
+        self._attr_translation_placeholders = {"detail": detail_name}
+        self._attr_unique_id = _tariff_rate_number_unique_id(
+            coord, spec, is_import=is_import
+        )
+        self._attr_icon = "mdi:cash-minus" if is_import else "mdi:cash-plus"
+
+    def _spec(self) -> dict | None:
+        for spec in tariff_rate_sensor_specs(
+            getattr(self._coord, self._rate_attr, None)
+        ):
+            if spec.get("key") == self._detail_key:
+                return spec
+        return None
+
+    @property
+    def available(self) -> bool:  # type: ignore[override]
+        spec = self._spec()
+        client = getattr(self._coord, "client", None)
+        return (
+            super().available
+            and spec is not None
+            and isinstance((spec.get("attributes") or {}).get("tariff_locator"), dict)
+            and callable(getattr(client, "site_tariff", None))
+            and callable(getattr(client, "site_tariff_update", None))
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        spec = self._spec()
+        if spec is None:
+            return None
+        value = spec.get("state")
+        return float(value) if value is not None else None
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        hass = getattr(self, "hass", None)
+        currency = getattr(getattr(hass, "config", None), "currency", None)
+        if isinstance(currency, str) and currency.strip():
+            return f"{currency.strip()}/{UnitOfEnergy.KILO_WATT_HOUR}"
+        spec = self._spec()
+        if spec is None:
+            return None
+        return spec.get("unit")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        spec = self._spec()
+        if spec is None:
+            return {}
+        return dict(spec.get("attributes") or {})
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        info = _type_device_info(self._coord, "envoy")
+        if info is not None:
+            return info
+        info = _type_device_info(self._coord, "cloud")
+        if info is not None:
+            return info
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"site:{self._coord.site_id}")},
+            manufacturer="Enphase",
+        )
+
+    async def async_set_native_value(self, value: float) -> None:
+        spec = self._spec()
+        locator = (spec.get("attributes") or {}).get("tariff_locator") if spec else None
+        await self._coord.tariff_runtime.async_set_tariff_rate(locator, value)

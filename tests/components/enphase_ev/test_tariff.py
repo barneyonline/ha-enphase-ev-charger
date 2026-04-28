@@ -6,11 +6,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import pytest
+from homeassistant.exceptions import ServiceValidationError
 
+from custom_components.enphase_ev import sensor as sensor_mod
 from custom_components.enphase_ev.api import OptionalEndpointUnavailable
 from custom_components.enphase_ev.const import DOMAIN
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
 from custom_components.enphase_ev.sensor import (
+    EnphaseCurrentTariffRateSensor,
     EnphaseTariffBillingSensor,
     EnphaseTariffExportRateValueSensor,
     EnphaseTariffRateSensor,
@@ -19,12 +22,16 @@ from custom_components.enphase_ev.sensor import (
 )
 from custom_components.enphase_ev.tariff import (
     TARIFF_ENDPOINT_FAMILY,
+    TariffRateLocator,
     TariffRateSnapshot,
     TariffRuntime,
     _clean_text,
     _format_rate,
+    _locate_tariff_rate,
+    current_tariff_rate_sensor_spec,
     export_rate_sensor_specs,
     next_billing_date,
+    next_tariff_rate_change,
     parse_tariff_billing,
     parse_tariff_rate,
     tariff_rate_sensor_specs,
@@ -228,6 +235,17 @@ def test_tariff_rate_sensor_specs_for_tou_and_tiered_rates() -> None:
     assert [spec["unit"] for spec in import_specs] == ["$/kWh", "$/kWh"]
     assert import_specs[0]["attributes"]["formatted_rate"] == "$0.18"
     assert import_specs[0]["attributes"]["source"] == "manual"
+    assert import_specs[0]["attributes"]["tariff_locator"] == {
+        "branch": "purchase",
+        "kind": "period",
+        "season_index": 1,
+        "season_id": "default",
+        "day_index": 1,
+        "day_group_id": "week",
+        "period_index": 1,
+        "period_id": "off-peak",
+        "period_type": "off-peak",
+    }
 
     export_tou = parse_tariff_rate(
         {
@@ -306,6 +324,38 @@ def test_tariff_rate_sensor_specs_for_tou_and_tiered_rates() -> None:
     assert [spec["state"] for spec in tier_specs] == [0.04, 0.10]
     assert [spec["unit"] for spec in tier_specs] == ["AUD/kWh", "AUD/kWh"]
     assert tier_specs[1]["attributes"]["unbounded"] is True
+
+    tiered_with_off_peak = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tiered",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "offPeak": "0.03",
+                        "tiers": [{"id": "tier-1", "rate": "0.06"}],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    off_peak_specs = tariff_rate_sensor_specs(tiered_with_off_peak)
+
+    assert [spec["key"] for spec in off_peak_specs] == [
+        "default_off_peak",
+        "default_tier_1",
+    ]
+    assert [spec["state"] for spec in off_peak_specs] == [0.03, 0.06]
+    assert off_peak_specs[0]["attributes"]["tariff_locator"] == {
+        "branch": "purchase",
+        "kind": "off_peak",
+        "season_index": 1,
+        "season_id": "default",
+    }
 
 
 def test_export_rate_sensor_specs_handles_sparse_and_duplicate_rows() -> None:
@@ -403,6 +453,261 @@ def test_export_rate_sensor_specs_handles_sparse_and_duplicate_rows() -> None:
     )
 
 
+def test_current_tariff_rate_sensor_spec_selects_active_period() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "seasonal-and-weekends",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "summer",
+                        "startMonth": "12",
+                        "endMonth": "2",
+                        "days": [
+                            {
+                                "id": "weekday",
+                                "days": [1, 2, 3, 4, 5],
+                                "periods": [
+                                    {
+                                        "type": "off-peak",
+                                        "rate": "0.18",
+                                        "startTime": "1320",
+                                        "endTime": "420",
+                                    },
+                                    {
+                                        "type": "peak",
+                                        "rate": "0.42",
+                                        "startTime": "420",
+                                        "endTime": "1320",
+                                    },
+                                ],
+                            },
+                            {
+                                "id": "weekend",
+                                "days": [6, 7],
+                                "periods": [{"type": "shoulder", "rate": "0.24"}],
+                            },
+                        ],
+                    },
+                    {
+                        "id": "winter",
+                        "startMonth": "3",
+                        "endMonth": "11",
+                        "days": [{"id": "all", "periods": [{"rate": "0.30"}]}],
+                    },
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    peak = current_tariff_rate_sensor_spec(
+        snapshot,
+        datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc),
+    )
+    off_peak = current_tariff_rate_sensor_spec(
+        snapshot,
+        datetime(2026, 1, 5, 23, 30, tzinfo=timezone.utc),
+    )
+    weekend = current_tariff_rate_sensor_spec(
+        snapshot,
+        datetime(2026, 1, 10, 9, 0, tzinfo=timezone.utc),
+    )
+    winter = current_tariff_rate_sensor_spec(
+        snapshot,
+        datetime(2026, 6, 5, 9, 0, tzinfo=timezone.utc),
+    )
+
+    assert peak is not None
+    assert peak["name"] == "Peak"
+    assert peak["state"] == 0.42
+    assert off_peak is not None
+    assert off_peak["name"] == "Off-Peak"
+    assert weekend is not None
+    assert weekend["name"] == "Shoulder"
+    assert winter is not None
+    assert winter["state"] == 0.30
+
+
+def test_next_tariff_rate_change_finds_time_and_season_boundaries() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "seasonal-and-weekends",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "summer",
+                        "startMonth": "12",
+                        "endMonth": "2",
+                        "days": [
+                            {
+                                "id": "weekday",
+                                "days": [1, 2, 3, 4, 5],
+                                "periods": [
+                                    {
+                                        "type": "off-peak",
+                                        "rate": "0.18",
+                                        "startTime": "1320",
+                                        "endTime": "420",
+                                    },
+                                    {
+                                        "type": "peak",
+                                        "rate": "0.42",
+                                        "startTime": "420",
+                                        "endTime": "1320",
+                                    },
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "id": "winter",
+                        "startMonth": "3",
+                        "endMonth": "11",
+                        "days": [{"id": "all", "periods": [{"rate": "0.30"}]}],
+                    },
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    assert next_tariff_rate_change(
+        snapshot,
+        datetime(2026, 1, 5, 6, 59, tzinfo=timezone.utc),
+    ) == datetime(2026, 1, 5, 7, 0, tzinfo=timezone.utc)
+    assert next_tariff_rate_change(
+        snapshot,
+        datetime(2026, 1, 5, 21, 59, tzinfo=timezone.utc),
+    ) == datetime(2026, 1, 5, 22, 0, tzinfo=timezone.utc)
+    assert next_tariff_rate_change(
+        snapshot,
+        datetime(2026, 2, 28, 23, 30, tzinfo=timezone.utc),
+    ) == datetime(2026, 3, 1, 0, 0, tzinfo=timezone.utc)
+
+
+def test_next_tariff_rate_change_handles_missing_naive_and_unchanged_rates() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "all",
+                                "periods": [{"type": "flat", "rate": "0.20"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    assert next_tariff_rate_change(None, datetime(2026, 1, 1, 12, 0)) is None
+    assert (
+        next_tariff_rate_change(
+            snapshot,
+            datetime(2026, 1, 1, 12, 0),
+        )
+        is None
+    )
+
+
+def test_current_tariff_rate_sensor_spec_rejects_ambiguous_tiers() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tiered",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "tiers": [
+                            {"id": "tier-1", "rate": "0.10"},
+                            {"id": "tier-2", "rate": "0.20"},
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    assert (
+        current_tariff_rate_sensor_spec(
+            snapshot,
+            datetime(2026, 1, 5, 9, 0, tzinfo=timezone.utc),
+        )
+        is None
+    )
+
+
+def test_current_tariff_rate_sensor_spec_handles_invalid_metadata() -> None:
+    invalid_month = TariffRateSnapshot(
+        state="Time of use",
+        rate_structure="Time of use",
+        variation_type=None,
+        source=None,
+        currency="$",
+        export_plan=None,
+        seasons=(
+            {
+                "start_month": 13,
+                "end_month": 14,
+                "days": [{"periods": [{"rate": "0.10"}]}],
+            },
+        ),
+    )
+    missing_separator = TariffRateSnapshot(
+        state="Time of use",
+        rate_structure="Time of use",
+        variation_type=None,
+        source=None,
+        currency="$",
+        export_plan=None,
+        seasons=({"days": [{"periods": [{"rate": "0.11", "start_time": "bad"}]}]},),
+    )
+    invalid_numbers = TariffRateSnapshot(
+        state="Time of use",
+        rate_structure="Time of use",
+        variation_type=None,
+        source=None,
+        currency="$",
+        export_plan=None,
+        seasons=({"days": [{"periods": [{"rate": "0.12", "start_time": "aa:00"}]}]},),
+    )
+    out_of_range = TariffRateSnapshot(
+        state="Time of use",
+        rate_structure="Time of use",
+        variation_type=None,
+        source=None,
+        currency="$",
+        export_plan=None,
+        seasons=({"days": [{"periods": [{"rate": "0.13", "start_time": "24:00"}]}]},),
+    )
+
+    when = datetime(2026, 1, 5, 9, 0)
+
+    assert current_tariff_rate_sensor_spec(invalid_month, when)["state"] == 0.10
+    assert current_tariff_rate_sensor_spec(missing_separator, when)["state"] == 0.11
+    assert current_tariff_rate_sensor_spec(invalid_numbers, when)["state"] == 0.12
+    assert current_tariff_rate_sensor_spec(out_of_range, when)["state"] == 0.13
+
+
 def test_parse_tariff_rate_rejects_empty_or_bad_branches() -> None:
     class BadString:
         def __str__(self) -> str:
@@ -436,6 +741,107 @@ def test_parse_tariff_rate_rejects_empty_or_bad_branches() -> None:
         },
         "purchase",
     ).attributes["seasons"] == [{"days": [{}], "tiers": [{"end_value": "bad"}]}]
+
+
+def test_tariff_rate_locator_rejects_invalid_objects() -> None:
+    assert TariffRateLocator.from_object(None) is None
+    assert TariffRateLocator.from_object({"branch": "bad", "kind": "period"}) is None
+    assert (
+        TariffRateLocator.from_object(
+            {"branch": "purchase", "kind": "period", "season_index": 0}
+        )
+        is None
+    )
+
+
+def test_locate_tariff_rate_covers_guard_paths() -> None:
+    with pytest.raises(ServiceValidationError):
+        _locate_tariff_rate(
+            {},
+            TariffRateLocator(branch="purchase", kind="period", season_index=1),
+        )
+    with pytest.raises(ServiceValidationError):
+        _locate_tariff_rate(
+            {"purchase": {"seasons": "bad"}},
+            TariffRateLocator(branch="purchase", kind="period", season_index=1),
+        )
+    with pytest.raises(ServiceValidationError):
+        _locate_tariff_rate(
+            {"purchase": {"seasons": [{"id": "default"}]}},
+            TariffRateLocator(
+                branch="purchase",
+                kind="off_peak",
+                season_index=1,
+                season_id="default",
+            ),
+        )
+    with pytest.raises(ServiceValidationError):
+        _locate_tariff_rate(
+            {"purchase": {"seasons": [{"id": "default", "days": []}]}},
+            TariffRateLocator(
+                branch="purchase",
+                kind="period",
+                season_index=1,
+                season_id="default",
+                day_index=1,
+            ),
+        )
+    with pytest.raises(ServiceValidationError):
+        _locate_tariff_rate(
+            {
+                "purchase": {
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "days": [{"id": "week", "periods": []}],
+                        }
+                    ]
+                }
+            },
+            TariffRateLocator(
+                branch="purchase",
+                kind="period",
+                season_index=1,
+                season_id="default",
+                day_index=1,
+                day_group_id="week",
+                period_index=1,
+            ),
+        )
+    tier, field = _locate_tariff_rate(
+        {
+            "purchase": {
+                "seasons": [
+                    {"id": "default", "tiers": [{"id": "tier-1", "rate": "0.1"}]}
+                ]
+            }
+        },
+        TariffRateLocator(
+            branch="purchase",
+            kind="tier",
+            season_index=1,
+            season_id="default",
+            tier_index=1,
+            tier_id="tier-1",
+        ),
+    )
+    assert (tier, field) == ({"id": "tier-1", "rate": "0.1"}, "rate")
+    with pytest.raises(ServiceValidationError):
+        _locate_tariff_rate(
+            {"purchase": {"seasons": [{"id": "default", "tiers": []}]}},
+            TariffRateLocator(
+                branch="purchase",
+                kind="tier",
+                season_index=1,
+                season_id="default",
+                tier_index=1,
+            ),
+        )
+    with pytest.raises(ServiceValidationError):
+        _locate_tariff_rate(
+            {"purchase": {"seasons": [{"id": "default"}]}},
+            TariffRateLocator(branch="purchase", kind="bad", season_index=1),
+        )
 
 
 @pytest.mark.asyncio
@@ -501,6 +907,199 @@ async def test_tariff_runtime_refreshes_snapshots(coordinator_factory) -> None:
     assert coord.tariff_last_refresh_utc is not None
     assert coord.tariff_rates_last_refresh_utc is coord.tariff_last_refresh_utc
     assert coord._endpoint_family_state("tariff").support_state == "supported"
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_updates_single_rate_and_preserves_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock(
+        return_value={
+            "site_id": 123,
+            "unknown": {"kept": True},
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "off-peak",
+                                        "type": "off-peak",
+                                        "rate": "0.18",
+                                    },
+                                    {
+                                        "id": "peak-1",
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "buyback": {"typeId": "flat", "seasons": []},
+        }
+    )
+    coord.client.site_tariff_update = AsyncMock(return_value={"message": "success"})
+    coord.client.notify_tariff_change = AsyncMock(return_value={"data": "ok"})
+    coord.tariff_runtime.async_refresh = AsyncMock()
+    locator = TariffRateLocator(
+        branch="purchase",
+        kind="period",
+        season_index=1,
+        season_id="default",
+        day_index=1,
+        day_group_id="week",
+        period_index=2,
+        period_id="peak-1",
+        period_type="peak",
+    )
+
+    out = await TariffRuntime(coord).async_set_tariff_rate(locator, 0.42)
+
+    assert out == {"message": "success"}
+    update_payload = coord.client.site_tariff_update.await_args.args[0]
+    assert update_payload["unknown"] == {"kept": True}
+    assert update_payload["purchase"]["typeId"] == "tou"
+    assert (
+        update_payload["purchase"]["seasons"][0]["days"][0]["periods"][0]["rate"]
+        == "0.18"
+    )
+    assert (
+        update_payload["purchase"]["seasons"][0]["days"][0]["periods"][1]["rate"]
+        == "0.42"
+    )
+    coord.client.notify_tariff_change.assert_awaited_once_with()
+    coord.tariff_runtime.async_refresh.assert_awaited_once_with(force=True)
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_updates_tiered_off_peak_and_ignores_notify_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock(
+        return_value={
+            "purchase": {
+                "typeId": "tiered",
+                "seasons": [{"id": "default", "offPeak": "0.03", "tiers": []}],
+            }
+        }
+    )
+    coord.client.site_tariff_update = AsyncMock(return_value={"message": "success"})
+    coord.client.notify_tariff_change = AsyncMock(
+        side_effect=aiohttp.ClientError("boom")
+    )
+    coord.tariff_runtime.async_refresh = AsyncMock()
+
+    await TariffRuntime(coord).async_set_tariff_rate(
+        {
+            "branch": "purchase",
+            "kind": "off_peak",
+            "season_index": 1,
+            "season_id": "default",
+        },
+        0.05,
+    )
+
+    update_payload = coord.client.site_tariff_update.await_args.args[0]
+    assert update_payload["purchase"]["seasons"][0]["offPeak"] == "0.05"
+    coord.tariff_runtime.async_refresh.assert_awaited_once_with(force=True)
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_rejects_invalid_and_stale_targets(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock(
+        return_value={"purchase": {"typeId": "tou", "seasons": []}}
+    )
+    coord.client.site_tariff_update = AsyncMock()
+
+    with pytest.raises(ServiceValidationError):
+        await TariffRuntime(coord).async_set_tariff_rate(
+            {
+                "branch": "purchase",
+                "kind": "period",
+                "season_index": 1,
+                "day_index": 1,
+                "period_index": 1,
+            },
+            0.1,
+        )
+
+    with pytest.raises(ServiceValidationError):
+        await TariffRuntime(coord).async_set_tariff_rate(
+            {
+                "branch": "purchase",
+                "kind": "period",
+                "season_index": 1,
+                "day_index": 1,
+                "period_index": 1,
+            },
+            -1,
+        )
+    coord.client.site_tariff_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_rejects_invalid_input_and_unavailable_api(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    with pytest.raises(ServiceValidationError):
+        await TariffRuntime(coord).async_set_tariff_rate(None, 0.1)
+
+    coord.client.site_tariff = AsyncMock(return_value=[])
+    coord.client.site_tariff_update = AsyncMock()
+    with pytest.raises(ServiceValidationError):
+        await TariffRuntime(coord).async_set_tariff_rate(
+            {
+                "branch": "purchase",
+                "kind": "period",
+                "season_index": 1,
+                "day_index": 1,
+                "period_index": 1,
+            },
+            "bad",
+        )
+
+    coord.client.site_tariff = None
+    with pytest.raises(ServiceValidationError):
+        await TariffRuntime(coord).async_set_tariff_rate(
+            {
+                "branch": "purchase",
+                "kind": "period",
+                "season_index": 1,
+                "day_index": 1,
+                "period_index": 1,
+            },
+            0.1,
+        )
+
+    coord.client.site_tariff = AsyncMock(return_value=[])
+    with pytest.raises(ServiceValidationError):
+        await TariffRuntime(coord).async_set_tariff_rate(
+            {
+                "branch": "purchase",
+                "kind": "period",
+                "season_index": 1,
+                "day_index": 1,
+                "period_index": 1,
+            },
+            0.1,
+        )
 
 
 @pytest.mark.asyncio
@@ -834,6 +1433,314 @@ def test_import_rate_value_sensor_exposes_rate_state_and_attributes(
     assert sensor.available is True
     assert sensor.extra_state_attributes["rate_structure"] == "Time of use"
     assert sensor.extra_state_attributes["period_type"] == "off-peak"
+    assert sensor.entity_registry_enabled_default is False
+
+
+def test_current_import_rate_sensor_exposes_energy_price_state(
+    hass,
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.tariff_last_refresh_utc = datetime(2026, 4, 26, tzinfo=timezone.utc)
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "peak",
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    sensor = EnphaseCurrentTariffRateSensor(coord, is_import=True)
+    sensor.hass = hass
+
+    assert sensor.native_value == 0.31
+    assert sensor.native_unit_of_measurement == f"{hass.config.currency}/kWh"
+    assert sensor.state_class == "measurement"
+    assert sensor.suggested_display_precision == 4
+    assert sensor.icon == "mdi:cash-minus"
+    assert sensor.translation_key == "tariff_current_import_rate"
+    assert sensor.available is True
+    attrs = sensor.extra_state_attributes
+    assert attrs["period_type"] == "peak"
+    assert attrs["active_rate_name"] == "Peak"
+    assert attrs["configured_rates"] == [
+        {
+            "name": "Peak",
+            "rate": "0.31",
+            "formatted_rate": "$0.31",
+            "unit": "$/kWh",
+            "season_id": "default",
+            "day_group_id": "week",
+            "period_type": "peak",
+            "tariff_locator": {
+                "branch": "purchase",
+                "kind": "period",
+                "season_index": 1,
+                "season_id": "default",
+                "day_index": 1,
+                "day_group_id": "week",
+                "period_index": 1,
+                "period_id": "peak",
+                "period_type": "peak",
+            },
+        }
+    ]
+    assert attrs["last_refresh_utc"] == "2026-04-26T00:00:00+00:00"
+    assert "configured_rates" in sensor._unrecorded_attributes
+    fallback_unit_sensor = EnphaseCurrentTariffRateSensor(coord, is_import=True)
+    assert fallback_unit_sensor.native_unit_of_measurement == "$/kWh"
+
+    coord.tariff_import_rate = None
+
+    assert sensor.available is False
+    assert sensor.native_value is None
+    assert sensor.native_unit_of_measurement is None
+    assert sensor.extra_state_attributes == {}
+
+
+def test_current_rate_sensor_uses_home_assistant_timezone_fallback(
+    hass,
+    coordinator_factory,
+    monkeypatch,
+) -> None:
+    coord = coordinator_factory()
+    monkeypatch.setattr(coord, "_site_timezone_name", lambda: "", raising=False)
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"type": "peak", "rate": "0.31"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    sensor = EnphaseCurrentTariffRateSensor(coord, is_import=True)
+    sensor.hass = hass
+
+    assert sensor.native_value == 0.31
+
+
+def test_current_rate_sensor_schedules_next_tariff_boundary(
+    hass, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord.last_success_utc = datetime(2026, 1, 5, 6, 59, tzinfo=timezone.utc)
+    coord._site_timezone_name = lambda: "UTC"  # noqa: SLF001
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "weekends",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "off_peak",
+                                        "type": "off-peak",
+                                        "rate": "0.11",
+                                        "startTime": "1320",
+                                        "endTime": "420",
+                                    },
+                                    {
+                                        "id": "peak",
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                        "startTime": "420",
+                                        "endTime": "1320",
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    now = datetime(2026, 1, 5, 6, 59, tzinfo=timezone.utc)
+    scheduled: list[datetime] = []
+    callbacks = []
+    cancelled = 0
+
+    def _track(_hass, callback, fire_at):
+        callbacks.append(callback)
+        scheduled.append(fire_at)
+
+        def _cancel():
+            nonlocal cancelled
+            cancelled += 1
+
+        return _cancel
+
+    monkeypatch.setattr(sensor_mod, "async_track_point_in_utc_time", _track)
+    monkeypatch.setattr(
+        sensor_mod.dt_util,
+        "now",
+        lambda tz=None: now.astimezone(tz) if tz is not None else now,
+    )
+    monkeypatch.setattr(
+        sensor_mod.dt_util,
+        "utcnow",
+        lambda: now,
+    )
+    sensor = EnphaseCurrentTariffRateSensor(coord, is_import=True)
+    sensor.hass = hass
+    sensor.async_write_ha_state = MagicMock()
+
+    sensor._ensure_tariff_boundary_timer()  # noqa: SLF001
+
+    assert scheduled == [datetime(2026, 1, 5, 7, 0, tzinfo=timezone.utc)]
+    now = datetime(2026, 1, 5, 7, 0, tzinfo=timezone.utc)
+    callbacks[0](now)
+
+    sensor.async_write_ha_state.assert_called_once_with()
+    assert scheduled == [
+        datetime(2026, 1, 5, 7, 0, tzinfo=timezone.utc),
+        datetime(2026, 1, 5, 22, 0, tzinfo=timezone.utc),
+    ]
+    assert cancelled == 1
+    sensor._cancel_tariff_boundary_timer()  # noqa: SLF001
+    assert cancelled == 2
+
+
+@pytest.mark.asyncio
+async def test_current_rate_sensor_timer_lifecycle_and_guard_branches(
+    hass, coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    coord.last_success_utc = datetime(2026, 1, 5, 7, 0, tzinfo=timezone.utc)
+    coord._site_timezone_name = lambda: "UTC"  # noqa: SLF001
+    scheduled: list[datetime] = []
+
+    def _track(_hass, _callback, fire_at):
+        scheduled.append(fire_at)
+        return lambda: None
+
+    monkeypatch.setattr(sensor_mod, "async_track_point_in_utc_time", _track)
+    monkeypatch.setattr(
+        sensor_mod.dt_util,
+        "now",
+        lambda tz=None: datetime(2026, 1, 5, 7, 0, tzinfo=tz or timezone.utc),
+    )
+    monkeypatch.setattr(
+        sensor_mod.dt_util,
+        "utcnow",
+        lambda: datetime(2026, 1, 5, 7, 1, tzinfo=timezone.utc),
+    )
+    monkeypatch.setattr(
+        sensor_mod.CoordinatorEntity,
+        "async_added_to_hass",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        sensor_mod.CoordinatorEntity,
+        "async_will_remove_from_hass",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        sensor_mod.CoordinatorEntity,
+        "_handle_coordinator_update",
+        MagicMock(),
+    )
+
+    sensor = EnphaseCurrentTariffRateSensor(coord, is_import=True)
+    sensor._ensure_tariff_boundary_timer()  # noqa: SLF001
+    assert scheduled == []
+
+    sensor.hass = hass
+    sensor._ensure_tariff_boundary_timer()  # noqa: SLF001
+    assert scheduled == []
+
+    sensor._tariff_boundary_cancel = MagicMock(side_effect=RuntimeError("boom"))
+    sensor._cancel_tariff_boundary_timer()  # noqa: SLF001
+    assert sensor._tariff_boundary_cancel is None
+
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "weekends",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "off_peak",
+                                        "type": "off-peak",
+                                        "rate": "0.11",
+                                        "startTime": "1320",
+                                        "endTime": "420",
+                                    },
+                                    {
+                                        "id": "peak",
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                        "startTime": "420",
+                                        "endTime": "1320",
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    monkeypatch.setattr(
+        sensor_mod,
+        "next_tariff_rate_change",
+        lambda _snapshot, _when: datetime(2026, 1, 5, 7, 0, tzinfo=timezone.utc),
+    )
+
+    await sensor.async_added_to_hass()
+    assert scheduled == [datetime(2026, 1, 5, 7, 1, 1, tzinfo=timezone.utc)]
+    sensor._handle_coordinator_update()  # noqa: SLF001
+    assert scheduled[-1] == datetime(2026, 1, 5, 7, 1, 1, tzinfo=timezone.utc)
+    await sensor.async_will_remove_from_hass()
 
 
 def test_rate_value_sensor_uses_home_assistant_currency_for_unit(
@@ -1023,7 +1930,18 @@ async def test_tariff_dynamic_rate_entities_removed_when_branch_removed(
     old_export_unique_id = (
         f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate_default_week_peak"
     )
-    for unique_id in (old_import_unique_id, old_export_unique_id):
+    old_current_import_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_tariff_current_import_rate"
+    )
+    old_current_export_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_tariff_current_export_rate"
+    )
+    for unique_id in (
+        old_import_unique_id,
+        old_export_unique_id,
+        old_current_import_unique_id,
+        old_current_export_unique_id,
+    ):
         ent_reg.async_get_or_create(
             "sensor",
             DOMAIN,
@@ -1038,11 +1956,15 @@ async def test_tariff_dynamic_rate_entities_removed_when_branch_removed(
 
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_import_unique_id) is None
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_export_unique_id) is None
+    assert (
+        ent_reg.async_get_entity_id("sensor", DOMAIN, old_current_export_unique_id)
+        is None
+    )
     assert [
         entity.unique_id for entity in added if "tariff" in str(entity.unique_id)
     ] == [
         f"{DOMAIN}_site_{coord.site_id}_tariff_billing_cycle",
-        f"{DOMAIN}_site_{coord.site_id}_tariff_import_rate",
+        f"{DOMAIN}_site_{coord.site_id}_tariff_current_import_rate",
     ]
 
 
@@ -1075,7 +1997,18 @@ async def test_tariff_dynamic_rate_entities_removed_when_rates_unconfigured(
     old_export_unique_id = (
         f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate_default_week_peak"
     )
-    for unique_id in (old_import_unique_id, old_export_unique_id):
+    old_current_import_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_tariff_current_import_rate"
+    )
+    old_current_export_unique_id = (
+        f"{DOMAIN}_site_{coord.site_id}_tariff_current_export_rate"
+    )
+    for unique_id in (
+        old_import_unique_id,
+        old_export_unique_id,
+        old_current_import_unique_id,
+        old_current_export_unique_id,
+    ):
         ent_reg.async_get_or_create(
             "sensor",
             DOMAIN,
@@ -1090,13 +2023,21 @@ async def test_tariff_dynamic_rate_entities_removed_when_rates_unconfigured(
 
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_import_unique_id) is None
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_export_unique_id) is None
+    assert (
+        ent_reg.async_get_entity_id("sensor", DOMAIN, old_current_import_unique_id)
+        is None
+    )
+    assert (
+        ent_reg.async_get_entity_id("sensor", DOMAIN, old_current_export_unique_id)
+        is None
+    )
     assert [
         entity.unique_id for entity in added if "tariff" in str(entity.unique_id)
     ] == [f"{DOMAIN}_site_{coord.site_id}_tariff_billing_cycle"]
 
 
 @pytest.mark.asyncio
-async def test_tariff_dynamic_rate_entities_preserved_without_current_context(
+async def test_tariff_dynamic_rate_entities_removed_without_current_context(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     from homeassistant.helpers import entity_registry as er
@@ -1136,12 +2077,8 @@ async def test_tariff_dynamic_rate_entities_preserved_without_current_context(
         hass, config_entry, lambda entities, **_: added.extend(entities)
     )
 
-    assert (
-        ent_reg.async_get_entity_id("sensor", DOMAIN, old_import_unique_id) is not None
-    )
-    assert (
-        ent_reg.async_get_entity_id("sensor", DOMAIN, old_export_unique_id) is not None
-    )
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_import_unique_id) is None
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_export_unique_id) is None
     assert [
         entity.unique_id for entity in added if "tariff" in str(entity.unique_id)
     ] == [f"{DOMAIN}_site_{coord.site_id}_tariff_billing_cycle"]
@@ -1182,9 +2119,10 @@ async def test_tariff_setup_registry_filter_branches(
         },
         "purchase",
     )
-    current_unique_id = (
+    old_unique_id = (
         f"{DOMAIN}_site_{coord.site_id}_tariff_import_rate_default_week_peak"
     )
+    current_unique_id = f"{DOMAIN}_site_{coord.site_id}_tariff_current_import_rate"
     fake_registry = SimpleNamespace(
         entities={
             "binary_sensor.skip": SimpleNamespace(
@@ -1192,28 +2130,28 @@ async def test_tariff_setup_registry_filter_branches(
                 entity_id="binary_sensor.skip",
                 platform=DOMAIN,
                 config_entry_id=config_entry.entry_id,
-                unique_id=current_unique_id,
+                unique_id=old_unique_id,
             ),
             "sensor.other_platform": SimpleNamespace(
                 domain="sensor",
                 entity_id="sensor.other_platform",
                 platform="other",
                 config_entry_id=config_entry.entry_id,
-                unique_id=current_unique_id,
+                unique_id=old_unique_id,
             ),
             "sensor.other_entry": SimpleNamespace(
                 domain="sensor",
                 entity_id="sensor.other_entry",
                 platform=DOMAIN,
                 config_entry_id="other-entry",
-                unique_id=current_unique_id,
+                unique_id=old_unique_id,
             ),
             "sensor.current": SimpleNamespace(
                 domain="sensor",
                 entity_id="sensor.current",
                 platform=DOMAIN,
                 config_entry_id=config_entry.entry_id,
-                unique_id=current_unique_id,
+                unique_id=old_unique_id,
             ),
         },
         async_get_entity_id=MagicMock(return_value=None),
@@ -1228,7 +2166,8 @@ async def test_tariff_setup_registry_filter_branches(
     )
 
     assert current_unique_id in {entity.unique_id for entity in added}
-    fake_registry.async_remove.assert_not_called()
+    assert old_unique_id not in {entity.unique_id for entity in added}
+    fake_registry.async_remove.assert_called_once_with("sensor.current")
 
 
 @pytest.mark.asyncio
@@ -1275,7 +2214,9 @@ async def test_tariff_setup_handles_registry_without_values(
         hass, config_entry, lambda entities, **_: added.extend(entities)
     )
 
-    assert any("tariff_import_rate" in str(entity.unique_id) for entity in added)
+    assert any(
+        "tariff_current_import_rate" in str(entity.unique_id) for entity in added
+    )
     fake_registry.entities = object()
     for listener in listeners:
         listener()
@@ -1283,7 +2224,7 @@ async def test_tariff_setup_handles_registry_without_values(
 
 
 @pytest.mark.asyncio
-async def test_tariff_setup_adds_export_value_sensor(
+async def test_tariff_setup_adds_current_export_rate_sensor(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
     coord = coordinator_factory()
@@ -1322,9 +2263,13 @@ async def test_tariff_setup_adds_export_value_sensor(
         hass, config_entry, lambda entities, **_: added.extend(entities)
     )
 
-    assert f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate_default_week_peak" in {
+    assert f"{DOMAIN}_site_{coord.site_id}_tariff_current_export_rate" in {
         entity.unique_id for entity in added
     }
+    assert (
+        f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate_default_week_peak"
+        not in {entity.unique_id for entity in added}
+    )
 
 
 @pytest.mark.asyncio
@@ -1367,7 +2312,7 @@ async def test_tariff_setup_prunes_dynamic_export_for_summary_snapshot(
     )
 
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_export_unique_id) is None
-    assert f"{DOMAIN}_site_{coord.site_id}_tariff_export_rate" in {
+    assert f"{DOMAIN}_site_{coord.site_id}_tariff_current_export_rate" in {
         entity.unique_id for entity in added
     }
 
@@ -1424,7 +2369,9 @@ async def test_tariff_rate_sensor_entities_resync_when_structure_changes(
     old_unique_id = (
         f"{DOMAIN}_site_{coord.site_id}_tariff_import_rate_default_week_off_peak"
     )
-    assert old_unique_id in {entity.unique_id for entity in added}
+    current_unique_id = f"{DOMAIN}_site_{coord.site_id}_tariff_current_import_rate"
+    assert current_unique_id in {entity.unique_id for entity in added}
+    assert old_unique_id not in {entity.unique_id for entity in added}
     ent_reg = er.async_get(hass)
     ent_reg.async_get_or_create(
         "sensor",
@@ -1461,5 +2408,5 @@ async def test_tariff_rate_sensor_entities_resync_when_structure_changes(
     new_unique_id = (
         f"{DOMAIN}_site_{coord.site_id}_tariff_import_rate_default_week_peak"
     )
-    assert new_unique_id in {entity.unique_id for entity in added}
+    assert new_unique_id not in {entity.unique_id for entity in added}
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, old_unique_id) is None

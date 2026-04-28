@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import calendar
+import copy
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, time as dt_time, timedelta
+import logging
+import math
 import re
 from typing import TYPE_CHECKING
 
@@ -12,12 +15,86 @@ import aiohttp
 from homeassistant.util import dt as dt_util
 
 from .api import InvalidPayloadError, OptionalEndpointUnavailable
+from .const import DOMAIN
+from .service_validation import raise_translated_service_validation
 
 if TYPE_CHECKING:
     from .coordinator import EnphaseCoordinator
 
 TARIFF_ENDPOINT_FAMILY = "tariff"
 _EXPORT_RATE_KEY_RE = re.compile(r"[^a-z0-9]+")
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True, frozen=True)
+class TariffRateLocator:
+    """Stable location for an editable tariff rate in the raw payload."""
+
+    branch: str
+    kind: str
+    season_index: int
+    season_id: str | None = None
+    day_index: int | None = None
+    day_group_id: str | None = None
+    period_index: int | None = None
+    period_id: str | None = None
+    period_type: str | None = None
+    tier_index: int | None = None
+    tier_id: str | None = None
+
+    def as_dict(self) -> dict[str, object]:
+        """Return a JSON-serializable locator."""
+
+        return {
+            key: value
+            for key, value in {
+                "branch": self.branch,
+                "kind": self.kind,
+                "season_index": self.season_index,
+                "season_id": self.season_id,
+                "day_index": self.day_index,
+                "day_group_id": self.day_group_id,
+                "period_index": self.period_index,
+                "period_id": self.period_id,
+                "period_type": self.period_type,
+                "tier_index": self.tier_index,
+                "tier_id": self.tier_id,
+            }.items()
+            if value is not None
+        }
+
+    @classmethod
+    def from_object(cls, value: object) -> "TariffRateLocator | None":
+        """Parse a locator from entity state attributes or service data."""
+
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, dict):
+            return None
+        branch = _clean_text(value.get("branch"))
+        kind = _clean_text(value.get("kind"))
+        season_index = _int_or_none(value.get("season_index"))
+        if branch not in {"purchase", "buyback"} or kind not in {
+            "period",
+            "tier",
+            "off_peak",
+        }:
+            return None
+        if season_index is None or season_index < 1:
+            return None
+        return cls(
+            branch=branch,
+            kind=kind,
+            season_index=season_index,
+            season_id=_clean_text(value.get("season_id")),
+            day_index=_int_or_none(value.get("day_index")),
+            day_group_id=_clean_text(value.get("day_group_id")),
+            period_index=_int_or_none(value.get("period_index")),
+            period_id=_clean_text(value.get("period_id")),
+            period_type=_clean_text(value.get("period_type")),
+            tier_index=_int_or_none(value.get("tier_index")),
+            tier_id=_clean_text(value.get("tier_id")),
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -58,6 +135,7 @@ class TariffRateSnapshot:
     currency: str | None
     export_plan: str | None
     seasons: tuple[dict[str, object], ...]
+    branch_key: str | None = None
 
     @property
     def attributes(self) -> dict[str, object]:
@@ -248,6 +326,144 @@ def _rate_detail_name(*parts: object) -> str:
     return " ".join(part.title() for part in names if part)
 
 
+def _month_matches(
+    month: int,
+    start_month: object,
+    end_month: object,
+) -> bool:
+    start = _int_or_none(start_month)
+    end = _int_or_none(end_month)
+    if start is None or end is None:
+        return True
+    if not 1 <= start <= 12 or not 1 <= end <= 12:
+        return True
+    if start <= end:
+        return start <= month <= end
+    return month >= start or month <= end
+
+
+def _time_to_minutes(value: object) -> int | None:
+    text = _clean_text(value)
+    if text is None:
+        return None
+    parts = text.split(":", 1)
+    if len(parts) != 2:
+        return None
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+    except ValueError:
+        return None
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        return None
+    return hour * 60 + minute
+
+
+def _time_window_matches(
+    minute_of_day: int,
+    start_time: object,
+    end_time: object,
+) -> bool:
+    start = _time_to_minutes(start_time)
+    end = _time_to_minutes(end_time)
+    if start is None or end is None or start == end:
+        return True
+    if start < end:
+        return start <= minute_of_day < end
+    return minute_of_day >= start or minute_of_day < end
+
+
+def current_tariff_rate_sensor_spec(
+    snapshot: TariffRateSnapshot | None,
+    when: datetime,
+) -> dict | None:
+    """Return the unambiguous current rate spec for an Energy price sensor."""
+
+    specs = tariff_rate_sensor_specs(snapshot)
+    if not specs:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    month = when.month
+    weekday = when.isoweekday()
+    minute_of_day = when.hour * 60 + when.minute
+
+    matches: list[dict] = []
+    for spec in specs:
+        attrs = spec.get("attributes") or {}
+        if not _month_matches(
+            month,
+            attrs.get("start_month"),
+            attrs.get("end_month"),
+        ):
+            continue
+        days = attrs.get("days")
+        if (
+            isinstance(days, list)
+            and days
+            and weekday
+            not in {day for item in days if (day := _int_or_none(item)) is not None}
+        ):
+            continue
+        if not _time_window_matches(
+            minute_of_day,
+            attrs.get("start_time"),
+            attrs.get("end_time"),
+        ):
+            continue
+        matches.append(spec)
+    if len(matches) != 1:
+        return None
+    return matches[0]
+
+
+def next_tariff_rate_change(
+    snapshot: TariffRateSnapshot | None,
+    when: datetime,
+) -> datetime | None:
+    """Return the next time the active tariff rate may change."""
+
+    specs = tariff_rate_sensor_specs(snapshot)
+    if not specs:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    active = current_tariff_rate_sensor_spec(snapshot, when)
+    active_key = None if active is None else active.get("key")
+    active_state = None if active is None else active.get("state")
+    tzinfo = when.tzinfo
+    candidates: set[datetime] = set()
+    start_date = when.date()
+    for day_offset in range(0, 370):
+        day = start_date + timedelta(days=day_offset)
+        candidates.add(datetime.combine(day, dt_time.min, tzinfo))
+        for spec in specs:
+            attrs = spec.get("attributes") or {}
+            for attr in ("start_time", "end_time"):
+                minute_of_day = _time_to_minutes(attrs.get(attr))
+                if minute_of_day is None:
+                    continue
+                candidates.add(
+                    datetime.combine(
+                        day,
+                        dt_time(minute_of_day // 60, minute_of_day % 60),
+                        tzinfo,
+                    )
+                )
+
+    for candidate in sorted(candidates):
+        if candidate <= when:
+            continue
+        candidate_spec = current_tariff_rate_sensor_spec(snapshot, candidate)
+        candidate_key = None if candidate_spec is None else candidate_spec.get("key")
+        candidate_state = (
+            None if candidate_spec is None else candidate_spec.get("state")
+        )
+        if (candidate_key, candidate_state) != (active_key, active_state):
+            return candidate
+    return None
+
+
 def tariff_rate_sensor_specs(snapshot: TariffRateSnapshot | None) -> tuple[dict, ...]:
     """Return per-rate sensor specs for period and tiered tariffs."""
 
@@ -280,6 +496,9 @@ def tariff_rate_sensor_specs(snapshot: TariffRateSnapshot | None) -> tuple[dict,
         "currency": snapshot.currency,
         "export_plan": snapshot.export_plan,
     }
+    branch_key = (
+        snapshot.branch_key if snapshot.branch_key in {"purchase", "buyback"} else None
+    )
     for season_index, season in enumerate(snapshot.seasons, start=1):
         season_attrs = {
             **base_attrs,
@@ -287,6 +506,33 @@ def tariff_rate_sensor_specs(snapshot: TariffRateSnapshot | None) -> tuple[dict,
             "start_month": season.get("start_month"),
             "end_month": season.get("end_month"),
         }
+        off_peak_state = _rate_value(season.get("off_peak"))
+        if off_peak_state is not None:
+            attrs = {
+                **season_attrs,
+                "rate": season.get("off_peak"),
+                "formatted_rate": _format_rate(
+                    season.get("off_peak"), snapshot.currency
+                ),
+            }
+            if branch_key is not None:
+                attrs["tariff_locator"] = TariffRateLocator(
+                    branch=branch_key,
+                    kind="off_peak",
+                    season_index=season_index,
+                    season_id=_clean_text(season.get("id")),
+                ).as_dict()
+            _append_spec(
+                "_".join(
+                    (
+                        _slug(season.get("id"), f"season_{season_index}"),
+                        "off_peak",
+                    )
+                ),
+                "Off-Peak",
+                off_peak_state,
+                {attr: value for attr, value in attrs.items() if value is not None},
+            )
         for day_index, day_group in enumerate(season.get("days", []), start=1):
             if not isinstance(day_group, dict):
                 continue
@@ -326,6 +572,18 @@ def tariff_rate_sensor_specs(snapshot: TariffRateSnapshot | None) -> tuple[dict,
                         period.get("rate"), snapshot.currency
                     ),
                 }
+                if branch_key is not None:
+                    attrs["tariff_locator"] = TariffRateLocator(
+                        branch=branch_key,
+                        kind="period",
+                        season_index=season_index,
+                        season_id=_clean_text(season.get("id")),
+                        day_index=day_index,
+                        day_group_id=_clean_text(day_group.get("id")),
+                        period_index=period_index,
+                        period_id=period_id,
+                        period_type=period_type,
+                    ).as_dict()
                 _append_spec(
                     key,
                     name,
@@ -355,6 +613,15 @@ def tariff_rate_sensor_specs(snapshot: TariffRateSnapshot | None) -> tuple[dict,
                 "rate": tier.get("rate"),
                 "formatted_rate": _format_rate(tier.get("rate"), snapshot.currency),
             }
+            if branch_key is not None:
+                attrs["tariff_locator"] = TariffRateLocator(
+                    branch=branch_key,
+                    kind="tier",
+                    season_index=season_index,
+                    season_id=_clean_text(season.get("id")),
+                    tier_index=tier_index,
+                    tier_id=tier_id,
+                ).as_dict()
             _append_spec(
                 key,
                 name,
@@ -475,11 +742,118 @@ def parse_tariff_rate(
             _clean_text(branch.get("exportPlan")) if branch_key == "buyback" else None
         ),
         seasons=tuple(seasons),
+        branch_key=branch_key,
+    )
+
+
+def _format_write_rate(value: float) -> str:
+    if not math.isfinite(value) or value < 0:
+        _raise_tariff_validation(
+            "tariff_rate_invalid",
+            message="Tariff rate must be a non-negative number.",
+        )
+    return f"{value:.10f}".rstrip("0").rstrip(".") or "0"
+
+
+def _raise_tariff_validation(
+    key: str,
+    *,
+    placeholders: dict[str, object] | None = None,
+    message: str | None = None,
+) -> None:
+    raise_translated_service_validation(
+        translation_domain=DOMAIN,
+        translation_key=f"exceptions.{key}",
+        translation_placeholders=placeholders,
+        message=message,
+    )
+
+
+def _index_item(items: object, index: int | None) -> dict[str, object] | None:
+    if index is None or index < 1 or not isinstance(items, list):
+        return None
+    try:
+        item = items[index - 1]
+    except IndexError:
+        return None
+    return item if isinstance(item, dict) else None
+
+
+def _matches_text(actual: object, expected: str | None) -> bool:
+    return expected is None or _clean_text(actual) == expected
+
+
+def _locate_tariff_rate(
+    payload: dict[str, object],
+    locator: TariffRateLocator,
+) -> tuple[dict[str, object], str]:
+    branch = payload.get(locator.branch)
+    if not isinstance(branch, dict):
+        _raise_tariff_validation(
+            "tariff_rate_target_not_found",
+            message="Tariff rate target was not found in the latest tariff payload.",
+        )
+    season = _index_item(branch.get("seasons"), locator.season_index)
+    if season is None or not _matches_text(season.get("id"), locator.season_id):
+        _raise_tariff_validation(
+            "tariff_rate_target_not_found",
+            message="Tariff rate target was not found in the latest tariff payload.",
+        )
+
+    if locator.kind == "off_peak":
+        if "offPeak" not in season:
+            _raise_tariff_validation(
+                "tariff_rate_target_not_found",
+                message=(
+                    "Tariff rate target was not found in the latest tariff payload."
+                ),
+            )
+        return season, "offPeak"
+
+    if locator.kind == "period":
+        day_group = _index_item(season.get("days"), locator.day_index)
+        if day_group is None or not _matches_text(
+            day_group.get("id"), locator.day_group_id
+        ):
+            _raise_tariff_validation(
+                "tariff_rate_target_not_found",
+                message=(
+                    "Tariff rate target was not found in the latest tariff payload."
+                ),
+            )
+        period = _index_item(day_group.get("periods"), locator.period_index)
+        if (
+            period is None
+            or not _matches_text(period.get("id"), locator.period_id)
+            or not _matches_text(period.get("type"), locator.period_type)
+        ):
+            _raise_tariff_validation(
+                "tariff_rate_target_not_found",
+                message=(
+                    "Tariff rate target was not found in the latest tariff payload."
+                ),
+            )
+        return period, "rate"
+
+    if locator.kind == "tier":
+        tier = _index_item(season.get("tiers"), locator.tier_index)
+        if tier is None or not _matches_text(tier.get("id"), locator.tier_id):
+            _raise_tariff_validation(
+                "tariff_rate_target_not_found",
+                message=(
+                    "Tariff rate target was not found in the latest tariff payload."
+                ),
+            )
+        return tier, "rate"
+
+    _raise_tariff_validation(
+        "tariff_rate_target_invalid",
+        message="Tariff rate target is invalid.",
     )
 
 
 class TariffRuntime:
-    """Fetch and normalize read-only site tariff data."""
+    """Fetch, normalize, and update site tariff data."""
 
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
@@ -528,6 +902,59 @@ class TariffRuntime:
         if isinstance(tariff_payload, dict) and tariff_payload:
             coord.tariff_rates_last_refresh_utc = refresh_time
         coord._note_endpoint_family_success(TARIFF_ENDPOINT_FAMILY)
+
+    async def async_set_tariff_rate(
+        self,
+        locator: TariffRateLocator | dict[str, object],
+        value: float,
+    ) -> dict:
+        """Update one existing tariff rate value."""
+
+        parsed_locator = TariffRateLocator.from_object(locator)
+        if parsed_locator is None:
+            _raise_tariff_validation(
+                "tariff_rate_target_invalid",
+                message="Tariff rate target is invalid.",
+            )
+        try:
+            rate_value = float(value)
+        except (TypeError, ValueError):
+            _raise_tariff_validation(
+                "tariff_rate_invalid",
+                message="Tariff rate must be a non-negative number.",
+            )
+        rate = _format_write_rate(rate_value)
+        coord = self.coordinator
+        site_tariff = getattr(coord.client, "site_tariff", None)
+        site_tariff_update = getattr(coord.client, "site_tariff_update", None)
+        if not callable(site_tariff) or not callable(site_tariff_update):
+            _raise_tariff_validation(
+                "tariff_rate_api_unavailable",
+                message="Tariff write API is unavailable.",
+            )
+        payload = await site_tariff()
+        if not isinstance(payload, dict):
+            _raise_tariff_validation(
+                "tariff_rate_api_unavailable",
+                message="Tariff write API is unavailable.",
+            )
+        update_payload = copy.deepcopy(payload)
+        target, field = _locate_tariff_rate(update_payload, parsed_locator)
+        target[field] = rate
+        result = await site_tariff_update(update_payload)
+
+        notifier = getattr(coord.client, "notify_tariff_change", None)
+        if callable(notifier):
+            try:
+                await notifier()
+            except (aiohttp.ClientError, AttributeError, TimeoutError) as err:
+                _LOGGER.debug(
+                    "Tariff change notification failed for site %s: %s",
+                    getattr(coord, "site_id", None),
+                    err,
+                )
+        await coord.tariff_runtime.async_refresh(force=True)
+        return result
 
     def _has_stale_data(self) -> bool:
         """Return whether a prior tariff snapshot can stay visible."""

@@ -393,6 +393,24 @@
     },
     "battery_schedule_ids_not_found": {
       "message": "Schedule ID(s) not found in current data: {schedule_ids}"
+    },
+    "tariff_rate_invalid": {
+      "message": "Tariff rate must be a non-negative number."
+    },
+    "tariff_rate_target_not_found": {
+      "message": "Tariff rate target was not found in the latest tariff payload."
+    },
+    "tariff_rate_target_invalid": {
+      "message": "Tariff rate target is invalid."
+    },
+    "tariff_rate_api_unavailable": {
+      "message": "Tariff write API is unavailable."
+    },
+    "tariff_rate_entity_required": {
+      "message": "Select exactly one tariff rate entity."
+    },
+    "tariff_rate_entity_invalid": {
+      "message": "Entity is not an Enphase tariff rate entity: {entity_id}"
     }
   },
   "options": {
@@ -1283,6 +1301,9 @@
           },
           "last_refresh_utc": {
             "name": "Last Refresh (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariff Locator"
           }
         }
       },
@@ -1377,6 +1398,9 @@
           },
           "last_refresh_utc": {
             "name": "Last Refresh (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariff Locator"
           }
         }
       },
@@ -1496,6 +1520,157 @@
       },
       "battery_rbd_schedules": {
         "name": "Battery RBD Schedules"
+      },
+      "tariff_current_import_rate": {
+        "name": "Current Import Rate",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Rate Structure"
+          },
+          "variation_type": {
+            "name": "Variation Type"
+          },
+          "source": {
+            "name": "Source"
+          },
+          "currency": {
+            "name": "Currency"
+          },
+          "season_id": {
+            "name": "Season ID"
+          },
+          "start_month": {
+            "name": "Start Month"
+          },
+          "end_month": {
+            "name": "End Month"
+          },
+          "day_group_id": {
+            "name": "Day Group"
+          },
+          "days": {
+            "name": "Days"
+          },
+          "period_id": {
+            "name": "Period ID"
+          },
+          "period_type": {
+            "name": "Period Type"
+          },
+          "start_time": {
+            "name": "Start Time"
+          },
+          "end_time": {
+            "name": "End Time"
+          },
+          "rate": {
+            "name": "Rate"
+          },
+          "formatted_rate": {
+            "name": "Formatted Rate"
+          },
+          "tier_id": {
+            "name": "Tier ID"
+          },
+          "start_value": {
+            "name": "Start Value"
+          },
+          "end_value": {
+            "name": "End Value"
+          },
+          "unbounded": {
+            "name": "Unbounded"
+          },
+          "last_refresh_utc": {
+            "name": "Last Refresh (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariff Locator"
+          },
+          "active_rate_name": {
+            "name": "Active Rate Name"
+          },
+          "configured_rates": {
+            "name": "Configured Rates"
+          }
+        }
+      },
+      "tariff_current_export_rate": {
+        "name": "Current Export Rate",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Rate Structure"
+          },
+          "variation_type": {
+            "name": "Variation Type"
+          },
+          "source": {
+            "name": "Source"
+          },
+          "currency": {
+            "name": "Currency"
+          },
+          "export_plan": {
+            "name": "Export Plan"
+          },
+          "season_id": {
+            "name": "Season ID"
+          },
+          "start_month": {
+            "name": "Start Month"
+          },
+          "end_month": {
+            "name": "End Month"
+          },
+          "day_group_id": {
+            "name": "Day Group"
+          },
+          "days": {
+            "name": "Days"
+          },
+          "period_id": {
+            "name": "Period ID"
+          },
+          "period_type": {
+            "name": "Period Type"
+          },
+          "start_time": {
+            "name": "Start Time"
+          },
+          "end_time": {
+            "name": "End Time"
+          },
+          "rate": {
+            "name": "Rate"
+          },
+          "formatted_rate": {
+            "name": "Formatted Rate"
+          },
+          "tier_id": {
+            "name": "Tier ID"
+          },
+          "start_value": {
+            "name": "Start Value"
+          },
+          "end_value": {
+            "name": "End Value"
+          },
+          "unbounded": {
+            "name": "Unbounded"
+          },
+          "last_refresh_utc": {
+            "name": "Last Refresh (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariff Locator"
+          },
+          "active_rate_name": {
+            "name": "Active Rate Name"
+          },
+          "configured_rates": {
+            "name": "Configured Rates"
+          }
+        }
       }
     },
     "number": {
@@ -1522,6 +1697,145 @@
       },
       "battery_new_schedule_limit": {
         "name": "Battery New Schedule Limit"
+      },
+      "tariff_import_rate_value": {
+        "name": "Import Rate {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Rate Structure"
+          },
+          "variation_type": {
+            "name": "Variation Type"
+          },
+          "source": {
+            "name": "Source"
+          },
+          "currency": {
+            "name": "Currency"
+          },
+          "season_id": {
+            "name": "Season ID"
+          },
+          "start_month": {
+            "name": "Start Month"
+          },
+          "end_month": {
+            "name": "End Month"
+          },
+          "day_group_id": {
+            "name": "Day Group"
+          },
+          "days": {
+            "name": "Days"
+          },
+          "period_id": {
+            "name": "Period ID"
+          },
+          "period_type": {
+            "name": "Period Type"
+          },
+          "start_time": {
+            "name": "Start Time"
+          },
+          "end_time": {
+            "name": "End Time"
+          },
+          "rate": {
+            "name": "Rate"
+          },
+          "formatted_rate": {
+            "name": "Formatted Rate"
+          },
+          "tier_id": {
+            "name": "Tier ID"
+          },
+          "start_value": {
+            "name": "Start Value"
+          },
+          "end_value": {
+            "name": "End Value"
+          },
+          "unbounded": {
+            "name": "Unbounded"
+          },
+          "last_refresh_utc": {
+            "name": "Last Refresh (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariff Locator"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Export Rate {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Rate Structure"
+          },
+          "variation_type": {
+            "name": "Variation Type"
+          },
+          "source": {
+            "name": "Source"
+          },
+          "currency": {
+            "name": "Currency"
+          },
+          "export_plan": {
+            "name": "Export Plan"
+          },
+          "season_id": {
+            "name": "Season ID"
+          },
+          "start_month": {
+            "name": "Start Month"
+          },
+          "end_month": {
+            "name": "End Month"
+          },
+          "day_group_id": {
+            "name": "Day Group"
+          },
+          "days": {
+            "name": "Days"
+          },
+          "period_id": {
+            "name": "Period ID"
+          },
+          "period_type": {
+            "name": "Period Type"
+          },
+          "start_time": {
+            "name": "Start Time"
+          },
+          "end_time": {
+            "name": "End Time"
+          },
+          "rate": {
+            "name": "Rate"
+          },
+          "formatted_rate": {
+            "name": "Formatted Rate"
+          },
+          "tier_id": {
+            "name": "Tier ID"
+          },
+          "start_value": {
+            "name": "Start Value"
+          },
+          "end_value": {
+            "name": "End Value"
+          },
+          "unbounded": {
+            "name": "Unbounded"
+          },
+          "last_refresh_utc": {
+            "name": "Last Refresh (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariff Locator"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -2195,6 +2509,16 @@
         "config_entry_id": {
           "name": "Config Entry ID",
           "description": "Optional config entry identifier for a single Enphase site entry."
+        }
+      }
+    },
+    "set_tariff_rate": {
+      "name": "Set Tariff Rate",
+      "description": "Update one existing Enphase import or export tariff rate value.",
+      "fields": {
+        "rate": {
+          "name": "Rate",
+          "description": "New non-negative tariff rate value."
         }
       }
     }

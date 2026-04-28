@@ -393,6 +393,24 @@
     },
     "schedule_update_conflict_detail": {
       "message": "Planoppdateringen er i konflikt med en eksisterende batteriplan: {message}"
+    },
+    "tariff_rate_invalid": {
+      "message": "Tariffprisen må være et ikke-negativt tall."
+    },
+    "tariff_rate_target_not_found": {
+      "message": "Målet for tariffprisen ble ikke funnet i de nyeste tariffdataene."
+    },
+    "tariff_rate_target_invalid": {
+      "message": "Målet for tariffprisen er ugyldig."
+    },
+    "tariff_rate_api_unavailable": {
+      "message": "API for tariffskriving er ikke tilgjengelig."
+    },
+    "tariff_rate_entity_required": {
+      "message": "Velg nøyaktig én tariffpris-entitet."
+    },
+    "tariff_rate_entity_invalid": {
+      "message": "Entiteten er ikke en Enphase-tariffpris: {entity_id}"
     }
   },
   "options": {
@@ -1244,6 +1262,9 @@
           },
           "last_refresh_utc": {
             "name": "Siste oppdatering (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifflokator"
           }
         }
       },
@@ -1338,6 +1359,9 @@
           },
           "last_refresh_utc": {
             "name": "Siste oppdatering (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifflokator"
           }
         }
       },
@@ -1496,6 +1520,157 @@
       },
       "battery_schedule_summary": {
         "name": "Sammendrag av batteriplaner"
+      },
+      "tariff_current_import_rate": {
+        "name": "Gjeldende importtariff",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Sesong-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Sluttmåned"
+          },
+          "day_group_id": {
+            "name": "Daggruppe-ID"
+          },
+          "days": {
+            "name": "Dager"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formatert pris"
+          },
+          "tier_id": {
+            "name": "Trinn-ID"
+          },
+          "start_value": {
+            "name": "Startverdi"
+          },
+          "end_value": {
+            "name": "Sluttverdi"
+          },
+          "unbounded": {
+            "name": "Uten øvre grense"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifflokator"
+          },
+          "active_rate_name": {
+            "name": "Navn på aktiv tariff"
+          },
+          "configured_rates": {
+            "name": "Konfigurerte tariffer"
+          }
+        }
+      },
+      "tariff_current_export_rate": {
+        "name": "Gjeldende eksporttariff",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksportplan"
+          },
+          "season_id": {
+            "name": "Sesong-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Sluttmåned"
+          },
+          "day_group_id": {
+            "name": "Daggruppe-ID"
+          },
+          "days": {
+            "name": "Dager"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formatert pris"
+          },
+          "tier_id": {
+            "name": "Trinn-ID"
+          },
+          "start_value": {
+            "name": "Startverdi"
+          },
+          "end_value": {
+            "name": "Sluttverdi"
+          },
+          "unbounded": {
+            "name": "Uten øvre grense"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifflokator"
+          },
+          "active_rate_name": {
+            "name": "Navn på aktiv tariff"
+          },
+          "configured_rates": {
+            "name": "Konfigurerte tariffer"
+          }
+        }
       }
     },
     "number": {
@@ -1522,6 +1697,145 @@
       },
       "battery_schedule_edit_limit": {
         "name": "Grense for batteriplan"
+      },
+      "tariff_import_rate_value": {
+        "name": "Importtariff {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Sesong-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Sluttmåned"
+          },
+          "day_group_id": {
+            "name": "Daggruppe-ID"
+          },
+          "days": {
+            "name": "Dager"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formatert pris"
+          },
+          "tier_id": {
+            "name": "Trinn-ID"
+          },
+          "start_value": {
+            "name": "Startverdi"
+          },
+          "end_value": {
+            "name": "Sluttverdi"
+          },
+          "unbounded": {
+            "name": "Uten øvre grense"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifflokator"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Eksporttariff {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffstruktur"
+          },
+          "variation_type": {
+            "name": "Variasjonstype"
+          },
+          "source": {
+            "name": "Kilde"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Eksportplan"
+          },
+          "season_id": {
+            "name": "Sesong-ID"
+          },
+          "start_month": {
+            "name": "Startmåned"
+          },
+          "end_month": {
+            "name": "Sluttmåned"
+          },
+          "day_group_id": {
+            "name": "Daggruppe-ID"
+          },
+          "days": {
+            "name": "Dager"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttid"
+          },
+          "end_time": {
+            "name": "Sluttid"
+          },
+          "rate": {
+            "name": "Pris"
+          },
+          "formatted_rate": {
+            "name": "Formatert pris"
+          },
+          "tier_id": {
+            "name": "Trinn-ID"
+          },
+          "start_value": {
+            "name": "Startverdi"
+          },
+          "end_value": {
+            "name": "Sluttverdi"
+          },
+          "unbounded": {
+            "name": "Uten øvre grense"
+          },
+          "last_refresh_utc": {
+            "name": "Siste oppdatering (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifflokator"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -2195,6 +2509,16 @@
         "site_id": {
           "name": "Anleggs-ID",
           "description": "Valgfri anleggsidentifikator; oppdages automatisk når en anleggsenhet velges."
+        }
+      }
+    },
+    "set_tariff_rate": {
+      "name": "Angi tariffpris",
+      "description": "Oppdaterer én eksisterende Enphase import- eller eksporttariffpris.",
+      "fields": {
+        "rate": {
+          "name": "Pris",
+          "description": "Ny ikke-negativ tariffpris."
         }
       }
     }

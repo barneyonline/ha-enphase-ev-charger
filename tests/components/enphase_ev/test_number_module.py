@@ -14,9 +14,15 @@ from custom_components.enphase_ev.number import (
     BatteryScheduleEditLimitNumber,
     BatteryShutdownLevelNumber,
     ChargingAmpsNumber,
+    EnphaseTariffRateNumber,
     async_setup_entry,
 )
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
+from custom_components.enphase_ev.tariff import (
+    TariffRateSnapshot,
+    parse_tariff_rate,
+    tariff_rate_sensor_specs,
+)
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
 
 
@@ -517,3 +523,235 @@ def test_battery_schedule_edit_limit_number_unavailable_without_editor(
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
 
     assert BatteryScheduleEditLimitNumber(coord, config_entry).available is False
+
+
+def test_tariff_rate_number_exposes_value_unit_attributes_and_device_info(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord.client.site_tariff = AsyncMock()
+    coord.client.site_tariff_update = AsyncMock()
+    envoy_info = {"identifiers": {("enphase_ev", "envoy")}}
+    coord.inventory_view.type_device_info = lambda type_key: (
+        envoy_info if type_key == "envoy" else None
+    )
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "peak-1",
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    spec = tariff_rate_sensor_specs(coord.tariff_import_rate)[0]
+
+    number = EnphaseTariffRateNumber(coord, spec, is_import=True)
+
+    assert number.available is True
+    assert number.native_value == 0.31
+    assert number.native_unit_of_measurement == "$/kWh"
+    assert number.extra_state_attributes["tariff_locator"]["branch"] == "purchase"
+    assert number.entity_category == "config"
+    assert number.device_info is envoy_info
+
+    cloud_info = {"identifiers": {("enphase_ev", "cloud")}}
+    coord.inventory_view.type_device_info = lambda type_key: (
+        cloud_info if type_key == "cloud" else None
+    )
+    assert number.device_info is cloud_info
+
+
+def test_tariff_rate_number_fallback_paths(hass, config_entry) -> None:
+    from custom_components.enphase_ev import number as number_mod
+
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord.client.site_tariff = AsyncMock()
+    coord.client.site_tariff_update = AsyncMock()
+    coord.inventory_runtime._set_type_device_buckets({}, [])  # noqa: SLF001
+    coord.inventory_view.type_device_info = lambda *_args, **_kwargs: None
+    coord.tariff_import_rate = TariffRateSnapshot(
+        state="Flat",
+        rate_structure="Flat",
+        variation_type="Single",
+        source="manual",
+        currency=None,
+        export_plan=None,
+        seasons=(
+            {
+                "id": "default",
+                "days": [{"id": "week", "periods": [{"rate": "0.18"}]}],
+            },
+        ),
+    )
+    assert number_mod._tariff_rate_number_entities(coord) == {}
+
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"id": "off-peak", "rate": "0.18"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    spec = tariff_rate_sensor_specs(coord.tariff_import_rate)[0]
+    number = EnphaseTariffRateNumber(coord, spec, is_import=True)
+    number._detail_key = "missing"  # noqa: SLF001
+
+    assert number.available is False
+    assert number.native_value is None
+    assert number.native_unit_of_measurement is None
+    assert number.extra_state_attributes == {}
+    assert number.device_info["identifiers"] == {
+        ("enphase_ev", f"site:{coord.site_id}")
+    }
+
+
+def test_tariff_rate_number_uses_home_assistant_currency(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord.client.site_tariff = AsyncMock()
+    coord.client.site_tariff_update = AsyncMock()
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"id": "off-peak", "rate": "0.18"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    spec = tariff_rate_sensor_specs(coord.tariff_import_rate)[0]
+    number = EnphaseTariffRateNumber(coord, spec, is_import=True)
+    number.hass = hass
+    hass.config.currency = "EUR"
+
+    assert number.native_unit_of_measurement == "EUR/kWh"
+
+
+@pytest.mark.asyncio
+async def test_tariff_rate_number_sets_value(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord.tariff_runtime.async_set_tariff_rate = AsyncMock()
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"id": "off-peak", "rate": "0.18"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    spec = tariff_rate_sensor_specs(coord.tariff_import_rate)[0]
+
+    await EnphaseTariffRateNumber(coord, spec, is_import=True).async_set_native_value(
+        0.22
+    )
+
+    coord.tariff_runtime.async_set_tariff_rate.assert_awaited_once_with(
+        spec["attributes"]["tariff_locator"], 0.22
+    )
+
+
+@pytest.mark.asyncio
+async def test_tariff_rate_numbers_are_created_and_stale_entries_pruned(
+    hass, config_entry
+) -> None:
+    from homeassistant.helpers import entity_registry as er
+
+    coord = _make_coordinator(hass, config_entry, {})
+    coord._devices_inventory_ready = True  # noqa: SLF001
+    coord.tariff_import_rate = parse_tariff_rate(
+        {
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"id": "off-peak", "rate": "0.18"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    ent_reg = er.async_get(hass)
+    stale_unique_id = f"enphase_ev_site_{coord.site_id}_tariff_import_rate_old_number"
+    ent_reg.async_get_or_create(
+        "number",
+        "enphase_ev",
+        stale_unique_id,
+        config_entry=config_entry,
+    )
+    added = []
+
+    await async_setup_entry(
+        hass, config_entry, lambda entities, **_: added.extend(entities)
+    )
+
+    tariff_numbers = [
+        entity.unique_id for entity in added if "tariff_import_rate" in entity.unique_id
+    ]
+    assert tariff_numbers == [
+        f"enphase_ev_site_{coord.site_id}_tariff_import_rate_default_week_off_peak_number"
+    ]
+    assert ent_reg.async_get_entity_id("number", "enphase_ev", stale_unique_id) is None
