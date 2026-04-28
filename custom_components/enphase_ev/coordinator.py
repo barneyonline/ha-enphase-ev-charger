@@ -88,7 +88,6 @@ from .const import (
     PHASE_SWITCH_CONFIG_SETTING,
     SAVINGS_OPERATION_MODE_SUBTYPE,
     DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
-    SAFE_LIMIT_AMPS,
 )
 from .battery_runtime import BatteryRuntime
 from .coordinator_diagnostics import CoordinatorDiagnostics
@@ -3454,8 +3453,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             safe_limit_active = (
                 safe_limit_state is not None and int(safe_limit_state) != 0
             )
-            safe_limit_level = _as_int(charging_level)
-            skip_seed = safe_limit_active and safe_limit_level == SAFE_LIMIT_AMPS
+            skip_seed = safe_limit_active and charging_level_source == "status_payload"
             if (
                 sn not in self.last_set_amps
                 and charging_level is not None

@@ -135,6 +135,9 @@ def test_charging_level_invalid_value_falls_back():
     coord.data[sn]["charging"] = True
     assert sensor.native_value == SAFE_LIMIT_AMPS
 
+    coord.data[sn]["min_amp"] = 16
+    assert sensor.native_value == 16
+
     coord.data[sn]["charging"] = False
     assert sensor.native_value == 32
 
@@ -143,7 +146,7 @@ def test_charging_level_invalid_value_falls_back():
 
     coord.data[sn]["safe_limit_state"] = True
     coord.data[sn]["charging"] = True
-    assert sensor.native_value == SAFE_LIMIT_AMPS
+    assert sensor.native_value == 16
 
     class BadStr:
         def __str__(self):
