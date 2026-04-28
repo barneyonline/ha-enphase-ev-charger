@@ -814,6 +814,12 @@
         "name": "Código de error en la nube",
         "state": {
           "none": "Ninguno",
+          "rate_limited": "Frecuencia limitada",
+          "auth_blocked": "Autenticación bloqueada temporalmente",
+          "authentication_error": "Error de autenticación",
+          "request_error": "Error de solicitud",
+          "service_unavailable": "Servicio no disponible",
+          "invalid_payload": "Respuesta de la nube no válida",
           "dns_error": "Error de DNS",
           "network_error": "Error de red"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase rechazó la autenticación del sitio {site_id} porque hay demasiadas sesiones de cuenta activas. Los reintentos automáticos están pausados hasta {blocked_until}. Cierre sesión en otras sesiones de la aplicación o del navegador de Enphase y vuelva a intentar la reautenticación."
     },
     "rate_limited": {
-      "title": "Enphase Energy tiene limitación",
-      "description": "La API en la nube devolvió limitación. El sondeo se ralentizará temporalmente."
+      "title": "Enphase Energy tiene frecuencia limitada",
+      "description": "La API en la nube devolvió una limitación de frecuencia. El sondeo se ralentizará hasta {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "La nube de Enphase Energy no es accesible",

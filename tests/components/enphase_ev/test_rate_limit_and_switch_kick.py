@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import aiohttp
 import pytest
 
@@ -63,10 +65,16 @@ async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
 
     # Capture issue creation calls
     created = []
+    deleted = []
     monkeypatch.setattr(
         diag_mod.ir,
         "async_create_issue",
         lambda *args, **kwargs: created.append(kwargs),
+    )
+    monkeypatch.setattr(
+        diag_mod.ir,
+        "async_delete_issue",
+        lambda _hass, _domain, issue_id: deleted.append(issue_id),
     )
 
     # First 429 -> backoff, no issue yet
@@ -79,7 +87,36 @@ async def test_rate_limit_issue_created_on_repeated_429(hass, monkeypatch):
     coord._backoff_until = None
     with pytest.raises(UpdateFailed):
         await coord._async_update_data()
-    assert any(k.get("translation_key") == "rate_limited" for k in created)
+    rate_limit_issues = [
+        kwargs for kwargs in created if kwargs.get("translation_key") == "rate_limited"
+    ]
+    assert len(rate_limit_issues) == 1
+    assert coord._rate_limit_issue_reported is True
+    assert "backoff_ends" in rate_limit_issues[0]["translation_placeholders"]
+
+    coord._backoff_until = None
+    with pytest.raises(UpdateFailed):
+        await coord._async_update_data()
+    rate_limit_issues = [
+        kwargs for kwargs in created if kwargs.get("translation_key") == "rate_limited"
+    ]
+    assert len(rate_limit_issues) == 1
+
+    coord._record_status_refresh_success(SimpleNamespace(status_used_stale=False))
+    assert "rate_limited" in deleted
+    assert coord._rate_limit_issue_reported is False
+
+    coord._record_status_refresh_success(SimpleNamespace(status_used_stale=False))
+    assert deleted.count("rate_limited") == 1
+
+    deleted.clear()
+    coord._rate_limit_issue_clear_checked = False
+    coord._record_status_refresh_success(SimpleNamespace(status_used_stale=False))
+    assert deleted == ["rate_limited"]
+    assert coord._rate_limit_issue_clear_checked is True
+
+    coord._record_status_refresh_success(SimpleNamespace(status_used_stale=False))
+    assert deleted == ["rate_limited"]
 
 
 @pytest.mark.asyncio

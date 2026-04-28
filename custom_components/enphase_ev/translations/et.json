@@ -814,8 +814,14 @@
         "name": "Pilve veakood",
         "state": {
           "none": "Puudub",
-          "dns_error": "DNS viga",
-          "network_error": "Võrguviga"
+          "rate_limited": "Sagedus piiratud",
+          "auth_blocked": "Autentimine on ajutiselt blokeeritud",
+          "authentication_error": "Autentimise viga",
+          "request_error": "Päringu viga",
+          "service_unavailable": "Teenus pole saadaval",
+          "invalid_payload": "Vigane pilvevastus",
+          "dns_error": "DNS-i viga",
+          "network_error": "Võrgu viga"
         }
       },
       "cloud_backoff_ends": {
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy on piiratud",
-      "description": "Pilve API tagastas piirangu. Küsitlus aeglustub ajutiselt."
+      "description": "Pilve API tagastas sageduspiirangu. Pollimine aeglustub kuni {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy pilv pole kättesaadav",

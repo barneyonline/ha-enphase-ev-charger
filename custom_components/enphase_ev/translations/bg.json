@@ -814,6 +814,12 @@
         "name": "Код на грешка в облака",
         "state": {
           "none": "Няма",
+          "rate_limited": "Ограничена честота",
+          "auth_blocked": "Удостоверяването е временно блокирано",
+          "authentication_error": "Грешка при удостоверяване",
+          "request_error": "Грешка в заявката",
+          "service_unavailable": "Услугата е недостъпна",
+          "invalid_payload": "Невалиден отговор от облака",
           "dns_error": "DNS грешка",
           "network_error": "Мрежова грешка"
         }
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy е с ограничение на заявките",
-      "description": "Cloud API върна ограничение на заявките. Опресняването временно ще се забави."
+      "description": "Облачният API върна ограничение на честотата. Опросът ще се забави до {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Облакът Enphase Energy е недостъпен",

@@ -79,6 +79,17 @@ from .evse_runtime import evse_power_is_actively_charging
 PARALLEL_UPDATES = 0
 
 STATE_NONE = "none"
+CLOUD_ERROR_CODE_STATES: tuple[str, ...] = (
+    STATE_NONE,
+    "rate_limited",
+    "auth_blocked",
+    "authentication_error",
+    "request_error",
+    "service_unavailable",
+    "invalid_payload",
+    "dns_error",
+    "network_error",
+)
 BATTERY_ENTITY_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_charge_level",
     "_status",
@@ -6620,9 +6631,21 @@ class EnphaseCurrentPowerConsumptionSensor(_SiteBaseEntity, RestoreSensor):
 class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
     _attr_translation_key = "cloud_error_code"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = list(CLOUD_ERROR_CODE_STATES)
 
     def __init__(self, coord: EnphaseCoordinator):
         super().__init__(coord, "last_error_code", "Cloud Error Code", type_key=None)
+
+    def _auth_block_is_active(self) -> bool:
+        """Return True when auth is currently blocked without mutating coordinator state."""
+
+        if getattr(self._coord, "_last_error", None) == "auth_blocked":
+            return True
+        blocked_until = getattr(self._coord, "_auth_blocked_until_utc", None)
+        if isinstance(blocked_until, datetime):
+            return blocked_until > dt_util.utcnow()
+        return False
 
     @property
     def native_value(self):
@@ -6633,10 +6656,22 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
         )
         if not failure_active:
             return STATE_NONE
-        code = self._coord.last_failure_status
+        failure_source = getattr(self._coord, "last_failure_source", None)
+        if (
+            failure_source == "payload"
+            or getattr(self._coord, "payload_failure_kind", None) is not None
+        ):
+            return "invalid_payload"
+        if failure_source == "auth" and self._auth_block_is_active():
+            return "auth_blocked"
+        code = getattr(self._coord, "last_failure_status", None)
         if code is None:
-            description = (self._coord.last_failure_description or "").lower()
-            if self._coord.last_failure_source == "network":
+            if failure_source == "auth":
+                return "authentication_error"
+            description = (
+                getattr(self._coord, "last_failure_description", None) or ""
+            ).lower()
+            if failure_source == "network":
                 dns_tokens = (
                     "dns",
                     "name or service not known",
@@ -6647,7 +6682,17 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
                     return "dns_error"
                 return "network_error"
             return STATE_NONE
-        return str(code)
+        try:
+            status = int(code)
+        except (TypeError, ValueError):
+            return "request_error"
+        if status == 429:
+            return "rate_limited"
+        if status in (401, 403):
+            return "authentication_error"
+        if 500 <= status < 600:
+            return "service_unavailable"
+        return "request_error"
 
     @property
     def extra_state_attributes(self):

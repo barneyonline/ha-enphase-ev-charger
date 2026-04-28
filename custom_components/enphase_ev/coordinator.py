@@ -786,6 +786,30 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             return int(err.status) if isinstance(err.status, int) else None
         return None
 
+    @staticmethod
+    def _retry_after_delay(err: Exception) -> float | None:
+        """Return a Retry-After delay in seconds when an HTTP error provides one."""
+
+        if not isinstance(err, aiohttp.ClientResponseError) or not err.headers:
+            return None
+        retry_after = err.headers.get("Retry-After")
+        if not retry_after:
+            return None
+        try:
+            return max(0.0, float(int(retry_after)))
+        except Exception:
+            retry_dt = None
+            try:
+                retry_dt = parsedate_to_datetime(str(retry_after))
+            except Exception:
+                retry_dt = None
+            if retry_dt is None:
+                return None
+            if retry_dt.tzinfo is None:
+                retry_dt = retry_dt.replace(tzinfo=_tz.utc)
+            retry_dt = retry_dt.astimezone(_tz.utc)
+            return max(0.0, (retry_dt - dt_util.utcnow()).total_seconds())
+
     def _endpoint_family_backoff_delay(
         self,
         family: str,
@@ -919,6 +943,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         health.last_status = status
         health.last_error = redact_text(err, site_ids=(self.site_id,))
         delay = self._endpoint_family_backoff_delay(family, health.consecutive_failures)
+        retry_after_delay = self._retry_after_delay(err)
+        if retry_after_delay is not None:
+            delay = max(delay, retry_after_delay)
         if policy.suppress_after_failures is not None and (
             health.consecutive_failures >= int(policy.suppress_after_failures)
         ):
@@ -2392,6 +2419,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self.diagnostics.clear_network_issue()
         self.diagnostics.clear_cloud_issue()
         self.diagnostics.clear_dns_issue()
+        self.diagnostics.clear_rate_limited_issue()
         self._unauth_errors = 0
         self._rate_limit_hits = 0
         self._http_errors = 0
@@ -2443,6 +2471,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._rate_limit_hits = 0
         self._http_errors = 0
         self._payload_errors = 0
+        self.diagnostics.clear_rate_limited_issue()
         self.diagnostics.clear_network_issue()
         self._network_errors = 0
         self.diagnostics.clear_cloud_issue()
@@ -2818,28 +2847,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._network_errors = 0
             self._payload_errors = 0
             self._http_errors += 1
-            retry_after = err.headers.get("Retry-After") if err.headers else None
-            delay = 0
-            if retry_after:
-                try:
-                    delay = int(retry_after)
-                except Exception:
-                    retry_dt = None
-                    try:
-                        retry_dt = parsedate_to_datetime(str(retry_after))
-                    except Exception:
-                        retry_dt = None
-                    if retry_dt is not None:
-                        if retry_dt.tzinfo is None:
-                            retry_dt = retry_dt.replace(tzinfo=_tz.utc)
-                        retry_dt = retry_dt.astimezone(_tz.utc)
-                        now_utc = dt_util.utcnow()
-                        delay = max(
-                            0,
-                            (retry_dt - now_utc).total_seconds(),
-                        )
-                    else:
-                        delay = 0
+            delay = self._retry_after_delay(err) or 0.0
             # Exponential backoff anchored to configured slow poll interval
             jitter = random.uniform(1.0, 3.0)
             backoff_multiplier = 2 ** min(self._http_errors - 1, 3)

@@ -814,6 +814,12 @@
         "name": "Molnfelkod",
         "state": {
           "none": "Ingen",
+          "rate_limited": "Frekvensbegränsad",
+          "auth_blocked": "Autentisering tillfälligt blockerad",
+          "authentication_error": "Autentiseringsfel",
+          "request_error": "Begäransfel",
+          "service_unavailable": "Tjänsten är otillgänglig",
+          "invalid_payload": "Ogiltigt molnsvar",
           "dns_error": "DNS-fel",
           "network_error": "Nätverksfel"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase avvisade autentisering för platsen {site_id} eftersom kontot har för många aktiva sessioner. Automatiska försök är pausade till {blocked_until}. Logga ut från andra Enphase-app- eller webbläsarsessioner och försök sedan autentisera igen."
     },
     "rate_limited": {
-      "title": "Enphase Energy är hastighetsbegränsad",
-      "description": "Moln-API:et returnerade rate limiting. Pollningen kommer tillfälligt att sakta ner."
+      "title": "Enphase Energy är frekvensbegränsad",
+      "description": "Moln-API:t returnerade frekvensbegränsning. Avfrågningen saktas ned till {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy-moln inte nåbart",

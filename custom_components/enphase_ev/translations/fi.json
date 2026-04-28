@@ -814,6 +814,12 @@
         "name": "Pilvivirhekoodi",
         "state": {
           "none": "Ei mitään",
+          "rate_limited": "Kutsutiheyttä rajoitettu",
+          "auth_blocked": "Todennus on tilapäisesti estetty",
+          "authentication_error": "Todennusvirhe",
+          "request_error": "Pyyntövirhe",
+          "service_unavailable": "Palvelu ei ole käytettävissä",
+          "invalid_payload": "Virheellinen pilvivastaus",
           "dns_error": "DNS-virhe",
           "network_error": "Verkkovirhe"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase hylkäsi sivuston {site_id} todennuksen, koska tilillä on liian monta aktiivista istuntoa. Automaattiset uudelleenyritykset on keskeytetty aikaan {blocked_until} asti. Kirjaudu ulos muista Enphase-sovelluksen tai selaimen istunnoista ja yritä sitten todennusta uudelleen."
     },
     "rate_limited": {
-      "title": "Enphase Energy:n nopeus on rajoitettu",
-      "description": "Pilvisovellusliittymä palautti nopeusrajoituksen. Äänestys hidastuu väliaikaisesti."
+      "title": "Enphase Energyn kutsutiheyttä on rajoitettu",
+      "description": "Pilvi-API palautti kutsutiheyden rajoituksen. Kyselyt hidastuvat aikaan {backoff_ends} asti."
     },
     "cloud_unreachable": {
       "title": "Enphase Energy -pilvi ei ole tavoitettavissa",

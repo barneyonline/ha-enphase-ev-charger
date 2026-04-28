@@ -1532,6 +1532,7 @@ async def test_site_only_clears_issues_and_counters(
     coord._network_issue_reported = True
     coord._cloud_issue_reported = True
     coord._dns_issue_reported = True
+    coord._rate_limit_issue_reported = True
     coord._unauth_errors = 3
     coord._rate_limit_hits = 2
     coord._http_errors = 4
@@ -1560,6 +1561,7 @@ async def test_site_only_clears_issues_and_counters(
     assert ("enphase_ev", "cloud_unreachable") in mock_issue_registry.deleted
     assert ("enphase_ev", "cloud_service_unavailable") in mock_issue_registry.deleted
     assert ("enphase_ev", "cloud_dns_resolution") in mock_issue_registry.deleted
+    assert ("enphase_ev", "rate_limited") in mock_issue_registry.deleted
 
 
 @pytest.mark.asyncio
@@ -5406,6 +5408,7 @@ async def test_timeout_backoff_issue_recovery(hass, monkeypatch):
         "reauth_required",
         "auth_blocked",
         "too_many_active_sessions",
+        "rate_limited",
         ISSUE_NETWORK_UNREACHABLE,
     ]
     assert coord._backoff_until is None

@@ -814,6 +814,12 @@
         "name": "Código de erro da nuvem",
         "state": {
           "none": "Nenhum",
+          "rate_limited": "Limite de requisições",
+          "auth_blocked": "Autenticação temporariamente bloqueada",
+          "authentication_error": "Erro de autenticação",
+          "request_error": "Erro de solicitação",
+          "service_unavailable": "Serviço indisponível",
+          "invalid_payload": "Resposta da nuvem inválida",
           "dns_error": "Erro de DNS",
           "network_error": "Erro de rede"
         }
@@ -2105,8 +2111,8 @@
       "description": "A Enphase rejeitou a autenticação do local {site_id} porque há muitas sessões da conta ativas. As novas tentativas automáticas estão pausadas até {blocked_until}. Saia de outras sessões do aplicativo ou navegador Enphase e tente autenticar novamente."
     },
     "rate_limited": {
-      "title": "Enphase Energy com limitação de taxa",
-      "description": "A API da nuvem retornou limitação. O polling será reduzido temporariamente."
+      "title": "Enphase Energy com limite de requisições",
+      "description": "A API da nuvem retornou limite de requisições. A sondagem ficará mais lenta até {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Nuvem do Enphase Energy inacessível",

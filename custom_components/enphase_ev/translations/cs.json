@@ -814,8 +814,14 @@
         "name": "Kód chyby cloudu",
         "state": {
           "none": "Žádné",
+          "rate_limited": "Omezení četnosti",
+          "auth_blocked": "Ověření je dočasně blokováno",
+          "authentication_error": "Chyba ověření",
+          "request_error": "Chyba požadavku",
+          "service_unavailable": "Služba není dostupná",
+          "invalid_payload": "Neplatná odpověď cloudu",
           "dns_error": "Chyba DNS",
-          "network_error": "Síťová chyba"
+          "network_error": "Chyba sítě"
         }
       },
       "cloud_backoff_ends": {
@@ -2106,7 +2112,7 @@
     },
     "rate_limited": {
       "title": "Enphase Energy je omezeno limitem",
-      "description": "Cloud API vrátilo omezení rychlosti. Dotazování se dočasně zpomalí."
+      "description": "Cloudové API vrátilo omezení četnosti. Dotazování se zpomalí do {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Cloud Enphase Energy nedostupný",

@@ -1581,6 +1581,7 @@ def test_collect_site_metrics_serializes_dates(coordinator_factory):
         "site_name": "Garage",
         "last_error": "boom",
         "last_status": "500",
+        "backoff_ends": "backoff",
     }
 
 

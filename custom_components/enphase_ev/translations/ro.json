@@ -814,6 +814,12 @@
         "name": "Cod de eroare cloud",
         "state": {
           "none": "Niciunul",
+          "rate_limited": "Frecvență limitată",
+          "auth_blocked": "Autentificare blocată temporar",
+          "authentication_error": "Eroare de autentificare",
+          "request_error": "Eroare de solicitare",
+          "service_unavailable": "Serviciu indisponibil",
+          "invalid_payload": "Răspuns cloud nevalid",
           "dns_error": "Eroare DNS",
           "network_error": "Eroare de rețea"
         }
@@ -2105,8 +2111,8 @@
       "description": "Enphase a respins autentificarea pentru site-ul {site_id} deoarece există prea multe sesiuni active ale contului. Reîncercările automate sunt suspendate până la {blocked_until}. Deconectați-vă din alte sesiuni ale aplicației sau browserului Enphase, apoi reîncercați autentificarea."
     },
     "rate_limited": {
-      "title": "Enphase Energy are limitare de rată",
-      "description": "API-ul cloud a returnat limitare de rată. Interogarea va încetini temporar."
+      "title": "Enphase Energy are frecvența limitată",
+      "description": "API-ul cloud a returnat o limitare de frecvență. Interogarea va fi încetinită până la {backoff_ends}."
     },
     "cloud_unreachable": {
       "title": "Cloud Enphase Energy inaccesibil",
