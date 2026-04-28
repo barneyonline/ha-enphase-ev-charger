@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Entiteten är inte ett Enphase-tariffpris: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "OCPP-utlösarmeddelandet stöds inte. Använd ett av följande: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Aktivera avancerad bekräftelse för att skicka {message}."
     }
   },
   "options": {
@@ -2224,6 +2230,10 @@
         "requested_message": {
           "name": "Begärt meddelande",
           "description": "OCPP-meddelandenamn (t.ex. MeterValues); tjänstsvar visar laddarens utdata."
+        },
+        "confirm_advanced": {
+          "name": "Bekräfta avancerad utlösare",
+          "description": "Krävs för avancerade OCPP-utlösarmeddelanden som kan begära laddardiagnostik, firmware eller startaviseringar."
         },
         "site_id": {
           "name": "Plats-ID",

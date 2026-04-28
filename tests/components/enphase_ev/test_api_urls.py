@@ -128,6 +128,8 @@ async def test_api_builds_urls_correctly():
 
     _, _, payload, _ = c.calls[-5]
     assert payload == {"chargingLevel": 32, "connectorId": 1}
+    _, _, trigger_payload, _ = c.calls[-3]
+    assert trigger_payload == {"requestedMessage": "MeterValues"}
 
     opt_out_payload = next(
         (
@@ -144,3 +146,13 @@ async def test_api_builds_urls_correctly():
             {"id": "IDV21037", "name": "Severe Weather", "status": "opted-out"}
         ]
     }
+
+
+@pytest.mark.asyncio
+async def test_trigger_message_rejects_unsupported_requested_message():
+    c = StubClient(site_id=RANDOM_SITE_ID)
+
+    with pytest.raises(ValueError, match="Unsupported OCPP trigger message"):
+        await c.trigger_message(RANDOM_SERIAL, "DataTransfer")
+
+    assert c.calls == []

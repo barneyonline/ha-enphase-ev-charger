@@ -21,6 +21,7 @@ from custom_components.enphase_ev.api import (
     SessionHistoryUnavailable,
     Unauthorized,
 )
+from custom_components.enphase_ev.const import MAX_POLL_INTERVAL
 from custom_components.enphase_ev.evse_timeseries import EVSETimeseriesManager
 from custom_components.enphase_ev.session_history import (
     MIN_SESSION_HISTORY_CACHE_TTL,
@@ -51,6 +52,10 @@ def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
     assert runtime_helpers.coerce_optional_int(BadStr()) is None
     assert normalize_poll_intervals("1", "2") == (15, 30)
     assert normalize_poll_intervals("45", "30") == (45, 45)
+    assert normalize_poll_intervals("9999", "9999") == (
+        MAX_POLL_INTERVAL,
+        MAX_POLL_INTERVAL,
+    )
     assert runtime_helpers.normalize_iso_date("2026-03-29") == "2026-03-29"
     assert runtime_helpers.normalize_iso_date("   ") is None
     assert runtime_helpers.normalize_iso_date(BadStr()) is None

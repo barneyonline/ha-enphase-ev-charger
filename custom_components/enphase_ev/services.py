@@ -15,6 +15,11 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers import service as ha_service
 from homeassistant.helpers import target as ha_target
 
+from .api import (
+    OCPP_TRIGGER_MESSAGES,
+    OCPP_TRIGGER_MESSAGES_REQUIRING_CONFIRMATION,
+    validate_ocpp_trigger_message,
+)
 from .battery_schedule_editor import (
     battery_schedule_inventory,
     battery_schedule_overlap_message,
@@ -254,6 +259,33 @@ def async_setup_services(
     DEVICE_ID_LIST = vol.All(cv.ensure_list, [cv.string])
     ENTRY_SCHEMA = {vol.Optional("config_entry_id"): cv.string}
 
+    def _validate_trigger_message(value: object) -> str:
+        try:
+            return validate_ocpp_trigger_message(value)
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
+
+    def _service_trigger_message(value: object) -> str:
+        try:
+            return validate_ocpp_trigger_message(value)
+        except ValueError as err:
+            _raise_service_validation(
+                "trigger_message_invalid",
+                placeholders={"messages": ", ".join(sorted(OCPP_TRIGGER_MESSAGES))},
+                message=str(err),
+            )
+
+    def _confirm_trigger_message(message: str, confirmed: object) -> None:
+        if message not in OCPP_TRIGGER_MESSAGES_REQUIRING_CONFIRMATION:
+            return
+        if confirmed is True:
+            return
+        _raise_service_validation(
+            "trigger_message_confirmation_required",
+            placeholders={"message": message},
+            message=f"{message} requires confirm_advanced.",
+        )
+
     START_SCHEMA = vol.Schema(
         {
             vol.Optional("device_id"): DEVICE_ID_LIST,
@@ -269,7 +301,10 @@ def async_setup_services(
     TRIGGER_SCHEMA = vol.Schema(
         {
             vol.Optional("device_id"): DEVICE_ID_LIST,
-            vol.Required("requested_message"): cv.string,
+            vol.Required("requested_message"): vol.All(
+                cv.string, _validate_trigger_message
+            ),
+            vol.Optional("confirm_advanced", default=False): cv.boolean,
         }
     )
     REQUEST_GRID_OTP_SCHEMA = vol.Schema(
@@ -716,7 +751,8 @@ def async_setup_services(
             await coord.async_stop_charging(sn)
 
     async def _svc_trigger(call: ServiceCall) -> dict[str, object]:
-        message = call.data["requested_message"]
+        message = _service_trigger_message(call.data["requested_message"])
+        _confirm_trigger_message(message, call.data.get("confirm_advanced", False))
         results: list[dict[str, object]] = []
         for device_id, sn, coord in await _resolve_charger_targets(call):
             reply = await coord.async_trigger_ocpp_message(sn, message)

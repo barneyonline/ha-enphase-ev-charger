@@ -1599,7 +1599,7 @@ async def test_registered_services_cover_branches(
 
     fake_service_helper.calls = 0
     with pytest.raises(ServiceValidationError):
-        await svc_trigger(SimpleNamespace(data={"requested_message": "status"}))
+        await svc_trigger(SimpleNamespace(data={"requested_message": "MeterValues"}))
 
     with pytest.raises(vol.Invalid):
         update_cfg_schema({"site_id": site_id})
@@ -1615,7 +1615,10 @@ async def test_registered_services_cover_branches(
     with pytest.raises(ServiceValidationError):
         await svc_trigger(
             SimpleNamespace(
-                data={"device_id": lonely_device.id, "requested_message": "status"}
+                data={
+                    "device_id": lonely_device.id,
+                    "requested_message": "MeterValues",
+                }
             )
         )
 
@@ -1674,7 +1677,7 @@ async def test_registered_services_cover_branches(
     coord_site_only.async_stop_charging.assert_not_awaited()
 
     trigger_call = SimpleNamespace(
-        data={"device_id": charger_two.id, "requested_message": "status"}
+        data={"device_id": charger_two.id, "requested_message": "MeterValues"}
     )
     trigger_result = await svc_trigger(trigger_call)
     assert trigger_result["results"] == [
@@ -1682,11 +1685,11 @@ async def test_registered_services_cover_branches(
             "device_id": charger_two.id,
             "serial": second_serial,
             "site_id": site_id,
-            "response": {"sent": "status", "sn": second_serial},
+            "response": {"sent": "MeterValues", "sn": second_serial},
         }
     ]
     coord_primary.async_trigger_ocpp_message.assert_awaited_once_with(
-        second_serial, "status"
+        second_serial, "MeterValues"
     )
 
     clear_call = SimpleNamespace(

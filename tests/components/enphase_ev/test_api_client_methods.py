@@ -145,6 +145,23 @@ def test_request_count_reset_and_snapshot() -> None:
     assert client.request_count == 0
 
 
+def test_safe_response_error_message_handles_header_failures() -> None:
+    class BadHeaders:
+        def get(self, *_args, **_kwargs):
+            raise RuntimeError("header unavailable")
+
+    message = api._safe_response_error_message(  # noqa: SLF001
+        status=502,
+        reason="bad gateway",
+        headers=BadHeaders(),
+        body_text="",
+    )
+
+    assert "status=502" in message
+    assert "reason=bad gateway" in message
+    assert "content_type" not in message
+
+
 def _make_optional_payload_error(endpoint: str) -> api.InvalidPayloadError:
     return api.InvalidPayloadError(
         "Invalid JSON response",
@@ -564,15 +581,22 @@ async def test_text_response_expected_status_login_wall_raises_unauthorized() ->
 
 
 @pytest.mark.asyncio
-async def test_text_response_raises_client_error_with_truncated_body() -> None:
-    response = _FakeResponse(status=500, json_body={}, text_body="x" * 600)
+async def test_text_response_raises_client_error_with_structured_body_summary() -> None:
+    response = _FakeResponse(
+        status=500,
+        json_body={},
+        text_body="secret cloud failure for site SITE",
+    )
     session = _FakeSession([response])
     client = _make_client(session)
 
     with pytest.raises(aiohttp.ClientResponseError) as err:
         await client._text_response("GET", "https://example.test/path")  # noqa: SLF001
 
-    assert err.value.message.endswith("…")
+    assert "body_length=34" in err.value.message
+    assert "body_sha256=" not in err.value.message
+    assert "secret cloud failure" not in err.value.message
+    assert "SITE" not in err.value.message
 
 
 @pytest.mark.asyncio
@@ -584,7 +608,9 @@ async def test_text_response_handles_body_read_failure() -> None:
     with pytest.raises(aiohttp.ClientResponseError) as err:
         await client._text_response("GET", "https://example.test/path")  # noqa: SLF001
 
-    assert err.value.message == "reason"
+    assert err.value.message == (
+        "HTTP error from Enphase endpoint (status=500, reason=reason)"
+    )
 
 
 @pytest.mark.asyncio
@@ -1778,15 +1804,19 @@ async def test_json_returns_empty_on_no_content() -> None:
 
 
 @pytest.mark.asyncio
-async def test_json_truncates_long_error_messages() -> None:
-    long_body = "x" * 600
+async def test_json_raises_response_error_with_structured_body_summary() -> None:
+    long_body = "secret cloud failure for site SITE" * 20
     session = _FakeSession(
         [_FakeResponse(status=400, json_body={}, text_body=long_body)]
     )
     client = api.EnphaseEVClient(session, "SITE", None, None)
     with pytest.raises(aiohttp.ClientResponseError) as err:
         await client._json("GET", "https://example.test")
-    assert len(err.value.message) == 513  # 512 chars + ellipsis
+    assert "status=400" in err.value.message
+    assert f"body_length={len(long_body)}" in err.value.message
+    assert "body_sha256=" not in err.value.message
+    assert "secret cloud failure" not in err.value.message
+    assert "SITE" not in err.value.message
 
 
 @pytest.mark.asyncio
@@ -1981,7 +2011,9 @@ async def test_json_handles_text_failure() -> None:
     client = api.EnphaseEVClient(session, "SITE", None, None)
     with pytest.raises(aiohttp.ClientResponseError) as err:
         await client._json("GET", "https://example.test")
-    assert err.value.message == "reason"
+    assert err.value.message == (
+        "HTTP error from Enphase endpoint (status=422, reason=reason)"
+    )
 
 
 @pytest.mark.asyncio
@@ -3517,7 +3549,7 @@ async def test_stop_charging_no_candidates_raises_client_error(monkeypatch) -> N
 async def test_trigger_and_stream_helpers_delegate_to_json() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"status": "ok"})
-    await client.trigger_message("SN", "HELLO")
+    await client.trigger_message("SN", "MeterValues")
     await client.start_live_stream()
     await client.stop_live_stream()
     assert client._json.await_count == 3

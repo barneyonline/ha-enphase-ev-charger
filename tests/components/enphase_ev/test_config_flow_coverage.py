@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -58,8 +59,14 @@ from custom_components.enphase_ev.const import (
     CONF_SERIALS,
     CONF_SITE_ONLY,
     CONF_ACCESS_TOKEN,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MAX_API_TIMEOUT,
+    MAX_POLL_INTERVAL,
+    MAX_SESSION_HISTORY_INTERVAL_MIN,
+    MIN_API_TIMEOUT,
     MIN_FAST_POLL_INTERVAL,
+    MIN_SESSION_HISTORY_INTERVAL_MIN,
     MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
@@ -822,6 +829,30 @@ async def test_devices_step_defaults_to_available_type_keys(hass) -> None:
 
 
 @pytest.mark.asyncio
+async def test_devices_step_schema_bounds_scan_interval(hass) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+    flow._sites = {"12345": "Garage"}
+    flow._chargers_loaded = True
+    flow._chargers = [("EV1", "Garage")]
+    flow._type_keys_loaded = True
+    flow._available_type_keys = ["iqevse"]
+
+    result = await flow.async_step_devices()
+    schema = result["data_schema"]
+
+    assert (
+        schema({CONF_SCAN_INTERVAL: MIN_SLOW_POLL_INTERVAL})[CONF_SCAN_INTERVAL]
+        == MIN_SLOW_POLL_INTERVAL
+    )
+    with pytest.raises(vol.Invalid):
+        schema({CONF_SCAN_INTERVAL: MIN_SLOW_POLL_INTERVAL - 1})
+    with pytest.raises(vol.Invalid):
+        schema({CONF_SCAN_INTERVAL: MAX_POLL_INTERVAL + 1})
+
+
+@pytest.mark.asyncio
 async def test_devices_step_reconfigure_defaults_to_configured_type_keys(hass) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
@@ -905,6 +936,32 @@ async def test_devices_step_allows_empty_selection(hass) -> None:
     assert result["data"][CONF_SITE_ONLY] is True
     assert result["data"][CONF_SERIALS] == []
     assert result["data"][CONF_SELECTED_TYPE_KEYS] == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "scan_interval",
+    [0, -1, "invalid", MIN_SLOW_POLL_INTERVAL - 1, MAX_POLL_INTERVAL + 1],
+)
+async def test_devices_step_rejects_scan_interval_outside_range(
+    hass, scan_interval: object
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+    flow._sites = {"12345": "Garage"}
+    flow._chargers_loaded = True
+    flow._chargers = []
+    flow._type_keys_loaded = True
+    flow._available_type_keys = []
+
+    result = await flow.async_step_devices(
+        {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: scan_interval}
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "devices"
+    assert result["errors"] == {CONF_SCAN_INTERVAL: "unknown"}
 
 
 @pytest.mark.asyncio
@@ -1486,6 +1543,90 @@ async def test_ensure_available_type_keys_skips_when_already_loaded(hass) -> Non
 
 
 @pytest.mark.asyncio
+async def test_ensure_device_selection_data_fetches_discovery_concurrently(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+    chargers_started = asyncio.Event()
+    inventory_started = asyncio.Event()
+
+    async def _fetch_chargers(*_args, **_kwargs):
+        chargers_started.set()
+        await inventory_started.wait()
+        return []
+
+    async def _fetch_inventory(*_args, **_kwargs):
+        inventory_started.set()
+        await chargers_started.wait()
+        return {"result": []}
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            _fetch_chargers,
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            _fetch_inventory,
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_inverters_inventory",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        await asyncio.wait_for(flow._ensure_device_selection_data(), timeout=1)
+
+    assert flow._chargers_loaded is True
+    assert flow._type_keys_loaded is True
+
+
+@pytest.mark.asyncio
+async def test_ensure_available_type_keys_treats_parallel_probe_exceptions_as_unknown(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    async def _raise_probe_error(*_args, **_kwargs):
+        raise RuntimeError("probe failed")
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            _raise_probe_error,
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            _raise_probe_error,
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+            _raise_probe_error,
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_inverters_inventory",
+            _raise_probe_error,
+        ),
+    ):
+        await flow._ensure_available_type_keys()
+
+    assert flow._inventory_unknown is True
+    assert flow._available_type_keys == []
+    assert flow._inventory_iqevse_serials == []
+
+
+@pytest.mark.asyncio
 async def test_ensure_available_type_keys_discovers_hems_heatpump(hass) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
@@ -1771,7 +1912,42 @@ def test_default_scan_interval_uses_reconfigure_value(hass) -> None:
     )
     flow = _make_flow(hass)
     flow._reconfigure_entry = entry
-    assert flow._default_scan_interval() == 15
+    assert flow._default_scan_interval() == MIN_SLOW_POLL_INTERVAL
+
+
+def test_default_scan_interval_falls_back_for_invalid_reconfigure_value(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SCAN_INTERVAL: "invalid"},
+    )
+    flow = _make_flow(hass)
+    flow._reconfigure_entry = entry
+    assert flow._default_scan_interval() == DEFAULT_SCAN_INTERVAL
+
+
+def test_default_scan_interval_handles_legacy_coercion_edges(hass) -> None:
+    flow = _make_flow(hass)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SCAN_INTERVAL: True},
+    )
+    flow._reconfigure_entry = entry
+    assert flow._default_scan_interval() == MIN_SLOW_POLL_INTERVAL
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SCAN_INTERVAL: object()},
+    )
+    flow._reconfigure_entry = entry
+    assert flow._default_scan_interval() == DEFAULT_SCAN_INTERVAL
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SCAN_INTERVAL: MAX_POLL_INTERVAL + 1},
+    )
+    flow._reconfigure_entry = entry
+    assert flow._default_scan_interval() == MAX_POLL_INTERVAL
 
 
 def test_default_include_inverters_uses_reconfigure_value(hass) -> None:
@@ -2115,6 +2291,37 @@ def test_options_flow_build_schema_skips_missing_type_mapping(hass) -> None:
         isinstance(key, VolOptional) and key.schema == CONF_TYPE_IQEVSE
         for key in schema_keys
     )
+
+
+def test_options_flow_schema_bounds_runtime_options(hass) -> None:
+    handler = OptionsFlowHandler(MockConfigEntry(domain=DOMAIN, data={}, options={}))
+    handler.hass = hass
+
+    schema = handler._build_schema()
+
+    assert (
+        schema(
+            {
+                OPT_FAST_POLL_INTERVAL: MIN_FAST_POLL_INTERVAL,
+                OPT_SLOW_POLL_INTERVAL: MIN_SLOW_POLL_INTERVAL,
+                OPT_API_TIMEOUT: MIN_API_TIMEOUT,
+                OPT_SESSION_HISTORY_INTERVAL: MIN_SESSION_HISTORY_INTERVAL_MIN,
+            }
+        )[OPT_API_TIMEOUT]
+        == MIN_API_TIMEOUT
+    )
+    with pytest.raises(vol.Invalid):
+        schema({OPT_FAST_POLL_INTERVAL: MAX_POLL_INTERVAL + 1})
+    with pytest.raises(vol.Invalid):
+        schema({OPT_SLOW_POLL_INTERVAL: MAX_POLL_INTERVAL + 1})
+    with pytest.raises(vol.Invalid):
+        schema({OPT_API_TIMEOUT: MIN_API_TIMEOUT - 1})
+    with pytest.raises(vol.Invalid):
+        schema({OPT_API_TIMEOUT: MAX_API_TIMEOUT + 1})
+    with pytest.raises(vol.Invalid):
+        schema({OPT_SESSION_HISTORY_INTERVAL: MIN_SESSION_HISTORY_INTERVAL_MIN - 1})
+    with pytest.raises(vol.Invalid):
+        schema({OPT_SESSION_HISTORY_INTERVAL: MAX_SESSION_HISTORY_INTERVAL_MIN + 1})
 
 
 @pytest.mark.asyncio
@@ -2480,6 +2687,52 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_BATTERY_SCHEDULES_ENABLED] is True
     assert CONF_SCAN_INTERVAL not in validated
     assert CONF_SITE_ONLY not in validated
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        (OPT_API_TIMEOUT, MIN_API_TIMEOUT - 1),
+        (OPT_API_TIMEOUT, MAX_API_TIMEOUT + 1),
+        (OPT_SESSION_HISTORY_INTERVAL, MIN_SESSION_HISTORY_INTERVAL_MIN - 1),
+        (OPT_SESSION_HISTORY_INTERVAL, MAX_SESSION_HISTORY_INTERVAL_MIN + 1),
+    ],
+)
+async def test_options_flow_rejects_timeout_options_outside_range(
+    hass, field: str, value: int
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "microinverter"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_settings(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_ENCHARGE: False,
+            CONF_TYPE_AC_BATTERY: False,
+            CONF_TYPE_IQEVSE: False,
+            CONF_TYPE_HEATPUMP: False,
+            CONF_TYPE_MICROINVERTER: True,
+            OPT_FAST_POLL_INTERVAL: 45,
+            OPT_SLOW_POLL_INTERVAL: 60,
+            OPT_API_TIMEOUT: 15,
+            OPT_SESSION_HISTORY_INTERVAL: 10,
+            field: value,
+        }
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "settings"
+    assert result["errors"] == {field: "unknown"}
 
 
 @pytest.mark.asyncio

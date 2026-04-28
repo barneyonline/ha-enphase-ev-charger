@@ -43,12 +43,25 @@ trigger_message:
     requested_message:
       required: true
       selector:
-        text:
-          multiline: false
+        select:
+          options:
+            - BootNotification
+            - DiagnosticsStatusNotification
+            - FirmwareStatusNotification
+            - Heartbeat
+            - MeterValues
+            - StatusNotification
       example: MeterValues
     advanced:
       collapsed: true
       fields:
+        confirm_advanced:
+          name: Confirm Advanced Trigger
+          description: Required for advanced OCPP trigger messages that may prompt charger diagnostics, firmware, or boot notifications.
+          required: false
+          selector:
+            boolean:
+          default: false
         site_id:
           required: false
           selector:

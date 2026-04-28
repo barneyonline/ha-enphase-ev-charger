@@ -70,7 +70,13 @@ from .const import (
     DEFAULT_API_TIMEOUT,
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
+    MAX_API_TIMEOUT,
+    MAX_POLL_INTERVAL,
+    MAX_SESSION_HISTORY_INTERVAL_MIN,
+    MIN_API_TIMEOUT,
     MIN_FAST_POLL_INTERVAL,
+    MIN_SLOW_POLL_INTERVAL,
+    MIN_SESSION_HISTORY_INTERVAL_MIN,
     DRY_CONTACT_SETTINGS_STALE_AFTER_S,
     DOMAIN,
     GRID_CONTROL_CHECK_STALE_AFTER_S,
@@ -348,11 +354,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         auth_block_reason = (
             str(raw_auth_block_reason).strip() if raw_auth_block_reason else None
         )
-        timeout = (
-            int(config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT))
-            if config_entry
-            else DEFAULT_API_TIMEOUT
-        )
+        timeout = DEFAULT_API_TIMEOUT
+        if config_entry:
+            timeout = helper_coerce_int(
+                config_entry.options.get(OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT),
+                default=DEFAULT_API_TIMEOUT,
+            )
+        timeout = min(MAX_API_TIMEOUT, max(MIN_API_TIMEOUT, timeout))
         self.client = EnphaseEVClient(
             async_get_clientsession(hass),
             self.site_id,
@@ -417,7 +425,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
             default=DEFAULT_SCAN_INTERVAL,
         )
-        interval = max(1, interval)
+        interval = min(MAX_POLL_INTERVAL, max(MIN_SLOW_POLL_INTERVAL, interval))
         if config_entry is not None:
             fast_opt = config_entry.options.get(OPT_FAST_POLL_INTERVAL)
             fast_interval = max(
@@ -455,14 +463,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._session_history_interval_min = DEFAULT_SESSION_HISTORY_INTERVAL_MIN
         if config_entry is not None:
             try:
-                configured_interval = int(
+                configured_interval = helper_coerce_int(
                     config_entry.options.get(
                         OPT_SESSION_HISTORY_INTERVAL,
                         DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
-                    )
+                    ),
+                    default=DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
                 )
-                if configured_interval > 0:
-                    self._session_history_interval_min = configured_interval
+                self._session_history_interval_min = min(
+                    MAX_SESSION_HISTORY_INTERVAL_MIN,
+                    max(MIN_SESSION_HISTORY_INTERVAL_MIN, configured_interval),
+                )
             except Exception:
                 self._session_history_interval_min = (
                     DEFAULT_SESSION_HISTORY_INTERVAL_MIN

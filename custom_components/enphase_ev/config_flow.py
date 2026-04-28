@@ -1,6 +1,8 @@
 """Handle Enphase Enlighten authentication, discovery, and options flows."""
 
 from __future__ import annotations
+
+import asyncio
 import logging
 import re
 import time
@@ -51,12 +53,18 @@ from .const import (
     CONF_SITE_ONLY,
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_BATTERY_SCHEDULES_ENABLED,
+    DEFAULT_API_TIMEOUT,
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SCHEDULE_SYNC_ENABLED,
     DEFAULT_SLOW_POLL_INTERVAL,
     DOMAIN,
+    MAX_API_TIMEOUT,
+    MAX_POLL_INTERVAL,
+    MAX_SESSION_HISTORY_INTERVAL_MIN,
+    MIN_API_TIMEOUT,
     MIN_FAST_POLL_INTERVAL,
+    MIN_SESSION_HISTORY_INTERVAL_MIN,
     MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
@@ -98,7 +106,7 @@ from .envoy_history import (
     validate_selected_mappings,
 )
 from .runtime_data import EnphaseConfigEntry
-from .log_redaction import redact_text
+from .log_redaction import redact_site_id, redact_text
 from .runtime_helpers import normalize_poll_intervals
 from .voltage import coerce_nominal_voltage, resolve_nominal_voltage_for_hass
 
@@ -148,6 +156,35 @@ def _battery_site_settings_has_acb(payload: object) -> bool:
 
 def _site_entry_title(site_id: str) -> str:
     return f"Site: {site_id}"
+
+
+def _coerce_int_value(value: object) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _bounded_int(value: object, *, minimum: int, maximum: int) -> int | None:
+    number = _coerce_int_value(value)
+    if number is None:
+        return None
+    if minimum <= number <= maximum:
+        return number
+    return None
+
+
+def _clamped_int(value: object, *, default: int, minimum: int, maximum: int) -> int:
+    number = _coerce_int_value(value)
+    if number is None:
+        return default
+    return min(maximum, max(minimum, number))
 
 
 def _hems_devices_groups(payload: object) -> list[dict[str, Any]]:
@@ -521,6 +558,19 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         ):
             available_type_keys.append("microinverter")
 
+        default_scan = self._default_scan_interval()
+        schema_fields: dict[vol.Marker, object] = {}
+        for type_key in available_type_keys:
+            field_key = _TYPE_FIELD_BY_KEY[type_key]
+            schema_fields[
+                vol.Optional(field_key, default=type_key in default_selected_type_keys)
+            ] = bool
+        schema_fields[vol.Optional(CONF_SCAN_INTERVAL, default=default_scan)] = vol.All(
+            vol.Coerce(int),
+            vol.Range(min=MIN_SLOW_POLL_INTERVAL, max=MAX_POLL_INTERVAL),
+        )
+        schema = vol.Schema(schema_fields)
+
         if user_input is not None:
             selected_type_keys = self._selected_type_keys_from_user_input(
                 user_input,
@@ -530,9 +580,17 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
             selected_type_keys = self._merged_selected_type_keys_for_unknown_inventory(
                 selected_type_keys, visible_type_keys=available_type_keys
             )
-            scan_interval = int(
-                user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            scan_interval = _bounded_int(
+                user_input.get(CONF_SCAN_INTERVAL, default_scan),
+                minimum=MIN_SLOW_POLL_INTERVAL,
+                maximum=MAX_POLL_INTERVAL,
             )
+            if scan_interval is None:
+                return self.async_show_form(
+                    step_id="devices",
+                    data_schema=self.add_suggested_values_to_schema(schema, user_input),
+                    errors={CONF_SCAN_INTERVAL: "unknown"},
+                )
             selected_serials = []
             if "iqevse" in selected_type_keys:
                 selected_serials = self._selected_iqevse_serials(discovered_serials)
@@ -549,20 +607,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                 heatpump_visible="heatpump" in available_type_keys,
             )
 
-        default_scan = self._default_scan_interval()
-        schema_fields: dict[vol.Marker, object] = {}
-        for type_key in available_type_keys:
-            field_key = _TYPE_FIELD_BY_KEY[type_key]
-            schema_fields[
-                vol.Optional(field_key, default=type_key in default_selected_type_keys)
-            ] = bool
-        schema_fields[vol.Optional(CONF_SCAN_INTERVAL, default=default_scan)] = int
         errors: dict[str, str] = {}
         if self._inventory_unknown:
             errors["base"] = "service_unavailable"
         return self.async_show_form(
             step_id="devices",
-            data_schema=vol.Schema(schema_fields),
+            data_schema=schema,
             errors=errors,
         )
 
@@ -715,15 +765,53 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
             self._inventory_iqevse_serials = []
             return
         session = async_get_clientsession(self.hass)
-        payload = await async_fetch_devices_inventory(
-            session, self._selected_site_id, self._auth_tokens
+        discovery_results = await asyncio.gather(
+            async_fetch_devices_inventory(
+                session, self._selected_site_id, self._auth_tokens
+            ),
+            async_fetch_hems_devices(
+                session, self._selected_site_id, self._auth_tokens, refresh_data=False
+            ),
+            async_fetch_battery_site_settings(
+                session, self._selected_site_id, self._auth_tokens
+            ),
+            async_fetch_inverters_inventory(
+                session, self._selected_site_id, self._auth_tokens
+            ),
+            return_exceptions=True,
         )
-        hems_payload = await async_fetch_hems_devices(
-            session, self._selected_site_id, self._auth_tokens, refresh_data=False
-        )
-        battery_site_settings = await async_fetch_battery_site_settings(
-            session, self._selected_site_id, self._auth_tokens
-        )
+        payload: object = discovery_results[0]
+        hems_payload: object = discovery_results[1]
+        battery_site_settings: object = discovery_results[2]
+        legacy_inverters: object = discovery_results[3]
+        if isinstance(payload, Exception):
+            _LOGGER.debug(
+                "Failed to fetch device inventory during setup for site %s: %s",
+                redact_site_id(self._selected_site_id),
+                redact_text(payload, site_ids=(self._selected_site_id,)),
+            )
+            payload = None
+        if isinstance(hems_payload, Exception):
+            _LOGGER.debug(
+                "Failed to fetch HEMS inventory during setup for site %s: %s",
+                redact_site_id(self._selected_site_id),
+                redact_text(hems_payload, site_ids=(self._selected_site_id,)),
+            )
+            hems_payload = None
+        if isinstance(battery_site_settings, Exception):
+            _LOGGER.debug(
+                "Failed to fetch battery site settings during setup for site %s: %s",
+                redact_site_id(self._selected_site_id),
+                redact_text(battery_site_settings, site_ids=(self._selected_site_id,)),
+            )
+            battery_site_settings = None
+        if isinstance(legacy_inverters, Exception):
+            _LOGGER.debug(
+                "Failed to fetch legacy inverter inventory during setup for site %s: %s",
+                redact_site_id(self._selected_site_id),
+                redact_text(legacy_inverters, site_ids=(self._selected_site_id,)),
+            )
+            legacy_inverters = None
         if payload is None:
             self._inventory_unknown = True
             self._available_type_keys = []
@@ -741,9 +829,6 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
                 if key in _TYPE_FIELD_BY_KEY
             ]
         if "microinverter" not in self._available_type_keys:
-            legacy_inverters = await async_fetch_inverters_inventory(
-                session, self._selected_site_id, self._auth_tokens
-            )
             if _legacy_microinverters_available(legacy_inverters):
                 self._inventory_unknown = False
                 self._available_type_keys.append("microinverter")
@@ -760,10 +845,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         ]
 
     async def _ensure_device_selection_data(self) -> None:
+        tasks = []
         if not self._chargers_loaded:
-            await self._ensure_chargers()
+            tasks.append(self._ensure_chargers())
         if not self._type_keys_loaded:
-            await self._ensure_available_type_keys()
+            tasks.append(self._ensure_available_type_keys())
+        if tasks:
+            await asyncio.gather(*tasks)
 
     def _reset_discovery_cache(self) -> None:
         self._chargers = []
@@ -823,10 +911,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
 
     def _default_scan_interval(self) -> int:
         if self._reconfigure_entry:
-            return int(
+            return _clamped_int(
                 self._reconfigure_entry.data.get(
                     CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                )
+                ),
+                default=DEFAULT_SCAN_INTERVAL,
+                minimum=MIN_SLOW_POLL_INTERVAL,
+                maximum=MAX_POLL_INTERVAL,
             )
         return int(DEFAULT_SCAN_INTERVAL)
 
@@ -1215,19 +1306,30 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
                 vol.Optional(
                     OPT_FAST_POLL_INTERVAL,
                     default=fast_default,
-                ): vol.All(vol.Coerce(int), vol.Range(min=MIN_FAST_POLL_INTERVAL)),
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_FAST_POLL_INTERVAL, max=MAX_POLL_INTERVAL),
+                ),
                 vol.Optional(
                     OPT_SLOW_POLL_INTERVAL,
                     default=slow_default,
-                ): vol.All(vol.Coerce(int), vol.Range(min=MIN_SLOW_POLL_INTERVAL)),
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_SLOW_POLL_INTERVAL, max=MAX_POLL_INTERVAL),
+                ),
                 vol.Optional(
                     OPT_FAST_WHILE_STREAMING,
                     default=self._entry.options.get(OPT_FAST_WHILE_STREAMING, True),
                 ): bool,
                 vol.Optional(
                     OPT_API_TIMEOUT,
-                    default=self._entry.options.get(OPT_API_TIMEOUT, 15),
-                ): int,
+                    default=self._entry.options.get(
+                        OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT
+                    ),
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=MIN_API_TIMEOUT, max=MAX_API_TIMEOUT),
+                ),
                 vol.Optional(
                     OPT_NOMINAL_VOLTAGE,
                     default=nominal_default,
@@ -1238,7 +1340,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
                         OPT_SESSION_HISTORY_INTERVAL,
                         DEFAULT_SESSION_HISTORY_INTERVAL_MIN,
                     ),
-                ): int,
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(
+                        min=MIN_SESSION_HISTORY_INTERVAL_MIN,
+                        max=MAX_SESSION_HISTORY_INTERVAL_MIN,
+                    ),
+                ),
                 vol.Optional(
                     OPT_SCHEDULE_SYNC_ENABLED,
                     default=self._entry.options.get(
@@ -1426,6 +1534,33 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
             option_data = dict(user_input)
             forget_password = bool(option_data.pop("forget_password", False))
             reauth = bool(option_data.pop("reauth", False))
+            errors: dict[str, str] = {}
+            if OPT_API_TIMEOUT in option_data:
+                api_timeout = _bounded_int(
+                    option_data[OPT_API_TIMEOUT],
+                    minimum=MIN_API_TIMEOUT,
+                    maximum=MAX_API_TIMEOUT,
+                )
+                if api_timeout is None:
+                    errors[OPT_API_TIMEOUT] = "unknown"
+                else:
+                    option_data[OPT_API_TIMEOUT] = api_timeout
+            if OPT_SESSION_HISTORY_INTERVAL in option_data:
+                session_history_interval = _bounded_int(
+                    option_data[OPT_SESSION_HISTORY_INTERVAL],
+                    minimum=MIN_SESSION_HISTORY_INTERVAL_MIN,
+                    maximum=MAX_SESSION_HISTORY_INTERVAL_MIN,
+                )
+                if session_history_interval is None:
+                    errors[OPT_SESSION_HISTORY_INTERVAL] = "unknown"
+                else:
+                    option_data[OPT_SESSION_HISTORY_INTERVAL] = session_history_interval
+            if errors:
+                return self.async_show_form(
+                    step_id="settings",
+                    data_schema=self.add_suggested_values_to_schema(schema, user_input),
+                    errors=errors,
+                )
             fast_poll, slow_poll = normalize_poll_intervals(
                 option_data.get(OPT_FAST_POLL_INTERVAL, DEFAULT_FAST_POLL_INTERVAL),
                 option_data.get(OPT_SLOW_POLL_INTERVAL, DEFAULT_SLOW_POLL_INTERVAL),

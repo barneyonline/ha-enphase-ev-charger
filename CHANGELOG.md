@@ -18,10 +18,12 @@ All notable changes to this project will be documented in this file.
 - Bounded the `Current Production Power` live-sample cache so stale values are not reused indefinitely when the latest-power endpoint stops returning valid samples.
 - Smoothed idle heat-pump power over existing low-load energy samples so whole-Wh cloud readings no longer flicker between `0 W` and standby load, while exposing the raw short-window value in diagnostics.
 - Reduced unnecessary EV charger post-status follow-up lookups, kept idle session-history catch-up off the main refresh path when cached data is still usable, and aligned HEMS preflight/device refresh cadence with fast polling to lower steady-state cloud overhead.
+- Hardened setup, polling, and EV charger service inputs by bounding scan/runtime intervals, restricting OCPP trigger messages to supported values, requiring confirmation for advanced trigger messages, and keeping raw Enphase error bodies out of raised exceptions.
 
 ### 🔧 Improvements
 - Clarified the Enphase authentication-block repair message and added a manual stored-credential reauthentication service for trying one immediate unblock attempt.
 - Disabled less-common diagnostic and inventory entities by default to reduce recorder churn on larger sites while keeping them available for troubleshooting.
+- Parallelized setup discovery probes so slow optional inventory endpoints no longer block the device selection step serially.
 
 ### 🔄 Other changes
 - Expanded Platinum quality-scale evidence and validation, including upstream brands validation, stricter runtime-data typing checks, and CI coverage enforcement.

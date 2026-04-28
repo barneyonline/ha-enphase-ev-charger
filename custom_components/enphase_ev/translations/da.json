@@ -411,6 +411,12 @@
     },
     "tariff_rate_entity_invalid": {
       "message": "Enheden er ikke en Enphase-tarifpris: {entity_id}"
+    },
+    "trigger_message_invalid": {
+      "message": "Ikke-understøttet OCPP-udløsermeddelelse. Brug en af disse: {messages}."
+    },
+    "trigger_message_confirmation_required": {
+      "message": "Aktivér avanceret bekræftelse for at sende {message}."
     }
   },
   "options": {
@@ -2224,6 +2230,10 @@
         "requested_message": {
           "name": "Anmodet besked",
           "description": "OCPP-beskednavn (f.eks. MeterValues); tjenestesvar viser laderens output."
+        },
+        "confirm_advanced": {
+          "name": "Bekræft avanceret udløser",
+          "description": "Kræves for avancerede OCPP-udløsermeddelelser, der kan anmode om opladerdiagnostik, firmware eller bootnotifikationer."
         },
         "site_id": {
           "name": "Site-id",
