@@ -3788,6 +3788,45 @@ async def test_site_tariff_bundle_fetches_billing_and_tariff() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_tariff_update_passes_user_id_and_write_headers() -> None:
+    token = _make_token({"user_id": "77"})
+    client = _make_client()
+    client.update_credentials(
+        eauth=token,
+        cookie="session=1; XSRF-TOKEN=xsrf-token; other=1",
+    )
+    client._json = AsyncMock(return_value={"message": "success"})
+
+    out = await client.site_tariff_update({"purchase": {"typeId": "flat"}})
+
+    assert out == {"message": "success"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "PUT"
+    assert "/service/tariff/tariff-ms/systems/SITE/tariff" in args[1]
+    assert kwargs["params"] == {"user-id": "77"}
+    assert kwargs["json"] == {"purchase": {"typeId": "flat"}}
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+    assert kwargs["headers"]["e-auth-token"] == token
+    assert kwargs["headers"]["Username"] == "77"
+    assert kwargs["headers"]["x-xsrf-token"] == "xsrf-token"
+
+
+@pytest.mark.asyncio
+async def test_notify_tariff_change_uses_scheduler_endpoint() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": "Request Accepted"})
+
+    out = await client.notify_tariff_change()
+
+    assert out == {"data": "Request Accepted"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "PUT"
+    assert "/service/evse_scheduler/api/v1/siteConfig/SITE/tariff_change" in args[1]
+    assert kwargs["json"] is None
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+
+
+@pytest.mark.asyncio
 async def test_battery_settings_details_passes_params_and_headers() -> None:
     token = _make_token({"user_id": "99"})
     client = _make_client()

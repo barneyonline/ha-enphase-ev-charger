@@ -393,6 +393,24 @@
     },
     "schedule_update_conflict_detail": {
       "message": "La actualización del horario entra en conflicto con un horario de batería existente: {message}"
+    },
+    "tariff_rate_invalid": {
+      "message": "La tarifa debe ser un número no negativo."
+    },
+    "tariff_rate_target_not_found": {
+      "message": "El destino de la tarifa no se encontró en los datos de tarifa más recientes."
+    },
+    "tariff_rate_target_invalid": {
+      "message": "El destino de la tarifa no es válido."
+    },
+    "tariff_rate_api_unavailable": {
+      "message": "La API de escritura de tarifas no está disponible."
+    },
+    "tariff_rate_entity_required": {
+      "message": "Selecciona exactamente una entidad de tarifa."
+    },
+    "tariff_rate_entity_invalid": {
+      "message": "La entidad no es una tarifa de Enphase: {entity_id}"
     }
   },
   "options": {
@@ -1244,6 +1262,9 @@
           },
           "last_refresh_utc": {
             "name": "Ultima actualizacion (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizador de tarifa"
           }
         }
       },
@@ -1338,6 +1359,9 @@
           },
           "last_refresh_utc": {
             "name": "Ultima actualizacion (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizador de tarifa"
           }
         }
       },
@@ -1496,6 +1520,157 @@
       },
       "battery_schedule_summary": {
         "name": "Resumen de horarios de la batería"
+      },
+      "tariff_current_import_rate": {
+        "name": "Tarifa actual de importación",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Estructura de tarifa"
+          },
+          "variation_type": {
+            "name": "Tipo de variacion"
+          },
+          "source": {
+            "name": "Fuente"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "season_id": {
+            "name": "ID de temporada"
+          },
+          "start_month": {
+            "name": "Mes inicial"
+          },
+          "end_month": {
+            "name": "Mes final"
+          },
+          "day_group_id": {
+            "name": "ID del grupo de días"
+          },
+          "days": {
+            "name": "Días"
+          },
+          "period_id": {
+            "name": "ID del período"
+          },
+          "period_type": {
+            "name": "Tipo de período"
+          },
+          "start_time": {
+            "name": "Hora de inicio"
+          },
+          "end_time": {
+            "name": "Hora de finalización"
+          },
+          "rate": {
+            "name": "Tarifa"
+          },
+          "formatted_rate": {
+            "name": "Tarifa formateada"
+          },
+          "tier_id": {
+            "name": "ID del tramo"
+          },
+          "start_value": {
+            "name": "Valor inicial"
+          },
+          "end_value": {
+            "name": "Valor final"
+          },
+          "unbounded": {
+            "name": "Sin límite superior"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizacion (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizador de tarifa"
+          },
+          "active_rate_name": {
+            "name": "Nombre de tarifa activa"
+          },
+          "configured_rates": {
+            "name": "Tarifas configuradas"
+          }
+        }
+      },
+      "tariff_current_export_rate": {
+        "name": "Tarifa actual de exportación",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Estructura de tarifa"
+          },
+          "variation_type": {
+            "name": "Tipo de variacion"
+          },
+          "source": {
+            "name": "Fuente"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "export_plan": {
+            "name": "Plan de exportacion"
+          },
+          "season_id": {
+            "name": "ID de temporada"
+          },
+          "start_month": {
+            "name": "Mes inicial"
+          },
+          "end_month": {
+            "name": "Mes final"
+          },
+          "day_group_id": {
+            "name": "ID del grupo de días"
+          },
+          "days": {
+            "name": "Días"
+          },
+          "period_id": {
+            "name": "ID del período"
+          },
+          "period_type": {
+            "name": "Tipo de período"
+          },
+          "start_time": {
+            "name": "Hora de inicio"
+          },
+          "end_time": {
+            "name": "Hora de finalización"
+          },
+          "rate": {
+            "name": "Tarifa"
+          },
+          "formatted_rate": {
+            "name": "Tarifa formateada"
+          },
+          "tier_id": {
+            "name": "ID del tramo"
+          },
+          "start_value": {
+            "name": "Valor inicial"
+          },
+          "end_value": {
+            "name": "Valor final"
+          },
+          "unbounded": {
+            "name": "Sin límite superior"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizacion (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizador de tarifa"
+          },
+          "active_rate_name": {
+            "name": "Nombre de tarifa activa"
+          },
+          "configured_rates": {
+            "name": "Tarifas configuradas"
+          }
+        }
       }
     },
     "number": {
@@ -1522,6 +1697,145 @@
       },
       "battery_schedule_edit_limit": {
         "name": "Límite de horario de la batería"
+      },
+      "tariff_import_rate_value": {
+        "name": "Tarifa de importacion {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Estructura de tarifa"
+          },
+          "variation_type": {
+            "name": "Tipo de variacion"
+          },
+          "source": {
+            "name": "Fuente"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "season_id": {
+            "name": "ID de temporada"
+          },
+          "start_month": {
+            "name": "Mes inicial"
+          },
+          "end_month": {
+            "name": "Mes final"
+          },
+          "day_group_id": {
+            "name": "ID del grupo de días"
+          },
+          "days": {
+            "name": "Días"
+          },
+          "period_id": {
+            "name": "ID del período"
+          },
+          "period_type": {
+            "name": "Tipo de período"
+          },
+          "start_time": {
+            "name": "Hora de inicio"
+          },
+          "end_time": {
+            "name": "Hora de finalización"
+          },
+          "rate": {
+            "name": "Tarifa"
+          },
+          "formatted_rate": {
+            "name": "Tarifa formateada"
+          },
+          "tier_id": {
+            "name": "ID del tramo"
+          },
+          "start_value": {
+            "name": "Valor inicial"
+          },
+          "end_value": {
+            "name": "Valor final"
+          },
+          "unbounded": {
+            "name": "Sin límite superior"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizacion (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizador de tarifa"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Tarifa de exportacion {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Estructura de tarifa"
+          },
+          "variation_type": {
+            "name": "Tipo de variacion"
+          },
+          "source": {
+            "name": "Fuente"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "export_plan": {
+            "name": "Plan de exportacion"
+          },
+          "season_id": {
+            "name": "ID de temporada"
+          },
+          "start_month": {
+            "name": "Mes inicial"
+          },
+          "end_month": {
+            "name": "Mes final"
+          },
+          "day_group_id": {
+            "name": "ID del grupo de días"
+          },
+          "days": {
+            "name": "Días"
+          },
+          "period_id": {
+            "name": "ID del período"
+          },
+          "period_type": {
+            "name": "Tipo de período"
+          },
+          "start_time": {
+            "name": "Hora de inicio"
+          },
+          "end_time": {
+            "name": "Hora de finalización"
+          },
+          "rate": {
+            "name": "Tarifa"
+          },
+          "formatted_rate": {
+            "name": "Tarifa formateada"
+          },
+          "tier_id": {
+            "name": "ID del tramo"
+          },
+          "start_value": {
+            "name": "Valor inicial"
+          },
+          "end_value": {
+            "name": "Valor final"
+          },
+          "unbounded": {
+            "name": "Sin límite superior"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizacion (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizador de tarifa"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -2195,6 +2509,16 @@
         "site_id": {
           "name": "ID del sitio",
           "description": "Identificador opcional del sitio; se detecta automáticamente al seleccionar un dispositivo del sitio."
+        }
+      }
+    },
+    "set_tariff_rate": {
+      "name": "Establecer tarifa",
+      "description": "Actualiza un valor existente de tarifa de importación o exportación de Enphase.",
+      "fields": {
+        "rate": {
+          "name": "Tarifa",
+          "description": "Nuevo valor de tarifa no negativo."
         }
       }
     }

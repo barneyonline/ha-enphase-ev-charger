@@ -393,6 +393,24 @@
     },
     "schedule_update_conflict_detail": {
       "message": "Actualizarea planificării intră în conflict cu o planificare existentă a bateriei: {message}"
+    },
+    "tariff_rate_invalid": {
+      "message": "Tariful trebuie să fie un număr nenegativ."
+    },
+    "tariff_rate_target_not_found": {
+      "message": "Ținta tarifului nu a fost găsită în cele mai recente date tarifare."
+    },
+    "tariff_rate_target_invalid": {
+      "message": "Ținta tarifului nu este validă."
+    },
+    "tariff_rate_api_unavailable": {
+      "message": "API-ul de scriere a tarifelor nu este disponibil."
+    },
+    "tariff_rate_entity_required": {
+      "message": "Selectați exact o entitate de tarif."
+    },
+    "tariff_rate_entity_invalid": {
+      "message": "Entitatea nu este un tarif Enphase: {entity_id}"
     }
   },
   "options": {
@@ -1244,6 +1262,9 @@
           },
           "last_refresh_utc": {
             "name": "Ultima actualizare (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizator tarif"
           }
         }
       },
@@ -1338,6 +1359,9 @@
           },
           "last_refresh_utc": {
             "name": "Ultima actualizare (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizator tarif"
           }
         }
       },
@@ -1496,6 +1520,157 @@
       },
       "battery_schedule_summary": {
         "name": "Rezumatul planificărilor bateriei"
+      },
+      "tariff_current_import_rate": {
+        "name": "Tarif curent de import",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "season_id": {
+            "name": "ID sezon"
+          },
+          "start_month": {
+            "name": "Luna de început"
+          },
+          "end_month": {
+            "name": "Luna de sfârșit"
+          },
+          "day_group_id": {
+            "name": "ID grup de zile"
+          },
+          "days": {
+            "name": "Zile"
+          },
+          "period_id": {
+            "name": "ID perioadă"
+          },
+          "period_type": {
+            "name": "Tip perioadă"
+          },
+          "start_time": {
+            "name": "Ora de început"
+          },
+          "end_time": {
+            "name": "Ora de sfârșit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Tarif formatat"
+          },
+          "tier_id": {
+            "name": "ID nivel"
+          },
+          "start_value": {
+            "name": "Valoare inițială"
+          },
+          "end_value": {
+            "name": "Valoare finală"
+          },
+          "unbounded": {
+            "name": "Fără limită superioară"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizator tarif"
+          },
+          "active_rate_name": {
+            "name": "Numele tarifului activ"
+          },
+          "configured_rates": {
+            "name": "Tarife configurate"
+          }
+        }
+      },
+      "tariff_current_export_rate": {
+        "name": "Tarif curent de export",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "export_plan": {
+            "name": "Plan de export"
+          },
+          "season_id": {
+            "name": "ID sezon"
+          },
+          "start_month": {
+            "name": "Luna de început"
+          },
+          "end_month": {
+            "name": "Luna de sfârșit"
+          },
+          "day_group_id": {
+            "name": "ID grup de zile"
+          },
+          "days": {
+            "name": "Zile"
+          },
+          "period_id": {
+            "name": "ID perioadă"
+          },
+          "period_type": {
+            "name": "Tip perioadă"
+          },
+          "start_time": {
+            "name": "Ora de început"
+          },
+          "end_time": {
+            "name": "Ora de sfârșit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Tarif formatat"
+          },
+          "tier_id": {
+            "name": "ID nivel"
+          },
+          "start_value": {
+            "name": "Valoare inițială"
+          },
+          "end_value": {
+            "name": "Valoare finală"
+          },
+          "unbounded": {
+            "name": "Fără limită superioară"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizator tarif"
+          },
+          "active_rate_name": {
+            "name": "Numele tarifului activ"
+          },
+          "configured_rates": {
+            "name": "Tarife configurate"
+          }
+        }
       }
     },
     "number": {
@@ -1522,6 +1697,145 @@
       },
       "battery_schedule_edit_limit": {
         "name": "Limită de planificare a bateriei"
+      },
+      "tariff_import_rate_value": {
+        "name": "Tarif de import {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "season_id": {
+            "name": "ID sezon"
+          },
+          "start_month": {
+            "name": "Luna de început"
+          },
+          "end_month": {
+            "name": "Luna de sfârșit"
+          },
+          "day_group_id": {
+            "name": "ID grup de zile"
+          },
+          "days": {
+            "name": "Zile"
+          },
+          "period_id": {
+            "name": "ID perioadă"
+          },
+          "period_type": {
+            "name": "Tip perioadă"
+          },
+          "start_time": {
+            "name": "Ora de început"
+          },
+          "end_time": {
+            "name": "Ora de sfârșit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Tarif formatat"
+          },
+          "tier_id": {
+            "name": "ID nivel"
+          },
+          "start_value": {
+            "name": "Valoare inițială"
+          },
+          "end_value": {
+            "name": "Valoare finală"
+          },
+          "unbounded": {
+            "name": "Fără limită superioară"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizator tarif"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Tarif de export {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Structura tarifului"
+          },
+          "variation_type": {
+            "name": "Tip variatie"
+          },
+          "source": {
+            "name": "Sursa"
+          },
+          "currency": {
+            "name": "Moneda"
+          },
+          "export_plan": {
+            "name": "Plan de export"
+          },
+          "season_id": {
+            "name": "ID sezon"
+          },
+          "start_month": {
+            "name": "Luna de început"
+          },
+          "end_month": {
+            "name": "Luna de sfârșit"
+          },
+          "day_group_id": {
+            "name": "ID grup de zile"
+          },
+          "days": {
+            "name": "Zile"
+          },
+          "period_id": {
+            "name": "ID perioadă"
+          },
+          "period_type": {
+            "name": "Tip perioadă"
+          },
+          "start_time": {
+            "name": "Ora de început"
+          },
+          "end_time": {
+            "name": "Ora de sfârșit"
+          },
+          "rate": {
+            "name": "Tarif"
+          },
+          "formatted_rate": {
+            "name": "Tarif formatat"
+          },
+          "tier_id": {
+            "name": "ID nivel"
+          },
+          "start_value": {
+            "name": "Valoare inițială"
+          },
+          "end_value": {
+            "name": "Valoare finală"
+          },
+          "unbounded": {
+            "name": "Fără limită superioară"
+          },
+          "last_refresh_utc": {
+            "name": "Ultima actualizare (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Localizator tarif"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -2195,6 +2509,16 @@
         "site_id": {
           "name": "ID site",
           "description": "Identificator opțional al site-ului; detectat automat când este selectat un dispozitiv de site."
+        }
+      }
+    },
+    "set_tariff_rate": {
+      "name": "Setează tariful",
+      "description": "Actualizează o valoare existentă a tarifului de import sau export Enphase.",
+      "fields": {
+        "rate": {
+          "name": "Tarif",
+          "description": "Valoare nouă de tarif nenegativă."
         }
       }
     }

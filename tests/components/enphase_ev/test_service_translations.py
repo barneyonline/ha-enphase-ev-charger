@@ -346,11 +346,17 @@ def test_tariff_entity_strings_exist_for_all_locales() -> None:
         "end_time",
         "rate",
         "formatted_rate",
+        "tariff_locator",
         "tier_id",
         "start_value",
         "end_value",
         "unbounded",
         "last_refresh_utc",
+    ]
+    current_rate_attrs = [
+        *rate_value_attrs,
+        "active_rate_name",
+        "configured_rates",
     ]
     paths = [
         "entity.sensor.tariff_billing_cycle.name",
@@ -377,12 +383,20 @@ def test_tariff_entity_strings_exist_for_all_locales() -> None:
     ]
     for family in ("import", "export"):
         key = f"tariff_{family}_rate_value"
+        current_key = f"tariff_current_{family}_rate"
         paths.append(f"entity.sensor.{key}.name")
+        paths.append(f"entity.sensor.{current_key}.name")
+        paths.append(f"entity.number.{key}.name")
         attrs = list(rate_value_attrs)
+        current_attrs = list(current_rate_attrs)
         if family == "export":
             attrs.append("export_plan")
+            current_attrs.append("export_plan")
         for attr in attrs:
             paths.append(f"entity.sensor.{key}.state_attributes.{attr}.name")
+            paths.append(f"entity.number.{key}.state_attributes.{attr}.name")
+        for attr in current_attrs:
+            paths.append(f"entity.sensor.{current_key}.state_attributes.{attr}.name")
     for locale in translations_dir.glob("*.json"):
         data = json.loads(locale.read_text(encoding="utf-8"))
         for path in paths:
@@ -406,13 +420,22 @@ def test_tariff_entity_strings_localized_for_non_english_locales() -> None:
         "entity.sensor.tariff_billing_cycle.state_attributes.billing_cycle.name",
         "entity.sensor.tariff_import_rate.name",
         "entity.sensor.tariff_import_rate.state_attributes.rate_structure.name",
+        "entity.sensor.tariff_current_import_rate.name",
+        "entity.sensor.tariff_current_import_rate.state_attributes.active_rate_name.name",
+        "entity.sensor.tariff_current_import_rate.state_attributes.configured_rates.name",
         "entity.sensor.tariff_import_rate_value.name",
         "entity.sensor.tariff_import_rate_value.state_attributes.period_type.name",
         "entity.sensor.tariff_import_rate_value.state_attributes.formatted_rate.name",
+        "entity.sensor.tariff_import_rate_value.state_attributes.tariff_locator.name",
+        "entity.number.tariff_import_rate_value.name",
         "entity.sensor.tariff_export_rate.name",
         "entity.sensor.tariff_export_rate.state_attributes.export_plan.name",
+        "entity.sensor.tariff_current_export_rate.name",
+        "entity.sensor.tariff_current_export_rate.state_attributes.active_rate_name.name",
+        "entity.sensor.tariff_current_export_rate.state_attributes.configured_rates.name",
         "entity.sensor.tariff_export_rate_value.name",
         "entity.sensor.tariff_export_rate_value.state_attributes.rate.name",
+        "entity.number.tariff_export_rate_value.name",
     ]
     for locale in translations_dir.glob("*.json"):
         name = locale.name

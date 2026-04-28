@@ -10,8 +10,10 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers import service as ha_service
+from homeassistant.helpers import target as ha_target
 
 from .battery_schedule_editor import (
     battery_schedule_inventory,
@@ -51,6 +53,7 @@ REGISTERED_SERVICES = (
     "delete_schedule",
     "validate_schedule",
     "update_cfg_schedule",
+    "set_tariff_rate",
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -542,6 +545,12 @@ def async_setup_services(
         ),
         _validate_cfg_schedule,
     )
+    SET_TARIFF_RATE_SCHEMA = vol.Schema(
+        {
+            vol.Optional("entity_id"): cv.entity_ids,
+            vol.Required("rate"): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        }
+    )
 
     def _extract_device_ids(call: ServiceCall) -> list[str]:
         device_ids: set[str] = set()
@@ -598,6 +607,62 @@ def async_setup_services(
             translation_domain=DOMAIN,
             translation_key="exceptions.grid_site_required",
         )
+
+    def _extract_entity_ids(call: ServiceCall) -> list[str]:
+        entity_ids: set[str] = set()
+        extractor = getattr(ha_target, "async_extract_referenced_entity_ids", None)
+        if callable(extractor):
+            try:
+                entity_ids |= {str(entity_id) for entity_id in extractor(hass, call)}
+            except Exception:
+                pass
+        else:
+            extractor = getattr(ha_service, "async_extract_referenced_entity_ids", None)
+            if callable(extractor):
+                try:
+                    entity_ids |= {
+                        str(entity_id) for entity_id in extractor(hass, call)
+                    }
+                except Exception:
+                    pass
+        raw_entity_ids = call.data.get("entity_id")
+        if raw_entity_ids:
+            if isinstance(raw_entity_ids, str):
+                entity_ids.add(raw_entity_ids)
+            else:
+                entity_ids |= {str(entity_id) for entity_id in raw_entity_ids}
+        return list(entity_ids)
+
+    def _coordinator_from_tariff_entity(
+        entity_id: str,
+    ) -> EnphaseCoordinator | None:
+        ent_reg = er.async_get(hass)
+        reg_entry = ent_reg.async_get(entity_id)
+        if reg_entry is None:
+            return None
+        entry_domain = getattr(reg_entry, "domain", entity_id.partition(".")[0])
+        if reg_entry.platform != DOMAIN or entry_domain not in {"sensor", "number"}:
+            return None
+        unique_id = str(reg_entry.unique_id or "")
+        if not any(
+            token in unique_id
+            for token in (
+                "_tariff_import_rate_",
+                "_tariff_export_rate_",
+                "_tariff_current_import_rate",
+                "_tariff_current_export_rate",
+            )
+        ):
+            return None
+        config_entry_id = getattr(reg_entry, "config_entry_id", None)
+        if config_entry_id:
+            coord = _get_coordinator_for_entry_id(str(config_entry_id))
+            if coord is not None:
+                return coord
+        for coord in _iter_loaded_coordinators():
+            if f"{DOMAIN}_site_{coord.site_id}_" in unique_id:
+                return coord
+        return None
 
     async def _resolve_charger_targets(
         call: ServiceCall,
@@ -1008,6 +1073,37 @@ def async_setup_services(
         for _device_id, sn, coord in await _resolve_charger_targets(call):
             await coord.schedule_sync.async_refresh(reason="service", serials=[sn])
 
+    async def _svc_set_tariff_rate(call: ServiceCall) -> None:
+        entity_ids = _extract_entity_ids(call)
+        if not entity_ids:
+            _raise_service_validation(
+                "tariff_rate_entity_required",
+                message="Select exactly one tariff rate entity.",
+            )
+        if len(entity_ids) != 1:
+            _raise_service_validation(
+                "tariff_rate_entity_required",
+                message="Select exactly one tariff rate entity.",
+            )
+        entity_id = entity_ids[0]
+        coord = _coordinator_from_tariff_entity(entity_id)
+        if coord is None:
+            _raise_service_validation(
+                "tariff_rate_entity_invalid",
+                placeholders={"entity_id": entity_id},
+                message=f"Entity is not an Enphase tariff rate entity: {entity_id}",
+            )
+        state = hass.states.get(entity_id)
+        locator = None if state is None else state.attributes.get("tariff_locator")
+        if not isinstance(locator, dict):
+            _raise_service_validation(
+                "tariff_rate_target_invalid",
+                message="Tariff rate target is invalid.",
+            )
+        await coord.tariff_runtime.async_set_tariff_rate(
+            locator, float(call.data["rate"])
+        )
+
     hass.services.async_register(
         DOMAIN, "force_refresh", _svc_force_refresh, schema=FORCE_REFRESH_SCHEMA
     )
@@ -1069,6 +1165,12 @@ def async_setup_services(
         "update_cfg_schedule",
         _svc_update_cfg_schedule,
         schema=UPDATE_CFG_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_tariff_rate",
+        _svc_set_tariff_rate,
+        schema=SET_TARIFF_RATE_SCHEMA,
     )
 
 

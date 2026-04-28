@@ -2442,8 +2442,8 @@ class EnphaseEVClient:
                 headers["X-XSRF-Token"] = xsrf
         return headers
 
-    def _tariff_headers(self) -> dict[str, str | None]:
-        """Return headers for tariff microservice read calls."""
+    def _tariff_headers(self, *, write: bool = False) -> dict[str, str | None]:
+        """Return headers for tariff microservice calls."""
 
         token, user_id = self._battery_config_auth_context()
         headers: dict[str, str | None] = {
@@ -2458,6 +2458,10 @@ class EnphaseEVClient:
         xsrf = self._xsrf_token()
         if xsrf:
             headers["x-xsrf-token"] = xsrf
+        if write:
+            headers["Content-Type"] = "application/json"
+            headers["Origin"] = BASE_URL
+            headers["Referer"] = f"{BASE_URL}/"
         return headers
 
     def _battery_config_cookie_eauth_headers(
@@ -5035,6 +5039,34 @@ class EnphaseEVClient:
             self.site_tariff(),
         )
         return billing, tariff
+
+    async def site_tariff_update(self, payload: dict[str, Any]) -> dict:
+        """Update site import/export tariff configuration."""
+
+        _token, user_id = self._battery_config_auth_context()
+        url = f"{BASE_URL}/service/tariff/tariff-ms/systems/{self._site}/tariff"
+        params = {"user-id": user_id} if user_id else None
+        return await self._json(
+            "PUT",
+            url,
+            json=payload,
+            params=params,
+            headers=self._tariff_headers(write=True),
+        )
+
+    async def notify_tariff_change(self) -> dict:
+        """Notify the EVSE scheduler service that site tariff data changed."""
+
+        url = (
+            f"{BASE_URL}/service/evse_scheduler/api/v1/siteConfig/"
+            f"{self._site}/tariff_change"
+        )
+        return await self._json(
+            "PUT",
+            url,
+            json=None,
+            headers=self._tariff_headers(write=True),
+        )
 
     async def battery_profile_details(self, *, locale: str | None = None) -> dict:
         """Return BatteryConfig profile details for system + EVSE settings."""

@@ -393,6 +393,24 @@
     },
     "schedule_update_conflict_detail": {
       "message": "Tvarkaraščio atnaujinimas konfliktuoja su esamu baterijos tvarkaraščiu: {message}"
+    },
+    "tariff_rate_invalid": {
+      "message": "Tarifo kaina turi būti neneigiamas skaičius."
+    },
+    "tariff_rate_target_not_found": {
+      "message": "Tarifo kainos tikslas nerastas naujausiuose tarifo duomenyse."
+    },
+    "tariff_rate_target_invalid": {
+      "message": "Tarifo kainos tikslas netinkamas."
+    },
+    "tariff_rate_api_unavailable": {
+      "message": "Tarifų rašymo API nepasiekiama."
+    },
+    "tariff_rate_entity_required": {
+      "message": "Pasirinkite tiksliai vieną tarifo kainos objektą."
+    },
+    "tariff_rate_entity_invalid": {
+      "message": "Objektas nėra Enphase tarifo kaina: {entity_id}"
     }
   },
   "options": {
@@ -1244,6 +1262,9 @@
           },
           "last_refresh_utc": {
             "name": "Paskutinis atnaujinimas (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifo lokatorius"
           }
         }
       },
@@ -1338,6 +1359,9 @@
           },
           "last_refresh_utc": {
             "name": "Paskutinis atnaujinimas (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifo lokatorius"
           }
         }
       },
@@ -1496,6 +1520,157 @@
       },
       "battery_schedule_summary": {
         "name": "Baterijos tvarkaraščių santrauka"
+      },
+      "tariff_current_import_rate": {
+        "name": "Dabartinis importo tarifas",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifo struktura"
+          },
+          "variation_type": {
+            "name": "Variacijos tipas"
+          },
+          "source": {
+            "name": "Saltinis"
+          },
+          "currency": {
+            "name": "Valiuta"
+          },
+          "season_id": {
+            "name": "Sezono ID"
+          },
+          "start_month": {
+            "name": "Pradžios mėnuo"
+          },
+          "end_month": {
+            "name": "Pabaigos mėnuo"
+          },
+          "day_group_id": {
+            "name": "Dienų grupės ID"
+          },
+          "days": {
+            "name": "Dienos"
+          },
+          "period_id": {
+            "name": "Laikotarpio ID"
+          },
+          "period_type": {
+            "name": "Laikotarpio tipas"
+          },
+          "start_time": {
+            "name": "Pradžios laikas"
+          },
+          "end_time": {
+            "name": "Pabaigos laikas"
+          },
+          "rate": {
+            "name": "Tarifas"
+          },
+          "formatted_rate": {
+            "name": "Suformatuotas tarifas"
+          },
+          "tier_id": {
+            "name": "Pakopos ID"
+          },
+          "start_value": {
+            "name": "Pradinė vertė"
+          },
+          "end_value": {
+            "name": "Galutinė vertė"
+          },
+          "unbounded": {
+            "name": "Be viršutinės ribos"
+          },
+          "last_refresh_utc": {
+            "name": "Paskutinis atnaujinimas (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifo lokatorius"
+          },
+          "active_rate_name": {
+            "name": "Aktyvaus tarifo pavadinimas"
+          },
+          "configured_rates": {
+            "name": "Sukonfigūruoti tarifai"
+          }
+        }
+      },
+      "tariff_current_export_rate": {
+        "name": "Dabartinis eksporto tarifas",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifo struktura"
+          },
+          "variation_type": {
+            "name": "Variacijos tipas"
+          },
+          "source": {
+            "name": "Saltinis"
+          },
+          "currency": {
+            "name": "Valiuta"
+          },
+          "export_plan": {
+            "name": "Eksporto planas"
+          },
+          "season_id": {
+            "name": "Sezono ID"
+          },
+          "start_month": {
+            "name": "Pradžios mėnuo"
+          },
+          "end_month": {
+            "name": "Pabaigos mėnuo"
+          },
+          "day_group_id": {
+            "name": "Dienų grupės ID"
+          },
+          "days": {
+            "name": "Dienos"
+          },
+          "period_id": {
+            "name": "Laikotarpio ID"
+          },
+          "period_type": {
+            "name": "Laikotarpio tipas"
+          },
+          "start_time": {
+            "name": "Pradžios laikas"
+          },
+          "end_time": {
+            "name": "Pabaigos laikas"
+          },
+          "rate": {
+            "name": "Tarifas"
+          },
+          "formatted_rate": {
+            "name": "Suformatuotas tarifas"
+          },
+          "tier_id": {
+            "name": "Pakopos ID"
+          },
+          "start_value": {
+            "name": "Pradinė vertė"
+          },
+          "end_value": {
+            "name": "Galutinė vertė"
+          },
+          "unbounded": {
+            "name": "Be viršutinės ribos"
+          },
+          "last_refresh_utc": {
+            "name": "Paskutinis atnaujinimas (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifo lokatorius"
+          },
+          "active_rate_name": {
+            "name": "Aktyvaus tarifo pavadinimas"
+          },
+          "configured_rates": {
+            "name": "Sukonfigūruoti tarifai"
+          }
+        }
       }
     },
     "number": {
@@ -1522,6 +1697,145 @@
       },
       "battery_schedule_edit_limit": {
         "name": "Baterijos tvarkaraščio riba"
+      },
+      "tariff_import_rate_value": {
+        "name": "Importo tarifas {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifo struktura"
+          },
+          "variation_type": {
+            "name": "Variacijos tipas"
+          },
+          "source": {
+            "name": "Saltinis"
+          },
+          "currency": {
+            "name": "Valiuta"
+          },
+          "season_id": {
+            "name": "Sezono ID"
+          },
+          "start_month": {
+            "name": "Pradžios mėnuo"
+          },
+          "end_month": {
+            "name": "Pabaigos mėnuo"
+          },
+          "day_group_id": {
+            "name": "Dienų grupės ID"
+          },
+          "days": {
+            "name": "Dienos"
+          },
+          "period_id": {
+            "name": "Laikotarpio ID"
+          },
+          "period_type": {
+            "name": "Laikotarpio tipas"
+          },
+          "start_time": {
+            "name": "Pradžios laikas"
+          },
+          "end_time": {
+            "name": "Pabaigos laikas"
+          },
+          "rate": {
+            "name": "Tarifas"
+          },
+          "formatted_rate": {
+            "name": "Suformatuotas tarifas"
+          },
+          "tier_id": {
+            "name": "Pakopos ID"
+          },
+          "start_value": {
+            "name": "Pradinė vertė"
+          },
+          "end_value": {
+            "name": "Galutinė vertė"
+          },
+          "unbounded": {
+            "name": "Be viršutinės ribos"
+          },
+          "last_refresh_utc": {
+            "name": "Paskutinis atnaujinimas (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifo lokatorius"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Eksporto tarifas {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tarifo struktura"
+          },
+          "variation_type": {
+            "name": "Variacijos tipas"
+          },
+          "source": {
+            "name": "Saltinis"
+          },
+          "currency": {
+            "name": "Valiuta"
+          },
+          "export_plan": {
+            "name": "Eksporto planas"
+          },
+          "season_id": {
+            "name": "Sezono ID"
+          },
+          "start_month": {
+            "name": "Pradžios mėnuo"
+          },
+          "end_month": {
+            "name": "Pabaigos mėnuo"
+          },
+          "day_group_id": {
+            "name": "Dienų grupės ID"
+          },
+          "days": {
+            "name": "Dienos"
+          },
+          "period_id": {
+            "name": "Laikotarpio ID"
+          },
+          "period_type": {
+            "name": "Laikotarpio tipas"
+          },
+          "start_time": {
+            "name": "Pradžios laikas"
+          },
+          "end_time": {
+            "name": "Pabaigos laikas"
+          },
+          "rate": {
+            "name": "Tarifas"
+          },
+          "formatted_rate": {
+            "name": "Suformatuotas tarifas"
+          },
+          "tier_id": {
+            "name": "Pakopos ID"
+          },
+          "start_value": {
+            "name": "Pradinė vertė"
+          },
+          "end_value": {
+            "name": "Galutinė vertė"
+          },
+          "unbounded": {
+            "name": "Be viršutinės ribos"
+          },
+          "last_refresh_utc": {
+            "name": "Paskutinis atnaujinimas (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tarifo lokatorius"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -2195,6 +2509,16 @@
         "site_id": {
           "name": "Svetainės ID",
           "description": "Pasirenkamas svetainės identifikatorius; aptinkamas automatiškai pasirinkus svetainės įrenginį."
+        }
+      }
+    },
+    "set_tariff_rate": {
+      "name": "Nustatyti tarifo kainą",
+      "description": "Atnaujina vieną esamą Enphase importo arba eksporto tarifo kainą.",
+      "fields": {
+        "rate": {
+          "name": "Kaina",
+          "description": "Nauja neneigiama tarifo kaina."
         }
       }
     }

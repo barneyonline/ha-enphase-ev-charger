@@ -393,6 +393,24 @@
     },
     "schedule_update_conflict_detail": {
       "message": "Aikataulun päivitys on ristiriidassa olemassa olevan akun aikataulun kanssa: {message}"
+    },
+    "tariff_rate_invalid": {
+      "message": "Tariffihinnan on oltava ei-negatiivinen luku."
+    },
+    "tariff_rate_target_not_found": {
+      "message": "Tariffihinnan kohdetta ei löytynyt uusimmista tariffitiedoista."
+    },
+    "tariff_rate_target_invalid": {
+      "message": "Tariffihinnan kohde on virheellinen."
+    },
+    "tariff_rate_api_unavailable": {
+      "message": "Tariffien kirjoitusrajapinta ei ole saatavilla."
+    },
+    "tariff_rate_entity_required": {
+      "message": "Valitse täsmälleen yksi tariffihintaentiteetti."
+    },
+    "tariff_rate_entity_invalid": {
+      "message": "Entiteetti ei ole Enphase-tariffihinta: {entity_id}"
     }
   },
   "options": {
@@ -1244,6 +1262,9 @@
           },
           "last_refresh_utc": {
             "name": "Viimeisin paivitys (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariffin paikannin"
           }
         }
       },
@@ -1338,6 +1359,9 @@
           },
           "last_refresh_utc": {
             "name": "Viimeisin paivitys (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariffin paikannin"
           }
         }
       },
@@ -1496,6 +1520,157 @@
       },
       "battery_schedule_summary": {
         "name": "Akun aikataulujen yhteenveto"
+      },
+      "tariff_current_import_rate": {
+        "name": "Nykyinen tuontihinta",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "season_id": {
+            "name": "Kauden tunnus"
+          },
+          "start_month": {
+            "name": "Aloituskuukausi"
+          },
+          "end_month": {
+            "name": "Päättymiskuukausi"
+          },
+          "day_group_id": {
+            "name": "Päiväryhmän tunnus"
+          },
+          "days": {
+            "name": "Päivät"
+          },
+          "period_id": {
+            "name": "Jakson tunnus"
+          },
+          "period_type": {
+            "name": "Jakson tyyppi"
+          },
+          "start_time": {
+            "name": "Aloitusaika"
+          },
+          "end_time": {
+            "name": "Päättymisaika"
+          },
+          "rate": {
+            "name": "Hinta"
+          },
+          "formatted_rate": {
+            "name": "Muotoiltu hinta"
+          },
+          "tier_id": {
+            "name": "Portaan tunnus"
+          },
+          "start_value": {
+            "name": "Alkuarvo"
+          },
+          "end_value": {
+            "name": "Loppuarvo"
+          },
+          "unbounded": {
+            "name": "Ilman ylärajaa"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariffin paikannin"
+          },
+          "active_rate_name": {
+            "name": "Aktiivisen hinnan nimi"
+          },
+          "configured_rates": {
+            "name": "Määritetyt hinnat"
+          }
+        }
+      },
+      "tariff_current_export_rate": {
+        "name": "Nykyinen vientihinta",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "export_plan": {
+            "name": "Vientisuunnitelma"
+          },
+          "season_id": {
+            "name": "Kauden tunnus"
+          },
+          "start_month": {
+            "name": "Aloituskuukausi"
+          },
+          "end_month": {
+            "name": "Päättymiskuukausi"
+          },
+          "day_group_id": {
+            "name": "Päiväryhmän tunnus"
+          },
+          "days": {
+            "name": "Päivät"
+          },
+          "period_id": {
+            "name": "Jakson tunnus"
+          },
+          "period_type": {
+            "name": "Jakson tyyppi"
+          },
+          "start_time": {
+            "name": "Aloitusaika"
+          },
+          "end_time": {
+            "name": "Päättymisaika"
+          },
+          "rate": {
+            "name": "Hinta"
+          },
+          "formatted_rate": {
+            "name": "Muotoiltu hinta"
+          },
+          "tier_id": {
+            "name": "Portaan tunnus"
+          },
+          "start_value": {
+            "name": "Alkuarvo"
+          },
+          "end_value": {
+            "name": "Loppuarvo"
+          },
+          "unbounded": {
+            "name": "Ilman ylärajaa"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariffin paikannin"
+          },
+          "active_rate_name": {
+            "name": "Aktiivisen hinnan nimi"
+          },
+          "configured_rates": {
+            "name": "Määritetyt hinnat"
+          }
+        }
       }
     },
     "number": {
@@ -1522,6 +1697,145 @@
       },
       "battery_schedule_edit_limit": {
         "name": "Akun aikataulun raja"
+      },
+      "tariff_import_rate_value": {
+        "name": "Tuontitariffi {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "season_id": {
+            "name": "Kauden tunnus"
+          },
+          "start_month": {
+            "name": "Aloituskuukausi"
+          },
+          "end_month": {
+            "name": "Päättymiskuukausi"
+          },
+          "day_group_id": {
+            "name": "Päiväryhmän tunnus"
+          },
+          "days": {
+            "name": "Päivät"
+          },
+          "period_id": {
+            "name": "Jakson tunnus"
+          },
+          "period_type": {
+            "name": "Jakson tyyppi"
+          },
+          "start_time": {
+            "name": "Aloitusaika"
+          },
+          "end_time": {
+            "name": "Päättymisaika"
+          },
+          "rate": {
+            "name": "Hinta"
+          },
+          "formatted_rate": {
+            "name": "Muotoiltu hinta"
+          },
+          "tier_id": {
+            "name": "Portaan tunnus"
+          },
+          "start_value": {
+            "name": "Alkuarvo"
+          },
+          "end_value": {
+            "name": "Loppuarvo"
+          },
+          "unbounded": {
+            "name": "Ilman ylärajaa"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariffin paikannin"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Vientitariffi {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariffirakenne"
+          },
+          "variation_type": {
+            "name": "Vaihtelutyyppi"
+          },
+          "source": {
+            "name": "Laehde"
+          },
+          "currency": {
+            "name": "Valuutta"
+          },
+          "export_plan": {
+            "name": "Vientisuunnitelma"
+          },
+          "season_id": {
+            "name": "Kauden tunnus"
+          },
+          "start_month": {
+            "name": "Aloituskuukausi"
+          },
+          "end_month": {
+            "name": "Päättymiskuukausi"
+          },
+          "day_group_id": {
+            "name": "Päiväryhmän tunnus"
+          },
+          "days": {
+            "name": "Päivät"
+          },
+          "period_id": {
+            "name": "Jakson tunnus"
+          },
+          "period_type": {
+            "name": "Jakson tyyppi"
+          },
+          "start_time": {
+            "name": "Aloitusaika"
+          },
+          "end_time": {
+            "name": "Päättymisaika"
+          },
+          "rate": {
+            "name": "Hinta"
+          },
+          "formatted_rate": {
+            "name": "Muotoiltu hinta"
+          },
+          "tier_id": {
+            "name": "Portaan tunnus"
+          },
+          "start_value": {
+            "name": "Alkuarvo"
+          },
+          "end_value": {
+            "name": "Loppuarvo"
+          },
+          "unbounded": {
+            "name": "Ilman ylärajaa"
+          },
+          "last_refresh_utc": {
+            "name": "Viimeisin paivitys (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariffin paikannin"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -2195,6 +2509,16 @@
         "site_id": {
           "name": "Sivuston ID",
           "description": "Valinnainen sivustotunniste; havaitaan automaattisesti, kun sivuston laite valitaan."
+        }
+      }
+    },
+    "set_tariff_rate": {
+      "name": "Aseta tariffihinta",
+      "description": "Päivittää yhden olemassa olevan Enphase-tuonti- tai vientitariffin arvon.",
+      "fields": {
+        "rate": {
+          "name": "Hinta",
+          "description": "Uusi ei-negatiivinen tariffihinta."
         }
       }
     }

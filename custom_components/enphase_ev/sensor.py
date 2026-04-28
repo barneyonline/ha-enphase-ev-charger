@@ -67,7 +67,12 @@ from .runtime_helpers import (
     inventory_type_available as _type_available,
     inventory_type_device_info as _type_device_info,
 )
-from .tariff import next_billing_date, tariff_rate_sensor_specs
+from .tariff import (
+    current_tariff_rate_sensor_spec,
+    next_billing_date,
+    next_tariff_rate_change,
+    tariff_rate_sensor_specs,
+)
 from . import sensor_battery_helpers as _battery_helpers
 from .evse_runtime import evse_power_is_actively_charging
 
@@ -268,6 +273,17 @@ def _tariff_data_available(coord: EnphaseCoordinator) -> bool:
     )
 
 
+def _tariff_now(coord: EnphaseCoordinator, hass: HomeAssistant | None) -> datetime:
+    tz_name = None
+    site_tz = getattr(coord, "_site_timezone_name", None)
+    if callable(site_tz):
+        tz_name = site_tz()
+    if not isinstance(tz_name, str) or not tz_name.strip():
+        tz_name = getattr(getattr(hass, "config", None), "time_zone", None)
+    tzinfo = dt_util.get_time_zone(tz_name) if isinstance(tz_name, str) else None
+    return dt_util.now(tzinfo or dt_util.DEFAULT_TIME_ZONE)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -384,11 +400,7 @@ async def async_setup_entry(
     @callback
     def _async_remove_site_sensor_entities_with_prefix(
         prefix: str,
-        current_keys: set[str],
     ) -> None:
-        for key in list(known_site_entity_keys):
-            if key.startswith(prefix) and key not in current_keys:
-                _async_remove_site_sensor_entity(key)
         unique_prefix = _site_sensor_unique_id(prefix)
         for reg_entry in list(_entity_registry_values()):
             entry_domain = getattr(reg_entry, "domain", None)
@@ -406,8 +418,6 @@ async def async_setup_entry(
             if not unique_id or not unique_id.startswith(unique_prefix):
                 continue
             key = unique_id[len(f"{DOMAIN}_site_{coord.site_id}_") :]
-            if key in current_keys:
-                continue
             ent_reg.async_remove(reg_entry.entity_id)
             known_site_entity_keys.discard(key)
 
@@ -808,74 +818,44 @@ async def async_setup_entry(
         tariff_rates_refresh_seen = (
             getattr(coord, "tariff_rates_last_refresh_utc", None) is not None
         )
-        import_rate_specs = tariff_rate_sensor_specs(
-            tariff_import_rate,
-        )
-        if import_rate_specs:
-            current_import_keys = {
-                f"tariff_import_rate_{spec['key']}" for spec in import_rate_specs
-            }
-            _async_remove_site_sensor_entity("tariff_import_rate")
-            _async_remove_site_sensor_entities_with_prefix(
-                "tariff_import_rate_",
-                current_import_keys,
-            )
-            for spec in import_rate_specs:
-                key = f"tariff_import_rate_{spec['key']}"
-                _add_site_entity(
-                    key, EnphaseTariffRateValueSensor(coord, spec, is_import=True)
-                )
-        elif (
-            tariff_import_rate is not None
-            or "tariff_import_rate" in known_site_entity_keys
-            or _site_sensor_entity_registered("tariff_import_rate")
-        ):
-            if tariff_import_rate is not None:
-                _async_remove_site_sensor_entities_with_prefix(
-                    "tariff_import_rate_",
-                    set(),
-                )
-            _add_site_entity("tariff_import_rate", EnphaseTariffRateSensor(coord, True))
-        elif tariff_rates_refresh_seen:
-            _async_remove_site_sensor_entities_with_prefix(
-                "tariff_import_rate_",
-                set(),
-            )
-        export_rate_specs = tariff_rate_sensor_specs(
-            tariff_export_rate,
-        )
-        if export_rate_specs:
-            current_export_keys = {
-                f"tariff_export_rate_{spec['key']}" for spec in export_rate_specs
-            }
-            _async_remove_site_sensor_entity("tariff_export_rate")
-            _async_remove_site_sensor_entities_with_prefix(
-                "tariff_export_rate_",
-                current_export_keys,
-            )
-            for spec in export_rate_specs:
-                key = f"tariff_export_rate_{spec['key']}"
-                _add_site_entity(
-                    key, EnphaseTariffRateValueSensor(coord, spec, is_import=False)
-                )
-        elif (
-            tariff_export_rate is not None
-            or "tariff_export_rate" in known_site_entity_keys
-            or _site_sensor_entity_registered("tariff_export_rate")
-        ):
-            if tariff_export_rate is not None:
-                _async_remove_site_sensor_entities_with_prefix(
-                    "tariff_export_rate_",
-                    set(),
-                )
+        current_import_rate_key = "tariff_current_import_rate"
+        if tariff_import_rate is not None:
             _add_site_entity(
-                "tariff_export_rate", EnphaseTariffRateSensor(coord, False)
+                current_import_rate_key,
+                EnphaseCurrentTariffRateSensor(coord, is_import=True),
             )
         elif tariff_rates_refresh_seen:
-            _async_remove_site_sensor_entities_with_prefix(
-                "tariff_export_rate_",
-                set(),
+            _async_remove_site_sensor_entity(current_import_rate_key)
+        elif current_import_rate_key in known_site_entity_keys or (
+            _site_sensor_entity_registered(current_import_rate_key)
+        ):
+            _add_site_entity(
+                current_import_rate_key,
+                EnphaseCurrentTariffRateSensor(coord, is_import=True),
             )
+        _async_remove_site_sensor_entity("tariff_import_rate")
+        _async_remove_site_sensor_entities_with_prefix(
+            "tariff_import_rate_",
+        )
+        current_export_rate_key = "tariff_current_export_rate"
+        if tariff_export_rate is not None:
+            _add_site_entity(
+                current_export_rate_key,
+                EnphaseCurrentTariffRateSensor(coord, is_import=False),
+            )
+        elif tariff_rates_refresh_seen:
+            _async_remove_site_sensor_entity(current_export_rate_key)
+        elif current_export_rate_key in known_site_entity_keys or (
+            _site_sensor_entity_registered(current_export_rate_key)
+        ):
+            _add_site_entity(
+                current_export_rate_key,
+                EnphaseCurrentTariffRateSensor(coord, is_import=False),
+            )
+        _async_remove_site_sensor_entity("tariff_export_rate")
+        _async_remove_site_sensor_entities_with_prefix(
+            "tariff_export_rate_",
+        )
 
         for record in router_records:
             router_key = str(record.get("key", "")).strip()
@@ -8458,6 +8438,7 @@ class EnphaseBatteryLastReportedSensor(_SiteBaseEntity):
 class _EnphaseTariffBaseSensor(_SiteBaseEntity):
     _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes.union(
         {
+            "configured_rates",
             "seasons",
             "last_refresh_utc",
         }
@@ -8555,7 +8536,145 @@ class EnphaseTariffRateSensor(_EnphaseTariffBaseSensor):
         return attrs
 
 
+class EnphaseCurrentTariffRateSensor(_EnphaseTariffBaseSensor):
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 4
+
+    def __init__(self, coord: EnphaseCoordinator, *, is_import: bool):
+        self._is_import = is_import
+        key = (
+            "tariff_current_import_rate" if is_import else "tariff_current_export_rate"
+        )
+        name = "Current Import Rate" if is_import else "Current Export Rate"
+        self._rate_attr = "tariff_import_rate" if is_import else "tariff_export_rate"
+        self._attr_translation_key = key
+        self._attr_icon = "mdi:cash-minus" if is_import else "mdi:cash-plus"
+        self._tariff_boundary_cancel: CALLBACK_TYPE | None = None
+        super().__init__(coord, key, name, type_key=None)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._ensure_tariff_boundary_timer()
+
+    async def async_will_remove_from_hass(self) -> None:
+        await super().async_will_remove_from_hass()
+        self._cancel_tariff_boundary_timer()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        super()._handle_coordinator_update()
+        self._ensure_tariff_boundary_timer()
+
+    def _spec(self):
+        return current_tariff_rate_sensor_spec(
+            getattr(self._coord, self._rate_attr, None),
+            _tariff_now(self._coord, getattr(self, "hass", None)),
+        )
+
+    def _configured_rates(self) -> list[dict[str, object]]:
+        rates: list[dict[str, object]] = []
+        for spec in tariff_rate_sensor_specs(
+            getattr(self._coord, self._rate_attr, None)
+        ):
+            attrs = spec.get("attributes") or {}
+            rate: dict[str, object] = {
+                key: value
+                for key, value in {
+                    "name": spec.get("name"),
+                    "rate": attrs.get("rate"),
+                    "formatted_rate": attrs.get("formatted_rate"),
+                    "unit": spec.get("unit"),
+                    "season_id": attrs.get("season_id"),
+                    "start_month": attrs.get("start_month"),
+                    "end_month": attrs.get("end_month"),
+                    "day_group_id": attrs.get("day_group_id"),
+                    "days": attrs.get("days"),
+                    "period_type": attrs.get("period_type"),
+                    "start_time": attrs.get("start_time"),
+                    "end_time": attrs.get("end_time"),
+                    "tier_id": attrs.get("tier_id"),
+                    "start_value": attrs.get("start_value"),
+                    "end_value": attrs.get("end_value"),
+                    "unbounded": attrs.get("unbounded"),
+                    "tariff_locator": attrs.get("tariff_locator"),
+                }.items()
+                if value is not None
+            }
+            rates.append(rate)
+        return rates
+
+    @property
+    def available(self) -> bool:
+        return self._spec() is not None and super().available
+
+    @property
+    def native_value(self):
+        spec = self._spec()
+        if spec is None:
+            return None
+        return spec.get("state")
+
+    @property
+    def native_unit_of_measurement(self):
+        spec = self._spec()
+        if spec is None:
+            return None
+        hass = getattr(self, "hass", None)
+        currency = _gateway_clean_text(
+            getattr(getattr(hass, "config", None), "currency", None)
+        )
+        if currency is not None:
+            return f"{currency}/{UnitOfEnergy.KILO_WATT_HOUR}"
+        return spec.get("unit")
+
+    @property
+    def extra_state_attributes(self):
+        spec = self._spec()
+        if spec is None:
+            return {}
+        attrs = dict(spec.get("attributes") or {})
+        attrs["active_rate_name"] = spec.get("name")
+        attrs["configured_rates"] = self._configured_rates()
+        attrs.update(self._last_refresh_attr())
+        return attrs
+
+    @callback
+    def _ensure_tariff_boundary_timer(self) -> None:
+        if self.hass is None:
+            return
+        when = _tariff_now(self._coord, self.hass)
+        next_change = next_tariff_rate_change(
+            getattr(self._coord, self._rate_attr, None),
+            when,
+        )
+        self._cancel_tariff_boundary_timer()
+        if next_change is None:
+            return
+        fire_at = dt_util.as_utc(next_change)
+        if fire_at <= dt_util.utcnow():
+            fire_at = dt_util.utcnow() + timedelta(seconds=1)
+        self._tariff_boundary_cancel = async_track_point_in_utc_time(
+            self.hass, self._handle_tariff_boundary, fire_at
+        )
+
+    @callback
+    def _handle_tariff_boundary(self, _now: datetime) -> None:
+        self._cancel_tariff_boundary_timer()
+        self.async_write_ha_state()
+        self._ensure_tariff_boundary_timer()
+
+    @callback
+    def _cancel_tariff_boundary_timer(self) -> None:
+        if self._tariff_boundary_cancel:
+            try:
+                self._tariff_boundary_cancel()
+            except Exception:  # noqa: BLE001
+                pass
+            self._tariff_boundary_cancel = None
+
+
 class EnphaseTariffRateValueSensor(_EnphaseTariffBaseSensor):
+    _attr_entity_registry_enabled_default = False
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 4
 

@@ -164,6 +164,20 @@ force_refresh:
             text:
               multiline: false
 
+set_tariff_rate:
+  name: Set Tariff Rate
+  description: Update one existing Enphase import or export tariff rate value.
+  target:
+    entity:
+      integration: enphase_ev
+  fields:
+    rate:
+      required: true
+      selector:
+        number:
+          min: 0
+          step: any
+
 add_schedule:
   name: Add Battery Schedule
   description: Create a battery schedule for CFG, DTG, or RBD

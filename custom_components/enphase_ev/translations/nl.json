@@ -393,6 +393,24 @@
     },
     "schedule_update_conflict_detail": {
       "message": "Schema-update conflicteert met een bestaand batterijschema: {message}"
+    },
+    "tariff_rate_invalid": {
+      "message": "Het tarief moet een niet-negatief getal zijn."
+    },
+    "tariff_rate_target_not_found": {
+      "message": "Het doel van het tarief is niet gevonden in de nieuwste tariefgegevens."
+    },
+    "tariff_rate_target_invalid": {
+      "message": "Het doel van het tarief is ongeldig."
+    },
+    "tariff_rate_api_unavailable": {
+      "message": "De API voor het schrijven van tarieven is niet beschikbaar."
+    },
+    "tariff_rate_entity_required": {
+      "message": "Selecteer precies één tariefentiteit."
+    },
+    "tariff_rate_entity_invalid": {
+      "message": "De entiteit is geen Enphase-tarief: {entity_id}"
     }
   },
   "options": {
@@ -1244,6 +1262,9 @@
           },
           "last_refresh_utc": {
             "name": "Laatst bijgewerkt (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariefzoeker"
           }
         }
       },
@@ -1338,6 +1359,9 @@
           },
           "last_refresh_utc": {
             "name": "Laatst bijgewerkt (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariefzoeker"
           }
         }
       },
@@ -1496,6 +1520,157 @@
       },
       "battery_schedule_summary": {
         "name": "Samenvatting van het batterijschema"
+      },
+      "tariff_current_import_rate": {
+        "name": "Huidig importtarief",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Seizoens-ID"
+          },
+          "start_month": {
+            "name": "Startmaand"
+          },
+          "end_month": {
+            "name": "Eindmaand"
+          },
+          "day_group_id": {
+            "name": "Daggroep-ID"
+          },
+          "days": {
+            "name": "Dagen"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttijd"
+          },
+          "end_time": {
+            "name": "Eindtijd"
+          },
+          "rate": {
+            "name": "Tarief"
+          },
+          "formatted_rate": {
+            "name": "Opgemaakt tarief"
+          },
+          "tier_id": {
+            "name": "Schijf-ID"
+          },
+          "start_value": {
+            "name": "Startwaarde"
+          },
+          "end_value": {
+            "name": "Eindwaarde"
+          },
+          "unbounded": {
+            "name": "Zonder bovengrens"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariefzoeker"
+          },
+          "active_rate_name": {
+            "name": "Naam actief tarief"
+          },
+          "configured_rates": {
+            "name": "Geconfigureerde tarieven"
+          }
+        }
+      },
+      "tariff_current_export_rate": {
+        "name": "Huidig exporttarief",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "season_id": {
+            "name": "Seizoens-ID"
+          },
+          "start_month": {
+            "name": "Startmaand"
+          },
+          "end_month": {
+            "name": "Eindmaand"
+          },
+          "day_group_id": {
+            "name": "Daggroep-ID"
+          },
+          "days": {
+            "name": "Dagen"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttijd"
+          },
+          "end_time": {
+            "name": "Eindtijd"
+          },
+          "rate": {
+            "name": "Tarief"
+          },
+          "formatted_rate": {
+            "name": "Opgemaakt tarief"
+          },
+          "tier_id": {
+            "name": "Schijf-ID"
+          },
+          "start_value": {
+            "name": "Startwaarde"
+          },
+          "end_value": {
+            "name": "Eindwaarde"
+          },
+          "unbounded": {
+            "name": "Zonder bovengrens"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariefzoeker"
+          },
+          "active_rate_name": {
+            "name": "Naam actief tarief"
+          },
+          "configured_rates": {
+            "name": "Geconfigureerde tarieven"
+          }
+        }
       }
     },
     "number": {
@@ -1522,6 +1697,145 @@
       },
       "battery_schedule_edit_limit": {
         "name": "Limiet batterijschema"
+      },
+      "tariff_import_rate_value": {
+        "name": "Importtarief {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "season_id": {
+            "name": "Seizoens-ID"
+          },
+          "start_month": {
+            "name": "Startmaand"
+          },
+          "end_month": {
+            "name": "Eindmaand"
+          },
+          "day_group_id": {
+            "name": "Daggroep-ID"
+          },
+          "days": {
+            "name": "Dagen"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttijd"
+          },
+          "end_time": {
+            "name": "Eindtijd"
+          },
+          "rate": {
+            "name": "Tarief"
+          },
+          "formatted_rate": {
+            "name": "Opgemaakt tarief"
+          },
+          "tier_id": {
+            "name": "Schijf-ID"
+          },
+          "start_value": {
+            "name": "Startwaarde"
+          },
+          "end_value": {
+            "name": "Eindwaarde"
+          },
+          "unbounded": {
+            "name": "Zonder bovengrens"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariefzoeker"
+          }
+        }
+      },
+      "tariff_export_rate_value": {
+        "name": "Exporttarief {detail}",
+        "state_attributes": {
+          "rate_structure": {
+            "name": "Tariefstructuur"
+          },
+          "variation_type": {
+            "name": "Variatietype"
+          },
+          "source": {
+            "name": "Bron"
+          },
+          "currency": {
+            "name": "Valuta"
+          },
+          "export_plan": {
+            "name": "Exportplan"
+          },
+          "season_id": {
+            "name": "Seizoens-ID"
+          },
+          "start_month": {
+            "name": "Startmaand"
+          },
+          "end_month": {
+            "name": "Eindmaand"
+          },
+          "day_group_id": {
+            "name": "Daggroep-ID"
+          },
+          "days": {
+            "name": "Dagen"
+          },
+          "period_id": {
+            "name": "Periode-ID"
+          },
+          "period_type": {
+            "name": "Periodetype"
+          },
+          "start_time": {
+            "name": "Starttijd"
+          },
+          "end_time": {
+            "name": "Eindtijd"
+          },
+          "rate": {
+            "name": "Tarief"
+          },
+          "formatted_rate": {
+            "name": "Opgemaakt tarief"
+          },
+          "tier_id": {
+            "name": "Schijf-ID"
+          },
+          "start_value": {
+            "name": "Startwaarde"
+          },
+          "end_value": {
+            "name": "Eindwaarde"
+          },
+          "unbounded": {
+            "name": "Zonder bovengrens"
+          },
+          "last_refresh_utc": {
+            "name": "Laatst bijgewerkt (UTC)"
+          },
+          "tariff_locator": {
+            "name": "Tariefzoeker"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -2195,6 +2509,16 @@
         "site_id": {
           "name": "Site-ID",
           "description": "Optionele site-id; wordt automatisch gedetecteerd wanneer een site-apparaat is geselecteerd."
+        }
+      }
+    },
+    "set_tariff_rate": {
+      "name": "Tarief instellen",
+      "description": "Werkt één bestaande Enphase import- of exporttariefwaarde bij.",
+      "fields": {
+        "rate": {
+          "name": "Tarief",
+          "description": "Nieuwe niet-negatieve tariefwaarde."
         }
       }
     }
