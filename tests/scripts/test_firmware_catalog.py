@@ -111,13 +111,21 @@ def test_country_applicability_parsing(firmware_catalog_module) -> None:
         "ireland": "IE",
         "italy": "IT",
         "unitedkingdom": "GB",
+        "brazil": "BR",
+        "france": "FR",
+        "germany": "DE",
     }
 
     explicit = firmware_catalog_module.parse_country_applicability(
-        "United States, Puerto Rico, Canada", alias_map=alias_map
+        "United States, Puerto Rico, Canada, Brazil", alias_map=alias_map
     )
-    assert explicit.include == {"US", "PR", "CA"}
+    assert explicit.include == {"US", "PR", "CA", "BR"}
     assert explicit.ambiguous is False
+    assert firmware_catalog_module.country_applicability_matches(explicit, "US")
+    assert not firmware_catalog_module.country_applicability_matches(explicit, "AU")
+    assert not firmware_catalog_module.country_applicability_is_global_fallback(
+        explicit
+    )
 
     all_except = firmware_catalog_module.parse_country_applicability(
         "All countries except Ireland, Italy, and the United Kingdom",
@@ -126,11 +134,37 @@ def test_country_applicability_parsing(firmware_catalog_module) -> None:
     assert all_except.all_countries is True
     assert all_except.exclude == {"IE", "IT", "GB"}
     assert all_except.ambiguous is False
+    assert firmware_catalog_module.country_applicability_matches(all_except, "AU")
+    assert not firmware_catalog_module.country_applicability_matches(all_except, "IE")
+    assert not firmware_catalog_module.country_applicability_is_global_fallback(
+        all_except
+    )
 
-    ambiguous = firmware_catalog_module.parse_country_applicability(
+    european = firmware_catalog_module.parse_country_applicability(
         "All European countries except Ireland", alias_map=alias_map
     )
-    assert ambiguous.ambiguous is True
+    assert european.ambiguous is False
+    assert "IE" not in european.include
+    assert {"DE", "FR", "GB"}.issubset(european.include)
+    assert firmware_catalog_module.country_applicability_matches(european, "DE")
+    assert firmware_catalog_module.country_applicability_matches(european, "FR")
+    assert not firmware_catalog_module.country_applicability_matches(european, "AU")
+    assert not firmware_catalog_module.country_applicability_matches(european, "IE")
+
+    unknown_region = firmware_catalog_module.parse_country_applicability(
+        "All Caribbean countries except Puerto Rico", alias_map=alias_map
+    )
+    assert unknown_region.ambiguous is True
+    assert unknown_region.exclude == {"PR"}
+    assert not firmware_catalog_module.country_applicability_matches(
+        unknown_region, "US"
+    )
+
+    worldwide = firmware_catalog_module.parse_country_applicability(
+        "Worldwide", alias_map=alias_map
+    )
+    assert firmware_catalog_module.country_applicability_is_global_fallback(worldwide)
+    assert firmware_catalog_module.country_applicability_matches(worldwide, None)
 
 
 def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
@@ -155,6 +189,27 @@ def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
 
     latest = firmware_catalog_module.pick_latest_release([card_old, card_new])
     assert latest == card_new
+    assert (
+        firmware_catalog_module.pick_latest_release_for_country(
+            [card_old, card_new], "US", alias_map={"usa": "US"}
+        )
+        == card_new
+    )
+    assert (
+        firmware_catalog_module.pick_latest_release_for_country(
+            [card_old, card_new], "AU", alias_map={"usa": "US"}
+        )
+        is None
+    )
+    assert (
+        firmware_catalog_module.pick_latest_global_release(
+            [card_old, card_new], alias_map={"usa": "US"}
+        )
+        is None
+    )
+    assert firmware_catalog_module.release_applies_to_country(
+        card_new, "US", alias_map={"usa": "US"}
+    )
 
     urls = firmware_catalog_module.build_release_urls_by_locale(
         locales=["en", "fr-fr", "en-au"],
@@ -272,16 +327,25 @@ def test_helper_edge_branches(
         )
         == "United States"
     )
+    assert (
+        parser._extract_country_text(
+            "Countries: United States, Canada. Feature classification Major"
+        )
+        == "United States, Canada"
+    )
     assert parser._extract_country_text("No labels here") is None
     parser._flush_card()
     assert parser.cards == []
 
     parser._title_parts = ["IQ Gateway software release notes (1.0.0)"]
-    parser._note_parts = ["x" * 600]
+    parser._note_parts = [
+        f"{'x' * 600} Countries: United States, Canada. Feature classification Major"
+    ]
     parser._date_parts = ["November 20, 2025"]
     parser._flush_card()
     assert parser.cards
     assert parser.cards[0].summary.endswith("...")
+    assert parser.cards[0].countries_text == "United States, Canada"
 
     assert firmware_catalog_module.discover_apps_entrypoint("<html/>") == (
         "/installers/resources/documentation/apps",
@@ -943,6 +1007,63 @@ def test_country_entry_prefers_non_global_over_global_fallback(
         candidate={"version": "1.1.0", "media_id": "b"},
         global_entry=global_entry,
     )
+    assert not firmware_catalog_module._is_same_release_entry(None, global_entry)
+    assert firmware_catalog_module._is_same_release_entry(
+        {"version": "2.0.0", "media_id": "shared"},
+        {"version": "2.0.0", "media_id": "shared"},
+    )
+    assert not firmware_catalog_module._is_same_release_entry(
+        {"version": "2.0.0"},
+        {"version": "2.0.0"},
+    )
+    assert firmware_catalog_module._is_same_release_entry(
+        {
+            "version": "2.0.0",
+            "release_date": "2025-12-01",
+            "title": "Release",
+        },
+        {
+            "version": "2.0.0",
+            "release_date": "2025-12-01",
+            "title": "Localized release",
+        },
+    )
+    assert firmware_catalog_module._is_same_release_entry(
+        {
+            "version": "2.0.0",
+            "release_date": "2025-12-01",
+            "title": "Release",
+        },
+        {
+            "version": "2.0.0",
+            "release_date": "2025-12-01",
+            "title": "Release",
+        },
+    )
+    assert firmware_catalog_module._is_same_release_entry(
+        {
+            "version": "2.0.0",
+            "title": "Release",
+        },
+        {
+            "version": "2.0.0",
+            "title": "Release",
+        },
+    )
+    assert firmware_catalog_module._is_same_release_entry(
+        {
+            "version": "2.0.0",
+            "release_date": "2025-12-01",
+            "title": "Release",
+            "media_id": "localized-a",
+        },
+        {
+            "version": "2.0.0",
+            "release_date": "2025-12-01",
+            "title": "Release",
+            "media_id": "localized-b",
+        },
+    )
 
 
 def test_bootstrap_target_discovers_apps_entrypoint_for_apps_docs(
@@ -1015,11 +1136,20 @@ def test_locale_fallback_uses_best_country_entry_not_global(
         summary="Global envoy release",
         countries_text=None,
     )
-    be_regional_envoy = firmware_catalog_module.ReleaseCard(
-        title="IQ Gateway software release notes (8.2.4500)",
+    be_regional_envoy_fr = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway notes de version du logiciel (8.2.4500)",
         version="8.2.4500",
         release_date="2025-12-01",
-        media_id="be-regional-envoy",
+        media_id="be-regional-envoy-fr",
+        langcode="und",
+        summary="Belgium envoy release",
+        countries_text=None,
+    )
+    be_regional_envoy_nl = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway softwareversie-opmerkingen (8.2.4500)",
+        version="8.2.4500",
+        release_date="2025-12-01",
+        media_id="be-regional-envoy-nl",
         langcode="und",
         summary="Belgium envoy release",
         countries_text=None,
@@ -1030,8 +1160,10 @@ def test_locale_fallback_uses_best_country_entry_not_global(
         search_locale = kwargs["search_locale"]
         if product_media_name_id == 5002 and search_locale == "en":
             return [global_envoy], ["https://example.test/envoy/global"]
+        if product_media_name_id == 5002 and search_locale == "fr-be":
+            return [be_regional_envoy_fr], ["https://example.test/envoy/fr-be"]
         if product_media_name_id == 5002 and search_locale == "nl-be":
-            return [be_regional_envoy], ["https://example.test/envoy/nl-be"]
+            return [be_regional_envoy_nl], ["https://example.test/envoy/nl-be"]
         return [], [
             f"https://example.test/empty/{product_media_name_id}/{search_locale}"
         ]
@@ -1061,6 +1193,12 @@ def test_locale_fallback_uses_best_country_entry_not_global(
                 "country_code": "BE",
                 "locale": "fr-be",
                 "site_url": "https://enphase.com/fr-be/",
+            },
+            {
+                "label": "Belgium - Deutsch",
+                "country_code": "BE",
+                "locale": "de-be",
+                "site_url": "https://enphase.com/de-be/",
             },
             {
                 "label": "Belgium - Nederlands",
@@ -1111,8 +1249,160 @@ def test_locale_fallback_uses_best_country_entry_not_global(
     assert envoy["latest_by_country"]["BE"]["version"] == "8.2.4500"
     assert envoy["latest_by_locale"]["nl-be"]["version"] == "8.2.4500"
     assert envoy["latest_by_locale"]["fr-be"]["version"] == "8.2.4500"
-    assert envoy["latest_by_locale"]["fr-be"]["media_id"] == "be-regional-envoy"
+    assert envoy["latest_by_locale"]["fr-be"]["media_id"] == "be-regional-envoy-fr"
+    assert envoy["latest_by_locale"]["de-be"]["version"] == "8.2.4500"
+    assert envoy["latest_by_locale"]["de-be"]["media_id"] == "be-regional-envoy-fr"
+    assert envoy["latest_by_locale"]["nl-be"]["media_id"] == "be-regional-envoy-nl"
+    assert "/fr-be/" in envoy["latest_by_locale"]["fr-be"]["urls_by_locale"]["fr-be"]
+    assert "/nl-be/" in envoy["latest_by_locale"]["nl-be"]["urls_by_locale"]["nl-be"]
     assert envoy["latest_by_locale"]["fr-fot"]["version"] == "8.2.4401"
+
+
+def test_build_catalog_filters_country_scoped_releases(
+    firmware_catalog_module,
+    fixture_dir: Path,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root_html = (fixture_dir / "enphase_root.html").read_text(encoding="utf-8")
+    apps_html = (fixture_dir / "enphase_apps_facets.html").read_text(encoding="utf-8")
+
+    def _fake_fetch_text(url: str, *, timeout: int = 30) -> str:  # noqa: ARG001
+        if url.endswith("/installers/resources/documentation"):
+            return root_html
+        return apps_html
+
+    scoped_envoy = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.2.4401)",
+        version="8.2.4401",
+        release_date="2025-11-20",
+        media_id="zz-us-scoped-envoy",
+        langcode="und",
+        summary=(
+            "Countries: United States, Puerto Rico, Canada, Mexico, Bermuda, "
+            "Brazil, and the Philippines. Feature classification: Major"
+        ),
+        countries_text=(
+            "United States, Puerto Rico, Canada, Mexico, Bermuda, Brazil, "
+            "and the Philippines"
+        ),
+    )
+    br_scoped_envoy = firmware_catalog_module.ReleaseCard(
+        title="Notas de versao do software IQ Gateway (8.2.4401)",
+        version="8.2.4401",
+        release_date="2025-11-20",
+        media_id="aa-br-scoped-envoy",
+        langcode="und",
+        summary="Countries: Brazil",
+        countries_text="Brazil",
+    )
+    worldwide_envoy = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.2.4398)",
+        version="8.2.4398",
+        release_date="2025-10-20",
+        media_id="worldwide-envoy",
+        langcode="und",
+        summary="Countries: Worldwide",
+        countries_text="Worldwide",
+    )
+
+    def _fake_crawl_release_cards(**kwargs):
+        if kwargs["product_media_name_id"] == 5002 and kwargs["search_locale"] == "en":
+            return [scoped_envoy, worldwide_envoy], [
+                f"https://example.test/envoy/{kwargs['search_locale']}"
+            ]
+        if (
+            kwargs["product_media_name_id"] == 5002
+            and kwargs["search_locale"] == "pt-br"
+        ):
+            return [br_scoped_envoy, worldwide_envoy], [
+                f"https://example.test/envoy/{kwargs['search_locale']}"
+            ]
+        if kwargs["product_media_name_id"] == 5002:
+            return [worldwide_envoy], [
+                f"https://example.test/envoy/{kwargs['search_locale']}"
+            ]
+        return [], [f"https://example.test/empty/{kwargs['search_locale']}"]
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z"
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "REGION_SITE_ROUTE_ROWS",
+        [
+            {
+                "label": "United States",
+                "country_code": "US",
+                "locale": "en",
+                "site_url": "https://enphase.com/",
+            },
+            {
+                "label": "Australia",
+                "country_code": "AU",
+                "locale": "en-au",
+                "site_url": "https://enphase.com/en-au/",
+                "query_locale": "en-au",
+            },
+            {
+                "label": "Brazil",
+                "country_code": "BR",
+                "locale": "pt-br",
+                "site_url": "https://enphase.com/pt-br/",
+                "query_locale": "pt-br",
+            },
+            {
+                "label": "Philippines",
+                "country_code": "PH",
+                "locale": "en-ph",
+                "site_url": "https://enphase.com/en-ph/",
+                "query_locale": "en-ph",
+            },
+        ],
+    )
+    monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
+    original_parse_facet_values = firmware_catalog_module.parse_facet_values
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda html, alias: (
+            {
+                **original_parse_facet_values(html, alias),
+                "IQ EV Charger software": 6001,
+            }
+            if alias == "product_media_name"
+            else original_parse_facet_values(html, alias)
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: None,
+    )
+
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime_payload = json.loads(
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    envoy = runtime_payload["devices"]["envoy"]
+
+    assert envoy["latest_global"]["version"] == "8.2.4398"
+    assert envoy["latest_by_country"]["US"]["version"] == "8.2.4401"
+    assert envoy["latest_by_locale"]["en"]["version"] == "8.2.4401"
+    assert envoy["latest_by_country"]["AU"]["version"] == "8.2.4398"
+    assert envoy["latest_by_locale"]["en-au"]["version"] == "8.2.4398"
+    assert envoy["latest_by_country"]["BR"]["version"] == "8.2.4401"
+    assert envoy["latest_by_locale"]["pt-br"]["version"] == "8.2.4401"
+    assert envoy["latest_by_locale"]["pt-br"]["media_id"] == "aa-br-scoped-envoy"
+    assert "/pt-br/" in envoy["latest_by_locale"]["pt-br"]["urls_by_locale"]["pt-br"]
+    assert envoy["latest_by_country"]["PH"]["version"] == "8.2.4401"
+    assert envoy["latest_by_locale"]["en-ph"]["version"] == "8.2.4401"
+    assert envoy["latest_by_locale"]["en-ph"]["media_id"] == "zz-us-scoped-envoy"
 
 
 def test_route_helper_edge_branches(firmware_catalog_module) -> None:

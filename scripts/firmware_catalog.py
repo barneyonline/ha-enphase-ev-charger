@@ -104,9 +104,12 @@ COUNTRY_TOKEN_ALIASES: dict[str, str] = {
     "luxembourg": "LU",
     "malta": "MT",
     "dominicanrepublic": "DO",
+    "bahamas": "BS",
     "colombia": "CO",
+    "chile": "CL",
     "costarica": "CR",
     "panama": "PA",
+    "brazil": "BR",
     "serbia": "RS",
     "southafrica": "ZA",
     "bermuda": "BM",
@@ -114,6 +117,77 @@ COUNTRY_TOKEN_ALIASES: dict[str, str] = {
     "frenchpolynesia": "PF",
     "monaco": "MC",
     "turksandcaicos": "TC",
+}
+
+REGION_COUNTRY_CODES: dict[str, set[str]] = {
+    "europe": {
+        "AL",
+        "AT",
+        "BE",
+        "BG",
+        "CH",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "EE",
+        "ES",
+        "FI",
+        "FR",
+        "GB",
+        "GR",
+        "HR",
+        "HU",
+        "IE",
+        "IT",
+        "LT",
+        "LU",
+        "LV",
+        "MT",
+        "NL",
+        "NO",
+        "PL",
+        "PT",
+        "RO",
+        "SE",
+        "SI",
+        "SK",
+        "TR",
+    },
+    "european": {
+        "AL",
+        "AT",
+        "BE",
+        "BG",
+        "CH",
+        "CY",
+        "CZ",
+        "DE",
+        "DK",
+        "EE",
+        "ES",
+        "FI",
+        "FR",
+        "GB",
+        "GR",
+        "HR",
+        "HU",
+        "IE",
+        "IT",
+        "LT",
+        "LU",
+        "LV",
+        "MT",
+        "NL",
+        "NO",
+        "PL",
+        "PT",
+        "RO",
+        "SE",
+        "SI",
+        "SK",
+        "TR",
+    },
 }
 
 # Authoritative country/locale to region-site mapping supplied by maintainers.
@@ -754,6 +828,57 @@ def _is_global_fallback_entry(
     return entry.get("media_id") == global_entry.get("media_id")
 
 
+def _is_same_release_values(
+    *,
+    left_version: Any,
+    right_version: Any,
+    left_release_date: Any,
+    right_release_date: Any,
+    left_title: Any,
+    right_title: Any,
+    left_media_id: Any,
+    right_media_id: Any,
+) -> bool:
+    if (
+        left_version
+        and left_release_date
+        and left_version == right_version
+        and left_release_date == right_release_date
+    ):
+        return True
+    if (
+        left_version
+        and left_title
+        and (left_version, left_title)
+        == (
+            right_version,
+            right_title,
+        )
+    ):
+        return True
+    if left_media_id or right_media_id:
+        return left_media_id == right_media_id
+    return False
+
+
+def _is_same_release_entry(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+    return _is_same_release_values(
+        left_version=left.get("version"),
+        right_version=right.get("version"),
+        left_release_date=left.get("release_date"),
+        right_release_date=right.get("release_date"),
+        left_title=left.get("title"),
+        right_title=right.get("title"),
+        left_media_id=left.get("media_id"),
+        right_media_id=right.get("media_id"),
+    )
+
+
 def _should_replace_country_entry(
     existing: dict[str, Any] | None,
     candidate: dict[str, Any] | None,
@@ -846,6 +971,8 @@ class ReleaseCardParser(HTMLParser):
                 "Release notes:",
                 "Release note:",
                 "Applicable devices:",
+                "Feature classification:",
+                "Feature classification",
                 "Features:",
             ]
             end = len(tail)
@@ -890,10 +1017,11 @@ class ReleaseCardParser(HTMLParser):
         version_match = re.search(r"\(([^()]+)\)\s*$", title)
         version = version_match.group(1).strip() if version_match else None
         release_date = _parse_date_to_iso(" ".join(self._date_parts))
-        summary = _collapse_ws(" ".join(self._note_parts))
+        full_summary = _collapse_ws(" ".join(self._note_parts))
+        countries_text = self._extract_country_text(full_summary)
+        summary = full_summary
         if len(summary) > 500:
             summary = summary[:497].rstrip() + "..."
-        countries_text = self._extract_country_text(summary)
         card = ReleaseCard(
             title=title,
             version=version,
@@ -1198,6 +1326,9 @@ def parse_country_applicability(
                 excluded.add(iso)
         prefix_is_plain_all = not prefix or prefix.lower() in {"the"}
         if not prefix_is_plain_all:
+            region_codes = REGION_COUNTRY_CODES.get(_slug(prefix))
+            if region_codes:
+                return CountryApplicability(include=region_codes - excluded)
             return CountryApplicability(exclude=excluded, ambiguous=True)
         if excluded:
             return CountryApplicability(all_countries=True, exclude=excluded)
@@ -1219,6 +1350,53 @@ def parse_country_applicability(
     return CountryApplicability(ambiguous=True)
 
 
+def country_applicability_matches(
+    applicability: CountryApplicability,
+    country_code: str | None,
+) -> bool:
+    normalized = country_code.upper() if isinstance(country_code, str) else None
+    if applicability.include:
+        return bool(normalized and normalized in applicability.include)
+    if applicability.all_countries:
+        return not (normalized and normalized in applicability.exclude)
+    if applicability.exclude:
+        return False
+    return applicability.ambiguous
+
+
+def country_applicability_is_global_fallback(
+    applicability: CountryApplicability,
+) -> bool:
+    if applicability.include or applicability.exclude:
+        return False
+    return applicability.all_countries or applicability.ambiguous
+
+
+def release_applies_to_country(
+    card: ReleaseCard,
+    country_code: str | None,
+    *,
+    alias_map: dict[str, str],
+) -> bool:
+    applicability = parse_country_applicability(
+        card.countries_text, alias_map=alias_map
+    )
+    return country_applicability_matches(applicability, country_code)
+
+
+def _is_same_release_card(left: ReleaseCard, right: ReleaseCard) -> bool:
+    return _is_same_release_values(
+        left_version=left.version,
+        right_version=right.version,
+        left_release_date=left.release_date,
+        right_release_date=right.release_date,
+        left_title=left.title,
+        right_title=right.title,
+        left_media_id=left.media_id,
+        right_media_id=right.media_id,
+    )
+
+
 def pick_latest_release(releases: list[ReleaseCard]) -> ReleaseCard | None:
     if not releases:
         return None
@@ -1231,6 +1409,35 @@ def pick_latest_release(releases: list[ReleaseCard]) -> ReleaseCard | None:
         return (date_obj, _version_sort_key(card.version), card.media_id or "")
 
     return max(releases, key=_sort_key)
+
+
+def pick_latest_release_for_country(
+    releases: list[ReleaseCard],
+    country_code: str,
+    *,
+    alias_map: dict[str, str],
+) -> ReleaseCard | None:
+    applicable = [
+        card
+        for card in releases
+        if release_applies_to_country(card, country_code, alias_map=alias_map)
+    ]
+    return pick_latest_release(applicable)
+
+
+def pick_latest_global_release(
+    releases: list[ReleaseCard],
+    *,
+    alias_map: dict[str, str],
+) -> ReleaseCard | None:
+    applicable = []
+    for card in releases:
+        country_applicability = parse_country_applicability(
+            card.countries_text, alias_map=alias_map
+        )
+        if country_applicability_is_global_fallback(country_applicability):
+            applicable.append(card)
+    return pick_latest_release(applicable)
 
 
 def build_release_urls_by_locale(
@@ -1484,6 +1691,15 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
     all_country_codes: set[str] = {
         str(route["country_code"]) for route in routes if route.get("country_code")
     }
+    country_alias_map = dict(COUNTRY_TOKEN_ALIASES)
+    for route in routes:
+        route_country = route.get("country_code")
+        route_label = route.get("label")
+        if not route_country or not route_label:
+            continue
+        for name in _country_label_to_names(str(route_label)):
+            country_alias_map.setdefault(_slug(name), str(route_country))
+
     devices_catalog: dict[str, Any] = {}
     crawl_meta: dict[str, Any] = {}
     source_devices: dict[str, Any] = {}
@@ -1594,6 +1810,8 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                 global_apps_html, "field_alternative_language"
             )
 
+        target_cards: dict[str, list[ReleaseCard]] = {}
+        target_product_ids: dict[str, int] = {}
         target_entries: dict[str, dict[str, Any] | None] = {}
         target_crawl: dict[str, Any] = {}
         total_count = 0
@@ -1654,8 +1872,11 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             if len(cards) == 0:
                 empty_release_targets.append(str(target["key"]))
 
-            latest_card = pick_latest_release(cards)
-            target_entries[str(target["key"])] = (
+            target_key = str(target["key"])
+            target_cards[target_key] = cards
+            target_product_ids[target_key] = product_id
+            latest_card = pick_latest_global_release(cards, alias_map=country_alias_map)
+            target_entries[target_key] = (
                 card_to_runtime_entry(
                     card=latest_card,
                     product_type=str(target["product_type"]),
@@ -1668,6 +1889,58 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                 else None
             )
 
+        def _latest_applicable_card_for_route(
+            route: dict[str, Any],
+        ) -> tuple[ReleaseCard, str] | None:
+            target_key = str(route["target_key"])
+            route_country = route.get("country_code")
+            source_target_keys = [target_key]
+            if target_key != global_target_key:
+                source_target_keys.append(global_target_key)
+
+            candidates: list[tuple[ReleaseCard, str]] = []
+            for source_target_key in source_target_keys:
+                cards = target_cards.get(source_target_key, [])
+                if isinstance(route_country, str):
+                    latest_card = pick_latest_release_for_country(
+                        cards, route_country, alias_map=country_alias_map
+                    )
+                else:
+                    latest_card = pick_latest_global_release(
+                        cards, alias_map=country_alias_map
+                    )
+                if latest_card is not None:
+                    candidates.append((latest_card, source_target_key))
+
+            if not candidates:
+                return None
+
+            selected_card, selected_target_key = candidates[0]
+            for candidate_card, candidate_target_key in candidates[1:]:
+                if _is_same_release_card(selected_card, candidate_card):
+                    continue
+                latest_card = pick_latest_release([selected_card, candidate_card])
+                if latest_card is candidate_card:
+                    selected_card = candidate_card
+                    selected_target_key = candidate_target_key
+            return selected_card, selected_target_key
+
+        def _entry_for_route(route: dict[str, Any]) -> dict[str, Any] | None:
+            selected_card = _latest_applicable_card_for_route(route)
+            if selected_card is None:
+                return None
+            latest_card, target_key = selected_card
+            target = device_targets_by_key[target_key]
+            product_id = target_product_ids[target_key]
+            return card_to_runtime_entry(
+                card=latest_card,
+                product_type=str(target["product_type"]),
+                topic_id=int(target["topic_id"]),
+                product_media_name_id=product_id,
+                locales=list(target["locales"]),
+                apps_url=str(target["apps_url"]),
+            )
+
         latest_global_entry = target_entries.get(global_target_key)
         latest_global = (
             _entry_with_locale_url(latest_global_entry, "en")
@@ -1678,7 +1951,7 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         latest_by_locale: dict[str, Any] = {}
         latest_by_country: dict[str, Any] = {}
         for route in routes:
-            route_target_entry = target_entries.get(str(route["target_key"]))
+            route_target_entry = _entry_for_route(route)
             selected_entry = route_target_entry or latest_global
             if not isinstance(selected_entry, dict):
                 continue
@@ -1702,21 +1975,21 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             if not route_locale:
                 continue
 
-            route_target_entry = target_entries.get(str(route["target_key"]))
+            route_target_entry = _entry_for_route(route)
             selected_entry: dict[str, Any] | None = None
-            if isinstance(route_target_entry, dict):
-                selected_entry = route_target_entry
-            else:
-                route_country = route.get("country_code")
-                country_entry = (
-                    latest_by_country.get(route_country)
-                    if isinstance(route_country, str)
-                    else None
-                )
-                if isinstance(country_entry, dict):
+            route_country = route.get("country_code")
+            country_entry = (
+                latest_by_country.get(route_country)
+                if isinstance(route_country, str)
+                else None
+            )
+            if isinstance(country_entry, dict):
+                if _is_same_release_entry(route_target_entry, country_entry):
+                    selected_entry = route_target_entry
+                else:
                     selected_entry = country_entry
-                elif isinstance(latest_global, dict):
-                    selected_entry = latest_global
+            elif isinstance(route_target_entry, dict):
+                selected_entry = route_target_entry
 
             if isinstance(selected_entry, dict):
                 latest_by_locale[route_locale] = _entry_with_locale_url(
