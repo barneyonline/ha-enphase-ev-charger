@@ -9,7 +9,7 @@ All notable changes to this project will be documented in this file.
 
 ### ✨ New features
 - Added site tariff sensors for next billing date and Energy-dashboard-ready current import/export prices, attached to the IQ Gateway device when available.
-- Added editable tariff rate number entities and a `set_tariff_rate` service for updating existing Enphase import/export tariff values.
+- Added editable tariff rate number entities and an `update_tariff` service for updating billing-cycle details, guided tariff structures, and one or more Enphase import/export tariff rate values in one call.
 - Tariff sensors now refresh with normal sensor polling and keep their last known values while the Enphase tariff backend is degraded.
 
 ### 🐛 Bug fixes

@@ -116,7 +116,7 @@ Status labels:
 | PowerMatch UI flags | `GET` | `/app-api/<site_id>/powermatch_details` | authenticated session cookies + `e-auth-token` | Browser capture only |
 | Site today snapshot | `GET` | `/pv/systems/<site_id>/today` | authenticated Enlighten session cookies | Runtime |
 | Legacy site tariff flags | `GET` | `/app-api/<site_id>/tariff.json?country=<country>` | authenticated session cookies + `e-auth-token` | Browser capture only |
-| Site billing-cycle details | `GET/POST` | `/service/tariff/tariff-ms/systems/<site_id>/billing-details[?date=<YYYY-MM-DD>]` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | Runtime (GET) |
+| Site billing-cycle details | `GET/POST` | `/service/tariff/tariff-ms/systems/<site_id>/billing-details[?date=<YYYY-MM-DD>]` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | Runtime |
 | Site tariff configuration | `GET/PUT` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` and `/service/tariff/tariff-ms/systems/<site_id>/tariff?user-id=<user_id>` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`, `X-Requested-With`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | Runtime |
 | Tariff settings MQTT authorizer | `GET` | `/pv/aws_sigv4/tariff_settings_response_stream?serial_number=<gateway_sn>` | authenticated Enlighten session cookies + `e-auth-token` + `x-xsrf-token` | Browser capture only |
 | EVSE tariff-change notification | `PUT` | `/service/evse_scheduler/api/v1/siteConfig/<site_id>/tariff_change` | tariff web write headers + JSON `null` body | Runtime (best-effort) |
@@ -2445,8 +2445,12 @@ and notifies the EVSE scheduler service after billing or tariff changes.
 
 Implementation notes:
 - The active runtime reads a bundled billing/import/export snapshot and exposes billing-cycle plus current import/export tariff sensors.
-- Writes update one located `rate` or `offPeak` value in a copied full tariff payload, call `PUT /tariff`, then best-effort notify `/siteConfig/<site_id>/tariff_change`.
-- Billing `POST` and the tariff-settings MQTT response stream are documented browser flows, but they are not part of the active runtime write path.
+- Rate writes update located `rate` or `offPeak` values in a copied full tariff payload, call `PUT /tariff` once per batch, then best-effort notify `/siteConfig/<site_id>/tariff_change`.
+- Structural writes can replace the full tariff payload or replace the `purchase` and/or `buyback` branch on the latest payload before the single `PUT /tariff` call. This supports flat, time-of-use, and tiered structures, including seasons, weekday/weekend groups, periods, tiers, off-peak baselines, and export plans.
+- Guided structural service fields can build common import/export branches from tariff type, variation, flat-rate, period-row, tier-row, off-peak baseline, and export-plan inputs. The advanced object fields remain available for exact payload replacement.
+- Billing writes call `POST /billing-details` with `anyBillPeriodStartDate`, `billingFrequency`, and `billingIntervalValue`, then best-effort notify `/siteConfig/<site_id>/tariff_change`.
+- The `update_tariff` service can combine billing, structural, and rate writes, but the Enphase endpoints are not transactional; a remote failure after one endpoint succeeds can leave a partial cloud-side update.
+- The tariff-settings MQTT response stream is a documented browser flow, but it is not part of the active runtime write path.
 
 #### Billing Details
 ```

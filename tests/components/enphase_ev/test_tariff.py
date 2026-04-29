@@ -22,8 +22,10 @@ from custom_components.enphase_ev.sensor import (
 )
 from custom_components.enphase_ev.tariff import (
     TARIFF_ENDPOINT_FAMILY,
+    TariffBillingUpdate,
     TariffRateLocator,
     TariffRateSnapshot,
+    TariffRateUpdate,
     TariffRuntime,
     _clean_text,
     _format_rate,
@@ -119,6 +121,35 @@ def test_next_billing_date_month_end_and_invalid_values() -> None:
     )
     assert invalid_interval is not None
     assert next_billing_date(invalid_interval, today=date(2026, 4, 26)) is None
+
+
+def test_tariff_update_parsers_cover_passthrough_and_invalid_inputs() -> None:
+    billing = TariffBillingUpdate(
+        start_date="2026-04-01",
+        billing_frequency="MONTH",
+        billing_interval_value=1,
+    )
+    assert TariffBillingUpdate.from_object(billing) is billing
+    assert TariffBillingUpdate.from_object("bad") is None
+    with pytest.raises(ServiceValidationError) as err:
+        TariffBillingUpdate.from_object(
+            {"billing_frequency": "MONTH", "billing_interval_value": 1}
+        )
+    assert err.value.translation_key == "exceptions.tariff_billing_start_date_invalid"
+
+    locator = TariffRateLocator(
+        branch="purchase",
+        kind="off_peak",
+        season_index=1,
+        season_id="default",
+    )
+    update = TariffRateUpdate(locator=locator, rate=0.1)
+    assert TariffRateUpdate.from_object(update) is update
+    assert TariffRateUpdate.from_object((locator, 0.2)) == TariffRateUpdate(
+        locator=locator,
+        rate=0.2,
+    )
+    assert TariffRateUpdate.from_object("bad") is None
 
 
 def test_parse_tariff_rate_flat_tou_and_tiered_shapes() -> None:
@@ -983,6 +1014,627 @@ async def test_tariff_runtime_updates_single_rate_and_preserves_payload(
 
 
 @pytest.mark.asyncio
+async def test_tariff_runtime_batches_rate_updates_with_one_tariff_put(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock(
+        return_value={
+            "purchase": {
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {"id": "off-peak", "rate": "0.18"},
+                                    {"id": "peak", "rate": "0.31"},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+            "buyback": {
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [{"id": "feed-in", "rate": "0.06"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    )
+    coord.client.site_tariff_update = AsyncMock(return_value={"message": "success"})
+    coord.client.notify_tariff_change = AsyncMock(return_value={"data": "ok"})
+    coord.tariff_runtime.async_refresh = AsyncMock()
+
+    out = await TariffRuntime(coord).async_update_tariff(
+        rate_updates=[
+            {
+                "locator": {
+                    "branch": "purchase",
+                    "kind": "period",
+                    "season_index": 1,
+                    "season_id": "default",
+                    "day_index": 1,
+                    "day_group_id": "week",
+                    "period_index": 2,
+                    "period_id": "peak",
+                },
+                "rate": 0.42,
+            },
+            {
+                "locator": {
+                    "branch": "buyback",
+                    "kind": "period",
+                    "season_index": 1,
+                    "season_id": "default",
+                    "day_index": 1,
+                    "day_group_id": "week",
+                    "period_index": 1,
+                    "period_id": "feed-in",
+                },
+                "rate": 0.08,
+            },
+        ]
+    )
+
+    assert out == {"tariff": {"message": "success"}, "billing": None}
+    coord.client.site_tariff.assert_awaited_once_with()
+    coord.client.site_tariff_update.assert_awaited_once()
+    update_payload = coord.client.site_tariff_update.await_args.args[0]
+    assert (
+        update_payload["purchase"]["seasons"][0]["days"][0]["periods"][1]["rate"]
+        == "0.42"
+    )
+    assert (
+        update_payload["buyback"]["seasons"][0]["days"][0]["periods"][0]["rate"]
+        == "0.08"
+    )
+    coord.client.notify_tariff_change.assert_awaited_once_with()
+    coord.tariff_runtime.async_refresh.assert_awaited_once_with(force=True)
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_updates_billing_only(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff_billing_update = AsyncMock(
+        return_value={"billingFrequency": "DAY"}
+    )
+    coord.client.notify_tariff_change = AsyncMock(return_value={"data": "ok"})
+    coord.tariff_runtime.async_refresh = AsyncMock()
+
+    out = await TariffRuntime(coord).async_update_tariff(
+        billing={
+            "billing_start_date": "2026-04-01",
+            "billing_frequency": "DAY",
+            "billing_interval_value": 30,
+        }
+    )
+
+    assert out == {"tariff": None, "billing": {"billingFrequency": "DAY"}}
+    coord.client.site_tariff_billing_update.assert_awaited_once_with(
+        {
+            "anyBillPeriodStartDate": "2026-04-01",
+            "billingFrequency": "DAY",
+            "billingIntervalValue": 30,
+        }
+    )
+    coord.client.notify_tariff_change.assert_awaited_once_with()
+    coord.tariff_runtime.async_refresh.assert_awaited_once_with(force=True)
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_updates_billing_and_rates(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock(
+        return_value={
+            "purchase": {
+                "typeId": "tiered",
+                "seasons": [{"id": "default", "offPeak": "0.03", "tiers": []}],
+            }
+        }
+    )
+    coord.client.site_tariff_update = AsyncMock(return_value={"message": "success"})
+    coord.client.site_tariff_billing_update = AsyncMock(
+        return_value={"billingFrequency": "MONTH"}
+    )
+    coord.client.notify_tariff_change = AsyncMock(return_value={"data": "ok"})
+    coord.tariff_runtime.async_refresh = AsyncMock()
+
+    await TariffRuntime(coord).async_update_tariff(
+        billing={
+            "billing_start_date": "2026-04-01",
+            "billing_frequency": "MONTH",
+            "billing_interval_value": 2,
+        },
+        rate_updates=[
+            {
+                "locator": {
+                    "branch": "purchase",
+                    "kind": "off_peak",
+                    "season_index": 1,
+                    "season_id": "default",
+                },
+                "rate": 0.04,
+            }
+        ],
+    )
+
+    assert (
+        coord.client.site_tariff_update.await_args.args[0]["purchase"]["seasons"][0][
+            "offPeak"
+        ]
+        == "0.04"
+    )
+    coord.client.site_tariff_billing_update.assert_awaited_once()
+    coord.client.notify_tariff_change.assert_awaited_once_with()
+    coord.tariff_runtime.async_refresh.assert_awaited_once_with(force=True)
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_updates_structural_branches(coordinator_factory) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock(
+        return_value={
+            "site_id": 123,
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "off-peak",
+                                        "rate": "0.20",
+                                        "startTime": "",
+                                        "endTime": "",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    )
+    coord.client.site_tariff_update = AsyncMock(return_value={"message": "success"})
+    coord.client.notify_tariff_change = AsyncMock(return_value={"data": "ok"})
+    coord.tariff_runtime.async_refresh = AsyncMock()
+    purchase = {
+        "typeKind": "seasonal-and-weekends",
+        "typeId": "tou",
+        "source": "manual",
+        "seasons": [
+            {
+                "id": "summer",
+                "startMonth": 1,
+                "endMonth": 3,
+                "days": [
+                    {
+                        "id": "week",
+                        "periods": [
+                            {
+                                "id": "peak",
+                                "type": "peak",
+                                "rate": "0.42",
+                                "startTime": 900,
+                                "endTime": 1260,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    buyback = {
+        "typeKind": "single",
+        "typeId": "flat",
+        "source": "manual",
+        "exportPlan": "netFit",
+        "seasons": [
+            {
+                "id": "default",
+                "days": [
+                    {
+                        "id": "week",
+                        "periods": [
+                            {
+                                "id": "off-peak",
+                                "type": "off-peak",
+                                "rate": "0.08",
+                                "startTime": "",
+                                "endTime": "",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    out = await TariffRuntime(coord).async_update_tariff(
+        purchase_tariff=purchase,
+        buyback_tariff=buyback,
+    )
+
+    assert out == {"tariff": {"message": "success"}, "billing": None}
+    coord.client.site_tariff.assert_awaited_once_with()
+    update_payload = coord.client.site_tariff_update.await_args.args[0]
+    assert update_payload["currency"] == "$"
+    assert update_payload["purchase"] == purchase
+    assert update_payload["buyback"] == buyback
+    coord.client.notify_tariff_change.assert_awaited_once_with()
+    coord.tariff_runtime.async_refresh.assert_awaited_once_with(force=True)
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_updates_full_structural_payload_and_rates(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock()
+    coord.client.site_tariff_update = AsyncMock(return_value={"message": "success"})
+    coord.client.notify_tariff_change = AsyncMock(return_value={"data": "ok"})
+    coord.tariff_runtime.async_refresh = AsyncMock()
+    payload = {
+        "site_id": 123,
+        "currency": "$",
+        "purchase": {
+            "typeKind": "single",
+            "typeId": "tiered",
+            "source": "manual",
+            "seasons": [
+                {
+                    "id": "default",
+                    "offPeak": "0.03",
+                    "tiers": [
+                        {
+                            "id": "tier-1",
+                            "rate": "0.20",
+                            "startValue": "0",
+                            "endValue": -1,
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+
+    await TariffRuntime(coord).async_update_tariff(
+        tariff_payload=payload,
+        rate_updates=[
+            {
+                "locator": {
+                    "branch": "purchase",
+                    "kind": "off_peak",
+                    "season_index": 1,
+                    "season_id": "default",
+                },
+                "rate": 0.05,
+            }
+        ],
+    )
+
+    coord.client.site_tariff.assert_not_awaited()
+    update_payload = coord.client.site_tariff_update.await_args.args[0]
+    assert update_payload["purchase"]["seasons"][0]["offPeak"] == "0.05"
+    assert payload["purchase"]["seasons"][0]["offPeak"] == "0.03"
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_rejects_invalid_structural_tariffs(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock()
+    coord.client.site_tariff_update = AsyncMock()
+
+    invalid_inputs = (
+        ({"tariff_payload": []}, "exceptions.tariff_structure_invalid"),
+        ({"tariff_payload": {"currency": "$"}}, "exceptions.tariff_structure_invalid"),
+        ({"purchase_tariff": []}, "exceptions.tariff_structure_invalid"),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "bad",
+                    "typeId": "flat",
+                    "seasons": [],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [{"id": "default", "days": []}],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": ["default"],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [{"id": "default", "days": ["week"]}],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [{"id": "default", "days": [{"id": "week"}]}],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "days": [{"id": "week", "periods": ["peak"]}],
+                        }
+                    ],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "days": [
+                                {
+                                    "id": "week",
+                                    "periods": [
+                                        {
+                                            "id": "peak",
+                                            "rate": "bad",
+                                            "startTime": 900,
+                                            "endTime": 1260,
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            },
+            "exceptions.tariff_rate_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tiered",
+                    "seasons": [{"id": "default"}],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tiered",
+                    "seasons": [{"id": "default", "tiers": ["tier-1"]}],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+        (
+            {
+                "purchase_tariff": {
+                    "typeKind": "single",
+                    "typeId": "tiered",
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "tiers": [{"rate": "0.1", "endValue": "bad"}],
+                        }
+                    ],
+                }
+            },
+            "exceptions.tariff_structure_invalid",
+        ),
+    )
+    for kwargs, translation_key in invalid_inputs:
+        with pytest.raises(ServiceValidationError) as err:
+            await TariffRuntime(coord).async_update_tariff(**kwargs)
+        assert err.value.translation_key == translation_key
+    coord.client.site_tariff.assert_not_awaited()
+    coord.client.site_tariff_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_rejects_structural_time_and_tier_bounds(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock()
+    coord.client.site_tariff_update = AsyncMock()
+
+    invalid_inputs = (
+        {
+            "purchase_tariff": {
+                "typeKind": "seasonal",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "startMonth": 13,
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "peak",
+                                        "rate": "0.2",
+                                        "startTime": 900,
+                                        "endTime": 1260,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        {
+            "purchase_tariff": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "peak",
+                                        "rate": "0.2",
+                                        "startTime": 900,
+                                        "endTime": "",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        {
+            "purchase_tariff": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "peak",
+                                        "rate": "0.2",
+                                        "startTime": 900,
+                                        "endTime": 900,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        {
+            "purchase_tariff": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "id": "peak",
+                                        "rate": "0.2",
+                                        "startTime": 1500,
+                                        "endTime": 1560,
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        {
+            "purchase_tariff": {
+                "typeKind": "single",
+                "typeId": "tiered",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "tiers": [{"rate": "0.1", "startValue": "-1", "endValue": -1}],
+                    }
+                ],
+            }
+        },
+    )
+    for kwargs in invalid_inputs:
+        with pytest.raises(ServiceValidationError) as err:
+            await TariffRuntime(coord).async_update_tariff(**kwargs)
+        assert err.value.translation_key == "exceptions.tariff_structure_invalid"
+    coord.client.site_tariff.assert_not_awaited()
+    coord.client.site_tariff_update.assert_not_awaited()
+
+    coord.client.site_tariff_update = None
+    with pytest.raises(ServiceValidationError) as err:
+        await TariffRuntime(coord).async_update_tariff(
+            tariff_payload={
+                "purchase": {
+                    "typeKind": "single",
+                    "typeId": "flat",
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "days": [
+                                {
+                                    "id": "week",
+                                    "periods": [{"id": "off-peak", "rate": "0.1"}],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            }
+        )
+    assert err.value.translation_key == "exceptions.tariff_rate_api_unavailable"
+
+
+@pytest.mark.asyncio
 async def test_tariff_runtime_updates_tiered_off_peak_and_ignores_notify_failure(
     coordinator_factory,
 ) -> None:
@@ -1100,6 +1752,80 @@ async def test_tariff_runtime_rejects_invalid_input_and_unavailable_api(
             },
             0.1,
         )
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_rejects_invalid_billing_and_duplicates(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff = AsyncMock(
+        return_value={
+            "purchase": {"seasons": [{"id": "default", "offPeak": "0.03", "tiers": []}]}
+        }
+    )
+    coord.client.site_tariff_update = AsyncMock()
+
+    with pytest.raises(ServiceValidationError) as err:
+        await TariffRuntime(coord).async_update_tariff()
+    assert err.value.translation_key == "exceptions.tariff_update_required"
+
+    coord.client.site_tariff_billing_update = None
+    with pytest.raises(ServiceValidationError) as err:
+        await TariffRuntime(coord).async_update_tariff(
+            billing={
+                "billing_start_date": "2026-04-01",
+                "billing_frequency": "DAY",
+                "billing_interval_value": 30,
+            }
+        )
+    assert err.value.translation_key == "exceptions.tariff_billing_api_unavailable"
+
+    with pytest.raises(ServiceValidationError) as err:
+        await TariffRuntime(coord).async_update_tariff(
+            billing={
+                "billing_start_date": "bad",
+                "billing_frequency": "MONTH",
+                "billing_interval_value": 1,
+            }
+        )
+    assert err.value.translation_key == "exceptions.tariff_billing_start_date_invalid"
+
+    with pytest.raises(ServiceValidationError) as err:
+        await TariffRuntime(coord).async_update_tariff(
+            billing={
+                "billing_start_date": "2026-04-01",
+                "billing_frequency": "WEEK",
+                "billing_interval_value": 1,
+            }
+        )
+    assert err.value.translation_key == "exceptions.tariff_billing_frequency_invalid"
+
+    with pytest.raises(ServiceValidationError) as err:
+        await TariffRuntime(coord).async_update_tariff(
+            billing={
+                "billing_start_date": "2026-04-01",
+                "billing_frequency": "MONTH",
+                "billing_interval_value": 25,
+            }
+        )
+    assert err.value.translation_key == "exceptions.tariff_billing_interval_invalid"
+
+    duplicate_update = {
+        "locator": {
+            "branch": "purchase",
+            "kind": "off_peak",
+            "season_index": 1,
+            "season_id": "default",
+        },
+        "rate": 0.04,
+    }
+    with pytest.raises(ServiceValidationError) as err:
+        await TariffRuntime(coord).async_update_tariff(
+            rate_updates=[duplicate_update, duplicate_update]
+        )
+    assert err.value.translation_key == "exceptions.tariff_rate_target_duplicate"
+    coord.client.site_tariff_update.assert_not_awaited()
 
 
 @pytest.mark.asyncio

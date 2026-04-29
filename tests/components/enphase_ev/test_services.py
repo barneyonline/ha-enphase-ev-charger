@@ -121,6 +121,128 @@ def test_trigger_message_service_options_match_allowlist() -> None:
     assert OCPP_TRIGGER_MESSAGES_REQUIRING_CONFIRMATION < OCPP_TRIGGER_MESSAGES
 
 
+def test_update_tariff_schema_validates_billing_and_rates(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registered = _register_service_metadata(hass, monkeypatch)
+    schema = registered[(DOMAIN, "update_tariff")]["schema"]
+
+    assert (DOMAIN, "set_tariff_rate") not in registered
+    assert schema(
+        {
+            "billing_start_date": "2026-04-01",
+            "billing_frequency": "MONTH",
+            "billing_interval_value": 24,
+            "rates": [{"entity_id": "number.import_peak", "rate": 0.25}],
+        }
+    ) == {
+        "billing_start_date": "2026-04-01",
+        "billing_frequency": "MONTH",
+        "billing_interval_value": 24,
+        "rates": [{"entity_id": "number.import_peak", "rate": 0.25}],
+    }
+    assert schema({"entity_id": ["number.import_peak"], "rate": "0.27"}) == {
+        "entity_id": ["number.import_peak"],
+        "rate": 0.27,
+    }
+    assert schema({"rate_entity": "number.import_peak", "rate": "0.28"}) == {
+        "rate_entity": "number.import_peak",
+        "rate": 0.28,
+    }
+    assert schema(
+        {
+            "import_rate_entity": "number.import_peak",
+            "import_rate": "0.29",
+            "export_rate_entity": "number.export_peak",
+            "export_rate": "0.08",
+        }
+    ) == {
+        "import_rate_entity": "number.import_peak",
+        "import_rate": 0.29,
+        "export_rate_entity": "number.export_peak",
+        "export_rate": 0.08,
+    }
+    assert schema(
+        {
+            "site_id": "tariff-site",
+            "purchase_tariff": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [],
+            },
+        }
+    ) == {
+        "site_id": "tariff-site",
+        "purchase_tariff": {
+            "typeKind": "single",
+            "typeId": "flat",
+            "seasons": [],
+        },
+    }
+    assert schema(
+        {
+            "site_id": "tariff-site",
+            "configure_import_tariff": True,
+            "import_tariff_type": "flat",
+            "import_flat_rate": "0.24",
+            "configure_export_tariff": True,
+            "export_tariff_type": "tou",
+            "export_variation": "weekends",
+            "export_plan": "grossFit",
+            "export_periods": [
+                {
+                    "day_group_id": "weekend",
+                    "period_type": "peak",
+                    "start_time": "10:00",
+                    "end_time": "15:00",
+                    "rate": 0.1,
+                }
+            ],
+        }
+    ) == {
+        "site_id": "tariff-site",
+        "configure_import_tariff": True,
+        "import_tariff_type": "flat",
+        "import_flat_rate": 0.24,
+        "configure_export_tariff": True,
+        "export_tariff_type": "tou",
+        "export_variation": "weekends",
+        "export_plan": "grossFit",
+        "export_periods": [
+            {
+                "day_group_id": "weekend",
+                "period_type": "peak",
+                "start_time": "10:00",
+                "end_time": "15:00",
+                "rate": 0.1,
+            }
+        ],
+    }
+
+    for data in (
+        {},
+        {"billing_start_date": "not-a-date"},
+        {"billing_start_date": "2026-04-01"},
+        {"rate_entity": "number.import_peak"},
+        {"import_rate": 0.29},
+        {"import_rate_entity": "number.import_peak"},
+        {"export_rate": 0.08},
+        {"export_rate_entity": "number.export_peak"},
+        {
+            "billing_start_date": "2026-04-01",
+            "billing_frequency": "MONTH",
+            "billing_interval_value": 25,
+        },
+        {
+            "billing_start_date": "2026-04-01",
+            "billing_frequency": "DAY",
+            "billing_interval_value": 101,
+        },
+    ):
+        with pytest.raises(vol.Invalid):
+            schema(data)
+
+
 @pytest.mark.asyncio
 async def test_trigger_message_handler_restricts_requested_message_without_schema(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
@@ -521,12 +643,12 @@ async def test_try_reauth_now_reports_manual_retry_cooldown(
 
 
 @pytest.mark.asyncio
-async def test_set_tariff_rate_targets_tariff_entity(
+async def test_update_tariff_accepts_rate_entities(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handlers = _register_service_handlers(hass, monkeypatch)
     coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
-    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
@@ -543,27 +665,131 @@ async def test_set_tariff_rate_targets_tariff_entity(
         "period_index": 1,
     }
     reg_entry = er.async_get(hass).async_get_or_create(
-        "sensor",
+        "number",
         DOMAIN,
-        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak",
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak_number",
         config_entry=entry,
     )
     hass.states.async_set(reg_entry.entity_id, 0.18, {"tariff_locator": locator})
 
-    await handlers[(DOMAIN, "set_tariff_rate")](
-        SimpleNamespace(data={"entity_id": [reg_entry.entity_id], "rate": 0.25})
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={"rates": [{"entity_id": reg_entry.entity_id, "rate": 0.25}]}
+        )
     )
 
-    coord.tariff_runtime.async_set_tariff_rate.assert_awaited_once_with(locator, 0.25)
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[{"locator": locator, "rate": 0.25}],
+    )
 
 
 @pytest.mark.asyncio
-async def test_set_tariff_rate_targets_current_tariff_sensor(
+async def test_update_tariff_accepts_friendly_rate_fields(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handlers = _register_service_handlers(hass, monkeypatch)
     coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
-    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    import_locator = {
+        "branch": "purchase",
+        "kind": "period",
+        "season_index": 1,
+        "day_index": 1,
+        "period_index": 1,
+    }
+    export_locator = {
+        "branch": "buyback",
+        "kind": "period",
+        "season_index": 1,
+        "day_index": 1,
+        "period_index": 1,
+    }
+    ent_reg = er.async_get(hass)
+    import_entity = ent_reg.async_get_or_create(
+        "number",
+        DOMAIN,
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak_number",
+        config_entry=entry,
+    )
+    export_entity = ent_reg.async_get_or_create(
+        "number",
+        DOMAIN,
+        f"{DOMAIN}_site_tariff-site_tariff_export_rate_default_week_peak_number",
+        config_entry=entry,
+    )
+    hass.states.async_set(
+        import_entity.entity_id, 0.18, {"tariff_locator": import_locator}
+    )
+    hass.states.async_set(
+        export_entity.entity_id, 0.04, {"tariff_locator": export_locator}
+    )
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(data={"entity_id": [import_entity.entity_id], "rate": 0.25})
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[{"locator": import_locator, "rate": 0.25}],
+    )
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(data={"rate_entity": import_entity.entity_id, "rate": 0.26})
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[{"locator": import_locator, "rate": 0.26}],
+    )
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "import_rate_entity": import_entity.entity_id,
+                "import_rate": 0.27,
+                "export_rate_entity": export_entity.entity_id,
+                "export_rate": 0.08,
+            }
+        )
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[
+            {"locator": import_locator, "rate": 0.27},
+            {"locator": export_locator, "rate": 0.08},
+        ],
+    )
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(data={"entity_id": import_entity.entity_id, "rate": 0.28})
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[{"locator": import_locator, "rate": 0.28}],
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_tariff_rate_entity_extractor_fallback(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
@@ -580,27 +806,57 @@ async def test_set_tariff_rate_targets_current_tariff_sensor(
         "period_index": 1,
     }
     reg_entry = er.async_get(hass).async_get_or_create(
-        "sensor",
+        "number",
         DOMAIN,
-        f"{DOMAIN}_site_tariff-site_tariff_current_import_rate",
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_fallback_number",
         config_entry=entry,
     )
     hass.states.async_set(reg_entry.entity_id, 0.18, {"tariff_locator": locator})
-
-    await handlers[(DOMAIN, "set_tariff_rate")](
-        SimpleNamespace(data={"entity_id": [reg_entry.entity_id], "rate": 0.25})
+    monkeypatch.setattr(
+        "homeassistant.helpers.target.async_extract_referenced_entity_ids",
+        None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "homeassistant.helpers.service.async_extract_referenced_entity_ids",
+        lambda _hass, _call: [reg_entry.entity_id],
+        raising=False,
     )
 
-    coord.tariff_runtime.async_set_tariff_rate.assert_awaited_once_with(locator, 0.25)
+    await handlers[(DOMAIN, "update_tariff")](SimpleNamespace(data={"rate": 0.25}))
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[{"locator": locator, "rate": 0.25}],
+    )
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+
+    def raise_extract_error(_hass, _call):
+        raise RuntimeError("extract failed")
+
+    monkeypatch.setattr(
+        "homeassistant.helpers.service.async_extract_referenced_entity_ids",
+        raise_extract_error,
+        raising=False,
+    )
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(data={"entity_id": reg_entry.entity_id, "rate": 0.26})
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[{"locator": locator, "rate": 0.26}],
+    )
 
 
 @pytest.mark.asyncio
-async def test_set_tariff_rate_rejects_invalid_targets(
+async def test_update_tariff_rejects_invalid_rate_entity_targets(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handlers = _register_service_handlers(hass, monkeypatch)
     coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
-    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
@@ -610,82 +866,95 @@ async def test_set_tariff_rate_rejects_invalid_targets(
     entry.add_to_hass(hass)
     entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
     ent_reg = er.async_get(hass)
-
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](
-            SimpleNamespace(data={"rate": 0.25})
-        )
-
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](
-            SimpleNamespace(
-                data={"entity_id": ["sensor.one", "sensor.two"], "rate": 0.25}
-            )
-        )
-
-    hass.states.async_set("sensor.not_tariff", 1)
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](
-            SimpleNamespace(data={"entity_id": ["sensor.not_tariff"], "rate": 0.25})
-        )
-
-    other_entry = ent_reg.async_get_or_create(
-        "sensor",
+    other_platform = ent_reg.async_get_or_create(
+        "number",
         "other_platform",
-        "external_tariff_import_rate",
-        config_entry=entry,
+        "tariff_import_rate_other_platform",
     )
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](
-            SimpleNamespace(data={"entity_id": [other_entry.entity_id], "rate": 0.25})
-        )
-
-    non_tariff_entry = ent_reg.async_get_or_create(
-        "sensor",
+    wrong_unique_id = ent_reg.async_get_or_create(
+        "number",
         DOMAIN,
-        f"{DOMAIN}_site_tariff-site_grid_import",
+        f"{DOMAIN}_site_tariff-site_other_number",
         config_entry=entry,
     )
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](
-            SimpleNamespace(
-                data={"entity_id": [non_tariff_entry.entity_id], "rate": 0.25}
-            )
-        )
-
     missing_locator = ent_reg.async_get_or_create(
-        "sensor",
+        "number",
         DOMAIN,
-        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak",
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_missing_locator_number",
         config_entry=entry,
     )
-    hass.states.async_set(missing_locator.entity_id, 0.18)
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](
-            SimpleNamespace(
-                data={"entity_id": [missing_locator.entity_id], "rate": 0.25}
-            )
-        )
-
-    wrong_site = ent_reg.async_get_or_create(
-        "sensor",
+    fallback_entity = ent_reg.async_get_or_create(
+        "number",
         DOMAIN,
-        f"{DOMAIN}_site_other-site_tariff_import_rate_default_week_peak",
+        f"{DOMAIN}_site_tariff-site_tariff_import_rate_no_config_entry_number",
     )
-    hass.states.async_set(wrong_site.entity_id, 0.18, {"tariff_locator": {}})
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](
-            SimpleNamespace(data={"entity_id": [wrong_site.entity_id], "rate": 0.25})
-        )
+    unknown_site_entity = ent_reg.async_get_or_create(
+        "number",
+        DOMAIN,
+        f"{DOMAIN}_site_unknown-site_tariff_import_rate_no_config_entry_number",
+    )
+    locator = {
+        "branch": "purchase",
+        "kind": "period",
+        "season_index": 1,
+        "day_index": 1,
+        "period_index": 1,
+    }
+    hass.states.async_set(fallback_entity.entity_id, 0.18, {"tariff_locator": locator})
+    hass.states.async_set(
+        unknown_site_entity.entity_id, 0.18, {"tariff_locator": locator}
+    )
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(data={"rate_entity": fallback_entity.entity_id, "rate": 0.25})
+    )
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[{"locator": locator, "rate": 0.25}],
+    )
+
+    for entity_id, translation_key in (
+        ("number.missing", "exceptions.tariff_rate_entity_invalid"),
+        (other_platform.entity_id, "exceptions.tariff_rate_entity_invalid"),
+        (wrong_unique_id.entity_id, "exceptions.tariff_rate_entity_invalid"),
+        (unknown_site_entity.entity_id, "exceptions.tariff_rate_entity_invalid"),
+        (missing_locator.entity_id, "exceptions.tariff_rate_target_invalid"),
+    ):
+        with pytest.raises(ServiceValidationError) as err:
+            await handlers[(DOMAIN, "update_tariff")](
+                SimpleNamespace(data={"rate_entity": entity_id, "rate": 0.2})
+            )
+        assert err.value.translation_key == translation_key
 
 
 @pytest.mark.asyncio
-async def test_set_tariff_rate_falls_back_to_tariff_entity_unique_id(
+async def test_update_tariff_rejects_missing_and_incomplete_updates(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+
+    with pytest.raises(ServiceValidationError) as err:
+        await handlers[(DOMAIN, "update_tariff")](SimpleNamespace(data={}))
+    assert err.value.translation_key == "exceptions.tariff_update_required"
+
+    with pytest.raises(ServiceValidationError) as err:
+        await handlers[(DOMAIN, "update_tariff")](
+            SimpleNamespace(data={"billing_start_date": "2026-04-01"})
+        )
+    assert err.value.translation_key == "exceptions.tariff_billing_incomplete"
+
+    with pytest.raises(ServiceValidationError) as err:
+        await handlers[(DOMAIN, "update_tariff")](SimpleNamespace(data={"rate": 0.2}))
+    assert err.value.translation_key == "exceptions.tariff_rate_entity_required"
+
+
+@pytest.mark.asyncio
+async def test_update_tariff_billing_only_resolves_site_targets(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     handlers = _register_service_handlers(hass, monkeypatch)
     coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
-    coord.tariff_runtime = SimpleNamespace(async_set_tariff_rate=AsyncMock())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
@@ -694,6 +963,425 @@ async def test_set_tariff_rate_falls_back_to_tariff_entity_unique_id(
     )
     entry.add_to_hass(hass)
     entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "site_id": "tariff-site",
+                "billing_start_date": "2026-04-01",
+                "billing_frequency": "MONTH",
+                "billing_interval_value": 1,
+            }
+        )
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing={
+            "billing_start_date": "2026-04-01",
+            "billing_frequency": "MONTH",
+            "billing_interval_value": 1,
+        },
+        rate_updates=[],
+    )
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "config_entry_id": entry.entry_id,
+                "billing_start_date": "2026-04-02",
+                "billing_frequency": "DAY",
+                "billing_interval_value": 30,
+            }
+        )
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once()
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+
+    site_device = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "site:tariff-site")},
+        manufacturer="Enphase",
+        name="Tariff Site",
+    )
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "device_id": [site_device.id],
+                "billing_start_date": "2026-04-03",
+                "billing_frequency": "MONTH",
+                "billing_interval_value": 2,
+            }
+        )
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_tariff_structural_updates_resolve_site_targets(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    purchase = {
+        "typeKind": "single",
+        "typeId": "flat",
+        "source": "manual",
+        "seasons": [
+            {
+                "id": "default",
+                "days": [
+                    {
+                        "id": "week",
+                        "periods": [
+                            {
+                                "id": "off-peak",
+                                "type": "off-peak",
+                                "rate": "0.25",
+                                "startTime": "",
+                                "endTime": "",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+    buyback = {
+        "typeKind": "single",
+        "typeId": "flat",
+        "source": "manual",
+        "exportPlan": "netFit",
+        "seasons": [
+            {
+                "id": "default",
+                "days": [
+                    {
+                        "id": "week",
+                        "periods": [
+                            {
+                                "id": "off-peak",
+                                "type": "off-peak",
+                                "rate": "0.08",
+                                "startTime": "",
+                                "endTime": "",
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "site_id": "tariff-site",
+                "purchase_tariff": purchase,
+                "buyback_tariff": buyback,
+            }
+        )
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[],
+        purchase_tariff=purchase,
+        buyback_tariff=buyback,
+    )
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "config_entry_id": entry.entry_id,
+                "tariff_payload": {"purchase": purchase, "buyback": buyback},
+            }
+        )
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once_with(
+        billing=None,
+        rate_updates=[],
+        tariff_payload={"purchase": purchase, "buyback": buyback},
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_tariff_guided_structural_fields_build_tariffs(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "site_id": "tariff-site",
+                "configure_import_tariff": True,
+                "import_tariff_type": "flat",
+                "import_flat_rate": 0.24,
+                "configure_export_tariff": True,
+                "export_tariff_type": "tou",
+                "export_variation": "weekends",
+                "export_plan": "grossFit",
+                "export_periods": [
+                    {
+                        "season_id": "summer",
+                        "start_month": 1,
+                        "end_month": 3,
+                        "day_group_id": "weekday",
+                        "period_id": "solar-peak",
+                        "period_type": "peak",
+                        "start_time": "10:00",
+                        "end_time": "15:00",
+                        "rate": 0.11,
+                    },
+                    {
+                        "season_id": "summer",
+                        "start_month": 1,
+                        "end_month": 3,
+                        "day_group_id": "weekend",
+                        "id": "off-peak",
+                        "type": "off-peak",
+                        "rate": 0.04,
+                    },
+                ],
+            }
+        )
+    )
+
+    coord.tariff_runtime.async_update_tariff.assert_awaited_once()
+    kwargs = coord.tariff_runtime.async_update_tariff.await_args.kwargs
+    assert kwargs["billing"] is None
+    assert kwargs["rate_updates"] == []
+    assert kwargs["purchase_tariff"] == {
+        "typeKind": "single",
+        "typeId": "flat",
+        "source": "manual",
+        "seasons": [
+            {
+                "id": "default",
+                "startMonth": "1",
+                "endMonth": "12",
+                "days": [
+                    {
+                        "id": "week",
+                        "days": [1, 2, 3, 4, 5, 6, 7],
+                        "periods": [
+                            {
+                                "id": "off-peak",
+                                "type": "off-peak",
+                                "rate": "0.24",
+                                "startTime": "",
+                                "endTime": "",
+                                "rateComponents": [],
+                            }
+                        ],
+                        "updatedValue": "",
+                    }
+                ],
+            }
+        ],
+    }
+    assert kwargs["buyback_tariff"]["typeKind"] == "weekends"
+    assert kwargs["buyback_tariff"]["typeId"] == "tou"
+    assert kwargs["buyback_tariff"]["exportPlan"] == "grossFit"
+    day_groups = kwargs["buyback_tariff"]["seasons"][0]["days"]
+    assert day_groups[0]["days"] == [1, 2, 3, 4, 5]
+    assert day_groups[0]["periods"][0]["startTime"] == 600
+    assert day_groups[0]["periods"][0]["endTime"] == 900
+    assert day_groups[1]["days"] == [6, 7]
+
+    coord.tariff_runtime.async_update_tariff.reset_mock()
+    await handlers[(DOMAIN, "update_tariff")](
+        SimpleNamespace(
+            data={
+                "site_id": "tariff-site",
+                "configure_import_tariff": True,
+                "import_tariff_type": "tiered",
+                "import_variation": "seasonal",
+                "import_off_peak_rate": 0.04,
+                "import_tiers": [
+                    {
+                        "season": "winter",
+                        "start_month": 4,
+                        "end_month": 9,
+                        "tier_id": "tier-1",
+                        "start_value": 0,
+                        "end_value": 10,
+                        "rate": 0.18,
+                    },
+                    {
+                        "season": "winter",
+                        "start_month": 4,
+                        "end_month": 9,
+                        "id": "tier-2",
+                        "startValue": 10,
+                        "endValue": "",
+                        "rate": 0.27,
+                    },
+                ],
+            }
+        )
+    )
+
+    tiered = coord.tariff_runtime.async_update_tariff.await_args.kwargs[
+        "purchase_tariff"
+    ]
+    assert tiered["typeKind"] == "seasonal"
+    assert tiered["typeId"] == "tiered"
+    assert tiered["seasons"][0]["offPeak"] == "0.04"
+    assert tiered["seasons"][0]["tiers"][1]["endValue"] == -1
+
+
+@pytest.mark.asyncio
+async def test_update_tariff_guided_structural_fields_validate_inputs(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="tariff-site", serials=set())
+    coord.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "tariff-site", CONF_SITE_ONLY: True},
+        title="Tariff Site",
+        unique_id="tariff-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    invalid_inputs = (
+        {"configure_import_tariff": True},
+        {"configure_import_tariff": True, "import_tariff_type": "flat"},
+        {"configure_import_tariff": True, "import_tariff_type": "tou"},
+        {"configure_import_tariff": True, "import_tariff_type": "tiered"},
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": ["bad"],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": "bad"}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": -0.2}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": 0.2, "start_month": "bad"}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": 0.2, "start_month": 13}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": 0.2, "start_time": "bad"}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": 0.2, "start_time": "bad:time"}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": 0.2, "start_time": 1500}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": 0.2, "days": ["bad"]}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tou",
+            "import_periods": [{"rate": 0.2, "days": [0]}],
+        },
+        {
+            "configure_import_tariff": True,
+            "import_tariff_type": "tiered",
+            "import_tiers": ["bad"],
+        },
+    )
+    for data in invalid_inputs:
+        with pytest.raises(ServiceValidationError) as err:
+            await handlers[(DOMAIN, "update_tariff")](
+                SimpleNamespace(data={"site_id": "tariff-site", **data})
+            )
+        assert err.value.translation_key in {
+            "exceptions.tariff_structure_invalid",
+            "exceptions.tariff_rate_invalid",
+        }
+    coord.tariff_runtime.async_update_tariff.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_tariff_rejects_duplicate_and_cross_site_rates(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handlers = _register_service_handlers(hass, monkeypatch)
+    first = _fake_service_coordinator(site_id="first-site", serials=set())
+    first.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
+    second = _fake_service_coordinator(site_id="second-site", serials=set())
+    second.tariff_runtime = SimpleNamespace(async_update_tariff=AsyncMock())
+    first_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "first-site", CONF_SITE_ONLY: True},
+        title="First Site",
+        unique_id="first-site",
+    )
+    second_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "second-site", CONF_SITE_ONLY: True},
+        title="Second Site",
+        unique_id="second-site",
+    )
+    first_entry.add_to_hass(hass)
+    second_entry.add_to_hass(hass)
+    first_entry.runtime_data = EnphaseRuntimeData(coordinator=first)
+    second_entry.runtime_data = EnphaseRuntimeData(coordinator=second)
+    ent_reg = er.async_get(hass)
+    first_entity = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_first-site_tariff_import_rate_default_week_peak",
+        config_entry=first_entry,
+    )
+    second_entity = ent_reg.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        f"{DOMAIN}_site_second-site_tariff_import_rate_default_week_peak",
+        config_entry=second_entry,
+    )
     locator = {
         "branch": "purchase",
         "kind": "period",
@@ -701,51 +1389,56 @@ async def test_set_tariff_rate_falls_back_to_tariff_entity_unique_id(
         "day_index": 1,
         "period_index": 1,
     }
-    reg_entry = er.async_get(hass).async_get_or_create(
-        "sensor",
-        DOMAIN,
-        f"{DOMAIN}_site_tariff-site_tariff_import_rate_default_week_peak",
-    )
-    hass.states.async_set(reg_entry.entity_id, 0.18, {"tariff_locator": locator})
+    hass.states.async_set(first_entity.entity_id, 0.18, {"tariff_locator": locator})
+    hass.states.async_set(second_entity.entity_id, 0.19, {"tariff_locator": locator})
 
-    await handlers[(DOMAIN, "set_tariff_rate")](
-        SimpleNamespace(data={"entity_id": reg_entry.entity_id, "rate": 0.25})
-    )
+    with pytest.raises(ServiceValidationError) as err:
+        await handlers[(DOMAIN, "update_tariff")](
+            SimpleNamespace(
+                data={
+                    "rates": [
+                        {"entity_id": first_entity.entity_id, "rate": 0.25},
+                        {"entity_id": first_entity.entity_id, "rate": 0.26},
+                    ]
+                }
+            )
+        )
+    assert err.value.translation_key == "exceptions.tariff_rate_entity_duplicate"
 
-    coord.tariff_runtime.async_set_tariff_rate.assert_awaited_once_with(locator, 0.25)
+    with pytest.raises(ServiceValidationError) as err:
+        await handlers[(DOMAIN, "update_tariff")](
+            SimpleNamespace(
+                data={
+                    "rates": [
+                        {"entity_id": first_entity.entity_id, "rate": 0.25},
+                        {"entity_id": second_entity.entity_id, "rate": 0.26},
+                    ]
+                }
+            )
+        )
+    assert err.value.translation_key == "exceptions.tariff_site_mismatch"
 
+    with pytest.raises(ServiceValidationError) as err:
+        await handlers[(DOMAIN, "update_tariff")](
+            SimpleNamespace(
+                data={
+                    "site_id": "second-site",
+                    "billing_start_date": "2026-04-01",
+                    "billing_frequency": "MONTH",
+                    "billing_interval_value": 1,
+                    "rates": [{"entity_id": first_entity.entity_id, "rate": 0.25}],
+                }
+            )
+        )
+    assert err.value.translation_key == "exceptions.tariff_site_mismatch"
 
-@pytest.mark.asyncio
-async def test_set_tariff_rate_uses_legacy_entity_target_extractor(
-    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from custom_components.enphase_ev import services as services_mod
-
-    monkeypatch.setattr(
-        services_mod.ha_target,
-        "async_extract_referenced_entity_ids",
-        None,
-        raising=False,
-    )
-    monkeypatch.setattr(
-        services_mod.ha_service,
-        "async_extract_referenced_entity_ids",
-        lambda _hass, _call: {"sensor.missing"},
-    )
-    handlers = _register_service_handlers(hass, monkeypatch)
-
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](SimpleNamespace(data={"rate": 1}))
-
-    def _raise(*_args, **_kwargs):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(
-        services_mod.ha_service,
-        "async_extract_referenced_entity_ids",
-        _raise,
-    )
-    handlers = _register_service_handlers(hass, monkeypatch)
-
-    with pytest.raises(ServiceValidationError):
-        await handlers[(DOMAIN, "set_tariff_rate")](SimpleNamespace(data={"rate": 1}))
+    with pytest.raises(ServiceValidationError) as err:
+        await handlers[(DOMAIN, "update_tariff")](
+            SimpleNamespace(
+                data={
+                    "export_rate_entity": first_entity.entity_id,
+                    "export_rate": 0.08,
+                }
+            )
+        )
+    assert err.value.translation_key == "exceptions.tariff_rate_entity_invalid"

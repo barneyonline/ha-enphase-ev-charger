@@ -177,19 +177,310 @@ force_refresh:
             text:
               multiline: false
 
-set_tariff_rate:
-  name: Set Tariff Rate
-  description: Update one existing Enphase import or export tariff rate value.
+update_tariff:
+  name: Update Tariff
+  description: Update Enphase billing-cycle details, guided tariff structures, and one or more existing import or export tariff rate values.
   target:
     entity:
       integration: enphase_ev
   fields:
     rate:
-      required: true
+      required: false
       selector:
         number:
           min: 0
           step: any
+    rate_entity:
+      required: false
+      selector:
+        entity:
+          integration: enphase_ev
+      example: number.iq_gateway_import_rate_peak
+    import_rate:
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+    import_rate_entity:
+      required: false
+      selector:
+        entity:
+          integration: enphase_ev
+      example: number.iq_gateway_import_rate_peak
+    export_rate:
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+    export_rate_entity:
+      required: false
+      selector:
+        entity:
+          integration: enphase_ev
+      example: number.iq_gateway_export_rate_peak
+    configure_import_tariff:
+      required: false
+      default: false
+      selector:
+        boolean:
+    import_tariff_type:
+      required: false
+      selector:
+        select:
+          options:
+            - label: Flat
+              value: flat
+            - label: Time of use
+              value: tou
+            - label: Tiered
+              value: tiered
+    import_variation:
+      required: false
+      default: single
+      selector:
+        select:
+          options:
+            - label: Same all year
+              value: single
+            - label: Seasonal
+              value: seasonal
+            - label: Weekdays and weekends
+              value: weekends
+            - label: Seasonal weekdays and weekends
+              value: seasonal-and-weekends
+    import_flat_rate:
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+    import_periods:
+      required: false
+      selector:
+        object:
+      example:
+        - season_id: default
+          start_month: 1
+          end_month: 12
+          day_group_id: weekday
+          days: [1, 2, 3, 4, 5]
+          period_id: peak
+          period_type: peak
+          start_time: "15:00"
+          end_time: "21:00"
+          rate: 0.42
+        - season_id: default
+          day_group_id: weekend
+          days: [6, 7]
+          period_id: off-peak
+          period_type: off-peak
+          start_time: ""
+          end_time: ""
+          rate: 0.24
+    import_off_peak_rate:
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+    import_tiers:
+      required: false
+      selector:
+        object:
+      example:
+        - season_id: default
+          start_month: 1
+          end_month: 12
+          tier_id: tier-1
+          start_value: 0
+          end_value: 10
+          rate: 0.18
+        - season_id: default
+          tier_id: tier-2
+          start_value: 10
+          end_value: -1
+          rate: 0.27
+    configure_export_tariff:
+      required: false
+      default: false
+      selector:
+        boolean:
+    export_tariff_type:
+      required: false
+      selector:
+        select:
+          options:
+            - label: Flat
+              value: flat
+            - label: Time of use
+              value: tou
+            - label: Tiered
+              value: tiered
+    export_variation:
+      required: false
+      default: single
+      selector:
+        select:
+          options:
+            - label: Same all year
+              value: single
+            - label: Seasonal
+              value: seasonal
+            - label: Weekdays and weekends
+              value: weekends
+            - label: Seasonal weekdays and weekends
+              value: seasonal-and-weekends
+    export_plan:
+      required: false
+      default: netFit
+      selector:
+        select:
+          options:
+            - label: Net feed-in
+              value: netFit
+            - label: Gross feed-in
+              value: grossFit
+            - label: NEM
+              value: nem
+    export_flat_rate:
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+    export_periods:
+      required: false
+      selector:
+        object:
+      example:
+        - season_id: default
+          day_group_id: week
+          days: [1, 2, 3, 4, 5, 6, 7]
+          period_id: solar-peak
+          period_type: peak
+          start_time: "10:00"
+          end_time: "15:00"
+          rate: 0.11
+    export_off_peak_rate:
+      required: false
+      selector:
+        number:
+          min: 0
+          step: any
+    export_tiers:
+      required: false
+      selector:
+        object:
+      example:
+        - season_id: default
+          tier_id: tier-1
+          start_value: 0
+          end_value: -1
+          rate: 0.08
+    tariff_payload:
+      required: false
+      selector:
+        object:
+      example:
+        purchase:
+          typeKind: single
+          typeId: tou
+          source: manual
+          seasons:
+            - id: default
+              days:
+                - id: week
+                  periods:
+                    - id: peak
+                      type: peak
+                      rate: "0.31"
+                      startTime: 900
+                      endTime: 1260
+    purchase_tariff:
+      required: false
+      selector:
+        object:
+      example:
+        typeKind: single
+        typeId: flat
+        source: manual
+        seasons:
+          - id: default
+            days:
+              - id: week
+                periods:
+                  - id: off-peak
+                    type: off-peak
+                    rate: "0.25"
+                    startTime: ""
+                    endTime: ""
+    buyback_tariff:
+      required: false
+      selector:
+        object:
+      example:
+        typeKind: single
+        typeId: flat
+        source: manual
+        exportPlan: netFit
+        seasons:
+          - id: default
+            days:
+              - id: week
+                periods:
+                  - id: off-peak
+                    type: off-peak
+                    rate: "0.08"
+                    startTime: ""
+                    endTime: ""
+    billing_start_date:
+      required: false
+      selector:
+        date:
+      example: "2026-04-01"
+    billing_frequency:
+      required: false
+      selector:
+        select:
+          options:
+            - MONTH
+            - DAY
+    billing_interval_value:
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+    rates:
+      required: false
+      selector:
+        object:
+      example:
+        - entity_id: number.import_rate_peak
+          rate: 0.31
+    advanced:
+      collapsed: true
+      fields:
+        device_id:
+          required: false
+          selector:
+            device:
+              integration: enphase_ev
+              multiple: true
+        site_id:
+          required: false
+          selector:
+            text:
+              multiline: false
+          example: "1234567"
+        config_entry_id:
+          required: false
+          selector:
+            text:
+              multiline: false
 
 add_schedule:
   name: Add Battery Schedule

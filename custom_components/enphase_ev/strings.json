@@ -417,6 +417,36 @@
     },
     "trigger_message_confirmation_required": {
       "message": "Enable advanced confirmation to send {message}."
+    },
+    "tariff_update_required": {
+      "message": "Provide billing details or at least one tariff rate update."
+    },
+    "tariff_billing_incomplete": {
+      "message": "Provide billing start date, frequency, and interval."
+    },
+    "tariff_billing_start_date_invalid": {
+      "message": "Tariff billing start date must be a valid ISO date."
+    },
+    "tariff_billing_frequency_invalid": {
+      "message": "Tariff billing frequency must be MONTH or DAY."
+    },
+    "tariff_billing_interval_invalid": {
+      "message": "Tariff billing interval must be between {minimum} and {maximum}."
+    },
+    "tariff_billing_api_unavailable": {
+      "message": "Tariff billing write API is unavailable."
+    },
+    "tariff_rate_target_duplicate": {
+      "message": "Duplicate tariff rate targets are not allowed."
+    },
+    "tariff_rate_entity_duplicate": {
+      "message": "Duplicate tariff rate entity: {entity_id}"
+    },
+    "tariff_site_mismatch": {
+      "message": "All tariff updates must target the same Enphase site."
+    },
+    "tariff_structure_invalid": {
+      "message": "Tariff structure is invalid."
     }
   },
   "options": {
@@ -2528,13 +2558,133 @@
         }
       }
     },
-    "set_tariff_rate": {
-      "name": "Set Tariff Rate",
-      "description": "Update one existing Enphase import or export tariff rate value.",
+    "update_tariff": {
+      "name": "Update Tariff",
+      "description": "Update Enphase billing-cycle details, guided tariff structures, and one or more existing import or export tariff rate values.",
       "fields": {
         "rate": {
           "name": "Rate",
-          "description": "New non-negative tariff rate value."
+          "description": "New non-negative tariff rate value for the selected tariff rate entity."
+        },
+        "rate_entity": {
+          "name": "Rate Entity",
+          "description": "Optional tariff rate entity to update when not using the action target."
+        },
+        "import_rate": {
+          "name": "Import Rate",
+          "description": "New non-negative import tariff rate value."
+        },
+        "import_rate_entity": {
+          "name": "Import Rate Entity",
+          "description": "Import tariff rate entity to update."
+        },
+        "export_rate": {
+          "name": "Export Rate",
+          "description": "New non-negative export tariff rate value."
+        },
+        "export_rate_entity": {
+          "name": "Export Rate Entity",
+          "description": "Export tariff rate entity to update."
+        },
+        "billing_start_date": {
+          "name": "Billing Start Date",
+          "description": "Bill period start date in ISO format."
+        },
+        "billing_frequency": {
+          "name": "Billing Frequency",
+          "description": "Billing interval unit: MONTH or DAY."
+        },
+        "billing_interval_value": {
+          "name": "Billing Interval",
+          "description": "Billing interval count. Use 1-24 for months or 1-100 for days."
+        },
+        "rates": {
+          "name": "Rates",
+          "description": "List of tariff rate entity IDs and non-negative rate values to update."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier for billing updates."
+        },
+        "config_entry_id": {
+          "name": "Config Entry ID",
+          "description": "Optional config entry identifier for a single Enphase site entry."
+        },
+        "tariff_payload": {
+          "name": "Tariff Payload",
+          "description": "Complete Enphase tariff payload to write. Use this for advanced structural edits."
+        },
+        "purchase_tariff": {
+          "name": "Import Tariff Structure",
+          "description": "Replacement import tariff branch with type, seasons, periods, tiers, and rates."
+        },
+        "buyback_tariff": {
+          "name": "Export Tariff Structure",
+          "description": "Replacement export tariff branch with type, export plan, seasons, periods, tiers, and rates."
+        },
+        "configure_import_tariff": {
+          "name": "Configure Import Tariff",
+          "description": "Enable this to build a replacement import tariff from the guided fields below."
+        },
+        "import_tariff_type": {
+          "name": "Import Tariff Type",
+          "description": "Choose whether import pricing is flat, time of use, or tiered."
+        },
+        "import_variation": {
+          "name": "Import Variation",
+          "description": "Choose whether import pricing changes by season or weekday/weekend."
+        },
+        "import_flat_rate": {
+          "name": "Import Flat Rate",
+          "description": "Single import rate used when the import tariff type is flat and no period rows are provided."
+        },
+        "import_periods": {
+          "name": "Import Period Rows",
+          "description": "Rows for flat or time-of-use import pricing. Use days 1-7 for Monday-Sunday; times can be HH:MM or minutes after midnight."
+        },
+        "import_tiers": {
+          "name": "Import Tier Rows",
+          "description": "Rows for tiered import pricing. Use end_value -1 for the final unbounded tier."
+        },
+        "import_off_peak_rate": {
+          "name": "Import Off-Peak Baseline",
+          "description": "Baseline off-peak import rate for tiered tariffs."
+        },
+        "configure_export_tariff": {
+          "name": "Configure Export Tariff",
+          "description": "Enable this to build a replacement export tariff from the guided fields below."
+        },
+        "export_tariff_type": {
+          "name": "Export Tariff Type",
+          "description": "Choose whether export compensation is flat, time of use, or tiered."
+        },
+        "export_variation": {
+          "name": "Export Variation",
+          "description": "Choose whether export pricing changes by season or weekday/weekend."
+        },
+        "export_plan": {
+          "name": "Export Plan",
+          "description": "Choose the Enphase export plan label to write with the export tariff."
+        },
+        "export_flat_rate": {
+          "name": "Export Flat Rate",
+          "description": "Single export rate used when the export tariff type is flat and no period rows are provided."
+        },
+        "export_periods": {
+          "name": "Export Period Rows",
+          "description": "Rows for flat or time-of-use export pricing. Use days 1-7 for Monday-Sunday; times can be HH:MM or minutes after midnight."
+        },
+        "export_tiers": {
+          "name": "Export Tier Rows",
+          "description": "Rows for tiered export pricing. Use end_value -1 for the final unbounded tier."
+        },
+        "export_off_peak_rate": {
+          "name": "Export Off-Peak Baseline",
+          "description": "Baseline off-peak export rate for tiered tariffs."
+        },
+        "device_id": {
+          "name": "Device",
+          "description": "Optional Enphase device to choose the site for billing or structural tariff updates."
         }
       }
     }

@@ -3788,6 +3788,67 @@ async def test_site_tariff_billing_details_passes_tariff_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_tariff_billing_update_posts_payload_with_today() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"billingFrequency": "MONTH"})
+    payload = {
+        "anyBillPeriodStartDate": "2026-04-01",
+        "billingFrequency": "MONTH",
+        "billingIntervalValue": 1,
+    }
+
+    out = await client.site_tariff_billing_update(payload)
+
+    assert out == {"billingFrequency": "MONTH"}
+    args, kwargs = client._json.await_args
+    assert args[0] == "POST"
+    assert "/service/tariff/tariff-ms/systems/SITE/billing-details" in args[1]
+    assert kwargs["json"] == payload
+    assert kwargs["params"] == {"date": datetime.date.today().isoformat()}
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+
+
+@pytest.mark.asyncio
+async def test_site_tariff_billing_update_accepts_request_date_override() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"billingFrequency": "DAY"})
+
+    await client.site_tariff_billing_update(
+        {
+            "anyBillPeriodStartDate": "2026-04-01",
+            "billingFrequency": "DAY",
+            "billingIntervalValue": 30,
+        },
+        request_date=datetime.date(2026, 4, 29),
+    )
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"] == {"date": "2026-04-29"}
+
+    await client.site_tariff_billing_update(
+        {
+            "anyBillPeriodStartDate": "2026-04-01",
+            "billingFrequency": "DAY",
+            "billingIntervalValue": 30,
+        },
+        request_date=datetime.datetime(2026, 4, 30, 12, 0),
+    )
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"] == {"date": "2026-04-30"}
+
+    await client.site_tariff_billing_update(
+        {
+            "anyBillPeriodStartDate": "2026-04-01",
+            "billingFrequency": "DAY",
+            "billingIntervalValue": 30,
+        },
+        request_date="2026-05-01",
+    )
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"] == {"date": "2026-05-01"}
+
+
+@pytest.mark.asyncio
 async def test_site_tariff_passes_include_site_details() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"purchase": {"typeId": "flat"}})

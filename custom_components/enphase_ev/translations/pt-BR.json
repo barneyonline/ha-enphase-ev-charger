@@ -417,6 +417,36 @@
     },
     "trigger_message_confirmation_required": {
       "message": "Ative a confirmação avançada para enviar {message}."
+    },
+    "tariff_update_required": {
+      "message": "Forneça detalhes de faturamento ou pelo menos uma atualização de tarifa."
+    },
+    "tariff_billing_incomplete": {
+      "message": "Forneça a data de início, a frequência e o intervalo de faturamento."
+    },
+    "tariff_billing_start_date_invalid": {
+      "message": "A data de início do faturamento da tarifa deve ser uma data ISO válida."
+    },
+    "tariff_billing_frequency_invalid": {
+      "message": "A frequência de faturamento da tarifa deve ser MONTH ou DAY."
+    },
+    "tariff_billing_interval_invalid": {
+      "message": "O intervalo de faturamento da tarifa deve estar entre {minimum} e {maximum}."
+    },
+    "tariff_billing_api_unavailable": {
+      "message": "A API de escrita do faturamento da tarifa não está disponível."
+    },
+    "tariff_rate_target_duplicate": {
+      "message": "Destinos de tarifa duplicados não são permitidos."
+    },
+    "tariff_rate_entity_duplicate": {
+      "message": "Entidade de tarifa duplicada: {entity_id}"
+    },
+    "tariff_site_mismatch": {
+      "message": "Todas as atualizações de tarifa devem apontar para o mesmo local Enphase."
+    },
+    "tariff_structure_invalid": {
+      "message": "A estrutura tarifária é inválida."
     }
   },
   "options": {
@@ -2528,13 +2558,133 @@
         }
       }
     },
-    "set_tariff_rate": {
-      "name": "Definir tarifa",
-      "description": "Atualiza um valor existente de tarifa de importação ou exportação da Enphase.",
+    "update_tariff": {
+      "name": "Atualizar tarifa",
+      "description": "Atualiza os detalhes do ciclo de faturamento Enphase e um ou mais valores existentes de tarifa de importação ou exportação.",
       "fields": {
         "rate": {
           "name": "Tarifa",
-          "description": "Novo valor de tarifa não negativo."
+          "description": "Novo valor de tarifa não negativo para a entidade de tarifa selecionada."
+        },
+        "rate_entity": {
+          "name": "Entidade de tarifa",
+          "description": "Entidade de tarifa opcional para atualizar quando o alvo da ação não for usado."
+        },
+        "import_rate": {
+          "name": "Tarifa de importação",
+          "description": "Novo valor não negativo da tarifa de importação."
+        },
+        "import_rate_entity": {
+          "name": "Entidade de tarifa de importação",
+          "description": "Entidade de tarifa de importação a atualizar."
+        },
+        "export_rate": {
+          "name": "Tarifa de exportação",
+          "description": "Novo valor não negativo da tarifa de exportação."
+        },
+        "export_rate_entity": {
+          "name": "Entidade de tarifa de exportação",
+          "description": "Entidade de tarifa de exportação a atualizar."
+        },
+        "billing_start_date": {
+          "name": "Data de início do faturamento",
+          "description": "Data de início do período de faturamento em formato ISO."
+        },
+        "billing_frequency": {
+          "name": "Frequência de faturamento",
+          "description": "Unidade do intervalo de faturamento: MONTH ou DAY."
+        },
+        "billing_interval_value": {
+          "name": "Intervalo de faturamento",
+          "description": "Quantidade de intervalos de faturamento. Use 1-24 para meses ou 1-100 para dias."
+        },
+        "rates": {
+          "name": "Tarifas",
+          "description": "Lista de IDs de entidades de tarifa e valores não negativos a atualizar."
+        },
+        "site_id": {
+          "name": "ID do local",
+          "description": "Identificador opcional do local para atualizações de faturamento."
+        },
+        "config_entry_id": {
+          "name": "ID da entrada de configuração",
+          "description": "Identificador opcional da entrada de configuração para um único local Enphase."
+        },
+        "tariff_payload": {
+          "name": "Payload da tarifa",
+          "description": "Payload completo da tarifa Enphase para gravar. Use para edições estruturais avançadas."
+        },
+        "purchase_tariff": {
+          "name": "Estrutura da tarifa de importação",
+          "description": "Ramo substituto da tarifa de importação com tipo, temporadas, períodos, faixas e valores."
+        },
+        "buyback_tariff": {
+          "name": "Estrutura da tarifa de exportação",
+          "description": "Ramo substituto da tarifa de exportação com tipo, plano de exportação, temporadas, períodos, faixas e valores."
+        },
+        "configure_import_tariff": {
+          "name": "Guidet importtarif",
+          "description": "Aktiver dette felt for at opbygge en erstatning for importtariffen med de guidede felter."
+        },
+        "import_tariff_type": {
+          "name": "Importtariftype",
+          "description": "Vælg flad, tidsafhængig eller trindelt importpris."
+        },
+        "import_variation": {
+          "name": "Importvariation",
+          "description": "Vælg om importprisen varierer efter sæson eller hverdag/weekend."
+        },
+        "import_flat_rate": {
+          "name": "Flad importpris",
+          "description": "En enkelt importpris for flad tarif uden periode-rækker."
+        },
+        "import_periods": {
+          "name": "Importperioder",
+          "description": "Rækker til flade eller tidsafhængige importpriser. Dage 1-7 er mandag-søndag; tider kan være HH:MM eller minutter efter midnat."
+        },
+        "import_tiers": {
+          "name": "Importtrin",
+          "description": "Rækker til trindelte importpriser. Brug end_value -1 for sidste ubegrænsede trin."
+        },
+        "import_off_peak_rate": {
+          "name": "Import off-peak basis",
+          "description": "Basispris uden for spidsbelastning for trindelte importtariffer."
+        },
+        "configure_export_tariff": {
+          "name": "Guidet eksporttarif",
+          "description": "Aktiver dette felt for at opbygge en erstatning for eksporttariffen med de guidede felter."
+        },
+        "export_tariff_type": {
+          "name": "Eksporttariftype",
+          "description": "Vælg flad, tidsafhængig eller trindelt eksportpris."
+        },
+        "export_variation": {
+          "name": "Eksportvariation",
+          "description": "Vælg om eksportprisen varierer efter sæson eller hverdag/weekend."
+        },
+        "export_plan": {
+          "name": "Eksportplan",
+          "description": "Vælg Enphase-eksportplanen der skal skrives med eksporttariffen."
+        },
+        "export_flat_rate": {
+          "name": "Flad eksportpris",
+          "description": "En enkelt eksportpris for flad tarif uden periode-rækker."
+        },
+        "export_periods": {
+          "name": "Eksportperioder",
+          "description": "Rækker til flade eller tidsafhængige eksportpriser. Dage 1-7 er mandag-søndag; tider kan være HH:MM eller minutter efter midnat."
+        },
+        "export_tiers": {
+          "name": "Eksporttrin",
+          "description": "Rækker til trindelte eksportpriser. Brug end_value -1 for sidste ubegrænsede trin."
+        },
+        "export_off_peak_rate": {
+          "name": "Eksport off-peak basis",
+          "description": "Basispris uden for spidsbelastning for trindelte eksporttariffer."
+        },
+        "device_id": {
+          "name": "Enphase-enhed",
+          "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
         }
       }
     }
