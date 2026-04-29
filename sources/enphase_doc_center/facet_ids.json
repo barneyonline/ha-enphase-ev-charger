@@ -1,10 +1,8 @@
 {
   "document": {
-    "947": 947,
     "Data sheets": 159,
     "Design and tech briefs": 162,
     "FAQs": 218,
-    "Geo fencing": 1096,
     "Installation": 160,
     "Installation videos": 411,
     "Other": 164,
@@ -19,6 +17,6 @@
     "White papers": 302,
     "Wiring diagrams": 303
   },
-  "generated_at": "2026-03-01T05:11:59.629336Z",
+  "generated_at": "2026-04-29T06:08:35.731548Z",
   "release_notes_topic_id": 217
 }

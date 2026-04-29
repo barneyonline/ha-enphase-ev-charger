@@ -1,0 +1,1377 @@
+{
+  "crawl_targets": [
+    {
+      "countries": [
+        "US"
+      ],
+      "key": "https://enphase.com/|en",
+      "labels": [
+        "United States"
+      ],
+      "locales": [
+        "en"
+      ],
+      "query_locale": "en",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "countries": [
+        "CA"
+      ],
+      "key": "https://enphase.com/|en-ca",
+      "labels": [
+        "Canada"
+      ],
+      "locales": [
+        "en-ca"
+      ],
+      "query_locale": "en-ca",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "countries": [
+        "AI",
+        "AW",
+        "BQ",
+        "BS",
+        "JM",
+        "KY",
+        "SX",
+        "TC",
+        "VG"
+      ],
+      "key": "https://enphase.com/en-lac/|en-lac",
+      "labels": [
+        "Anguilla",
+        "Aruba",
+        "British Virgin Islands",
+        "Cayman Islands",
+        "Jamaica",
+        "Sint Eustatius",
+        "Sint Maarten",
+        "The Bahamas",
+        "Turks & Caicos"
+      ],
+      "locales": [
+        "en-lac"
+      ],
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/"
+    },
+    {
+      "countries": [
+        "BM"
+      ],
+      "key": "https://enphase.com/|en-bm",
+      "labels": [
+        "Bermuda"
+      ],
+      "locales": [
+        "en-bm"
+      ],
+      "query_locale": "en-bm",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "countries": [
+        "BR"
+      ],
+      "key": "https://enphase.com/pt-br/|pt-br",
+      "labels": [
+        "Brazil"
+      ],
+      "locales": [
+        "pt-br"
+      ],
+      "query_locale": "pt-br",
+      "site_url": "https://enphase.com/pt-br/"
+    },
+    {
+      "countries": [
+        "CL",
+        "CO",
+        "CR",
+        "PA"
+      ],
+      "key": "https://enphase.com/es-lac/|es-lac",
+      "labels": [
+        "Colombia",
+        "Chile",
+        "Costa Rica",
+        "Panama"
+      ],
+      "locales": [
+        "es-lac"
+      ],
+      "query_locale": "es-lac",
+      "site_url": "https://enphase.com/es-lac/"
+    },
+    {
+      "countries": [
+        "DO"
+      ],
+      "key": "https://enphase.com/es-do/|es-do",
+      "labels": [
+        "Dominican Republic"
+      ],
+      "locales": [
+        "es-do"
+      ],
+      "query_locale": "es-do",
+      "site_url": "https://enphase.com/es-do/"
+    },
+    {
+      "countries": [
+        "MX"
+      ],
+      "key": "https://enphase.com/es-mx/|es-mx",
+      "labels": [
+        "Mexico"
+      ],
+      "locales": [
+        "es-mx"
+      ],
+      "query_locale": "es-mx",
+      "site_url": "https://enphase.com/es-mx/"
+    },
+    {
+      "countries": [
+        "PR"
+      ],
+      "key": "https://enphase.com/|es-pr",
+      "labels": [
+        "Puerto Rico"
+      ],
+      "locales": [
+        "es-pr"
+      ],
+      "query_locale": "es-pr",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "countries": [
+        "AL"
+      ],
+      "key": "https://enphase.com/sq-al/|sq-al",
+      "labels": [
+        "Albania"
+      ],
+      "locales": [
+        "sq-al"
+      ],
+      "query_locale": "sq-al",
+      "site_url": "https://enphase.com/sq-al/"
+    },
+    {
+      "countries": [
+        "AT"
+      ],
+      "key": "https://enphase.com/de-at/|de-at",
+      "labels": [
+        "Austria"
+      ],
+      "locales": [
+        "de-at"
+      ],
+      "query_locale": "de-at",
+      "site_url": "https://enphase.com/de-at/"
+    },
+    {
+      "countries": [
+        "BE"
+      ],
+      "key": "https://enphase.com/fr-be/|fr-be",
+      "labels": [
+        "Belgium - Francais"
+      ],
+      "locales": [
+        "fr-be"
+      ],
+      "query_locale": "fr-be",
+      "site_url": "https://enphase.com/fr-be/"
+    },
+    {
+      "countries": [
+        "BE"
+      ],
+      "key": "https://enphase.com/nl-be/|nl-be",
+      "labels": [
+        "Belgium - Nederlands"
+      ],
+      "locales": [
+        "nl-be"
+      ],
+      "query_locale": "nl-be",
+      "site_url": "https://enphase.com/nl-be/"
+    },
+    {
+      "countries": [
+        "BG"
+      ],
+      "key": "https://enphase.com/bg-bg/|bg-bg",
+      "labels": [
+        "Bulgaria"
+      ],
+      "locales": [
+        "bg-bg"
+      ],
+      "query_locale": "bg-bg",
+      "site_url": "https://enphase.com/bg-bg/"
+    },
+    {
+      "countries": [
+        "HR"
+      ],
+      "key": "https://enphase.com/hr-hr/|hr-hr",
+      "labels": [
+        "Croatia"
+      ],
+      "locales": [
+        "hr-hr"
+      ],
+      "query_locale": "hr-hr",
+      "site_url": "https://enphase.com/hr-hr/"
+    },
+    {
+      "countries": [
+        "CY"
+      ],
+      "key": "https://enphase.com/el-cy/|el-cy",
+      "labels": [
+        "Cyprus (EL)"
+      ],
+      "locales": [
+        "el-cy"
+      ],
+      "query_locale": "el-cy",
+      "site_url": "https://enphase.com/el-cy/"
+    },
+    {
+      "countries": [
+        "CY"
+      ],
+      "key": "https://enphase.com/tr-cy/|tr-cy",
+      "labels": [
+        "Cyprus (TR)"
+      ],
+      "locales": [
+        "tr-cy"
+      ],
+      "query_locale": "tr-cy",
+      "site_url": "https://enphase.com/tr-cy/"
+    },
+    {
+      "countries": [
+        "CZ"
+      ],
+      "key": "https://enphase.com/cz-cz/|cz-cz",
+      "labels": [
+        "Czech Republic"
+      ],
+      "locales": [
+        "cz-cz"
+      ],
+      "query_locale": "cz-cz",
+      "site_url": "https://enphase.com/cz-cz/"
+    },
+    {
+      "countries": [
+        "DK"
+      ],
+      "key": "https://enphase.com/da-dk/|da-dk",
+      "labels": [
+        "Denmark"
+      ],
+      "locales": [
+        "da-dk"
+      ],
+      "query_locale": "da-dk",
+      "site_url": "https://enphase.com/da-dk/"
+    },
+    {
+      "countries": [
+        "EE"
+      ],
+      "key": "https://enphase.com/et-ee/|et-ee",
+      "labels": [
+        "Estonia"
+      ],
+      "locales": [
+        "et-ee"
+      ],
+      "query_locale": "et-ee",
+      "site_url": "https://enphase.com/et-ee/"
+    },
+    {
+      "countries": [
+        "FI"
+      ],
+      "key": "https://enphase.com/en-fi/|en-fi",
+      "labels": [
+        "Finland"
+      ],
+      "locales": [
+        "en-fi"
+      ],
+      "query_locale": "en-fi",
+      "site_url": "https://enphase.com/en-fi/"
+    },
+    {
+      "countries": [
+        "FR"
+      ],
+      "key": "https://enphase.com/fr-fr/|fr-fr",
+      "labels": [
+        "France"
+      ],
+      "locales": [
+        "fr-fr"
+      ],
+      "query_locale": "fr-fr",
+      "site_url": "https://enphase.com/fr-fr/"
+    },
+    {
+      "countries": [
+        "DE"
+      ],
+      "key": "https://enphase.com/de-de/|de-de",
+      "labels": [
+        "Germany"
+      ],
+      "locales": [
+        "de-de"
+      ],
+      "query_locale": "de-de",
+      "site_url": "https://enphase.com/de-de/"
+    },
+    {
+      "countries": [
+        "GR"
+      ],
+      "key": "https://enphase.com/el-gr/|el-gr",
+      "labels": [
+        "Greece"
+      ],
+      "locales": [
+        "el-gr"
+      ],
+      "query_locale": "el-gr",
+      "site_url": "https://enphase.com/el-gr/"
+    },
+    {
+      "countries": [
+        "HU"
+      ],
+      "key": "https://enphase.com/hu-hu/|hu-hu",
+      "labels": [
+        "Hungary"
+      ],
+      "locales": [
+        "hu-hu"
+      ],
+      "query_locale": "hu-hu",
+      "site_url": "https://enphase.com/hu-hu/"
+    },
+    {
+      "countries": [
+        "IE"
+      ],
+      "key": "https://enphase.com/en-ie/|en-ie",
+      "labels": [
+        "Ireland"
+      ],
+      "locales": [
+        "en-ie"
+      ],
+      "query_locale": "en-ie",
+      "site_url": "https://enphase.com/en-ie/"
+    },
+    {
+      "countries": [
+        "IT"
+      ],
+      "key": "https://enphase.com/it-it/|it-it",
+      "labels": [
+        "Italy"
+      ],
+      "locales": [
+        "it-it"
+      ],
+      "query_locale": "it-it",
+      "site_url": "https://enphase.com/it-it/"
+    },
+    {
+      "countries": [
+        "LV"
+      ],
+      "key": "https://enphase.com/lv-lv/|lv-lv",
+      "labels": [
+        "Latvia"
+      ],
+      "locales": [
+        "lv-lv"
+      ],
+      "query_locale": "lv-lv",
+      "site_url": "https://enphase.com/lv-lv/"
+    },
+    {
+      "countries": [
+        "LT"
+      ],
+      "key": "https://enphase.com/lt-lt/|lt-lt",
+      "labels": [
+        "Lithuania"
+      ],
+      "locales": [
+        "lt-lt"
+      ],
+      "query_locale": "lt-lt",
+      "site_url": "https://enphase.com/lt-lt/"
+    },
+    {
+      "countries": [
+        "LU"
+      ],
+      "key": "https://enphase.com/fr-lu/|fr-lu",
+      "labels": [
+        "Luxembourg"
+      ],
+      "locales": [
+        "fr-lu"
+      ],
+      "query_locale": "fr-lu",
+      "site_url": "https://enphase.com/fr-lu/"
+    },
+    {
+      "countries": [
+        "MT"
+      ],
+      "key": "https://enphase.com/en-mt/|en-mt",
+      "labels": [
+        "Malta"
+      ],
+      "locales": [
+        "en-mt"
+      ],
+      "query_locale": "en-mt",
+      "site_url": "https://enphase.com/en-mt/"
+    },
+    {
+      "countries": [
+        "NL"
+      ],
+      "key": "https://enphase.com/nl-nl/|nl-nl",
+      "labels": [
+        "Netherlands"
+      ],
+      "locales": [
+        "nl-nl"
+      ],
+      "query_locale": "nl-nl",
+      "site_url": "https://enphase.com/nl-nl/"
+    },
+    {
+      "countries": [
+        "NO"
+      ],
+      "key": "https://enphase.com/nb-no/|nb-no",
+      "labels": [
+        "Norway"
+      ],
+      "locales": [
+        "nb-no"
+      ],
+      "query_locale": "nb-no",
+      "site_url": "https://enphase.com/nb-no/"
+    },
+    {
+      "countries": [
+        "PL"
+      ],
+      "key": "https://enphase.com/pl-pl/|pl-pl",
+      "labels": [
+        "Poland"
+      ],
+      "locales": [
+        "pl-pl"
+      ],
+      "query_locale": "pl-pl",
+      "site_url": "https://enphase.com/pl-pl/"
+    },
+    {
+      "countries": [
+        "PT"
+      ],
+      "key": "https://enphase.com/pt-pt/|pt-pt",
+      "labels": [
+        "Portugal"
+      ],
+      "locales": [
+        "pt-pt"
+      ],
+      "query_locale": "pt-pt",
+      "site_url": "https://enphase.com/pt-pt/"
+    },
+    {
+      "countries": [
+        "RO"
+      ],
+      "key": "https://enphase.com/ro-ro/|ro-ro",
+      "labels": [
+        "Romania"
+      ],
+      "locales": [
+        "ro-ro"
+      ],
+      "query_locale": "ro-ro",
+      "site_url": "https://enphase.com/ro-ro/"
+    },
+    {
+      "countries": [
+        "SK"
+      ],
+      "key": "https://enphase.com/sk-sk/|sk-sk",
+      "labels": [
+        "Slovakia"
+      ],
+      "locales": [
+        "sk-sk"
+      ],
+      "query_locale": "sk-sk",
+      "site_url": "https://enphase.com/sk-sk/"
+    },
+    {
+      "countries": [
+        "SI"
+      ],
+      "key": "https://enphase.com/sl-si/|sl-si",
+      "labels": [
+        "Slovenia"
+      ],
+      "locales": [
+        "sl-si"
+      ],
+      "query_locale": "sl-si",
+      "site_url": "https://enphase.com/sl-si/"
+    },
+    {
+      "countries": [
+        "ES"
+      ],
+      "key": "https://enphase.com/es-es/|es-es",
+      "labels": [
+        "Spain"
+      ],
+      "locales": [
+        "es-es"
+      ],
+      "query_locale": "es-es",
+      "site_url": "https://enphase.com/es-es/"
+    },
+    {
+      "countries": [
+        "SE"
+      ],
+      "key": "https://enphase.com/sv-se/|sv-se",
+      "labels": [
+        "Sweden"
+      ],
+      "locales": [
+        "sv-se"
+      ],
+      "query_locale": "sv-se",
+      "site_url": "https://enphase.com/sv-se/"
+    },
+    {
+      "countries": [
+        "CH"
+      ],
+      "key": "https://enphase.com/de-ch/|de-ch",
+      "labels": [
+        "Switzerland - Deutsch"
+      ],
+      "locales": [
+        "de-ch"
+      ],
+      "query_locale": "de-ch",
+      "site_url": "https://enphase.com/de-ch/"
+    },
+    {
+      "countries": [
+        "CH"
+      ],
+      "key": "https://enphase.com/fr-ch/|fr-ch",
+      "labels": [
+        "Switzerland - Francais"
+      ],
+      "locales": [
+        "fr-ch"
+      ],
+      "query_locale": "fr-ch",
+      "site_url": "https://enphase.com/fr-ch/"
+    },
+    {
+      "countries": [
+        "CH"
+      ],
+      "key": "https://enphase.com/it-ch/|it-ch",
+      "labels": [
+        "Switzerland - Italiano"
+      ],
+      "locales": [
+        "it-ch"
+      ],
+      "query_locale": "it-ch",
+      "site_url": "https://enphase.com/it-ch/"
+    },
+    {
+      "countries": [
+        "TR"
+      ],
+      "key": "https://enphase.com/tr-tr/|tr-tr",
+      "labels": [
+        "Turkiye"
+      ],
+      "locales": [
+        "tr-tr"
+      ],
+      "query_locale": "tr-tr",
+      "site_url": "https://enphase.com/tr-tr/"
+    },
+    {
+      "countries": [
+        "GB"
+      ],
+      "key": "https://enphase.com/en-gb/|en-gb",
+      "labels": [
+        "United Kingdom"
+      ],
+      "locales": [
+        "en-gb"
+      ],
+      "query_locale": "en-gb",
+      "site_url": "https://enphase.com/en-gb/"
+    },
+    {
+      "countries": [
+        "AU",
+        "FJ",
+        "NZ"
+      ],
+      "key": "https://enphase.com/en-au/|en-au",
+      "labels": [
+        "Australia",
+        "Fiji",
+        "New Zealand"
+      ],
+      "locales": [
+        "en-au"
+      ],
+      "query_locale": "en-au",
+      "site_url": "https://enphase.com/en-au/"
+    },
+    {
+      "countries": [
+        "IN"
+      ],
+      "key": "https://enphase.com/en-in/|en-in",
+      "labels": [
+        "India"
+      ],
+      "locales": [
+        "en-in"
+      ],
+      "query_locale": "en-in",
+      "site_url": "https://enphase.com/en-in/"
+    },
+    {
+      "countries": [
+        "JP"
+      ],
+      "key": "https://enphase.com/ja-jp/|ja-jp",
+      "labels": [
+        "Japan"
+      ],
+      "locales": [
+        "ja-jp"
+      ],
+      "query_locale": "ja-jp",
+      "site_url": "https://enphase.com/ja-jp/"
+    },
+    {
+      "countries": [
+        "MY"
+      ],
+      "key": "https://enphase.com/en-my/|en-my",
+      "labels": [
+        "Malaysia"
+      ],
+      "locales": [
+        "en-my"
+      ],
+      "query_locale": "en-my",
+      "site_url": "https://enphase.com/en-my/"
+    },
+    {
+      "countries": [
+        "NC"
+      ],
+      "key": "https://enphase.com/fr-nc/|fr-nc",
+      "labels": [
+        "New Caledonia"
+      ],
+      "locales": [
+        "fr-nc"
+      ],
+      "query_locale": "fr-nc",
+      "site_url": "https://enphase.com/fr-nc/"
+    },
+    {
+      "countries": [
+        "PH"
+      ],
+      "key": "https://enphase.com/en-ph/|en-ph",
+      "labels": [
+        "Philippines"
+      ],
+      "locales": [
+        "en-ph"
+      ],
+      "query_locale": "en-ph",
+      "site_url": "https://enphase.com/en-ph/"
+    },
+    {
+      "countries": [
+        "TH"
+      ],
+      "key": "https://enphase.com/th-th/|th-th",
+      "labels": [
+        "Thailand"
+      ],
+      "locales": [
+        "th-th"
+      ],
+      "query_locale": "th-th",
+      "site_url": "https://enphase.com/th-th/"
+    },
+    {
+      "countries": [
+        "VN"
+      ],
+      "key": "https://enphase.com/vi-vn/|vi-vn",
+      "labels": [
+        "Vietnam"
+      ],
+      "locales": [
+        "vi-vn"
+      ],
+      "query_locale": "vi-vn",
+      "site_url": "https://enphase.com/vi-vn/"
+    },
+    {
+      "countries": [
+        "ZA"
+      ],
+      "key": "https://enphase.com/en-za/|en-za",
+      "labels": [
+        "South Africa"
+      ],
+      "locales": [
+        "en-za"
+      ],
+      "query_locale": "en-za",
+      "site_url": "https://enphase.com/en-za/"
+    },
+    {
+      "countries": [
+        "MU",
+        "NA"
+      ],
+      "key": "https://enphase.com/en-sar/|en-sar",
+      "labels": [
+        "Mauritius",
+        "Namibia"
+      ],
+      "locales": [
+        "en-sar"
+      ],
+      "query_locale": "en-sar",
+      "site_url": "https://enphase.com/en-sar/"
+    },
+    {
+      "countries": [],
+      "key": "https://enphase.com/fr-fot/|fr-fot",
+      "labels": [
+        "French Territories"
+      ],
+      "locales": [
+        "fr-fot"
+      ],
+      "query_locale": "fr-fot",
+      "site_url": "https://enphase.com/fr-fot/"
+    }
+  ],
+  "generated_at": "2026-04-29T06:08:35.731548Z",
+  "routes": [
+    {
+      "country_code": "US",
+      "label": "United States",
+      "locale": "en",
+      "query_locale": "en",
+      "site_url": "https://enphase.com/",
+      "target_key": "https://enphase.com/|en"
+    },
+    {
+      "country_code": "CA",
+      "label": "Canada",
+      "locale": "en-ca",
+      "query_locale": "en-ca",
+      "site_url": "https://enphase.com/",
+      "target_key": "https://enphase.com/|en-ca"
+    },
+    {
+      "country_code": "AI",
+      "label": "Anguilla",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "AW",
+      "label": "Aruba",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "BM",
+      "label": "Bermuda",
+      "locale": "en-bm",
+      "query_locale": "en-bm",
+      "site_url": "https://enphase.com/",
+      "target_key": "https://enphase.com/|en-bm"
+    },
+    {
+      "country_code": "BR",
+      "label": "Brazil",
+      "locale": "pt-br",
+      "query_locale": "pt-br",
+      "site_url": "https://enphase.com/pt-br/",
+      "target_key": "https://enphase.com/pt-br/|pt-br"
+    },
+    {
+      "country_code": "VG",
+      "label": "British Virgin Islands",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "KY",
+      "label": "Cayman Islands",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "CO",
+      "label": "Colombia",
+      "locale": "es-lac",
+      "query_locale": "es-lac",
+      "site_url": "https://enphase.com/es-lac/",
+      "target_key": "https://enphase.com/es-lac/|es-lac"
+    },
+    {
+      "country_code": "CL",
+      "label": "Chile",
+      "locale": "es-lac",
+      "query_locale": "es-lac",
+      "site_url": "https://enphase.com/es-lac/",
+      "target_key": "https://enphase.com/es-lac/|es-lac"
+    },
+    {
+      "country_code": "CR",
+      "label": "Costa Rica",
+      "locale": "es-lac",
+      "query_locale": "es-lac",
+      "site_url": "https://enphase.com/es-lac/",
+      "target_key": "https://enphase.com/es-lac/|es-lac"
+    },
+    {
+      "country_code": "DO",
+      "label": "Dominican Republic",
+      "locale": "es-do",
+      "query_locale": "es-do",
+      "site_url": "https://enphase.com/es-do/",
+      "target_key": "https://enphase.com/es-do/|es-do"
+    },
+    {
+      "country_code": "JM",
+      "label": "Jamaica",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "MX",
+      "label": "Mexico",
+      "locale": "es-mx",
+      "query_locale": "es-mx",
+      "site_url": "https://enphase.com/es-mx/",
+      "target_key": "https://enphase.com/es-mx/|es-mx"
+    },
+    {
+      "country_code": "PA",
+      "label": "Panama",
+      "locale": "es-lac",
+      "query_locale": "es-lac",
+      "site_url": "https://enphase.com/es-lac/",
+      "target_key": "https://enphase.com/es-lac/|es-lac"
+    },
+    {
+      "country_code": "PR",
+      "label": "Puerto Rico",
+      "locale": "es-pr",
+      "query_locale": "es-pr",
+      "site_url": "https://enphase.com/",
+      "target_key": "https://enphase.com/|es-pr"
+    },
+    {
+      "country_code": "BQ",
+      "label": "Sint Eustatius",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "SX",
+      "label": "Sint Maarten",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "BS",
+      "label": "The Bahamas",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "TC",
+      "label": "Turks & Caicos",
+      "locale": "en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/",
+      "target_key": "https://enphase.com/en-lac/|en-lac"
+    },
+    {
+      "country_code": "AL",
+      "label": "Albania",
+      "locale": "sq-al",
+      "query_locale": "sq-al",
+      "site_url": "https://enphase.com/sq-al/",
+      "target_key": "https://enphase.com/sq-al/|sq-al"
+    },
+    {
+      "country_code": "AT",
+      "label": "Austria",
+      "locale": "de-at",
+      "query_locale": "de-at",
+      "site_url": "https://enphase.com/de-at/",
+      "target_key": "https://enphase.com/de-at/|de-at"
+    },
+    {
+      "country_code": "BE",
+      "label": "Belgium - Francais",
+      "locale": "fr-be",
+      "query_locale": "fr-be",
+      "site_url": "https://enphase.com/fr-be/",
+      "target_key": "https://enphase.com/fr-be/|fr-be"
+    },
+    {
+      "country_code": "BE",
+      "label": "Belgium - Nederlands",
+      "locale": "nl-be",
+      "query_locale": "nl-be",
+      "site_url": "https://enphase.com/nl-be/",
+      "target_key": "https://enphase.com/nl-be/|nl-be"
+    },
+    {
+      "country_code": "BG",
+      "label": "Bulgaria",
+      "locale": "bg-bg",
+      "query_locale": "bg-bg",
+      "site_url": "https://enphase.com/bg-bg/",
+      "target_key": "https://enphase.com/bg-bg/|bg-bg"
+    },
+    {
+      "country_code": "HR",
+      "label": "Croatia",
+      "locale": "hr-hr",
+      "query_locale": "hr-hr",
+      "site_url": "https://enphase.com/hr-hr/",
+      "target_key": "https://enphase.com/hr-hr/|hr-hr"
+    },
+    {
+      "country_code": "CY",
+      "label": "Cyprus (EL)",
+      "locale": "el-cy",
+      "query_locale": "el-cy",
+      "site_url": "https://enphase.com/el-cy/",
+      "target_key": "https://enphase.com/el-cy/|el-cy"
+    },
+    {
+      "country_code": "CY",
+      "label": "Cyprus (TR)",
+      "locale": "tr-cy",
+      "query_locale": "tr-cy",
+      "site_url": "https://enphase.com/tr-cy/",
+      "target_key": "https://enphase.com/tr-cy/|tr-cy"
+    },
+    {
+      "country_code": "CZ",
+      "label": "Czech Republic",
+      "locale": "cz-cz",
+      "query_locale": "cz-cz",
+      "site_url": "https://enphase.com/cz-cz/",
+      "target_key": "https://enphase.com/cz-cz/|cz-cz"
+    },
+    {
+      "country_code": "DK",
+      "label": "Denmark",
+      "locale": "da-dk",
+      "query_locale": "da-dk",
+      "site_url": "https://enphase.com/da-dk/",
+      "target_key": "https://enphase.com/da-dk/|da-dk"
+    },
+    {
+      "country_code": "EE",
+      "label": "Estonia",
+      "locale": "et-ee",
+      "query_locale": "et-ee",
+      "site_url": "https://enphase.com/et-ee/",
+      "target_key": "https://enphase.com/et-ee/|et-ee"
+    },
+    {
+      "country_code": "FI",
+      "label": "Finland",
+      "locale": "en-fi",
+      "query_locale": "en-fi",
+      "site_url": "https://enphase.com/en-fi/",
+      "target_key": "https://enphase.com/en-fi/|en-fi"
+    },
+    {
+      "country_code": "FR",
+      "label": "France",
+      "locale": "fr-fr",
+      "query_locale": "fr-fr",
+      "site_url": "https://enphase.com/fr-fr/",
+      "target_key": "https://enphase.com/fr-fr/|fr-fr"
+    },
+    {
+      "country_code": "DE",
+      "label": "Germany",
+      "locale": "de-de",
+      "query_locale": "de-de",
+      "site_url": "https://enphase.com/de-de/",
+      "target_key": "https://enphase.com/de-de/|de-de"
+    },
+    {
+      "country_code": "GR",
+      "label": "Greece",
+      "locale": "el-gr",
+      "query_locale": "el-gr",
+      "site_url": "https://enphase.com/el-gr/",
+      "target_key": "https://enphase.com/el-gr/|el-gr"
+    },
+    {
+      "country_code": "HU",
+      "label": "Hungary",
+      "locale": "hu-hu",
+      "query_locale": "hu-hu",
+      "site_url": "https://enphase.com/hu-hu/",
+      "target_key": "https://enphase.com/hu-hu/|hu-hu"
+    },
+    {
+      "country_code": "IE",
+      "label": "Ireland",
+      "locale": "en-ie",
+      "query_locale": "en-ie",
+      "site_url": "https://enphase.com/en-ie/",
+      "target_key": "https://enphase.com/en-ie/|en-ie"
+    },
+    {
+      "country_code": "IT",
+      "label": "Italy",
+      "locale": "it-it",
+      "query_locale": "it-it",
+      "site_url": "https://enphase.com/it-it/",
+      "target_key": "https://enphase.com/it-it/|it-it"
+    },
+    {
+      "country_code": "LV",
+      "label": "Latvia",
+      "locale": "lv-lv",
+      "query_locale": "lv-lv",
+      "site_url": "https://enphase.com/lv-lv/",
+      "target_key": "https://enphase.com/lv-lv/|lv-lv"
+    },
+    {
+      "country_code": "LT",
+      "label": "Lithuania",
+      "locale": "lt-lt",
+      "query_locale": "lt-lt",
+      "site_url": "https://enphase.com/lt-lt/",
+      "target_key": "https://enphase.com/lt-lt/|lt-lt"
+    },
+    {
+      "country_code": "LU",
+      "label": "Luxembourg",
+      "locale": "fr-lu",
+      "query_locale": "fr-lu",
+      "site_url": "https://enphase.com/fr-lu/",
+      "target_key": "https://enphase.com/fr-lu/|fr-lu"
+    },
+    {
+      "country_code": "MT",
+      "label": "Malta",
+      "locale": "en-mt",
+      "query_locale": "en-mt",
+      "site_url": "https://enphase.com/en-mt/",
+      "target_key": "https://enphase.com/en-mt/|en-mt"
+    },
+    {
+      "country_code": "NL",
+      "label": "Netherlands",
+      "locale": "nl-nl",
+      "query_locale": "nl-nl",
+      "site_url": "https://enphase.com/nl-nl/",
+      "target_key": "https://enphase.com/nl-nl/|nl-nl"
+    },
+    {
+      "country_code": "NO",
+      "label": "Norway",
+      "locale": "nb-no",
+      "query_locale": "nb-no",
+      "site_url": "https://enphase.com/nb-no/",
+      "target_key": "https://enphase.com/nb-no/|nb-no"
+    },
+    {
+      "country_code": "PL",
+      "label": "Poland",
+      "locale": "pl-pl",
+      "query_locale": "pl-pl",
+      "site_url": "https://enphase.com/pl-pl/",
+      "target_key": "https://enphase.com/pl-pl/|pl-pl"
+    },
+    {
+      "country_code": "PT",
+      "label": "Portugal",
+      "locale": "pt-pt",
+      "query_locale": "pt-pt",
+      "site_url": "https://enphase.com/pt-pt/",
+      "target_key": "https://enphase.com/pt-pt/|pt-pt"
+    },
+    {
+      "country_code": "RO",
+      "label": "Romania",
+      "locale": "ro-ro",
+      "query_locale": "ro-ro",
+      "site_url": "https://enphase.com/ro-ro/",
+      "target_key": "https://enphase.com/ro-ro/|ro-ro"
+    },
+    {
+      "country_code": "SK",
+      "label": "Slovakia",
+      "locale": "sk-sk",
+      "query_locale": "sk-sk",
+      "site_url": "https://enphase.com/sk-sk/",
+      "target_key": "https://enphase.com/sk-sk/|sk-sk"
+    },
+    {
+      "country_code": "SI",
+      "label": "Slovenia",
+      "locale": "sl-si",
+      "query_locale": "sl-si",
+      "site_url": "https://enphase.com/sl-si/",
+      "target_key": "https://enphase.com/sl-si/|sl-si"
+    },
+    {
+      "country_code": "ES",
+      "label": "Spain",
+      "locale": "es-es",
+      "query_locale": "es-es",
+      "site_url": "https://enphase.com/es-es/",
+      "target_key": "https://enphase.com/es-es/|es-es"
+    },
+    {
+      "country_code": "SE",
+      "label": "Sweden",
+      "locale": "sv-se",
+      "query_locale": "sv-se",
+      "site_url": "https://enphase.com/sv-se/",
+      "target_key": "https://enphase.com/sv-se/|sv-se"
+    },
+    {
+      "country_code": "CH",
+      "label": "Switzerland - Deutsch",
+      "locale": "de-ch",
+      "query_locale": "de-ch",
+      "site_url": "https://enphase.com/de-ch/",
+      "target_key": "https://enphase.com/de-ch/|de-ch"
+    },
+    {
+      "country_code": "CH",
+      "label": "Switzerland - Francais",
+      "locale": "fr-ch",
+      "query_locale": "fr-ch",
+      "site_url": "https://enphase.com/fr-ch/",
+      "target_key": "https://enphase.com/fr-ch/|fr-ch"
+    },
+    {
+      "country_code": "CH",
+      "label": "Switzerland - Italiano",
+      "locale": "it-ch",
+      "query_locale": "it-ch",
+      "site_url": "https://enphase.com/it-ch/",
+      "target_key": "https://enphase.com/it-ch/|it-ch"
+    },
+    {
+      "country_code": "TR",
+      "label": "Turkiye",
+      "locale": "tr-tr",
+      "query_locale": "tr-tr",
+      "site_url": "https://enphase.com/tr-tr/",
+      "target_key": "https://enphase.com/tr-tr/|tr-tr"
+    },
+    {
+      "country_code": "GB",
+      "label": "United Kingdom",
+      "locale": "en-gb",
+      "query_locale": "en-gb",
+      "site_url": "https://enphase.com/en-gb/",
+      "target_key": "https://enphase.com/en-gb/|en-gb"
+    },
+    {
+      "country_code": "AU",
+      "label": "Australia",
+      "locale": "en-au",
+      "query_locale": "en-au",
+      "site_url": "https://enphase.com/en-au/",
+      "target_key": "https://enphase.com/en-au/|en-au"
+    },
+    {
+      "country_code": "FJ",
+      "label": "Fiji",
+      "locale": "en-au",
+      "query_locale": "en-au",
+      "site_url": "https://enphase.com/en-au/",
+      "target_key": "https://enphase.com/en-au/|en-au"
+    },
+    {
+      "country_code": "IN",
+      "label": "India",
+      "locale": "en-in",
+      "query_locale": "en-in",
+      "site_url": "https://enphase.com/en-in/",
+      "target_key": "https://enphase.com/en-in/|en-in"
+    },
+    {
+      "country_code": "JP",
+      "label": "Japan",
+      "locale": "ja-jp",
+      "query_locale": "ja-jp",
+      "site_url": "https://enphase.com/ja-jp/",
+      "target_key": "https://enphase.com/ja-jp/|ja-jp"
+    },
+    {
+      "country_code": "MY",
+      "label": "Malaysia",
+      "locale": "en-my",
+      "query_locale": "en-my",
+      "site_url": "https://enphase.com/en-my/",
+      "target_key": "https://enphase.com/en-my/|en-my"
+    },
+    {
+      "country_code": "NC",
+      "label": "New Caledonia",
+      "locale": "fr-nc",
+      "query_locale": "fr-nc",
+      "site_url": "https://enphase.com/fr-nc/",
+      "target_key": "https://enphase.com/fr-nc/|fr-nc"
+    },
+    {
+      "country_code": "NZ",
+      "label": "New Zealand",
+      "locale": "en-au",
+      "query_locale": "en-au",
+      "site_url": "https://enphase.com/en-au/",
+      "target_key": "https://enphase.com/en-au/|en-au"
+    },
+    {
+      "country_code": "PH",
+      "label": "Philippines",
+      "locale": "en-ph",
+      "query_locale": "en-ph",
+      "site_url": "https://enphase.com/en-ph/",
+      "target_key": "https://enphase.com/en-ph/|en-ph"
+    },
+    {
+      "country_code": "TH",
+      "label": "Thailand",
+      "locale": "th-th",
+      "query_locale": "th-th",
+      "site_url": "https://enphase.com/th-th/",
+      "target_key": "https://enphase.com/th-th/|th-th"
+    },
+    {
+      "country_code": "VN",
+      "label": "Vietnam",
+      "locale": "vi-vn",
+      "query_locale": "vi-vn",
+      "site_url": "https://enphase.com/vi-vn/",
+      "target_key": "https://enphase.com/vi-vn/|vi-vn"
+    },
+    {
+      "country_code": "ZA",
+      "label": "South Africa",
+      "locale": "en-za",
+      "query_locale": "en-za",
+      "site_url": "https://enphase.com/en-za/",
+      "target_key": "https://enphase.com/en-za/|en-za"
+    },
+    {
+      "country_code": "MU",
+      "label": "Mauritius",
+      "locale": "en-sar",
+      "query_locale": "en-sar",
+      "site_url": "https://enphase.com/en-sar/",
+      "target_key": "https://enphase.com/en-sar/|en-sar"
+    },
+    {
+      "country_code": "NA",
+      "label": "Namibia",
+      "locale": "en-sar",
+      "query_locale": "en-sar",
+      "site_url": "https://enphase.com/en-sar/",
+      "target_key": "https://enphase.com/en-sar/|en-sar"
+    },
+    {
+      "country_code": null,
+      "label": "French Territories",
+      "locale": "fr-fot",
+      "query_locale": "fr-fot",
+      "site_url": "https://enphase.com/fr-fot/",
+      "target_key": "https://enphase.com/fr-fot/|fr-fot"
+    }
+  ]
+}

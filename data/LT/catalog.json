@@ -4,189 +4,886 @@
     "envoy": {
       "document_topic_id": 217,
       "latest": {
-        "countries_text": "United States, Puerto Rico, Canada, Mexico, Bermuda, Brazil, and the Philippines # Feature classification Feature Description 1 Backward compatibility Support for IQ7 + IQ8 Series (mixed) systems Supports backward compatibility of IQ8 Series Microinverters on existing IQ7 Series s",
+        "countries_text": "USA, Mexico, Canada Microinverters Supported : M-Series, IQ6, IQ7 Supported System Configurations : IQ6/7 Microinverters, IQ Gateway, IQ System Controller 1/2 and IQ Battery 3/3T/10/10T M215/M250 Microinverters, Envoy S Meter",
         "document_topic_id": 217,
-        "media_id": "22469",
-        "release_date": "2025-11-20",
-        "summary": "IQ Gateway software version 8.2.4401 supports backward compatibility of IQ8 Series Microinverters on existing IQ7 Series Microinverter sites. It also improves the performance of the Enphase Energy System. Countries: United States, Puerto Rico, Canada, Mexico, Bermuda, Brazil, and the Philippines # Feature classification Feature Description 1 Backward compatibility Support for IQ7 + IQ8 Series (mixed) systems Supports backward compatibility of IQ8 Series Microinverters on existing IQ7 Series s...",
-        "title": "IQ Gateway software release notes (8.2.4401)",
+        "media_id": "4946",
+        "product_media_name_id": 5002,
+        "product_type": "141",
+        "release_date": "2022-04-28",
+        "summary": "IQ Gateway software version 7.3.75 is the next major release version of IQ Gateway embedded software with better system stability, improved commissioning time and enhanced battery management. Platforms Supported : IQ Envoy, Envoy S Metered for North America Geographies : USA, Mexico, Canada Microinverters Supported : M-Series, IQ6, IQ7 Supported System Configurations : IQ6/7 Microinverters, IQ Gateway, IQ System Controller 1/2 and IQ Battery 3/3T/10/10T M215/M250 Microinverters, Envoy S Meter...",
+        "title": "IQ Gateway software release notes (7.3.75)",
         "urls_by_locale": {
-          "bg-bg": "https://enphase.com/bg-bg/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "cz-cz": "https://enphase.com/cz-cz/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "da-dk": "https://enphase.com/da-dk/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "de-at": "https://enphase.com/de-at/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "de-ch": "https://enphase.com/de-ch/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "de-de": "https://enphase.com/de-de/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "el-cy": "https://enphase.com/el-cy/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "el-gr": "https://enphase.com/el-gr/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en": "https://enphase.com/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-au": "https://enphase.com/en-au/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-bm": "https://enphase.com/en-bm/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-ca": "https://enphase.com/en-ca/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-de": "https://enphase.com/en-de/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-eu": "https://enphase.com/en-eu/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-fi": "https://enphase.com/en-fi/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-gb": "https://enphase.com/en-gb/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-ie": "https://enphase.com/en-ie/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-in": "https://enphase.com/en-in/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-lac": "https://enphase.com/en-lac/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-mt": "https://enphase.com/en-mt/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-my": "https://enphase.com/en-my/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-ph": "https://enphase.com/en-ph/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-sar": "https://enphase.com/en-sar/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-tc": "https://enphase.com/en-tc/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "en-za": "https://enphase.com/en-za/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-co": "https://enphase.com/es-co/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-cr": "https://enphase.com/es-cr/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-do": "https://enphase.com/es-do/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-es": "https://enphase.com/es-es/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-lac": "https://enphase.com/es-lac/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-mx": "https://enphase.com/es-mx/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-pa": "https://enphase.com/es-pa/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "es-pr": "https://enphase.com/es-pr/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "et-ee": "https://enphase.com/et-ee/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fi-fi": "https://enphase.com/fi-fi/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-be": "https://enphase.com/fr-be/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-ch": "https://enphase.com/fr-ch/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-fot": "https://enphase.com/fr-fot/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-fr": "https://enphase.com/fr-fr/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-lu": "https://enphase.com/fr-lu/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-mc": "https://enphase.com/fr-mc/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-nc": "https://enphase.com/fr-nc/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "fr-pf": "https://enphase.com/fr-pf/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "hr-hr": "https://enphase.com/hr-hr/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "hu-hu": "https://enphase.com/hu-hu/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "it-ch": "https://enphase.com/it-ch/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "it-it": "https://enphase.com/it-it/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "ja-jp": "https://enphase.com/ja-jp/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "lt-lt": "https://enphase.com/lt-lt/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "lv-lv": "https://enphase.com/lv-lv/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "nb-no": "https://enphase.com/nb-no/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "nl-aw": "https://enphase.com/nl-aw/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "nl-be": "https://enphase.com/nl-be/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "nl-nl": "https://enphase.com/nl-nl/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "pl-pl": "https://enphase.com/pl-pl/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "pt-br": "https://enphase.com/pt-br/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "pt-pt": "https://enphase.com/pt-pt/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "ro-ro": "https://enphase.com/ro-ro/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "sk-sk": "https://enphase.com/sk-sk/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "sl-si": "https://enphase.com/sl-si/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "sq-al": "https://enphase.com/sq-al/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "sr-rs": "https://enphase.com/sr-rs/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "sv-se": "https://enphase.com/sv-se/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "th-th": "https://enphase.com/th-th/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "tr-cy": "https://enphase.com/tr-cy/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "tr-tr": "https://enphase.com/tr-tr/installers/resources/documentation/apps?media_id=22469&langcode=und",
-          "vi-vn": "https://enphase.com/vi-vn/installers/resources/documentation/apps?media_id=22469&langcode=und"
+          "en": "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en",
+          "lt-lt": "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en"
         },
-        "version": "8.2.4401"
+        "version": "7.3.75"
       },
       "product_media_name_id": 5002
-    },
-    "microinverter": {
-      "document_topic_id": 217,
-      "latest": {
-        "countries_text": "USA, Canada, and Mexico",
-        "document_topic_id": 217,
-        "media_id": "16605",
-        "release_date": "2023-11-23",
-        "summary": "Firmware release: Version 2.48.01 Supported microinverters: All IQ8 Series Microinverters (IQ8, IQ8+, IQ8M, IQ8A, IQ8H-240, and IQ8H-208) Geographies: USA, Canada, and Mexico Release notes: # Update Description 1 Upgraded DC input specification, making IQ8 microinverters more suitable for modules with higher current Maximum continuous DC current increased to 12A (previously 10.6A) Wider operating voltage range 16V \u2013 58V (previously 25V- 58V) Improved power tracking with wider MPPT voltage ran...",
-        "title": "IQ8 Series Microinverters firmware version release notes (2.48.01)",
-        "urls_by_locale": {
-          "bg-bg": "https://enphase.com/bg-bg/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "cz-cz": "https://enphase.com/cz-cz/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "da-dk": "https://enphase.com/da-dk/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "de-at": "https://enphase.com/de-at/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "de-ch": "https://enphase.com/de-ch/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "de-de": "https://enphase.com/de-de/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "el-cy": "https://enphase.com/el-cy/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "el-gr": "https://enphase.com/el-gr/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en": "https://enphase.com/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-au": "https://enphase.com/en-au/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-bm": "https://enphase.com/en-bm/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-ca": "https://enphase.com/en-ca/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-de": "https://enphase.com/en-de/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-eu": "https://enphase.com/en-eu/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-fi": "https://enphase.com/en-fi/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-gb": "https://enphase.com/en-gb/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-ie": "https://enphase.com/en-ie/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-in": "https://enphase.com/en-in/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-lac": "https://enphase.com/en-lac/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-mt": "https://enphase.com/en-mt/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-my": "https://enphase.com/en-my/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-ph": "https://enphase.com/en-ph/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-sar": "https://enphase.com/en-sar/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-tc": "https://enphase.com/en-tc/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "en-za": "https://enphase.com/en-za/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-co": "https://enphase.com/es-co/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-cr": "https://enphase.com/es-cr/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-do": "https://enphase.com/es-do/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-es": "https://enphase.com/es-es/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-lac": "https://enphase.com/es-lac/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-mx": "https://enphase.com/es-mx/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-pa": "https://enphase.com/es-pa/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "es-pr": "https://enphase.com/es-pr/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "et-ee": "https://enphase.com/et-ee/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fi-fi": "https://enphase.com/fi-fi/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-be": "https://enphase.com/fr-be/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-ch": "https://enphase.com/fr-ch/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-fot": "https://enphase.com/fr-fot/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-fr": "https://enphase.com/fr-fr/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-lu": "https://enphase.com/fr-lu/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-mc": "https://enphase.com/fr-mc/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-nc": "https://enphase.com/fr-nc/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "fr-pf": "https://enphase.com/fr-pf/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "hr-hr": "https://enphase.com/hr-hr/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "hu-hu": "https://enphase.com/hu-hu/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "it-ch": "https://enphase.com/it-ch/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "it-it": "https://enphase.com/it-it/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "ja-jp": "https://enphase.com/ja-jp/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "lt-lt": "https://enphase.com/lt-lt/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "lv-lv": "https://enphase.com/lv-lv/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "nb-no": "https://enphase.com/nb-no/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "nl-aw": "https://enphase.com/nl-aw/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "nl-be": "https://enphase.com/nl-be/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "nl-nl": "https://enphase.com/nl-nl/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "pl-pl": "https://enphase.com/pl-pl/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "pt-br": "https://enphase.com/pt-br/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "pt-pt": "https://enphase.com/pt-pt/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "ro-ro": "https://enphase.com/ro-ro/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "sk-sk": "https://enphase.com/sk-sk/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "sl-si": "https://enphase.com/sl-si/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "sq-al": "https://enphase.com/sq-al/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "sr-rs": "https://enphase.com/sr-rs/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "sv-se": "https://enphase.com/sv-se/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "th-th": "https://enphase.com/th-th/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "tr-cy": "https://enphase.com/tr-cy/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "tr-tr": "https://enphase.com/tr-tr/installers/resources/documentation/apps?media_id=16605&langcode=und",
-          "vi-vn": "https://enphase.com/vi-vn/installers/resources/documentation/apps?media_id=16605&langcode=und"
-        },
-        "version": "2.48.01"
-      },
-      "product_media_name_id": 7738
     }
   },
-  "generated_at": "2026-03-01T05:11:59.629336Z",
+  "generated_at": "2026-04-29T06:08:35.731548Z",
   "schema_version": 1,
   "source": {
-    "apps_url": "https://enphase.com/installers/resources/documentation/apps",
+    "apps_url": "https://enphase.com/installers/resources/documentation/communication",
     "crawl": {
       "envoy": {
-        "count": 3,
-        "pages": [
-          "https://enphase.com/installers/resources/documentation/apps?product_type=216&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en&page=0",
-          "https://enphase.com/installers/resources/documentation/apps?product_type=216&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en&page=1"
+        "bootstrap_error_targets": [],
+        "count": 24,
+        "crawl_error_targets": [],
+        "empty_release_targets": [
+          "https://enphase.com/bg-bg/|bg-bg",
+          "https://enphase.com/cz-cz/|cz-cz",
+          "https://enphase.com/de-at/|de-at",
+          "https://enphase.com/de-ch/|de-ch",
+          "https://enphase.com/el-cy/|el-cy",
+          "https://enphase.com/el-gr/|el-gr",
+          "https://enphase.com/en-fi/|en-fi",
+          "https://enphase.com/en-gb/|en-gb",
+          "https://enphase.com/en-in/|en-in",
+          "https://enphase.com/en-lac/|en-lac",
+          "https://enphase.com/en-mt/|en-mt",
+          "https://enphase.com/en-my/|en-my",
+          "https://enphase.com/en-ph/|en-ph",
+          "https://enphase.com/en-sar/|en-sar",
+          "https://enphase.com/es-do/|es-do",
+          "https://enphase.com/es-lac/|es-lac",
+          "https://enphase.com/es-mx/|es-mx",
+          "https://enphase.com/et-ee/|et-ee",
+          "https://enphase.com/fr-ch/|fr-ch",
+          "https://enphase.com/fr-fot/|fr-fot",
+          "https://enphase.com/fr-fr/|fr-fr",
+          "https://enphase.com/fr-nc/|fr-nc",
+          "https://enphase.com/hr-hr/|hr-hr",
+          "https://enphase.com/hu-hu/|hu-hu",
+          "https://enphase.com/ja-jp/|ja-jp",
+          "https://enphase.com/lt-lt/|lt-lt",
+          "https://enphase.com/lv-lv/|lv-lv",
+          "https://enphase.com/nb-no/|nb-no",
+          "https://enphase.com/pt-br/|pt-br",
+          "https://enphase.com/pt-pt/|pt-pt",
+          "https://enphase.com/ro-ro/|ro-ro",
+          "https://enphase.com/sk-sk/|sk-sk",
+          "https://enphase.com/sl-si/|sl-si",
+          "https://enphase.com/sq-al/|sq-al",
+          "https://enphase.com/th-th/|th-th",
+          "https://enphase.com/tr-cy/|tr-cy",
+          "https://enphase.com/tr-tr/|tr-tr",
+          "https://enphase.com/|en-bm",
+          "https://enphase.com/|en-ca",
+          "https://enphase.com/|es-pr"
+        ],
+        "missing_product_media_id_targets": [
+          "https://enphase.com/bg-bg/|bg-bg",
+          "https://enphase.com/cz-cz/|cz-cz",
+          "https://enphase.com/de-ch/|de-ch",
+          "https://enphase.com/el-cy/|el-cy",
+          "https://enphase.com/el-gr/|el-gr",
+          "https://enphase.com/en-lac/|en-lac",
+          "https://enphase.com/en-mt/|en-mt",
+          "https://enphase.com/en-sar/|en-sar",
+          "https://enphase.com/es-do/|es-do",
+          "https://enphase.com/es-lac/|es-lac",
+          "https://enphase.com/et-ee/|et-ee",
+          "https://enphase.com/fr-fot/|fr-fot",
+          "https://enphase.com/hr-hr/|hr-hr",
+          "https://enphase.com/hu-hu/|hu-hu",
+          "https://enphase.com/lt-lt/|lt-lt",
+          "https://enphase.com/lv-lv/|lv-lv",
+          "https://enphase.com/nb-no/|nb-no",
+          "https://enphase.com/pt-pt/|pt-pt",
+          "https://enphase.com/ro-ro/|ro-ro",
+          "https://enphase.com/sk-sk/|sk-sk",
+          "https://enphase.com/sl-si/|sl-si",
+          "https://enphase.com/sq-al/|sq-al",
+          "https://enphase.com/th-th/|th-th",
+          "https://enphase.com/tr-cy/|tr-cy"
+        ],
+        "targets": {
+          "https://enphase.com/bg-bg/|bg-bg": {
+            "apps_url": "https://enphase.com/bg-bg/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/bg-bg/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=bg-bg&field_alternative_language=bg-bg&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "bg-bg",
+            "site_url": "https://enphase.com/bg-bg/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/cz-cz/|cz-cz": {
+            "apps_url": "https://enphase.com/cz-cz/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/cz-cz/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=cz-cz&field_alternative_language=cz-cz&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "cz-cz",
+            "site_url": "https://enphase.com/cz-cz/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/da-dk/|da-dk": {
+            "apps_url": "https://enphase.com/da-dk/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/da-dk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=da-dk&field_alternative_language=da-dk&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "da-dk",
+            "site_url": "https://enphase.com/da-dk/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/de-at/|de-at": {
+            "apps_url": "https://enphase.com/de-at/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/de-at/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=de-at&field_alternative_language=de-at&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "de-at",
+            "site_url": "https://enphase.com/de-at/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/de-ch/|de-ch": {
+            "apps_url": "https://enphase.com/de-ch/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=de-ch&field_alternative_language=de-ch&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "de-ch",
+            "site_url": "https://enphase.com/de-ch/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/de-de/|de-de": {
+            "apps_url": "https://enphase.com/de-de/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/de-de/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=de-de&field_alternative_language=de-de&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "de-de",
+            "site_url": "https://enphase.com/de-de/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/el-cy/|el-cy": {
+            "apps_url": "https://enphase.com/el-cy/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/el-cy/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=el-cy&field_alternative_language=el-cy&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "el-cy",
+            "site_url": "https://enphase.com/el-cy/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/el-gr/|el-gr": {
+            "apps_url": "https://enphase.com/el-gr/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/el-gr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=el-gr&field_alternative_language=el-gr&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "el-gr",
+            "site_url": "https://enphase.com/el-gr/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/en-au/|en-au": {
+            "apps_url": "https://enphase.com/en-au/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-au/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-au&field_alternative_language=en-au&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-au",
+            "site_url": "https://enphase.com/en-au/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/en-fi/|en-fi": {
+            "apps_url": "https://enphase.com/en-fi/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-fi/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-fi&field_alternative_language=en-fi&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-fi",
+            "site_url": "https://enphase.com/en-fi/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/en-gb/|en-gb": {
+            "apps_url": "https://enphase.com/en-gb/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-gb/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-gb&field_alternative_language=en-gb&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-gb",
+            "site_url": "https://enphase.com/en-gb/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/en-ie/|en-ie": {
+            "apps_url": "https://enphase.com/en-ie/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-ie/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-ie&field_alternative_language=en-ie&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-ie",
+            "site_url": "https://enphase.com/en-ie/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/en-in/|en-in": {
+            "apps_url": "https://enphase.com/en-in/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-in/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-in&field_alternative_language=en-in&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-in",
+            "site_url": "https://enphase.com/en-in/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/en-lac/|en-lac": {
+            "apps_url": "https://enphase.com/en-lac/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-lac/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-lac&field_alternative_language=en-lac&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-lac",
+            "site_url": "https://enphase.com/en-lac/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/en-mt/|en-mt": {
+            "apps_url": "https://enphase.com/en-mt/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-mt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-mt&field_alternative_language=en-mt&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-mt",
+            "site_url": "https://enphase.com/en-mt/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/en-my/|en-my": {
+            "apps_url": "https://enphase.com/en-my/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-my/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-my&field_alternative_language=en-my&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-my",
+            "site_url": "https://enphase.com/en-my/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/en-ph/|en-ph": {
+            "apps_url": "https://enphase.com/en-ph/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-ph/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-ph&field_alternative_language=en-ph&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-ph",
+            "site_url": "https://enphase.com/en-ph/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/en-sar/|en-sar": {
+            "apps_url": "https://enphase.com/en-sar/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-sar/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-sar&field_alternative_language=en-sar&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-sar",
+            "site_url": "https://enphase.com/en-sar/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/en-za/|en-za": {
+            "apps_url": "https://enphase.com/en-za/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/en-za/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-za&field_alternative_language=en-za&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-za",
+            "site_url": "https://enphase.com/en-za/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/es-do/|es-do": {
+            "apps_url": "https://enphase.com/es-do/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/es-do/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=es-do&field_alternative_language=es-do&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "es-do",
+            "site_url": "https://enphase.com/es-do/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/es-es/|es-es": {
+            "apps_url": "https://enphase.com/es-es/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/es-es/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=es-es&field_alternative_language=es-es&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "es-es",
+            "site_url": "https://enphase.com/es-es/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/es-lac/|es-lac": {
+            "apps_url": "https://enphase.com/es-lac/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/es-lac/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=es-lac&field_alternative_language=es-lac&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "es-lac",
+            "site_url": "https://enphase.com/es-lac/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/es-mx/|es-mx": {
+            "apps_url": "https://enphase.com/es-mx/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/es-mx/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=es-mx&field_alternative_language=es-mx&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "es-mx",
+            "site_url": "https://enphase.com/es-mx/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/et-ee/|et-ee": {
+            "apps_url": "https://enphase.com/et-ee/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/et-ee/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=et-ee&field_alternative_language=et-ee&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "et-ee",
+            "site_url": "https://enphase.com/et-ee/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/fr-be/|fr-be": {
+            "apps_url": "https://enphase.com/fr-be/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/fr-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=fr-be&field_alternative_language=fr-be&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "fr-be",
+            "site_url": "https://enphase.com/fr-be/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/fr-ch/|fr-ch": {
+            "apps_url": "https://enphase.com/fr-ch/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/fr-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=fr-ch&field_alternative_language=fr-ch&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "fr-ch",
+            "site_url": "https://enphase.com/fr-ch/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/fr-fot/|fr-fot": {
+            "apps_url": "https://enphase.com/fr-fot/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/fr-fot/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=fr-fot&field_alternative_language=fr-fot&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "fr-fot",
+            "site_url": "https://enphase.com/fr-fot/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/fr-fr/|fr-fr": {
+            "apps_url": "https://enphase.com/fr-fr/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/fr-fr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=fr-fr&field_alternative_language=fr-fr&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "fr-fr",
+            "site_url": "https://enphase.com/fr-fr/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/fr-lu/|fr-lu": {
+            "apps_url": "https://enphase.com/fr-lu/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/fr-lu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=fr-lu&field_alternative_language=fr-lu&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "fr-lu",
+            "site_url": "https://enphase.com/fr-lu/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/fr-nc/|fr-nc": {
+            "apps_url": "https://enphase.com/fr-nc/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/fr-nc/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=fr-nc&field_alternative_language=fr-nc&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "fr-nc",
+            "site_url": "https://enphase.com/fr-nc/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/hr-hr/|hr-hr": {
+            "apps_url": "https://enphase.com/hr-hr/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/hr-hr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=hr-hr&field_alternative_language=hr-hr&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "hr-hr",
+            "site_url": "https://enphase.com/hr-hr/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/hu-hu/|hu-hu": {
+            "apps_url": "https://enphase.com/hu-hu/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/hu-hu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=hu-hu&field_alternative_language=hu-hu&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "hu-hu",
+            "site_url": "https://enphase.com/hu-hu/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/it-ch/|it-ch": {
+            "apps_url": "https://enphase.com/it-ch/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/it-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=it-ch&field_alternative_language=it-ch&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "it-ch",
+            "site_url": "https://enphase.com/it-ch/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/it-it/|it-it": {
+            "apps_url": "https://enphase.com/it-it/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/it-it/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=it-it&field_alternative_language=it-it&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "it-it",
+            "site_url": "https://enphase.com/it-it/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/ja-jp/|ja-jp": {
+            "apps_url": "https://enphase.com/ja-jp/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/ja-jp/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=ja-jp&field_alternative_language=ja-jp&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "ja-jp",
+            "site_url": "https://enphase.com/ja-jp/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/lt-lt/|lt-lt": {
+            "apps_url": "https://enphase.com/lt-lt/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/lt-lt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=lt-lt&field_alternative_language=lt-lt&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "lt-lt",
+            "site_url": "https://enphase.com/lt-lt/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/lv-lv/|lv-lv": {
+            "apps_url": "https://enphase.com/lv-lv/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/lv-lv/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=lv-lv&field_alternative_language=lv-lv&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "lv-lv",
+            "site_url": "https://enphase.com/lv-lv/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/nb-no/|nb-no": {
+            "apps_url": "https://enphase.com/nb-no/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/nb-no/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=nb-no&field_alternative_language=nb-no&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "nb-no",
+            "site_url": "https://enphase.com/nb-no/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/nl-be/|nl-be": {
+            "apps_url": "https://enphase.com/nl-be/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/nl-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=nl-be&field_alternative_language=nl-be&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "nl-be",
+            "site_url": "https://enphase.com/nl-be/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/nl-nl/|nl-nl": {
+            "apps_url": "https://enphase.com/nl-nl/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/nl-nl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=nl-nl&field_alternative_language=nl-nl&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "nl-nl",
+            "site_url": "https://enphase.com/nl-nl/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/pl-pl/|pl-pl": {
+            "apps_url": "https://enphase.com/pl-pl/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/pl-pl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=pl-pl&field_alternative_language=pl-pl&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "pl-pl",
+            "site_url": "https://enphase.com/pl-pl/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/pt-br/|pt-br": {
+            "apps_url": "https://enphase.com/pt-br/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/pt-br/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=pt-br&field_alternative_language=pt-br&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "pt-br",
+            "site_url": "https://enphase.com/pt-br/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/pt-pt/|pt-pt": {
+            "apps_url": "https://enphase.com/pt-pt/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/pt-pt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=pt-pt&field_alternative_language=pt-pt&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "pt-pt",
+            "site_url": "https://enphase.com/pt-pt/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/ro-ro/|ro-ro": {
+            "apps_url": "https://enphase.com/ro-ro/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/ro-ro/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=ro-ro&field_alternative_language=ro-ro&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "ro-ro",
+            "site_url": "https://enphase.com/ro-ro/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/sk-sk/|sk-sk": {
+            "apps_url": "https://enphase.com/sk-sk/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/sk-sk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=sk-sk&field_alternative_language=sk-sk&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "sk-sk",
+            "site_url": "https://enphase.com/sk-sk/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/sl-si/|sl-si": {
+            "apps_url": "https://enphase.com/sl-si/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/sl-si/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=sl-si&field_alternative_language=sl-si&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "sl-si",
+            "site_url": "https://enphase.com/sl-si/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/sq-al/|sq-al": {
+            "apps_url": "https://enphase.com/sq-al/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/sq-al/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=sq-al&field_alternative_language=sq-al&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "sq-al",
+            "site_url": "https://enphase.com/sq-al/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/sv-se/|sv-se": {
+            "apps_url": "https://enphase.com/sv-se/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 1,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/sv-se/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=sv-se&field_alternative_language=sv-se&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "sv-se",
+            "site_url": "https://enphase.com/sv-se/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/th-th/|th-th": {
+            "apps_url": "https://enphase.com/th-th/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/th-th/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=th-th&field_alternative_language=th-th&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "th-th",
+            "site_url": "https://enphase.com/th-th/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/tr-cy/|tr-cy": {
+            "apps_url": "https://enphase.com/tr-cy/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/tr-cy/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=tr-cy&field_alternative_language=tr-cy&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "tr-cy",
+            "site_url": "https://enphase.com/tr-cy/",
+            "used_global_product_media_name_id": true
+          },
+          "https://enphase.com/tr-tr/|tr-tr": {
+            "apps_url": "https://enphase.com/tr-tr/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/tr-tr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=tr-tr&field_alternative_language=tr-tr&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "tr-tr",
+            "site_url": "https://enphase.com/tr-tr/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/vi-vn/|vi-vn": {
+            "apps_url": "https://enphase.com/vi-vn/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 8,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/vi-vn/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=vi-vn&field_alternative_language=vi-vn&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "vi-vn",
+            "site_url": "https://enphase.com/vi-vn/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/|en": {
+            "apps_url": "https://enphase.com/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 2,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en&page=0",
+              "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en&page=1"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en",
+            "site_url": "https://enphase.com/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/|en-bm": {
+            "apps_url": "https://enphase.com/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-bm&field_alternative_language=en-bm&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-bm",
+            "site_url": "https://enphase.com/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/|en-ca": {
+            "apps_url": "https://enphase.com/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en-ca&field_alternative_language=en-ca&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "en-ca",
+            "site_url": "https://enphase.com/",
+            "used_global_product_media_name_id": false
+          },
+          "https://enphase.com/|es-pr": {
+            "apps_url": "https://enphase.com/installers/resources/documentation/communication",
+            "bootstrap_error": null,
+            "count": 0,
+            "crawl_error": null,
+            "pages": [
+              "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=es-pr&field_alternative_language=es-pr&page=0"
+            ],
+            "product_media_name_id": 5002,
+            "query_locale": "es-pr",
+            "site_url": "https://enphase.com/",
+            "used_global_product_media_name_id": false
+          }
+        },
+        "used_global_product_media_id_targets": [
+          "https://enphase.com/bg-bg/|bg-bg",
+          "https://enphase.com/cz-cz/|cz-cz",
+          "https://enphase.com/de-ch/|de-ch",
+          "https://enphase.com/el-cy/|el-cy",
+          "https://enphase.com/el-gr/|el-gr",
+          "https://enphase.com/en-lac/|en-lac",
+          "https://enphase.com/en-mt/|en-mt",
+          "https://enphase.com/en-sar/|en-sar",
+          "https://enphase.com/es-do/|es-do",
+          "https://enphase.com/es-lac/|es-lac",
+          "https://enphase.com/et-ee/|et-ee",
+          "https://enphase.com/fr-fot/|fr-fot",
+          "https://enphase.com/hr-hr/|hr-hr",
+          "https://enphase.com/hu-hu/|hu-hu",
+          "https://enphase.com/lt-lt/|lt-lt",
+          "https://enphase.com/lv-lv/|lv-lv",
+          "https://enphase.com/nb-no/|nb-no",
+          "https://enphase.com/pt-pt/|pt-pt",
+          "https://enphase.com/ro-ro/|ro-ro",
+          "https://enphase.com/sk-sk/|sk-sk",
+          "https://enphase.com/sl-si/|sl-si",
+          "https://enphase.com/sq-al/|sq-al",
+          "https://enphase.com/th-th/|th-th",
+          "https://enphase.com/tr-cy/|tr-cy"
         ]
       },
-      "microinverter": {
-        "count": 1,
-        "pages": [
-          "https://enphase.com/installers/resources/documentation/apps?product_type=216&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A7738&search_api_language=en&field_alternative_language=en&page=0"
-        ]
+      "iqevse": {
+        "bootstrap_error_targets": [],
+        "count": 0,
+        "crawl_error_targets": [],
+        "empty_release_targets": [],
+        "missing_product_media_id_targets": [
+          "https://enphase.com/|en"
+        ],
+        "skip_reason": "Could not discover product id for 'IQ EV Charger software'",
+        "skipped": true,
+        "targets": {},
+        "used_global_product_media_id_targets": [],
+        "using_previous_catalog_device": false
+      }
+    },
+    "devices": {
+      "envoy": {
+        "docs_path": "/installers/resources/documentation/communication",
+        "docs_url": "https://enphase.com/installers/resources/documentation/communication",
+        "document_topic_id": 217,
+        "product_media_name_id": 5002,
+        "product_type": 141
       }
     },
     "entrypoint": "https://enphase.com/installers/resources/documentation",
-    "product_type": 216,
+    "product_type": 141,
+    "routing": "authoritative_region_site_routes",
+    "target_count": 56,
     "type": "enphase_documentation_center"
   }
 }

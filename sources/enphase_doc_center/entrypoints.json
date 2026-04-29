@@ -1,6 +1,297 @@
 {
-  "apps": "https://enphase.com/installers/resources/documentation/apps",
-  "generated_at": "2026-03-01T05:11:59.629336Z",
-  "product_type": 216,
-  "root": "https://enphase.com/installers/resources/documentation"
+  "apps": "https://enphase.com/installers/resources/documentation/communication",
+  "devices": {
+    "envoy": {
+      "docs_path": "/installers/resources/documentation/communication",
+      "docs_url": "https://enphase.com/installers/resources/documentation/communication",
+      "document_topic_id": 217,
+      "product_media_name_id": 5002,
+      "product_type": 141
+    }
+  },
+  "generated_at": "2026-04-29T06:08:35.731548Z",
+  "product_type": 141,
+  "root": "https://enphase.com/installers/resources/documentation",
+  "targets": [
+    {
+      "key": "https://enphase.com/|en",
+      "query_locale": "en",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "key": "https://enphase.com/|en-ca",
+      "query_locale": "en-ca",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "key": "https://enphase.com/en-lac/|en-lac",
+      "query_locale": "en-lac",
+      "site_url": "https://enphase.com/en-lac/"
+    },
+    {
+      "key": "https://enphase.com/|en-bm",
+      "query_locale": "en-bm",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "key": "https://enphase.com/pt-br/|pt-br",
+      "query_locale": "pt-br",
+      "site_url": "https://enphase.com/pt-br/"
+    },
+    {
+      "key": "https://enphase.com/es-lac/|es-lac",
+      "query_locale": "es-lac",
+      "site_url": "https://enphase.com/es-lac/"
+    },
+    {
+      "key": "https://enphase.com/es-do/|es-do",
+      "query_locale": "es-do",
+      "site_url": "https://enphase.com/es-do/"
+    },
+    {
+      "key": "https://enphase.com/es-mx/|es-mx",
+      "query_locale": "es-mx",
+      "site_url": "https://enphase.com/es-mx/"
+    },
+    {
+      "key": "https://enphase.com/|es-pr",
+      "query_locale": "es-pr",
+      "site_url": "https://enphase.com/"
+    },
+    {
+      "key": "https://enphase.com/sq-al/|sq-al",
+      "query_locale": "sq-al",
+      "site_url": "https://enphase.com/sq-al/"
+    },
+    {
+      "key": "https://enphase.com/de-at/|de-at",
+      "query_locale": "de-at",
+      "site_url": "https://enphase.com/de-at/"
+    },
+    {
+      "key": "https://enphase.com/fr-be/|fr-be",
+      "query_locale": "fr-be",
+      "site_url": "https://enphase.com/fr-be/"
+    },
+    {
+      "key": "https://enphase.com/nl-be/|nl-be",
+      "query_locale": "nl-be",
+      "site_url": "https://enphase.com/nl-be/"
+    },
+    {
+      "key": "https://enphase.com/bg-bg/|bg-bg",
+      "query_locale": "bg-bg",
+      "site_url": "https://enphase.com/bg-bg/"
+    },
+    {
+      "key": "https://enphase.com/hr-hr/|hr-hr",
+      "query_locale": "hr-hr",
+      "site_url": "https://enphase.com/hr-hr/"
+    },
+    {
+      "key": "https://enphase.com/el-cy/|el-cy",
+      "query_locale": "el-cy",
+      "site_url": "https://enphase.com/el-cy/"
+    },
+    {
+      "key": "https://enphase.com/tr-cy/|tr-cy",
+      "query_locale": "tr-cy",
+      "site_url": "https://enphase.com/tr-cy/"
+    },
+    {
+      "key": "https://enphase.com/cz-cz/|cz-cz",
+      "query_locale": "cz-cz",
+      "site_url": "https://enphase.com/cz-cz/"
+    },
+    {
+      "key": "https://enphase.com/da-dk/|da-dk",
+      "query_locale": "da-dk",
+      "site_url": "https://enphase.com/da-dk/"
+    },
+    {
+      "key": "https://enphase.com/et-ee/|et-ee",
+      "query_locale": "et-ee",
+      "site_url": "https://enphase.com/et-ee/"
+    },
+    {
+      "key": "https://enphase.com/en-fi/|en-fi",
+      "query_locale": "en-fi",
+      "site_url": "https://enphase.com/en-fi/"
+    },
+    {
+      "key": "https://enphase.com/fr-fr/|fr-fr",
+      "query_locale": "fr-fr",
+      "site_url": "https://enphase.com/fr-fr/"
+    },
+    {
+      "key": "https://enphase.com/de-de/|de-de",
+      "query_locale": "de-de",
+      "site_url": "https://enphase.com/de-de/"
+    },
+    {
+      "key": "https://enphase.com/el-gr/|el-gr",
+      "query_locale": "el-gr",
+      "site_url": "https://enphase.com/el-gr/"
+    },
+    {
+      "key": "https://enphase.com/hu-hu/|hu-hu",
+      "query_locale": "hu-hu",
+      "site_url": "https://enphase.com/hu-hu/"
+    },
+    {
+      "key": "https://enphase.com/en-ie/|en-ie",
+      "query_locale": "en-ie",
+      "site_url": "https://enphase.com/en-ie/"
+    },
+    {
+      "key": "https://enphase.com/it-it/|it-it",
+      "query_locale": "it-it",
+      "site_url": "https://enphase.com/it-it/"
+    },
+    {
+      "key": "https://enphase.com/lv-lv/|lv-lv",
+      "query_locale": "lv-lv",
+      "site_url": "https://enphase.com/lv-lv/"
+    },
+    {
+      "key": "https://enphase.com/lt-lt/|lt-lt",
+      "query_locale": "lt-lt",
+      "site_url": "https://enphase.com/lt-lt/"
+    },
+    {
+      "key": "https://enphase.com/fr-lu/|fr-lu",
+      "query_locale": "fr-lu",
+      "site_url": "https://enphase.com/fr-lu/"
+    },
+    {
+      "key": "https://enphase.com/en-mt/|en-mt",
+      "query_locale": "en-mt",
+      "site_url": "https://enphase.com/en-mt/"
+    },
+    {
+      "key": "https://enphase.com/nl-nl/|nl-nl",
+      "query_locale": "nl-nl",
+      "site_url": "https://enphase.com/nl-nl/"
+    },
+    {
+      "key": "https://enphase.com/nb-no/|nb-no",
+      "query_locale": "nb-no",
+      "site_url": "https://enphase.com/nb-no/"
+    },
+    {
+      "key": "https://enphase.com/pl-pl/|pl-pl",
+      "query_locale": "pl-pl",
+      "site_url": "https://enphase.com/pl-pl/"
+    },
+    {
+      "key": "https://enphase.com/pt-pt/|pt-pt",
+      "query_locale": "pt-pt",
+      "site_url": "https://enphase.com/pt-pt/"
+    },
+    {
+      "key": "https://enphase.com/ro-ro/|ro-ro",
+      "query_locale": "ro-ro",
+      "site_url": "https://enphase.com/ro-ro/"
+    },
+    {
+      "key": "https://enphase.com/sk-sk/|sk-sk",
+      "query_locale": "sk-sk",
+      "site_url": "https://enphase.com/sk-sk/"
+    },
+    {
+      "key": "https://enphase.com/sl-si/|sl-si",
+      "query_locale": "sl-si",
+      "site_url": "https://enphase.com/sl-si/"
+    },
+    {
+      "key": "https://enphase.com/es-es/|es-es",
+      "query_locale": "es-es",
+      "site_url": "https://enphase.com/es-es/"
+    },
+    {
+      "key": "https://enphase.com/sv-se/|sv-se",
+      "query_locale": "sv-se",
+      "site_url": "https://enphase.com/sv-se/"
+    },
+    {
+      "key": "https://enphase.com/de-ch/|de-ch",
+      "query_locale": "de-ch",
+      "site_url": "https://enphase.com/de-ch/"
+    },
+    {
+      "key": "https://enphase.com/fr-ch/|fr-ch",
+      "query_locale": "fr-ch",
+      "site_url": "https://enphase.com/fr-ch/"
+    },
+    {
+      "key": "https://enphase.com/it-ch/|it-ch",
+      "query_locale": "it-ch",
+      "site_url": "https://enphase.com/it-ch/"
+    },
+    {
+      "key": "https://enphase.com/tr-tr/|tr-tr",
+      "query_locale": "tr-tr",
+      "site_url": "https://enphase.com/tr-tr/"
+    },
+    {
+      "key": "https://enphase.com/en-gb/|en-gb",
+      "query_locale": "en-gb",
+      "site_url": "https://enphase.com/en-gb/"
+    },
+    {
+      "key": "https://enphase.com/en-au/|en-au",
+      "query_locale": "en-au",
+      "site_url": "https://enphase.com/en-au/"
+    },
+    {
+      "key": "https://enphase.com/en-in/|en-in",
+      "query_locale": "en-in",
+      "site_url": "https://enphase.com/en-in/"
+    },
+    {
+      "key": "https://enphase.com/ja-jp/|ja-jp",
+      "query_locale": "ja-jp",
+      "site_url": "https://enphase.com/ja-jp/"
+    },
+    {
+      "key": "https://enphase.com/en-my/|en-my",
+      "query_locale": "en-my",
+      "site_url": "https://enphase.com/en-my/"
+    },
+    {
+      "key": "https://enphase.com/fr-nc/|fr-nc",
+      "query_locale": "fr-nc",
+      "site_url": "https://enphase.com/fr-nc/"
+    },
+    {
+      "key": "https://enphase.com/en-ph/|en-ph",
+      "query_locale": "en-ph",
+      "site_url": "https://enphase.com/en-ph/"
+    },
+    {
+      "key": "https://enphase.com/th-th/|th-th",
+      "query_locale": "th-th",
+      "site_url": "https://enphase.com/th-th/"
+    },
+    {
+      "key": "https://enphase.com/vi-vn/|vi-vn",
+      "query_locale": "vi-vn",
+      "site_url": "https://enphase.com/vi-vn/"
+    },
+    {
+      "key": "https://enphase.com/en-za/|en-za",
+      "query_locale": "en-za",
+      "site_url": "https://enphase.com/en-za/"
+    },
+    {
+      "key": "https://enphase.com/en-sar/|en-sar",
+      "query_locale": "en-sar",
+      "site_url": "https://enphase.com/en-sar/"
+    },
+    {
+      "key": "https://enphase.com/fr-fot/|fr-fot",
+      "query_locale": "fr-fot",
+      "site_url": "https://enphase.com/fr-fot/"
+    }
+  ]
 }
