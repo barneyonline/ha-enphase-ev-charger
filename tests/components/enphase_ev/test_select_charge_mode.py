@@ -62,6 +62,45 @@ async def test_charge_mode_select(hass, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_charge_mode_select_ignores_current_option(hass, monkeypatch) -> None:
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 30,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg)
+    coord.data = {RANDOM_SERIAL: {"charge_mode": "MANUAL_CHARGING"}}
+    coord.async_request_refresh = AsyncMock()
+
+    class StubClient:
+        set_charge_mode = AsyncMock()
+
+    coord.client = StubClient()
+
+    await ChargeModeSelect(coord, RANDOM_SERIAL).async_select_option("Manual")
+
+    coord.client.set_charge_mode.assert_not_awaited()
+    coord.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_async_setup_entry_falls_back_to_generic_listener_for_selects(
     hass, config_entry, coordinator_factory, monkeypatch
 ) -> None:
@@ -249,6 +288,20 @@ def test_select_helper_fallbacks() -> None:
     coord.inventory_view.has_type_for_entities = lambda _type_key: False
     coord.battery_user_is_owner = True
     assert select_mod._retain_system_profile(coord) is False
+
+
+def test_explicit_charge_mode_handles_bad_data() -> None:
+    from custom_components.enphase_ev.select import _explicit_charge_mode
+
+    class BadDataCoordinator:
+        @property
+        def data(self):
+            raise RuntimeError
+
+        def _cached_charge_mode_preference(self, _sn):
+            return None
+
+    assert _explicit_charge_mode(BadDataCoordinator(), RANDOM_SERIAL) is None
 
 
 def test_ac_battery_target_state_of_charge_select_state_and_options(
