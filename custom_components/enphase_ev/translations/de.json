@@ -2681,6 +2681,10 @@
         "export_off_peak_rate": {
           "name": "Export-Off-Peak-Basis",
           "description": "Off-Peak-Basispreis für gestaffelte Exporttarife."
+        },
+        "device_id": {
+          "name": "Gerät",
+          "description": "Optionales Enphase-Gerät zur Auswahl des Standorts für Abrechnungs- oder Tarifstruktur-Updates."
         }
       }
     }

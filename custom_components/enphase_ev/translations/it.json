@@ -2681,6 +2681,10 @@
         "export_off_peak_rate": {
           "name": "Base fuori punta esportazione",
           "description": "Tariffa base fuori punta per tariffe di esportazione a scaglioni."
+        },
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Enphase opzionale per scegliere il sito degli aggiornamenti di fatturazione o struttura tariffaria."
         }
       }
     }

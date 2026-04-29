@@ -2681,6 +2681,10 @@
         "export_off_peak_rate": {
           "name": "Eksport off-peak basis",
           "description": "Basispris uden for spidsbelastning for trindelte eksporttariffer."
+        },
+        "device_id": {
+          "name": "Enphase-enhed",
+          "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
         }
       }
     }

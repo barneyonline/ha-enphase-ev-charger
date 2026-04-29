@@ -2681,6 +2681,10 @@
         "export_off_peak_rate": {
           "name": "Base hors pointe d’export",
           "description": "Tarif hors pointe de base pour les tarifs d’export par paliers."
+        },
+        "device_id": {
+          "name": "Appareil",
+          "description": "Appareil Enphase facultatif pour choisir le site des mises à jour de facturation ou de structure tarifaire."
         }
       }
     }

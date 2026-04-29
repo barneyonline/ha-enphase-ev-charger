@@ -2681,6 +2681,10 @@
         "export_off_peak_rate": {
           "name": "Export Off-Peak Baseline",
           "description": "Baseline off-peak export rate for tiered tariffs."
+        },
+        "device_id": {
+          "name": "Device",
+          "description": "Optional Enphase device to choose the site for billing or structural tariff updates."
         }
       }
     }

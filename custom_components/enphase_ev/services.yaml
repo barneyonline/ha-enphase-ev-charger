@@ -183,8 +183,6 @@ update_tariff:
   target:
     entity:
       integration: enphase_ev
-    device:
-      integration: enphase_ev
   fields:
     rate:
       required: false
@@ -466,6 +464,12 @@ update_tariff:
     advanced:
       collapsed: true
       fields:
+        device_id:
+          required: false
+          selector:
+            device:
+              integration: enphase_ev
+              multiple: true
         site_id:
           required: false
           selector:
