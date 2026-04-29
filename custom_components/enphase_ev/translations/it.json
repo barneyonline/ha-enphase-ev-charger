@@ -417,6 +417,36 @@
     },
     "trigger_message_confirmation_required": {
       "message": "Abilita la conferma avanzata per inviare {message}."
+    },
+    "tariff_update_required": {
+      "message": "Fornisci i dettagli di fatturazione o almeno un aggiornamento della tariffa."
+    },
+    "tariff_billing_incomplete": {
+      "message": "Fornisci data di inizio, frequenza e intervallo di fatturazione."
+    },
+    "tariff_billing_start_date_invalid": {
+      "message": "La data di inizio fatturazione della tariffa deve essere una data ISO valida."
+    },
+    "tariff_billing_frequency_invalid": {
+      "message": "La frequenza di fatturazione della tariffa deve essere MONTH o DAY."
+    },
+    "tariff_billing_interval_invalid": {
+      "message": "L’intervallo di fatturazione della tariffa deve essere compreso tra {minimum} e {maximum}."
+    },
+    "tariff_billing_api_unavailable": {
+      "message": "L’API di scrittura della fatturazione tariffaria non è disponibile."
+    },
+    "tariff_rate_target_duplicate": {
+      "message": "Non sono consentite destinazioni tariffarie duplicate."
+    },
+    "tariff_rate_entity_duplicate": {
+      "message": "Entità tariffaria duplicata: {entity_id}"
+    },
+    "tariff_site_mismatch": {
+      "message": "Tutti gli aggiornamenti tariffari devono riguardare lo stesso sito Enphase."
+    },
+    "tariff_structure_invalid": {
+      "message": "La struttura tariffaria non è valida."
     }
   },
   "options": {
@@ -2528,13 +2558,129 @@
         }
       }
     },
-    "set_tariff_rate": {
-      "name": "Imposta tariffa",
-      "description": "Aggiorna un valore esistente della tariffa di importazione o esportazione Enphase.",
+    "update_tariff": {
+      "name": "Aggiorna tariffa",
+      "description": "Aggiorna i dettagli del ciclo di fatturazione Enphase e uno o più valori tariffari di importazione o esportazione esistenti.",
       "fields": {
         "rate": {
           "name": "Tariffa",
-          "description": "Nuovo valore tariffario non negativo."
+          "description": "Nuovo valore tariffario non negativo per l’entità tariffaria selezionata."
+        },
+        "rate_entity": {
+          "name": "Entità tariffaria",
+          "description": "Entità tariffaria opzionale da aggiornare quando non si usa il target dell’azione."
+        },
+        "import_rate": {
+          "name": "Tariffa di importazione",
+          "description": "Nuovo valore non negativo della tariffa di importazione."
+        },
+        "import_rate_entity": {
+          "name": "Entità tariffa di importazione",
+          "description": "Entità della tariffa di importazione da aggiornare."
+        },
+        "export_rate": {
+          "name": "Tariffa di esportazione",
+          "description": "Nuovo valore non negativo della tariffa di esportazione."
+        },
+        "export_rate_entity": {
+          "name": "Entità tariffa di esportazione",
+          "description": "Entità della tariffa di esportazione da aggiornare."
+        },
+        "billing_start_date": {
+          "name": "Data di inizio fatturazione",
+          "description": "Data di inizio del periodo di fatturazione in formato ISO."
+        },
+        "billing_frequency": {
+          "name": "Frequenza di fatturazione",
+          "description": "Unità dell’intervallo di fatturazione: MONTH o DAY."
+        },
+        "billing_interval_value": {
+          "name": "Intervallo di fatturazione",
+          "description": "Numero di intervalli di fatturazione. Usa 1-24 per i mesi o 1-100 per i giorni."
+        },
+        "rates": {
+          "name": "Tariffe",
+          "description": "Elenco degli ID entità tariffarie e dei valori non negativi da aggiornare."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito opzionale per aggiornamenti di fatturazione."
+        },
+        "config_entry_id": {
+          "name": "ID voce di configurazione",
+          "description": "Identificatore opzionale della voce di configurazione per un singolo sito Enphase."
+        },
+        "tariff_payload": {
+          "name": "Payload tariffario",
+          "description": "Payload tariffario Enphase completo da scrivere. Usalo per modifiche strutturali avanzate."
+        },
+        "purchase_tariff": {
+          "name": "Struttura tariffa di importazione",
+          "description": "Ramo sostitutivo della tariffa di importazione con tipo, stagioni, periodi, scaglioni e prezzi."
+        },
+        "buyback_tariff": {
+          "name": "Struttura tariffa di esportazione",
+          "description": "Ramo sostitutivo della tariffa di esportazione con tipo, piano di esportazione, stagioni, periodi, scaglioni e prezzi."
+        },
+        "configure_import_tariff": {
+          "name": "Configura tariffa di importazione",
+          "description": "Abilita per creare una tariffa di importazione sostitutiva con i campi guidati."
+        },
+        "import_tariff_type": {
+          "name": "Tipo tariffa di importazione",
+          "description": "Scegli piatta, a fasce orarie o a scaglioni."
+        },
+        "import_variation": {
+          "name": "Variazione importazione",
+          "description": "Scegli se varia per stagione o giorni feriali/fine settimana."
+        },
+        "import_flat_rate": {
+          "name": "Tariffa piatta di importazione",
+          "description": "Tariffa unica di importazione per tipo piatto senza righe periodo."
+        },
+        "import_periods": {
+          "name": "Righe periodi importazione",
+          "description": "Righe per prezzi piatti o a fasce orarie. Giorni 1-7 da lunedì a domenica; orari HH:MM o minuti dopo mezzanotte."
+        },
+        "import_tiers": {
+          "name": "Righe scaglioni importazione",
+          "description": "Righe per prezzi a scaglioni. end_value -1 indica lo scaglione finale illimitato."
+        },
+        "import_off_peak_rate": {
+          "name": "Base fuori punta importazione",
+          "description": "Tariffa base fuori punta per tariffe di importazione a scaglioni."
+        },
+        "configure_export_tariff": {
+          "name": "Configura tariffa di esportazione",
+          "description": "Abilita per creare una tariffa di esportazione sostitutiva con i campi guidati."
+        },
+        "export_tariff_type": {
+          "name": "Tipo tariffa di esportazione",
+          "description": "Scegli piatta, a fasce orarie o a scaglioni."
+        },
+        "export_variation": {
+          "name": "Variazione esportazione",
+          "description": "Scegli se varia per stagione o giorni feriali/fine settimana."
+        },
+        "export_plan": {
+          "name": "Piano di esportazione",
+          "description": "Scegli l’etichetta del piano di esportazione Enphase da scrivere."
+        },
+        "export_flat_rate": {
+          "name": "Tariffa piatta di esportazione",
+          "description": "Tariffa unica di esportazione per tipo piatto senza righe periodo."
+        },
+        "export_periods": {
+          "name": "Righe periodi esportazione",
+          "description": "Righe per prezzi piatti o a fasce orarie. Giorni 1-7 da lunedì a domenica; orari HH:MM o minuti dopo mezzanotte."
+        },
+        "export_tiers": {
+          "name": "Righe scaglioni esportazione",
+          "description": "Righe per prezzi di esportazione a scaglioni. end_value -1 indica lo scaglione finale illimitato."
+        },
+        "export_off_peak_rate": {
+          "name": "Base fuori punta esportazione",
+          "description": "Tariffa base fuori punta per tariffe di esportazione a scaglioni."
         }
       }
     }

@@ -417,6 +417,36 @@
     },
     "trigger_message_confirmation_required": {
       "message": "Включете разширеното потвърждение, за да изпратите {message}."
+    },
+    "tariff_update_required": {
+      "message": "Посочете данни за фактуриране или поне една актуализация на тарифна ставка."
+    },
+    "tariff_billing_incomplete": {
+      "message": "Посочете начална дата, честота и интервал за фактуриране."
+    },
+    "tariff_billing_start_date_invalid": {
+      "message": "Началната дата за тарифно фактуриране трябва да е валидна ISO дата."
+    },
+    "tariff_billing_frequency_invalid": {
+      "message": "Честотата на тарифното фактуриране трябва да е MONTH или DAY."
+    },
+    "tariff_billing_interval_invalid": {
+      "message": "Интервалът за тарифно фактуриране трябва да е между {minimum} и {maximum}."
+    },
+    "tariff_billing_api_unavailable": {
+      "message": "API за запис на тарифното фактуриране не е наличен."
+    },
+    "tariff_rate_target_duplicate": {
+      "message": "Дублирани цели за тарифни ставки не са разрешени."
+    },
+    "tariff_rate_entity_duplicate": {
+      "message": "Дублирана същност за тарифна ставка: {entity_id}"
+    },
+    "tariff_site_mismatch": {
+      "message": "Всички актуализации на тарифата трябва да са за един и същ сайт на Enphase."
+    },
+    "tariff_structure_invalid": {
+      "message": "Структурата на тарифата е невалидна."
     }
   },
   "options": {
@@ -2528,13 +2558,129 @@
         }
       }
     },
-    "set_tariff_rate": {
-      "name": "Задаване на тарифна ставка",
-      "description": "Актуализира една съществуваща стойност на тарифна ставка за импорт или експорт на Enphase.",
+    "update_tariff": {
+      "name": "Актуализиране на тарифа",
+      "description": "Актуализирайте данните за цикъла на фактуриране на Enphase и една или повече съществуващи импортни или експортни тарифни ставки.",
       "fields": {
         "rate": {
           "name": "Ставка",
-          "description": "Нова неотрицателна стойност на тарифната ставка."
+          "description": "Нова неотрицателна стойност за избраната тарифна ставка."
+        },
+        "rate_entity": {
+          "name": "Същност на ставка",
+          "description": "Незадължителна същност на тарифна ставка за актуализиране, когато не се използва целта на действието."
+        },
+        "import_rate": {
+          "name": "Импортна ставка",
+          "description": "Нова неотрицателна стойност на импортната тарифна ставка."
+        },
+        "import_rate_entity": {
+          "name": "Същност на импортна ставка",
+          "description": "Същност на импортна тарифна ставка за актуализиране."
+        },
+        "export_rate": {
+          "name": "Експортна ставка",
+          "description": "Нова неотрицателна стойност на експортната тарифна ставка."
+        },
+        "export_rate_entity": {
+          "name": "Същност на експортна ставка",
+          "description": "Същност на експортна тарифна ставка за актуализиране."
+        },
+        "billing_start_date": {
+          "name": "Начална дата на фактуриране",
+          "description": "Начална дата на периода за фактуриране в ISO формат."
+        },
+        "billing_frequency": {
+          "name": "Честота на фактуриране",
+          "description": "Единица за интервала на фактуриране: MONTH или DAY."
+        },
+        "billing_interval_value": {
+          "name": "Интервал на фактуриране",
+          "description": "Брой интервали за фактуриране. Използвайте 1-24 за месеци или 1-100 за дни."
+        },
+        "rates": {
+          "name": "Ставки",
+          "description": "Списък с ID на същности за тарифни ставки и неотрицателни стойности за актуализиране."
+        },
+        "site_id": {
+          "name": "ID на сайт",
+          "description": "Незадължителен идентификатор на сайт за актуализации на фактуриране."
+        },
+        "config_entry_id": {
+          "name": "ID на запис за конфигурация",
+          "description": "Незадължителен идентификатор на запис за конфигурация за един сайт на Enphase."
+        },
+        "tariff_payload": {
+          "name": "Тарифен payload",
+          "description": "Пълен Enphase тарифен payload за запис. Използвайте го за разширени структурни редакции."
+        },
+        "purchase_tariff": {
+          "name": "Структура на тарифата за внос",
+          "description": "Заместващ клон за тарифата за внос с тип, сезони, периоди, стъпала и цени."
+        },
+        "buyback_tariff": {
+          "name": "Структура на тарифата за износ",
+          "description": "Заместващ клон за тарифата за износ с тип, план за износ, сезони, периоди, стъпала и цени."
+        },
+        "configure_import_tariff": {
+          "name": "Guidet importtarif",
+          "description": "Aktiver dette felt for at opbygge en erstatning for importtariffen med de guidede felter."
+        },
+        "import_tariff_type": {
+          "name": "Importtariftype",
+          "description": "Vælg flad, tidsafhængig eller trindelt importpris."
+        },
+        "import_variation": {
+          "name": "Importvariation",
+          "description": "Vælg om importprisen varierer efter sæson eller hverdag/weekend."
+        },
+        "import_flat_rate": {
+          "name": "Flad importpris",
+          "description": "En enkelt importpris for flad tarif uden periode-rækker."
+        },
+        "import_periods": {
+          "name": "Importperioder",
+          "description": "Rækker til flade eller tidsafhængige importpriser. Dage 1-7 er mandag-søndag; tider kan være HH:MM eller minutter efter midnat."
+        },
+        "import_tiers": {
+          "name": "Importtrin",
+          "description": "Rækker til trindelte importpriser. Brug end_value -1 for sidste ubegrænsede trin."
+        },
+        "import_off_peak_rate": {
+          "name": "Import off-peak basis",
+          "description": "Basispris uden for spidsbelastning for trindelte importtariffer."
+        },
+        "configure_export_tariff": {
+          "name": "Guidet eksporttarif",
+          "description": "Aktiver dette felt for at opbygge en erstatning for eksporttariffen med de guidede felter."
+        },
+        "export_tariff_type": {
+          "name": "Eksporttariftype",
+          "description": "Vælg flad, tidsafhængig eller trindelt eksportpris."
+        },
+        "export_variation": {
+          "name": "Eksportvariation",
+          "description": "Vælg om eksportprisen varierer efter sæson eller hverdag/weekend."
+        },
+        "export_plan": {
+          "name": "Eksportplan",
+          "description": "Vælg Enphase-eksportplanen der skal skrives med eksporttariffen."
+        },
+        "export_flat_rate": {
+          "name": "Flad eksportpris",
+          "description": "En enkelt eksportpris for flad tarif uden periode-rækker."
+        },
+        "export_periods": {
+          "name": "Eksportperioder",
+          "description": "Rækker til flade eller tidsafhængige eksportpriser. Dage 1-7 er mandag-søndag; tider kan være HH:MM eller minutter efter midnat."
+        },
+        "export_tiers": {
+          "name": "Eksporttrin",
+          "description": "Rækker til trindelte eksportpriser. Brug end_value -1 for sidste ubegrænsede trin."
+        },
+        "export_off_peak_rate": {
+          "name": "Eksport off-peak basis",
+          "description": "Basispris uden for spidsbelastning for trindelte eksporttariffer."
         }
       }
     }

@@ -417,6 +417,36 @@
     },
     "trigger_message_confirmation_required": {
       "message": "Aktivieren Sie die erweiterte Bestätigung, um {message} zu senden."
+    },
+    "tariff_update_required": {
+      "message": "Gib Abrechnungsdetails oder mindestens eine Aktualisierung eines Tarifsatzes an."
+    },
+    "tariff_billing_incomplete": {
+      "message": "Gib Startdatum, Häufigkeit und Intervall der Abrechnung an."
+    },
+    "tariff_billing_start_date_invalid": {
+      "message": "Das Startdatum der Tarifabrechnung muss ein gültiges ISO-Datum sein."
+    },
+    "tariff_billing_frequency_invalid": {
+      "message": "Die Häufigkeit der Tarifabrechnung muss MONTH oder DAY sein."
+    },
+    "tariff_billing_interval_invalid": {
+      "message": "Das Intervall der Tarifabrechnung muss zwischen {minimum} und {maximum} liegen."
+    },
+    "tariff_billing_api_unavailable": {
+      "message": "Die API zum Schreiben der Tarifabrechnung ist nicht verfügbar."
+    },
+    "tariff_rate_target_duplicate": {
+      "message": "Doppelte Ziele für Tarifsätze sind nicht erlaubt."
+    },
+    "tariff_rate_entity_duplicate": {
+      "message": "Doppelte Tarifsatz-Entität: {entity_id}"
+    },
+    "tariff_site_mismatch": {
+      "message": "Alle Tarifaktualisierungen müssen dieselbe Enphase-Anlage betreffen."
+    },
+    "tariff_structure_invalid": {
+      "message": "Die Tarifstruktur ist ungültig."
     }
   },
   "options": {
@@ -2528,13 +2558,129 @@
         }
       }
     },
-    "set_tariff_rate": {
-      "name": "Tarifsatz festlegen",
-      "description": "Aktualisiert einen vorhandenen Enphase Import- oder Exporttarifsatz.",
+    "update_tariff": {
+      "name": "Tarif aktualisieren",
+      "description": "Aktualisiert Enphase-Abrechnungszyklusdetails und einen oder mehrere bestehende Import- oder Exporttarifsätze.",
       "fields": {
         "rate": {
-          "name": "Satz",
-          "description": "Neuer nicht negativer Tarifsatz."
+          "name": "Tarifsatz",
+          "description": "Neuer nicht negativer Tarifsatzwert für die ausgewählte Tarifsatz-Entität."
+        },
+        "rate_entity": {
+          "name": "Tarifsatz-Entität",
+          "description": "Optionale Tarifsatz-Entität zum Aktualisieren, wenn kein Aktionsziel verwendet wird."
+        },
+        "import_rate": {
+          "name": "Importtarif",
+          "description": "Neuer nicht negativer Importtarifsatz."
+        },
+        "import_rate_entity": {
+          "name": "Importtarif-Entität",
+          "description": "Zu aktualisierende Importtarifsatz-Entität."
+        },
+        "export_rate": {
+          "name": "Exporttarif",
+          "description": "Neuer nicht negativer Exporttarifsatz."
+        },
+        "export_rate_entity": {
+          "name": "Exporttarif-Entität",
+          "description": "Zu aktualisierende Exporttarifsatz-Entität."
+        },
+        "billing_start_date": {
+          "name": "Startdatum der Abrechnung",
+          "description": "Startdatum des Abrechnungszeitraums im ISO-Format."
+        },
+        "billing_frequency": {
+          "name": "Abrechnungshäufigkeit",
+          "description": "Einheit des Abrechnungsintervalls: MONTH oder DAY."
+        },
+        "billing_interval_value": {
+          "name": "Abrechnungsintervall",
+          "description": "Anzahl der Abrechnungsintervalle. Verwende 1-24 für Monate oder 1-100 für Tage."
+        },
+        "rates": {
+          "name": "Tarifsätze",
+          "description": "Liste der Entitäts-IDs von Tarifsätzen und nicht negativer Werte, die aktualisiert werden sollen."
+        },
+        "site_id": {
+          "name": "Anlagen-ID",
+          "description": "Optionale Anlagenkennung für Abrechnungsaktualisierungen."
+        },
+        "config_entry_id": {
+          "name": "Konfigurationseintrags-ID",
+          "description": "Optionale Konfigurationseintragskennung für eine einzelne Enphase-Anlage."
+        },
+        "tariff_payload": {
+          "name": "Tarif-Nutzdaten",
+          "description": "Vollständige Enphase-Tarifnutzdaten zum Schreiben. Für erweiterte Strukturänderungen verwenden."
+        },
+        "purchase_tariff": {
+          "name": "Importtarifstruktur",
+          "description": "Ersatz für den Importtarif-Zweig mit Typ, Saisons, Zeiträumen, Stufen und Preisen."
+        },
+        "buyback_tariff": {
+          "name": "Exporttarifstruktur",
+          "description": "Ersatz für den Exporttarif-Zweig mit Typ, Exportplan, Saisons, Zeiträumen, Stufen und Preisen."
+        },
+        "configure_import_tariff": {
+          "name": "Importtarif konfigurieren",
+          "description": "Aktivieren, um mit den geführten Feldern einen Ersatz-Importtarif zu erstellen."
+        },
+        "import_tariff_type": {
+          "name": "Importtariftyp",
+          "description": "Wählen Sie Flat, zeitabhängig oder gestaffelt."
+        },
+        "import_variation": {
+          "name": "Importvariation",
+          "description": "Wählen Sie saisonale oder Werktag/Wochenende-Änderungen."
+        },
+        "import_flat_rate": {
+          "name": "Flacher Importpreis",
+          "description": "Ein Importpreis für Flat-Tarife, wenn keine Periodenzeilen angegeben sind."
+        },
+        "import_periods": {
+          "name": "Import-Periodenzeilen",
+          "description": "Zeilen für Flat- oder zeitabhängige Importpreise. Tage 1-7 sind Montag-Sonntag; Zeiten HH:MM oder Minuten nach Mitternacht."
+        },
+        "import_tiers": {
+          "name": "Import-Stufenzeilen",
+          "description": "Zeilen für gestaffelte Importpreise. end_value -1 bedeutet letzte unbegrenzte Stufe."
+        },
+        "import_off_peak_rate": {
+          "name": "Import-Off-Peak-Basis",
+          "description": "Off-Peak-Basispreis für gestaffelte Importtarife."
+        },
+        "configure_export_tariff": {
+          "name": "Exporttarif konfigurieren",
+          "description": "Aktivieren, um mit den geführten Feldern einen Ersatz-Exporttarif zu erstellen."
+        },
+        "export_tariff_type": {
+          "name": "Exporttariftyp",
+          "description": "Wählen Sie Flat, zeitabhängig oder gestaffelt."
+        },
+        "export_variation": {
+          "name": "Exportvariation",
+          "description": "Wählen Sie saisonale oder Werktag/Wochenende-Änderungen."
+        },
+        "export_plan": {
+          "name": "Exportplan",
+          "description": "Wählen Sie den Enphase-Exportplan für den Exporttarif."
+        },
+        "export_flat_rate": {
+          "name": "Flacher Exportpreis",
+          "description": "Ein Exportpreis für Flat-Tarife, wenn keine Periodenzeilen angegeben sind."
+        },
+        "export_periods": {
+          "name": "Export-Periodenzeilen",
+          "description": "Zeilen für Flat- oder zeitabhängige Exportpreise. Tage 1-7 sind Montag-Sonntag; Zeiten HH:MM oder Minuten nach Mitternacht."
+        },
+        "export_tiers": {
+          "name": "Export-Stufenzeilen",
+          "description": "Zeilen für gestaffelte Exportpreise. end_value -1 bedeutet letzte unbegrenzte Stufe."
+        },
+        "export_off_peak_rate": {
+          "name": "Export-Off-Peak-Basis",
+          "description": "Off-Peak-Basispreis für gestaffelte Exporttarife."
         }
       }
     }

@@ -5103,6 +5103,33 @@ class EnphaseEVClient:
         )
         return await self._json("GET", url, headers=self._tariff_headers())
 
+    async def site_tariff_billing_update(
+        self,
+        payload: dict[str, Any],
+        *,
+        request_date: date | datetime | str | None = None,
+    ) -> dict:
+        """Update site tariff billing-cycle details."""
+
+        if request_date is None:
+            request_date_text = date.today().isoformat()
+        elif isinstance(request_date, datetime):
+            request_date_text = request_date.date().isoformat()
+        elif isinstance(request_date, date):
+            request_date_text = request_date.isoformat()
+        else:
+            request_date_text = str(request_date)
+        url = (
+            f"{BASE_URL}/service/tariff/tariff-ms/systems/{self._site}/billing-details"
+        )
+        return await self._json(
+            "POST",
+            url,
+            json=payload,
+            params={"date": request_date_text},
+            headers=self._tariff_headers(write=True),
+        )
+
     async def site_tariff(self) -> dict:
         """Return site import/export tariff configuration."""
 

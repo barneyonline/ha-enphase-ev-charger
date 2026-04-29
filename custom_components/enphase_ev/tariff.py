@@ -22,6 +22,11 @@ if TYPE_CHECKING:
     from .coordinator import EnphaseCoordinator
 
 TARIFF_ENDPOINT_FAMILY = "tariff"
+TARIFF_BRANCH_KEYS = frozenset({"purchase", "buyback"})
+TARIFF_TYPE_IDS = frozenset({"flat", "tou", "tiered"})
+TARIFF_TYPE_KINDS = frozenset(
+    {"single", "seasonal", "weekends", "seasonal-and-weekends"}
+)
 _EXPORT_RATE_KEY_RE = re.compile(r"[^a-z0-9]+")
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,6 +130,83 @@ class TariffBillingSnapshot:
 
 
 @dataclass(slots=True, frozen=True)
+class TariffBillingUpdate:
+    """Validated tariff billing-cycle update payload."""
+
+    start_date: str
+    billing_frequency: str
+    billing_interval_value: int
+
+    @property
+    def payload(self) -> dict[str, object]:
+        """Return the Enphase billing-details write payload."""
+
+        return {
+            "anyBillPeriodStartDate": self.start_date,
+            "billingFrequency": self.billing_frequency,
+            "billingIntervalValue": self.billing_interval_value,
+        }
+
+    @classmethod
+    def from_object(cls, value: object) -> "TariffBillingUpdate | None":
+        """Parse and validate a billing-cycle update."""
+
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, dict):
+            return None
+        start_date = _clean_text(
+            value.get("anyBillPeriodStartDate")
+            if "anyBillPeriodStartDate" in value
+            else value.get("billing_start_date")
+        )
+        frequency = (
+            _clean_text(
+                value.get("billingFrequency")
+                if "billingFrequency" in value
+                else value.get("billing_frequency")
+            )
+            or ""
+        ).upper()
+        interval = _int_or_none(
+            value.get("billingIntervalValue")
+            if "billingIntervalValue" in value
+            else value.get("billing_interval_value")
+        )
+        if start_date is None:
+            _raise_tariff_validation(
+                "tariff_billing_start_date_invalid",
+                message="Tariff billing start date must be a valid ISO date.",
+            )
+        try:
+            date.fromisoformat(start_date)
+        except ValueError:
+            _raise_tariff_validation(
+                "tariff_billing_start_date_invalid",
+                message="Tariff billing start date must be a valid ISO date.",
+            )
+        if frequency not in {"MONTH", "DAY"}:
+            _raise_tariff_validation(
+                "tariff_billing_frequency_invalid",
+                message="Tariff billing frequency must be MONTH or DAY.",
+            )
+        max_interval = 24 if frequency == "MONTH" else 100
+        if interval is None or interval < 1 or interval > max_interval:
+            _raise_tariff_validation(
+                "tariff_billing_interval_invalid",
+                placeholders={"minimum": "1", "maximum": str(max_interval)},
+                message=(
+                    "Tariff billing interval must be between " f"1 and {max_interval}."
+                ),
+            )
+        return cls(
+            start_date=start_date,
+            billing_frequency=frequency,
+            billing_interval_value=interval,
+        )
+
+
+@dataclass(slots=True, frozen=True)
 class TariffRateSnapshot:
     """Normalized tariff branch metadata."""
 
@@ -151,6 +233,39 @@ class TariffRateSnapshot:
         if self.export_plan is not None:
             attrs["export_plan"] = self.export_plan
         return attrs
+
+
+@dataclass(slots=True, frozen=True)
+class TariffRateUpdate:
+    """Validated tariff rate update request."""
+
+    locator: TariffRateLocator
+    rate: float
+
+    @classmethod
+    def from_object(cls, value: object) -> "TariffRateUpdate | None":
+        """Parse a rate update from service/runtime input."""
+
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, tuple) and len(value) == 2:
+            locator_raw, rate_raw = value
+        elif isinstance(value, dict):
+            locator_raw = value.get("locator", value.get("tariff_locator"))
+            rate_raw = value.get("rate")
+        else:
+            return None
+        locator = TariffRateLocator.from_object(locator_raw)
+        if locator is None:
+            return None
+        try:
+            rate = float(rate_raw)
+        except (TypeError, ValueError):
+            _raise_tariff_validation(
+                "tariff_rate_invalid",
+                message="Tariff rate must be a non-negative number.",
+            )
+        return cls(locator=locator, rate=rate)
 
 
 def _clean_text(value: object) -> str | None:
@@ -755,6 +870,170 @@ def _format_write_rate(value: float) -> str:
     return f"{value:.10f}".rstrip("0").rstrip(".") or "0"
 
 
+def _validate_write_rate(value: object) -> None:
+    try:
+        _format_write_rate(float(value))
+    except (TypeError, ValueError):
+        _raise_tariff_validation(
+            "tariff_rate_invalid",
+            message="Tariff rate must be a non-negative number.",
+        )
+
+
+def _minutes_or_empty(value: object) -> int | None:
+    if value == "":
+        return None
+    minutes = _int_or_none(value)
+    if minutes is None or minutes < 0 or minutes > 24 * 60:
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    return minutes
+
+
+def _validate_tariff_period(period: object) -> None:
+    if not isinstance(period, dict):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    _validate_write_rate(period.get("rate"))
+    start = _minutes_or_empty(period.get("startTime", ""))
+    end = _minutes_or_empty(period.get("endTime", ""))
+    if (start is None) != (end is None) or (
+        start is not None and end is not None and start >= end
+    ):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+
+
+def _validate_tariff_tier(tier: object) -> None:
+    if not isinstance(tier, dict):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    _validate_write_rate(tier.get("rate"))
+    for key in ("startValue", "endValue"):
+        value = tier.get(key)
+        if value in (None, "") or (key == "endValue" and _clean_text(value) == "-1"):
+            continue
+        try:
+            numeric = float(str(value).strip())
+        except (TypeError, ValueError):
+            _raise_tariff_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        if not math.isfinite(numeric) or numeric < 0:
+            _raise_tariff_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+
+
+def _validate_tariff_season(season: object, *, type_id: str) -> None:
+    if not isinstance(season, dict):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    for key in ("startMonth", "endMonth"):
+        value = season.get(key)
+        if value in (None, ""):
+            continue
+        month = _int_or_none(value)
+        if month is None or month < 1 or month > 12:
+            _raise_tariff_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+    if type_id == "tiered":
+        tiers = season.get("tiers")
+        if not isinstance(tiers, list):
+            _raise_tariff_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        for tier in tiers:
+            _validate_tariff_tier(tier)
+        if "offPeak" in season:
+            _validate_write_rate(season.get("offPeak"))
+        return
+    days = season.get("days")
+    if not isinstance(days, list) or not days:
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    for day_group in days:
+        if not isinstance(day_group, dict):
+            _raise_tariff_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        periods = day_group.get("periods")
+        if not isinstance(periods, list) or not periods:
+            _raise_tariff_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        for period in periods:
+            _validate_tariff_period(period)
+
+
+def _validated_tariff_branch(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    branch = copy.deepcopy(value)
+    type_id = (_clean_text(branch.get("typeId")) or "").lower()
+    type_kind = (_clean_text(branch.get("typeKind")) or "").lower()
+    seasons = branch.get("seasons")
+    if (
+        type_id not in TARIFF_TYPE_IDS
+        or type_kind not in TARIFF_TYPE_KINDS
+        or not isinstance(seasons, list)
+        or not seasons
+    ):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    for season in seasons:
+        _validate_tariff_season(season, type_id=type_id)
+    return branch
+
+
+def _validated_tariff_payload(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    payload = copy.deepcopy(value)
+    if not any(branch in payload for branch in TARIFF_BRANCH_KEYS):
+        _raise_tariff_validation(
+            "tariff_structure_invalid",
+            message="Tariff structure is invalid.",
+        )
+    for branch_key in TARIFF_BRANCH_KEYS:
+        if branch_key in payload:
+            payload[branch_key] = _validated_tariff_branch(payload[branch_key])
+    return payload
+
+
+def _locator_key(locator: TariffRateLocator) -> tuple[tuple[str, object], ...]:
+    """Return a stable hashable key for a tariff locator."""
+
+    return tuple(locator.as_dict().items())
+
+
 def _raise_tariff_validation(
     key: str,
     *,
@@ -910,38 +1189,128 @@ class TariffRuntime:
     ) -> dict:
         """Update one existing tariff rate value."""
 
-        parsed_locator = TariffRateLocator.from_object(locator)
-        if parsed_locator is None:
-            _raise_tariff_validation(
-                "tariff_rate_target_invalid",
-                message="Tariff rate target is invalid.",
+        result = await self.async_update_tariff(
+            rate_updates=({"locator": locator, "rate": value},)
+        )
+        return result.get("tariff") or {}
+
+    async def async_update_tariff(
+        self,
+        *,
+        billing: TariffBillingUpdate | dict[str, object] | None = None,
+        rate_updates: (
+            tuple[TariffRateUpdate | dict[str, object], ...]
+            | list[TariffRateUpdate | dict[str, object]]
+        ) = (),
+        tariff_payload: dict[str, object] | None = None,
+        purchase_tariff: dict[str, object] | None = None,
+        buyback_tariff: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Update tariff billing details and/or existing rate values."""
+
+        billing_update = TariffBillingUpdate.from_object(billing) if billing else None
+        payload_update = (
+            _validated_tariff_payload(tariff_payload)
+            if tariff_payload is not None
+            else None
+        )
+        purchase_update = (
+            _validated_tariff_branch(purchase_tariff)
+            if purchase_tariff is not None
+            else None
+        )
+        buyback_update = (
+            _validated_tariff_branch(buyback_tariff)
+            if buyback_tariff is not None
+            else None
+        )
+        parsed_rate_updates: list[TariffRateUpdate] = []
+        seen_locators: set[tuple[tuple[str, object], ...]] = set()
+        for update in rate_updates:
+            parsed_update = TariffRateUpdate.from_object(update)
+            if parsed_update is None:
+                _raise_tariff_validation(
+                    "tariff_rate_target_invalid",
+                    message="Tariff rate target is invalid.",
+                )
+            locator_key = _locator_key(parsed_update.locator)
+            if locator_key in seen_locators:
+                _raise_tariff_validation(
+                    "tariff_rate_target_duplicate",
+                    message="Duplicate tariff rate targets are not allowed.",
+                )
+            seen_locators.add(locator_key)
+            parsed_rate_updates.append(parsed_update)
+
+        tariff_write_requested = any(
+            (
+                parsed_rate_updates,
+                payload_update is not None,
+                purchase_update is not None,
+                buyback_update is not None,
             )
-        try:
-            rate_value = float(value)
-        except (TypeError, ValueError):
+        )
+        if billing_update is None and not tariff_write_requested:
             _raise_tariff_validation(
-                "tariff_rate_invalid",
-                message="Tariff rate must be a non-negative number.",
+                "tariff_update_required",
+                message="Provide billing details or at least one tariff rate update.",
             )
-        rate = _format_write_rate(rate_value)
+
         coord = self.coordinator
         site_tariff = getattr(coord.client, "site_tariff", None)
         site_tariff_update = getattr(coord.client, "site_tariff_update", None)
-        if not callable(site_tariff) or not callable(site_tariff_update):
+        needs_current_tariff = payload_update is None and (
+            parsed_rate_updates
+            or purchase_update is not None
+            or buyback_update is not None
+        )
+        if tariff_write_requested and not callable(site_tariff_update):
             _raise_tariff_validation(
                 "tariff_rate_api_unavailable",
                 message="Tariff write API is unavailable.",
             )
-        payload = await site_tariff()
-        if not isinstance(payload, dict):
+        if needs_current_tariff and not callable(site_tariff):
             _raise_tariff_validation(
                 "tariff_rate_api_unavailable",
                 message="Tariff write API is unavailable.",
             )
-        update_payload = copy.deepcopy(payload)
-        target, field = _locate_tariff_rate(update_payload, parsed_locator)
-        target[field] = rate
-        result = await site_tariff_update(update_payload)
+        site_tariff_billing_update = getattr(
+            coord.client, "site_tariff_billing_update", None
+        )
+        if billing_update is not None and not callable(site_tariff_billing_update):
+            _raise_tariff_validation(
+                "tariff_billing_api_unavailable",
+                message="Tariff billing write API is unavailable.",
+            )
+
+        tariff_result: dict | None = None
+        billing_result: dict | None = None
+        if tariff_write_requested:
+            if payload_update is not None:
+                update_payload = payload_update
+            else:
+                payload = await site_tariff()
+                if not isinstance(payload, dict):
+                    _raise_tariff_validation(
+                        "tariff_rate_api_unavailable",
+                        message="Tariff write API is unavailable.",
+                    )
+                update_payload = copy.deepcopy(payload)
+            if purchase_update is not None:
+                update_payload["purchase"] = purchase_update
+            if buyback_update is not None:
+                update_payload["buyback"] = buyback_update
+            located_updates: list[tuple[dict[str, object], str, str]] = []
+            for update in parsed_rate_updates:
+                rate = _format_write_rate(update.rate)
+                target, field = _locate_tariff_rate(update_payload, update.locator)
+                located_updates.append((target, field, rate))
+            for target, field, rate in located_updates:
+                target[field] = rate
+            tariff_result = await site_tariff_update(update_payload)
+
+        if billing_update is not None:
+            billing_result = await site_tariff_billing_update(billing_update.payload)
 
         notifier = getattr(coord.client, "notify_tariff_change", None)
         if callable(notifier):
@@ -954,7 +1323,7 @@ class TariffRuntime:
                     err,
                 )
         await coord.tariff_runtime.async_refresh(force=True)
-        return result
+        return {"tariff": tariff_result, "billing": billing_result}
 
     def _has_stale_data(self) -> bool:
         """Return whether a prior tariff snapshot can stay visible."""

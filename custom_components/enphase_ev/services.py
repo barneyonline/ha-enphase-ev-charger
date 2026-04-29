@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import date
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -58,7 +59,7 @@ REGISTERED_SERVICES = (
     "delete_schedule",
     "validate_schedule",
     "update_cfg_schedule",
-    "set_tariff_rate",
+    "update_tariff",
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -580,11 +581,122 @@ def async_setup_services(
         ),
         _validate_cfg_schedule,
     )
-    SET_TARIFF_RATE_SCHEMA = vol.Schema(
-        {
-            vol.Optional("entity_id"): cv.entity_ids,
-            vol.Required("rate"): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        }
+    TARIFF_BILLING_FIELDS = frozenset(
+        {"billing_start_date", "billing_frequency", "billing_interval_value"}
+    )
+    FRIENDLY_RATE_VALUE_FIELDS = frozenset({"rate", "import_rate", "export_rate"})
+    TARIFF_STRUCTURE_FIELDS = frozenset(
+        {"tariff_payload", "purchase_tariff", "buyback_tariff"}
+    )
+    TARIFF_TYPE_SCHEMA = vol.In(("flat", "tou", "tiered"))
+    TARIFF_VARIATION_SCHEMA = vol.In(
+        ("single", "seasonal", "weekends", "seasonal-and-weekends")
+    )
+    TARIFF_EXPORT_PLAN_SCHEMA = vol.In(("netFit", "grossFit", "nem"))
+
+    def _validate_tariff_billing_start_date(value: object) -> str:
+        text = str(value).strip()
+        try:
+            date.fromisoformat(text)
+        except ValueError as err:
+            raise vol.Invalid("billing_start_date must be a valid ISO date") from err
+        return text
+
+    def _validate_update_tariff(data: dict) -> dict:
+        rates = data.get("rates") or []
+        has_rates = bool(rates) or bool(FRIENDLY_RATE_VALUE_FIELDS.intersection(data))
+        provided_billing = TARIFF_BILLING_FIELDS.intersection(data)
+        has_structure = bool(
+            TARIFF_STRUCTURE_FIELDS.intersection(data)
+            or data.get("configure_import_tariff")
+            or data.get("configure_export_tariff")
+        )
+        if "rate_entity" in data and "rate" not in data:
+            raise vol.Invalid("Provide both rate_entity and rate")
+        for rate_key, entity_key in (
+            ("import_rate", "import_rate_entity"),
+            ("export_rate", "export_rate_entity"),
+        ):
+            if (rate_key in data) != (entity_key in data):
+                raise vol.Invalid(f"Provide both {entity_key} and {rate_key}")
+        if not has_rates and not provided_billing and not has_structure:
+            raise vol.Invalid("Provide billing details or at least one rate update")
+        if provided_billing and provided_billing != TARIFF_BILLING_FIELDS:
+            raise vol.Invalid("Provide all billing fields")
+        if provided_billing:
+            frequency = data["billing_frequency"]
+            interval = data["billing_interval_value"]
+            maximum = 24 if frequency == "MONTH" else 100
+            if interval > maximum:
+                raise vol.Invalid(
+                    f"billing_interval_value must be between 1 and {maximum}"
+                )
+        return data
+
+    UPDATE_TARIFF_SCHEMA = vol.All(
+        vol.Schema(
+            {
+                vol.Optional("entity_id"): cv.entity_ids,
+                vol.Optional("device_id"): DEVICE_ID_LIST,
+                vol.Optional("site_id"): cv.string,
+                vol.Optional("config_entry_id"): cv.string,
+                vol.Optional("billing_start_date"): _validate_tariff_billing_start_date,
+                vol.Optional("billing_frequency"): vol.In(("MONTH", "DAY")),
+                vol.Optional("billing_interval_value"): vol.All(
+                    vol.Coerce(int), vol.Range(min=1)
+                ),
+                vol.Optional("rate_entity"): cv.entity_id,
+                vol.Optional("rate"): vol.All(vol.Coerce(float), vol.Range(min=0)),
+                vol.Optional("import_rate_entity"): cv.entity_id,
+                vol.Optional("import_rate"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0)
+                ),
+                vol.Optional("export_rate_entity"): cv.entity_id,
+                vol.Optional("export_rate"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0)
+                ),
+                vol.Optional("tariff_payload"): dict,
+                vol.Optional("purchase_tariff"): dict,
+                vol.Optional("buyback_tariff"): dict,
+                vol.Optional("configure_import_tariff"): cv.boolean,
+                vol.Optional("import_tariff_type"): TARIFF_TYPE_SCHEMA,
+                vol.Optional("import_variation"): TARIFF_VARIATION_SCHEMA,
+                vol.Optional("import_flat_rate"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0)
+                ),
+                vol.Optional("import_periods"): vol.All(cv.ensure_list, [dict]),
+                vol.Optional("import_tiers"): vol.All(cv.ensure_list, [dict]),
+                vol.Optional("import_off_peak_rate"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0)
+                ),
+                vol.Optional("configure_export_tariff"): cv.boolean,
+                vol.Optional("export_tariff_type"): TARIFF_TYPE_SCHEMA,
+                vol.Optional("export_variation"): TARIFF_VARIATION_SCHEMA,
+                vol.Optional("export_plan"): TARIFF_EXPORT_PLAN_SCHEMA,
+                vol.Optional("export_flat_rate"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0)
+                ),
+                vol.Optional("export_periods"): vol.All(cv.ensure_list, [dict]),
+                vol.Optional("export_tiers"): vol.All(cv.ensure_list, [dict]),
+                vol.Optional("export_off_peak_rate"): vol.All(
+                    vol.Coerce(float), vol.Range(min=0)
+                ),
+                vol.Optional("rates"): vol.All(
+                    cv.ensure_list,
+                    [
+                        vol.Schema(
+                            {
+                                vol.Required("entity_id"): cv.entity_id,
+                                vol.Required("rate"): vol.All(
+                                    vol.Coerce(float), vol.Range(min=0)
+                                ),
+                            }
+                        )
+                    ],
+                ),
+            }
+        ),
+        _validate_update_tariff,
     )
 
     def _extract_device_ids(call: ServiceCall) -> list[str]:
@@ -698,6 +810,277 @@ def async_setup_services(
             if f"{DOMAIN}_site_{coord.site_id}_" in unique_id:
                 return coord
         return None
+
+    def _tariff_rate_update_from_entity(
+        entity_id: str,
+        rate: float,
+        *,
+        branch: str | None = None,
+    ) -> tuple[EnphaseCoordinator, dict[str, object]]:
+        coord = _coordinator_from_tariff_entity(entity_id)
+        if coord is None:
+            _raise_service_validation(
+                "tariff_rate_entity_invalid",
+                placeholders={"entity_id": entity_id},
+                message=f"Entity is not an Enphase tariff rate entity: {entity_id}",
+            )
+        state = hass.states.get(entity_id)
+        locator = None if state is None else state.attributes.get("tariff_locator")
+        if not isinstance(locator, dict):
+            _raise_service_validation(
+                "tariff_rate_target_invalid",
+                message="Tariff rate target is invalid.",
+            )
+        if branch is not None and locator.get("branch") != branch:
+            _raise_service_validation(
+                "tariff_rate_entity_invalid",
+                placeholders={"entity_id": entity_id},
+                message=f"Entity is not an Enphase tariff rate entity: {entity_id}",
+            )
+        return coord, {"locator": locator, "rate": rate}
+
+    def _format_tariff_rate(value: object) -> str:
+        try:
+            rate = float(value)
+        except (TypeError, ValueError):
+            _raise_service_validation(
+                "tariff_rate_invalid",
+                message="Tariff rate must be a non-negative number.",
+            )
+        if rate < 0:
+            _raise_service_validation(
+                "tariff_rate_invalid",
+                message="Tariff rate must be a non-negative number.",
+            )
+        return f"{rate:.10f}".rstrip("0").rstrip(".") or "0"
+
+    def _tariff_month(value: object, default: int) -> int:
+        if value in (None, ""):
+            return default
+        try:
+            month = int(float(str(value).strip()))
+        except (TypeError, ValueError):
+            _raise_service_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        if month < 1 or month > 12:
+            _raise_service_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        return month
+
+    def _tariff_minutes(value: object) -> int | str:
+        if value in (None, ""):
+            return ""
+        if isinstance(value, str) and ":" in value:
+            parts = value.strip().split(":", 1)
+            try:
+                hour = int(parts[0])
+                minute = int(parts[1])
+            except (TypeError, ValueError):
+                _raise_service_validation(
+                    "tariff_structure_invalid",
+                    message="Tariff structure is invalid.",
+                )
+            minutes = hour * 60 + minute
+        else:
+            try:
+                minutes = int(float(str(value).strip()))
+            except (TypeError, ValueError):
+                _raise_service_validation(
+                    "tariff_structure_invalid",
+                    message="Tariff structure is invalid.",
+                )
+        if minutes < 0 or minutes > 24 * 60:
+            _raise_service_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        return minutes
+
+    def _tariff_days(value: object, day_group_id: str) -> list[int]:
+        if value in (None, ""):
+            if day_group_id == "weekday":
+                return [1, 2, 3, 4, 5]
+            if day_group_id == "weekend":
+                return [6, 7]
+            return [1, 2, 3, 4, 5, 6, 7]
+        raw_days = value if isinstance(value, list) else cv.ensure_list(value)
+        days: list[int] = []
+        for raw_day in raw_days:
+            try:
+                day = int(float(str(raw_day).strip()))
+            except (TypeError, ValueError):
+                _raise_service_validation(
+                    "tariff_structure_invalid",
+                    message="Tariff structure is invalid.",
+                )
+            if day < 1 or day > 7:
+                _raise_service_validation(
+                    "tariff_structure_invalid",
+                    message="Tariff structure is invalid.",
+                )
+            days.append(day)
+        return sorted(dict.fromkeys(days))
+
+    def _season_key(row: dict[str, object]) -> tuple[str, int, int]:
+        return (
+            str(row.get("season_id") or row.get("season") or "default"),
+            _tariff_month(row.get("start_month"), 1),
+            _tariff_month(row.get("end_month"), 12),
+        )
+
+    def _guided_tou_seasons(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        if not rows:
+            _raise_service_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        seasons: dict[tuple[str, int, int], dict[str, object]] = {}
+        day_groups: dict[tuple[str, int, int], dict[str, dict[str, object]]] = {}
+        for index, row in enumerate(rows, start=1):
+            if not isinstance(row, dict):
+                _raise_service_validation(
+                    "tariff_structure_invalid",
+                    message="Tariff structure is invalid.",
+                )
+            season_key = _season_key(row)
+            season = seasons.setdefault(
+                season_key,
+                {
+                    "id": season_key[0],
+                    "startMonth": str(season_key[1]),
+                    "endMonth": str(season_key[2]),
+                    "days": [],
+                },
+            )
+            groups = day_groups.setdefault(season_key, {})
+            day_group_id = str(
+                row.get("day_group_id") or row.get("day_group") or "week"
+            )
+            day_group = groups.get(day_group_id)
+            if day_group is None:
+                day_group = {
+                    "id": day_group_id,
+                    "days": _tariff_days(row.get("days"), day_group_id),
+                    "periods": [],
+                    "updatedValue": "",
+                }
+                groups[day_group_id] = day_group
+                season["days"].append(day_group)
+            period_id = str(row.get("period_id") or row.get("id") or f"period-{index}")
+            day_group["periods"].append(
+                {
+                    "id": period_id,
+                    "type": str(
+                        row.get("period_type") or row.get("type") or "off-peak"
+                    ),
+                    "rate": _format_tariff_rate(row.get("rate")),
+                    "startTime": _tariff_minutes(row.get("start_time")),
+                    "endTime": _tariff_minutes(row.get("end_time")),
+                    "rateComponents": [],
+                }
+            )
+        return list(seasons.values())
+
+    def _guided_tiered_seasons(
+        rows: list[dict[str, object]], off_peak_rate: object | None
+    ) -> list[dict[str, object]]:
+        if not rows:
+            _raise_service_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        seasons: dict[tuple[str, int, int], dict[str, object]] = {}
+        for index, row in enumerate(rows, start=1):
+            if not isinstance(row, dict):
+                _raise_service_validation(
+                    "tariff_structure_invalid",
+                    message="Tariff structure is invalid.",
+                )
+            season_key = _season_key(row)
+            season = seasons.setdefault(
+                season_key,
+                {
+                    "id": season_key[0],
+                    "startMonth": str(season_key[1]),
+                    "endMonth": str(season_key[2]),
+                    "offPeak": _format_tariff_rate(
+                        row.get(
+                            "off_peak_rate",
+                            off_peak_rate if off_peak_rate is not None else 0,
+                        )
+                    ),
+                    "tiers": [],
+                },
+            )
+            end_value = row.get("end_value", row.get("endValue", -1))
+            season["tiers"].append(
+                {
+                    "id": str(row.get("tier_id") or row.get("id") or f"tier-{index}"),
+                    "rate": _format_tariff_rate(row.get("rate")),
+                    "startValue": str(row.get("start_value", row.get("startValue", 0))),
+                    "endValue": (
+                        -1
+                        if end_value in (None, "", -1, "-1")
+                        else str(row.get("end_value", row.get("endValue")))
+                    ),
+                }
+            )
+        return list(seasons.values())
+
+    def _guided_tariff_branch(
+        data: dict[str, object],
+        *,
+        prefix: str,
+        export: bool = False,
+    ) -> dict[str, object] | None:
+        if not data.get(f"configure_{prefix}_tariff"):
+            return None
+        tariff_type = data.get(f"{prefix}_tariff_type")
+        if tariff_type is None:
+            _raise_service_validation(
+                "tariff_structure_invalid",
+                message="Tariff structure is invalid.",
+            )
+        variation = str(data.get(f"{prefix}_variation", "single"))
+        branch: dict[str, object] = {
+            "typeKind": variation,
+            "typeId": str(tariff_type),
+            "source": "manual",
+        }
+        if export:
+            branch["exportPlan"] = str(data.get("export_plan", "netFit"))
+        if tariff_type == "tiered":
+            branch["seasons"] = _guided_tiered_seasons(
+                list(data.get(f"{prefix}_tiers") or []),
+                data.get(f"{prefix}_off_peak_rate"),
+            )
+        else:
+            periods = list(data.get(f"{prefix}_periods") or [])
+            if not periods and tariff_type == "flat":
+                flat_rate = data.get(f"{prefix}_flat_rate")
+                if flat_rate is None:
+                    _raise_service_validation(
+                        "tariff_structure_invalid",
+                        message="Tariff structure is invalid.",
+                    )
+                periods = [
+                    {
+                        "season_id": "default",
+                        "day_group_id": "week",
+                        "days": [1, 2, 3, 4, 5, 6, 7],
+                        "period_id": "off-peak",
+                        "period_type": "off-peak",
+                        "rate": flat_rate,
+                        "start_time": "",
+                        "end_time": "",
+                    }
+                ]
+            branch["seasons"] = _guided_tou_seasons(periods)
+        return branch
 
     async def _resolve_charger_targets(
         call: ServiceCall,
@@ -1107,36 +1490,123 @@ def async_setup_services(
         for _device_id, sn, coord in await _resolve_charger_targets(call):
             await coord.schedule_sync.async_refresh(reason="service", serials=[sn])
 
-    async def _svc_set_tariff_rate(call: ServiceCall) -> None:
-        entity_ids = _extract_entity_ids(call)
-        if not entity_ids:
-            _raise_service_validation(
-                "tariff_rate_entity_required",
-                message="Select exactly one tariff rate entity.",
+    async def _svc_update_tariff(call: ServiceCall) -> None:
+        rates = list(call.data.get("rates") or [])
+        if "rate" in call.data:
+            entity_ids = list(_extract_entity_ids(call))
+            rate_entity = call.data.get("rate_entity")
+            if rate_entity:
+                entity_ids.append(str(rate_entity))
+            entity_ids = list(dict.fromkeys(entity_ids))
+            if len(entity_ids) != 1:
+                _raise_service_validation(
+                    "tariff_rate_entity_required",
+                    message="Select exactly one tariff rate entity.",
+                )
+            rates.append({"entity_id": entity_ids[0], "rate": call.data["rate"]})
+        if "import_rate" in call.data:
+            rates.append(
+                {
+                    "entity_id": call.data["import_rate_entity"],
+                    "rate": call.data["import_rate"],
+                    "branch": "purchase",
+                }
             )
-        if len(entity_ids) != 1:
-            _raise_service_validation(
-                "tariff_rate_entity_required",
-                message="Select exactly one tariff rate entity.",
+        if "export_rate" in call.data:
+            rates.append(
+                {
+                    "entity_id": call.data["export_rate_entity"],
+                    "rate": call.data["export_rate"],
+                    "branch": "buyback",
+                }
             )
-        entity_id = entity_ids[0]
-        coord = _coordinator_from_tariff_entity(entity_id)
-        if coord is None:
-            _raise_service_validation(
-                "tariff_rate_entity_invalid",
-                placeholders={"entity_id": entity_id},
-                message=f"Entity is not an Enphase tariff rate entity: {entity_id}",
-            )
-        state = hass.states.get(entity_id)
-        locator = None if state is None else state.attributes.get("tariff_locator")
-        if not isinstance(locator, dict):
-            _raise_service_validation(
-                "tariff_rate_target_invalid",
-                message="Tariff rate target is invalid.",
-            )
-        await coord.tariff_runtime.async_set_tariff_rate(
-            locator, float(call.data["rate"])
+        billing_requested = bool(TARIFF_BILLING_FIELDS.intersection(call.data))
+        guided_purchase_tariff = _guided_tariff_branch(call.data, prefix="import")
+        guided_buyback_tariff = _guided_tariff_branch(
+            call.data, prefix="export", export=True
         )
+        structure_requested = bool(
+            TARIFF_STRUCTURE_FIELDS.intersection(call.data)
+            or guided_purchase_tariff is not None
+            or guided_buyback_tariff is not None
+        )
+        if not rates and not billing_requested and not structure_requested:
+            _raise_service_validation(
+                "tariff_update_required",
+                message="Provide billing details or at least one tariff rate update.",
+            )
+        if billing_requested and not TARIFF_BILLING_FIELDS.issubset(call.data):
+            _raise_service_validation(
+                "tariff_billing_incomplete",
+                message="Provide billing start date, frequency, and interval.",
+            )
+
+        rate_updates: list[dict[str, object]] = []
+        rate_coord: EnphaseCoordinator | None = None
+        seen_entities: set[str] = set()
+        for item in rates:
+            entity_id = str(item.get("entity_id", "")).strip()
+            if entity_id in seen_entities:
+                _raise_service_validation(
+                    "tariff_rate_entity_duplicate",
+                    placeholders={"entity_id": entity_id},
+                    message=f"Duplicate tariff rate entity: {entity_id}",
+                )
+            seen_entities.add(entity_id)
+            coord, update = _tariff_rate_update_from_entity(
+                entity_id,
+                float(item["rate"]),
+                branch=item.get("branch"),
+            )
+            if rate_coord is None:
+                rate_coord = coord
+            elif coord is not rate_coord:
+                _raise_service_validation(
+                    "tariff_site_mismatch",
+                    message="All tariff updates must target the same Enphase site.",
+                )
+            rate_updates.append(update)
+
+        billing: dict[str, object] | None = None
+        if billing_requested:
+            billing = {
+                "billing_start_date": str(call.data["billing_start_date"]),
+                "billing_frequency": str(call.data["billing_frequency"]),
+                "billing_interval_value": int(call.data["billing_interval_value"]),
+            }
+        tariff_payload = call.data.get("tariff_payload")
+        purchase_tariff = call.data.get("purchase_tariff") or guided_purchase_tariff
+        buyback_tariff = call.data.get("buyback_tariff") or guided_buyback_tariff
+
+        target_coord: EnphaseCoordinator
+        has_explicit_site_target = bool(
+            call.data.get("config_entry_id")
+            or call.data.get("site_id")
+            or _extract_device_ids(call)
+        )
+        if (billing_requested or structure_requested) and (
+            has_explicit_site_target or rate_coord is None
+        ):
+            target_coord = await _resolve_single_site_coordinator(call)
+            if rate_coord is not None and str(target_coord.site_id) != str(
+                rate_coord.site_id
+            ):
+                _raise_service_validation(
+                    "tariff_site_mismatch",
+                    message="All tariff updates must target the same Enphase site.",
+                )
+        else:
+            assert rate_coord is not None
+            target_coord = rate_coord
+
+        kwargs: dict[str, object] = {"billing": billing, "rate_updates": rate_updates}
+        if tariff_payload is not None:
+            kwargs["tariff_payload"] = tariff_payload
+        if purchase_tariff is not None:
+            kwargs["purchase_tariff"] = purchase_tariff
+        if buyback_tariff is not None:
+            kwargs["buyback_tariff"] = buyback_tariff
+        await target_coord.tariff_runtime.async_update_tariff(**kwargs)
 
     hass.services.async_register(
         DOMAIN, "force_refresh", _svc_force_refresh, schema=FORCE_REFRESH_SCHEMA
@@ -1202,9 +1672,9 @@ def async_setup_services(
     )
     hass.services.async_register(
         DOMAIN,
-        "set_tariff_rate",
-        _svc_set_tariff_rate,
-        schema=SET_TARIFF_RATE_SCHEMA,
+        "update_tariff",
+        _svc_update_tariff,
+        schema=UPDATE_TARIFF_SCHEMA,
     )
 
 
