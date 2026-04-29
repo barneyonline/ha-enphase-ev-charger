@@ -415,6 +415,21 @@ async def test_battery_reserve_number_sets_value(hass, config_entry) -> None:
     coord.async_set_battery_reserve.assert_awaited_once_with(40)
 
 
+@pytest.mark.asyncio
+async def test_battery_reserve_number_ignores_current_value(hass, config_entry) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_has_encharge = True  # noqa: SLF001
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord.async_set_battery_reserve = AsyncMock()
+    coord._battery_show_charge_from_grid = True  # noqa: SLF001
+    coord._battery_show_battery_backup_percentage = True  # noqa: SLF001
+    coord._battery_backup_percentage = 25  # noqa: SLF001
+
+    await BatteryReserveNumber(coord).async_set_native_value(25)
+
+    coord.async_set_battery_reserve.assert_not_awaited()
+
+
 def test_battery_reserve_number_handles_none_and_super_unavailable(
     hass, config_entry
 ) -> None:
@@ -459,6 +474,20 @@ async def test_battery_shutdown_level_number_sets_value(hass, config_entry) -> N
     await BatteryShutdownLevelNumber(coord).async_set_native_value(12)
 
     coord.async_set_battery_shutdown_level.assert_awaited_once_with(12)
+
+
+@pytest.mark.asyncio
+async def test_battery_shutdown_level_number_ignores_current_value(
+    hass, config_entry
+) -> None:
+    coord = _make_coordinator(hass, config_entry, {RANDOM_SERIAL: {}})
+    coord._battery_envoy_supports_vls = True  # noqa: SLF001
+    coord._battery_very_low_soc = 15  # noqa: SLF001
+    coord.async_set_battery_shutdown_level = AsyncMock()
+
+    await BatteryShutdownLevelNumber(coord).async_set_native_value(15)
+
+    coord.async_set_battery_shutdown_level.assert_not_awaited()
 
 
 def test_battery_shutdown_level_number_handles_none_and_super_unavailable(
