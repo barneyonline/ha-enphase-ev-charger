@@ -4,7 +4,7 @@
     "envoy": {
       "document_topic_id": 217,
       "latest": {
-        "countries_text": "Belgium, Denmark, France, Ireland, Luxembourg, Netherlands, Romania, and Sweden Microinverters supported : IQ8 Series, IQ7 Series (Luxembourg only) and compatible third-party",
+        "countries_text": "Belgium, Denmark, France, Ireland, Luxembourg, Netherlands, Romania, and Sweden Microinverters supported : IQ8 Series, IQ7 Series (Luxembourg only) and compatible third-party string inverters Batteries supported: IQ Battery 3T/10T Supported system configurations : Grid-tied solar and storage systems with IQ8 Series Microinverters, IQ Gateway Metered, and IQ Battery 3T/10T for Belgium, Denmark, France, Netherlands, and Sweden Grid-tied Solar Only systems with IQ8 Series Microinverters and IQ Gateway Metered for Belgium, Denmark, France, Ireland, Netherlands, Romania, and Sweden Grid-tied Solar Only systems with IQ8 Series Microinverters and IQ Gateway Standard for Belgium, Denmark, France, Ireland, Netherlands, Romania, and Sweden Grid-tied solar and storage systems with compatible third-party string inverters, IQ Gateway Metered, and IQ Battery 3T/10T for Luxembourg, Sweden, and Denmark Grid-tied solar and storage systems with IQ7Series Microinverters, IQ Gateway Metered, and IQ Battery 3T/10T for Luxembourg. # Feature Description 1 Charge from Grid support Supports Charge from Grid commands from installer devices for Sweden and Denmark. 2 Improvements in phase imbalance management Improves phase imbalance management (PIM) for solar and battery systems. Note: PIM controls will be deactivated if third-party string inverters are selected during commissioning. 3 Bug fixes Fixes the issue of multiple AC Disconnect events observed in the Enphase Installer Portal. Fixes the issue of battery-related events due to microinverters switching to Idle state being observed in the Enphase Installer Portal. Fixes the issue of a huge spike in consumption being observed in the Enphase App whenever the IQ Gateway software is upgraded from v7.6.168. This release is being deployed via remote software upgrades for all systems",
         "document_topic_id": 217,
         "media_id": "16608",
         "product_media_name_id": 5002,
@@ -20,7 +20,7 @@
       "product_media_name_id": 5002
     }
   },
-  "generated_at": "2026-04-29T06:08:35.731548Z",
+  "generated_at": "2026-04-30T06:12:24.337113Z",
   "schema_version": 1,
   "source": {
     "apps_url": "https://enphase.com/installers/resources/documentation/communication",

@@ -4,24 +4,24 @@
     "envoy": {
       "document_topic_id": 217,
       "latest": {
-        "countries_text": "USA, Mexico, Canada Microinverters Supported : M-Series, IQ6, IQ7 Supported System Configurations : IQ6/7 Microinverters, IQ Gateway, IQ System Controller 1/2 and IQ Battery 3/3T/10/10T M215/M250 Microinverters, Envoy S Meter",
+        "countries_text": "Worldwide Microinverters Supported : M-Series, S-Series, IQ6, IQ7, IQ8 # Feature Description 1 Support for IQ8 Series Microinverters IQ Gateway SW 7.0 supports IQ8 microinverters in North America in grid-tied applications 2 Enhanced Security The security infrastructure for accessing IQ Gateways using local APIs has been upgraded. The system now uses a token-based authentication mechanism to allow access for local data instead of a username/password combination. Read more about the local data access security here 3 Enphase Cellmodem Support The new Enphase Cellmodems CELLMODEM-M1-06-SP-05 and CELLMODEM-M1-06-AT-05 are now supported by IQ Gateway for plug-and-play install 4 IQ Battery and System Controller Support IQ Gateway SW 7.0 makes your system easy-to-upgrade to incorporate IQ Battery storage and System Controller in future 5 Reporting Enhancements for Metering Data IQ Gateway can now increase the reporting frequency to Enphase Cloud on-demand for live debugging of the system in case of system issues. This can reduce the time to fix a potential system issue. The PV system will now support live status and live vitals with this update 6 PCS Support IQ Gateway 7.0 supports Power Control System (PCS) to avoid main panel upgrade when oversizing M-Series/IQ6/IQ7 PV inverters in North America for installations using an IQ System Controller. You can read more about this feature here 7 Bug Fixes and Feature Enhancements IQ Gateway SW 7.0 fixes a few bugs and improves the stability of system features in the existing IQ Gateway SW release",
         "document_topic_id": 217,
-        "media_id": "4946",
+        "media_id": "4947",
         "product_media_name_id": 5002,
         "product_type": "141",
-        "release_date": "2022-04-28",
-        "summary": "IQ Gateway software version 7.3.75 is the next major release version of IQ Gateway embedded software with better system stability, improved commissioning time and enhanced battery management. Platforms Supported : IQ Envoy, Envoy S Metered for North America Geographies : USA, Mexico, Canada Microinverters Supported : M-Series, IQ6, IQ7 Supported System Configurations : IQ6/7 Microinverters, IQ Gateway, IQ System Controller 1/2 and IQ Battery 3/3T/10/10T M215/M250 Microinverters, Envoy S Meter...",
-        "title": "IQ Gateway software release notes (7.3.75)",
+        "release_date": "2021-12-21",
+        "summary": "IQ Gateway software version 7.0.86 introduces updated security measures, new product support and is the next major worldwide release version of IQ Gateway embedded software. To read more about how to access Envoy locally with enhanced security, visit our webpage here : Platforms Supported: IQ Envoy, Envoy S Metered, Envoy S Standard Geographies: Worldwide Microinverters Supported : M-Series, S-Series, IQ6, IQ7, IQ8 # Feature Description 1 Support for IQ8 Series Microinverters IQ Gateway SW 7....",
+        "title": "IQ Gateway software release notes (7.0.86)",
         "urls_by_locale": {
           "en": "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en",
           "lt-lt": "https://enphase.com/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&f%5B1%5D=product_media_name%3A5002&search_api_language=en&field_alternative_language=en"
         },
-        "version": "7.3.75"
+        "version": "7.0.86"
       },
       "product_media_name_id": 5002
     }
   },
-  "generated_at": "2026-04-29T06:08:35.731548Z",
+  "generated_at": "2026-04-30T06:12:24.337113Z",
   "schema_version": 1,
   "source": {
     "apps_url": "https://enphase.com/installers/resources/documentation/communication",

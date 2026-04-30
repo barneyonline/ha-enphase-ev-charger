@@ -4,7 +4,7 @@
     "envoy": {
       "document_topic_id": 217,
       "latest": {
-        "countries_text": "USA, Mexico, Canada and Brazil Microinverters Supported : M-Series, S-Series, IQ6, IQ7, IQ8 Supported System Configurations : M-Series/S-Series microinverters + Envoy S Metered - Grid Tied System IQ6/7/8-Series Microinverters",
+        "countries_text": "Worldwide",
         "document_topic_id": 217,
         "media_id": "4947",
         "product_media_name_id": 5002,
@@ -20,7 +20,7 @@
       "product_media_name_id": 5002
     }
   },
-  "generated_at": "2026-04-29T06:08:35.731548Z",
+  "generated_at": "2026-04-30T06:12:24.337113Z",
   "schema_version": 1,
   "source": {
     "apps_url": "https://enphase.com/installers/resources/documentation/communication",

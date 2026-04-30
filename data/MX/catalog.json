@@ -4,7 +4,7 @@
     "envoy": {
       "document_topic_id": 217,
       "latest": {
-        "countries_text": "USA, Mexico, Canada Microinverters Supported : M-Series, IQ6, IQ7 Supported System Configurations : IQ6/7 Microinverters, IQ Gateway, IQ System Controller 1/2 and IQ Battery 3/3T/10/10T M215/M250 Microinverters, Envoy S Meter",
+        "countries_text": "USA, Mexico, Canada Microinverters Supported : M-Series, IQ6, IQ7 Supported System Configurations : IQ6/7 Microinverters, IQ Gateway, IQ System Controller 1/2 and IQ Battery 3/3T/10/10T M215/M250 Microinverters, Envoy S Metered for North America, IQ System Controller 1/2 and IQ Battery 3/3T/10/10T Note: Load control, solar circuit i.e., PV shedding, and generator support features are available for system configurations mentioned above. # Feature Description 1 Enhanced System Stability Improves the stability of microgrid during low power consumption, low PV production or high battery state of charge conditions. 2 Improvements in Battery Export Limiting Rules Improves battery export rules for utility interconnection compliance and disassociates them from import rules. The system now stops battery export when meter is disabled. Earlier software releases inadvertently curtailed PV production when there was momentary export from battery. Any violations of export and import rules will only affect battery and will not inadvertently affect PV power production. 3 Improvement on Commissioning Time Removes the delays in setup and Functional Validation (FV) completion of the system. 4 Enhanced Power Production Enhances power production by improving the battery controller features. 5 Bug Fixes and Feature Enhancements Improves the stability of system features. This release is being deployed through the Enphase Installer App for new systems as well as via remote software upgrades for existing systems",
         "document_topic_id": 217,
         "media_id": "4946",
         "product_media_name_id": 5002,
@@ -21,7 +21,7 @@
       "product_media_name_id": 5002
     }
   },
-  "generated_at": "2026-04-29T06:08:35.731548Z",
+  "generated_at": "2026-04-30T06:12:24.337113Z",
   "schema_version": 1,
   "source": {
     "apps_url": "https://enphase.com/installers/resources/documentation/communication",
