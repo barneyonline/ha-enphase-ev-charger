@@ -5,11 +5,11 @@
       "docs_path": "/installers/resources/documentation/communication",
       "docs_url": "https://enphase.com/installers/resources/documentation/communication",
       "document_topic_id": 217,
-      "product_media_name_id": 5002,
+      "product_media_name_id": null,
       "product_type": 141
     }
   },
-  "generated_at": "2026-04-30T06:12:24.337113Z",
+  "generated_at": "2026-05-01T06:23:18.847724Z",
   "product_type": 141,
   "root": "https://enphase.com/installers/resources/documentation",
   "targets": [
