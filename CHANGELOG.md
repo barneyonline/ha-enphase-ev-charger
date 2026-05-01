@@ -17,6 +17,8 @@ All notable changes to this project will be documented in this file.
 - Localized cloud diagnostic error states for rate limits, temporary authentication blocks, authentication failures, invalid payloads, service outages, DNS failures, and network errors; rate-limit repairs now include retry timing, de-duplicate repeated reports, and clear after a successful refresh.
 - Bounded the `Current Production Power` live-sample cache so stale values are not reused indefinitely when the latest-power endpoint stops returning valid samples.
 - Filtered advisory IQ Gateway firmware releases by country applicability so country-scoped Enphase release notes do not create invalid update prompts in unrelated regions.
+- Crawled IQ Gateway communication release notes without the removed product-media facet so current regional Gateway firmware versions remain discoverable.
+- Suppressed stale worldwide IQ Gateway firmware catalog fallbacks when newer country-scoped release notes show the public catalog no longer has a current global baseline.
 - Smoothed idle heat-pump power over existing low-load energy samples so whole-Wh cloud readings no longer flicker between `0 W` and standby load, while exposing the raw short-window value in diagnostics.
 - Reduced unnecessary EV charger post-status follow-up lookups, kept idle session-history catch-up off the main refresh path when cached data is still usable, and aligned HEMS preflight/device refresh cadence with fast polling to lower steady-state cloud overhead.
 - Hardened setup, polling, and EV charger service inputs by bounding scan/runtime intervals, restricting OCPP trigger messages to supported values, requiring confirmation for advanced trigger messages, and keeping raw Enphase error bodies out of raised exceptions.

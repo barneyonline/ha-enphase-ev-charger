@@ -397,6 +397,37 @@ async def test_gateway_update_entity_states_and_release_url_selection(hass) -> N
     assert entity.release_url is None
     assert entity.release_summary is None
 
+    regional_payload = _catalog_payload()
+    regional_payload["devices"]["envoy"]["latest_by_locale"]["fr-fr"] = {
+        "version": "8.3.5232",
+        "summary": "Gateway regional",
+        "urls_by_locale": {"fr-fr": "https://example.test/envoy/fr-regional"},
+    }
+    regional_payload["devices"]["envoy"]["latest_by_country"]["AU"] = {
+        "version": "8.3.5232",
+        "summary": "Gateway regional",
+        "urls_by_locale": {
+            "fr-fr": "https://example.test/envoy/fr-regional",
+            "en-au": "https://example.test/envoy/au-regional",
+        },
+    }
+    regional_payload["devices"]["envoy"]["latest_global"] = {
+        "version": "8.3.5427",
+        "summary": "Gateway global",
+        "urls_by_locale": {"en": "https://example.test/envoy/global-newer"},
+    }
+    coord._gateway_version = "8.3.5000"
+    entity._refresh_from_catalog(regional_payload)
+    assert entity.latest_version == "8.3.5232"
+    assert entity.release_url == "https://example.test/envoy/fr-regional"
+    assert entity.release_summary == "Gateway regional"
+
+    coord._gateway_version = "8.3.5300"
+    entity._refresh_from_catalog(regional_payload)
+    assert entity.latest_version == "8.3.5427"
+    assert entity.release_url == "https://example.test/envoy/global-newer"
+    assert entity.release_summary == "Gateway global"
+
     coord._gateway_version = "8.2.4300"
     entity._refresh_from_catalog(manager.cached_catalog)
     await entity.async_skip()
