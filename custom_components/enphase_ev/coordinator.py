@@ -264,6 +264,7 @@ class RefreshPipelineContext:
     phase_timings: dict[str, float]
     fallback_data: dict[str, dict]
     first_refresh: bool
+    auth_refresh_rejected_count_at_start: int = 0
     status_used_stale: bool = False
     fast_poll: bool = False
 
@@ -2416,6 +2417,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             phase_timings={},
             fallback_data=fallback_data,
             first_refresh=not self._has_successful_refresh,
+            auth_refresh_rejected_count_at_start=int(
+                getattr(self, "_auth_refresh_rejected_count", 0)
+            ),
         )
 
     async def _async_run_site_only_refresh_pipeline(
@@ -2462,8 +2466,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     phase_timings,
                     plan=followup_plan,
                 )
-        if not self._auth_refresh_suspended_active():
-            self._clear_auth_refresh_rejection_state()
+        self._clear_auth_refresh_rejection_state_if_unchanged(context)
         self._prune_runtime_caches(active_serials=(), keep_day_keys=())
         self._sync_battery_profile_pending_issue()
         self.last_success_utc = dt_util.utcnow()
@@ -2521,8 +2524,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     context.phase_timings,
                     plan=followup_plan,
                 )
-        if not self._auth_refresh_suspended_active():
-            self._clear_auth_refresh_rejection_state()
+        self._clear_auth_refresh_rejection_state_if_unchanged(context)
 
     async def _async_run_post_session_refresh_pipeline(
         self,
@@ -4415,6 +4417,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_refresh_rejected_count = 0
         self._auth_refresh_rejected_until = None
         self._auth_refresh_rejected_ends_utc = None
+
+    def _clear_auth_refresh_rejection_state_if_unchanged(
+        self, context: RefreshPipelineContext
+    ) -> None:
+        """Clear stale refresh rejections only when this refresh added none."""
+
+        if self._auth_refresh_suspended_active():
+            return
+        if (
+            int(getattr(self, "_auth_refresh_rejected_count", 0))
+            != context.auth_refresh_rejected_count_at_start
+        ):
+            return
+        self._clear_auth_refresh_rejection_state()
 
     def _clear_auth_refresh_suspension(self, *, persist: bool = True) -> None:
         """Clear stored-credential auto-refresh suspension state."""
