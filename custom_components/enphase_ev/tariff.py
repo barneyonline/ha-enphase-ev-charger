@@ -488,6 +488,26 @@ def _time_window_matches(
     return minute_of_day >= start or minute_of_day < end
 
 
+def _time_window_is_constrained(start_time: object, end_time: object) -> bool:
+    start = _time_to_minutes(start_time)
+    end = _time_to_minutes(end_time)
+    return start is not None and end is not None and start != end
+
+
+def _tariff_rate_scope_key(attrs: dict) -> tuple[object, ...]:
+    days = attrs.get("days")
+    days_key: tuple[object, ...] | None = None
+    if isinstance(days, list):
+        days_key = tuple(days)
+    return (
+        attrs.get("season_id"),
+        attrs.get("start_month"),
+        attrs.get("end_month"),
+        attrs.get("day_group_id"),
+        days_key,
+    )
+
+
 def current_tariff_rate_sensor_spec(
     snapshot: TariffRateSnapshot | None,
     when: datetime,
@@ -528,6 +548,23 @@ def current_tariff_rate_sensor_spec(
             continue
         matches.append(spec)
     if len(matches) != 1:
+        constrained_matches = [
+            spec
+            for spec in matches
+            if _time_window_is_constrained(
+                (spec.get("attributes") or {}).get("start_time"),
+                (spec.get("attributes") or {}).get("end_time"),
+            )
+        ]
+        if len(constrained_matches) == 1:
+            constrained_attrs = constrained_matches[0].get("attributes") or {}
+            constrained_scope = _tariff_rate_scope_key(constrained_attrs)
+            if all(
+                _tariff_rate_scope_key(spec.get("attributes") or {})
+                == constrained_scope
+                for spec in matches
+            ):
+                return constrained_matches[0]
         return None
     return matches[0]
 

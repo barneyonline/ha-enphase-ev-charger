@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
 - Made same-value IQ Battery reserve and shutdown-level number writes no-ops so unchanged settings do not trip the BatteryConfig write debounce or send unnecessary cloud writes.
 - Made same-value EV charger charge mode selections no-ops so the scheduler is not called when Home Assistant selects the already-active mode, avoiding Enphase `400` responses on unchanged selections.
 - Kept tariff refresh data stale-but-available when Enphase tariff endpoints are degraded, and made empty/unconfigured tariff responses explicit in diagnostics instead of failing normal polling.
+- Resolved current tariff price selection when Enphase time-of-use payloads include an all-day fallback period alongside timed peak periods.
 
 ### 🔧 Improvements
 - Clarified Enphase authentication-block and active-session repair messages, including retry timing and guidance to clear other Enphase app/browser sessions.

@@ -563,6 +563,221 @@ def test_current_tariff_rate_sensor_spec_selects_active_period() -> None:
     assert winter["state"] == 0.30
 
 
+def test_current_tariff_rate_sensor_spec_prefers_timed_period_over_fallback() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "source": "manual",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "startMonth": "1",
+                        "endMonth": "12",
+                        "days": [
+                            {
+                                "id": "week",
+                                "days": [1, 2, 3, 4, 5, 6, 7],
+                                "periods": [
+                                    {
+                                        "id": "off-peak",
+                                        "type": "off-peak",
+                                        "rate": "0.18",
+                                        "startTime": "",
+                                        "endTime": "",
+                                    },
+                                    {
+                                        "id": "peak-1",
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                        "startTime": "840",
+                                        "endTime": "1260",
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    peak = current_tariff_rate_sensor_spec(
+        snapshot,
+        datetime(2026, 5, 1, 15, 12, tzinfo=timezone.utc),
+    )
+    off_peak = current_tariff_rate_sensor_spec(
+        snapshot,
+        datetime(2026, 5, 1, 21, 30, tzinfo=timezone.utc),
+    )
+
+    assert peak is not None
+    assert peak["name"] == "Peak"
+    assert peak["state"] == 0.31
+    assert off_peak is not None
+    assert off_peak["name"] == "Off-Peak"
+    assert off_peak["state"] == 0.18
+
+
+def test_current_tariff_rate_sensor_spec_rejects_overlapping_timed_periods() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "single",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                        "startTime": "840",
+                                        "endTime": "1260",
+                                    },
+                                    {
+                                        "type": "shoulder",
+                                        "rate": "0.25",
+                                        "startTime": "900",
+                                        "endTime": "1080",
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    assert (
+        current_tariff_rate_sensor_spec(
+            snapshot,
+            datetime(2026, 5, 1, 15, 30, tzinfo=timezone.utc),
+        )
+        is None
+    )
+
+
+def test_current_tariff_rate_sensor_spec_rejects_cross_season_fallback() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "seasonal",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "first",
+                        "startMonth": "1",
+                        "endMonth": "12",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "type": "off-peak",
+                                        "rate": "0.18",
+                                        "startTime": "",
+                                        "endTime": "",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "id": "second",
+                        "startMonth": "1",
+                        "endMonth": "12",
+                        "days": [
+                            {
+                                "id": "week",
+                                "periods": [
+                                    {
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                        "startTime": "840",
+                                        "endTime": "1260",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    assert (
+        current_tariff_rate_sensor_spec(
+            snapshot,
+            datetime(2026, 5, 1, 15, 30, tzinfo=timezone.utc),
+        )
+        is None
+    )
+
+
+def test_current_tariff_rate_sensor_spec_rejects_cross_day_group_fallback() -> None:
+    snapshot = parse_tariff_rate(
+        {
+            "currency": "$",
+            "purchase": {
+                "typeKind": "weekends",
+                "typeId": "tou",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [
+                            {
+                                "id": "all",
+                                "days": [1, 2, 3, 4, 5, 6, 7],
+                                "periods": [
+                                    {
+                                        "type": "off-peak",
+                                        "rate": "0.18",
+                                        "startTime": "",
+                                        "endTime": "",
+                                    }
+                                ],
+                            },
+                            {
+                                "id": "week",
+                                "days": [1, 2, 3, 4, 5],
+                                "periods": [
+                                    {
+                                        "type": "peak",
+                                        "rate": "0.31",
+                                        "startTime": "840",
+                                        "endTime": "1260",
+                                    }
+                                ],
+                            },
+                        ],
+                    }
+                ],
+            },
+        },
+        "purchase",
+    )
+
+    assert (
+        current_tariff_rate_sensor_spec(
+            snapshot,
+            datetime(2026, 5, 1, 15, 30, tzinfo=timezone.utc),
+        )
+        is None
+    )
+
+
 def test_next_tariff_rate_change_finds_time_and_season_boundaries() -> None:
     snapshot = parse_tariff_rate(
         {
