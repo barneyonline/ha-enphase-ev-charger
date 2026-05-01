@@ -1,9 +1,9 @@
 # Service Status History
 
-- Current status: **Degraded**
-- Last updated: `2026-05-01 17:00 UTC`
-- Failed checks in latest run: `3`
-- Latest failed checks: evse_scheduler, site_live, battery_config
+- Current status: **Fully Operational**
+- Last updated: `2026-05-01 18:37 UTC`
+- Failed checks in latest run: `1`
+- Latest failed checks: battery_config
 - Retained hourly samples: `500`
 - Incident windows in last 30 days: `7`
 
@@ -16,8 +16,8 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-04-01T17:00:22, 0ms
-    Window end :vert, window-end, 2026-05-01T17:00:22, 0ms
+    Window start :vert, window-start, 2026-04-01T18:37:47, 0ms
+    Window end :vert, window-end, 2026-05-01T18:37:47, 0ms
     section Down
     Down 1 (2026-04-14 0901 UTC) :crit, down-1, 2026-04-14T09:01:13, 60m
     Down 2 (2026-04-18 2234 UTC) :crit, down-2, 2026-04-18T22:34:13, 60m
@@ -39,7 +39,7 @@ gantt
 | Down | 2026-04-14 09:01 UTC | Unknown after last seen 2026-04-14 09:01 UTC | Observed 0m | battery_config, evse_runtime, evse_scheduler |
 | Down | 2026-04-18 22:34 UTC | 2026-04-18 23:33 UTC | 59m | battery_config, evse_runtime, evse_scheduler |
 | Degraded | 2026-04-21 12:13 UTC | Unknown after last seen 2026-04-21 12:13 UTC | Observed 0m | battery_config, battery_runtime, discovery, evse_scheduler, inventory, microinverters, site_energy, site_live |
-| Degraded | 2026-05-01 17:00 UTC | Ongoing (last seen 2026-05-01 17:00 UTC) | Observed at latest check | battery_config, evse_scheduler, site_live |
+| Degraded | 2026-05-01 17:00 UTC | Unknown after last seen 2026-05-01 17:00 UTC | Observed 0m | battery_config, evse_scheduler, site_live |
 
 ## Raw Artifacts
 
