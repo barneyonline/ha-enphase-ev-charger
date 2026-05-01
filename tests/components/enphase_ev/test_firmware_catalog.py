@@ -314,6 +314,17 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
     assert global_fallback.source_scope == "global"
     assert global_fallback.entry and global_fallback.entry["version"] == "8.2.4300"
 
+    preferred_global = firmware_catalog.select_catalog_entry(
+        catalog,
+        device_type="envoy",
+        country="AU",
+        locale="fr-fr",
+        prefer_global=True,
+    )
+    assert preferred_global.source_scope == "global"
+    assert preferred_global.locale_used == "en"
+    assert preferred_global.entry and preferred_global.entry["version"] == "8.2.4300"
+
     legacy_catalog = {
         "schema_version": 1,
         "generated_at": "2026-03-01T00:00:00Z",

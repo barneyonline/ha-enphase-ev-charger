@@ -34,11 +34,13 @@ TARGET_PRODUCTS: dict[str, dict[str, Any]] = {
     "envoy": {
         "label": "IQ Gateway software",
         "docs_path": COMMUNICATION_CATEGORY_PATH,
+        "product_media_name_required": False,
         "required": True,
     },
     "iqevse": {
         "label": "IQ EV Charger software",
         "docs_path": TARGET_CATEGORY_PATH,
+        "product_media_name_required": True,
         "required": False,
     },
 }
@@ -1397,6 +1399,16 @@ def _is_same_release_card(left: ReleaseCard, right: ReleaseCard) -> bool:
     )
 
 
+def _version_family(value: str | None) -> tuple[int, ...] | None:
+    family: list[int] = []
+    for part in _version_sort_key(value):
+        if isinstance(part, int):
+            family.append(part)
+            if len(family) == 2:
+                return tuple(family)
+    return tuple(family) if family else None
+
+
 def pick_latest_release(releases: list[ReleaseCard]) -> ReleaseCard | None:
     if not releases:
         return None
@@ -1411,24 +1423,63 @@ def pick_latest_release(releases: list[ReleaseCard]) -> ReleaseCard | None:
     return max(releases, key=_sort_key)
 
 
+def _release_is_newer(candidate: ReleaseCard, baseline: ReleaseCard) -> bool:
+    if _is_same_release_card(candidate, baseline):
+        return False
+    return pick_latest_release([baseline, candidate]) is candidate
+
+
+def _is_stale_global_fallback(
+    card: ReleaseCard,
+    latest_known: ReleaseCard | None,
+    *,
+    alias_map: dict[str, str],
+) -> bool:
+    if latest_known is None or not _release_is_newer(latest_known, card):
+        return False
+
+    applicability = parse_country_applicability(
+        card.countries_text, alias_map=alias_map
+    )
+    if not country_applicability_is_global_fallback(applicability):
+        return False
+
+    card_family = _version_family(card.version)
+    latest_family = _version_family(latest_known.version)
+    return bool(card_family and latest_family and card_family != latest_family)
+
+
+def _is_global_fallback_card(card: ReleaseCard, *, alias_map: dict[str, str]) -> bool:
+    return country_applicability_is_global_fallback(
+        parse_country_applicability(card.countries_text, alias_map=alias_map)
+    )
+
+
 def pick_latest_release_for_country(
     releases: list[ReleaseCard],
     country_code: str,
     *,
     alias_map: dict[str, str],
+    latest_known: ReleaseCard | None = None,
 ) -> ReleaseCard | None:
     applicable = [
         card
         for card in releases
         if release_applies_to_country(card, country_code, alias_map=alias_map)
     ]
-    return pick_latest_release(applicable)
+    latest = pick_latest_release(applicable)
+    if latest is not None and _is_stale_global_fallback(
+        latest, latest_known, alias_map=alias_map
+    ):
+        return None
+    return latest
 
 
 def pick_latest_global_release(
     releases: list[ReleaseCard],
     *,
     alias_map: dict[str, str],
+    latest_known: ReleaseCard | None = None,
 ) -> ReleaseCard | None:
     applicable = []
     for card in releases:
@@ -1437,7 +1488,12 @@ def pick_latest_global_release(
         )
         if country_applicability_is_global_fallback(country_applicability):
             applicable.append(card)
-    return pick_latest_release(applicable)
+    latest = pick_latest_release(applicable)
+    if latest is not None and _is_stale_global_fallback(
+        latest, latest_known, alias_map=alias_map
+    ):
+        return None
+    return latest
 
 
 def build_release_urls_by_locale(
@@ -1446,20 +1502,22 @@ def build_release_urls_by_locale(
     apps_url: str,
     product_type: str,
     topic_id: int,
-    product_media_name_id: int,
+    product_media_name_id: int | None,
 ) -> dict[str, str]:
     urls: dict[str, str] = {}
     for locale in locales:
         normalized = _normalize_locale(locale)
+        query = {
+            "product_type": product_type,
+            "f[0]": f"document:{topic_id}",
+            "search_api_language": normalized,
+            "field_alternative_language": normalized,
+        }
+        if product_media_name_id is not None:
+            query["f[1]"] = f"product_media_name:{product_media_name_id}"
         urls[normalized] = _with_query(
             apps_url,
-            {
-                "product_type": product_type,
-                "f[0]": f"document:{topic_id}",
-                "f[1]": f"product_media_name:{product_media_name_id}",
-                "search_api_language": normalized,
-                "field_alternative_language": normalized,
-            },
+            query,
         )
     return urls
 
@@ -1469,7 +1527,7 @@ def card_to_runtime_entry(
     card: ReleaseCard,
     product_type: str,
     topic_id: int,
-    product_media_name_id: int,
+    product_media_name_id: int | None,
     locales: list[str],
     apps_url: str,
 ) -> dict[str, Any]:
@@ -1504,21 +1562,23 @@ def crawl_release_cards(
     apps_url: str,
     product_type: str,
     topic_id: int,
-    product_media_name_id: int,
+    product_media_name_id: int | None,
     search_locale: str,
     timeout: int,
     max_pages: int,
 ) -> tuple[list[ReleaseCard], list[str]]:
+    query = {
+        "product_type": product_type,
+        "f[0]": f"document:{topic_id}",
+        "search_api_language": _normalize_locale(search_locale),
+        "field_alternative_language": _normalize_locale(search_locale),
+        "page": "0",
+    }
+    if product_media_name_id is not None:
+        query["f[1]"] = f"product_media_name:{product_media_name_id}"
     page_url = _with_query(
         apps_url,
-        {
-            "product_type": product_type,
-            "f[0]": f"document:{topic_id}",
-            "f[1]": f"product_media_name:{product_media_name_id}",
-            "search_api_language": _normalize_locale(search_locale),
-            "field_alternative_language": _normalize_locale(search_locale),
-            "page": "0",
-        },
+        query,
     )
 
     cards: list[ReleaseCard] = []
@@ -1727,8 +1787,11 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
         )
         global_target["bootstrap_error"] = None
 
+        product_media_name_required = bool(
+            product_meta.get("product_media_name_required", True)
+        )
         global_product_id_raw = global_target["product_ids"].get(device_key)
-        if global_product_id_raw is None:
+        if global_product_id_raw is None and product_media_name_required:
             missing_message = (
                 f"Could not discover product id for '{product_meta['label']}'"
             )
@@ -1762,7 +1825,9 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                 missing_message,
             )
             continue
-        global_product_id = int(global_product_id_raw)
+        global_product_id = (
+            int(global_product_id_raw) if global_product_id_raw is not None else None
+        )
 
         for target in device_targets:
             if str(target["key"]) == global_target_key:
@@ -1811,8 +1876,7 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             )
 
         target_cards: dict[str, list[ReleaseCard]] = {}
-        target_product_ids: dict[str, int] = {}
-        target_entries: dict[str, dict[str, Any] | None] = {}
+        target_product_ids: dict[str, int | None] = {}
         target_crawl: dict[str, Any] = {}
         total_count = 0
         missing_product_ids: list[str] = []
@@ -1823,8 +1887,10 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
 
         for target in device_targets:
             target_product_id = target["product_ids"].get(device_key)
-            used_global_product_id = target_product_id is None
-            if used_global_product_id:
+            used_global_product_id = (
+                target_product_id is None and global_product_id is not None
+            )
+            if target_product_id is None:
                 missing_product_ids.append(str(target["key"]))
             product_id = (
                 int(target_product_id)
@@ -1875,55 +1941,64 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             target_key = str(target["key"])
             target_cards[target_key] = cards
             target_product_ids[target_key] = product_id
-            latest_card = pick_latest_global_release(cards, alias_map=country_alias_map)
-            target_entries[target_key] = (
-                card_to_runtime_entry(
-                    card=latest_card,
-                    product_type=str(target["product_type"]),
-                    topic_id=int(target["topic_id"]),
-                    product_media_name_id=product_id,
-                    locales=list(target["locales"]),
-                    apps_url=str(target["apps_url"]),
-                )
-                if latest_card
-                else None
-            )
+
+        latest_known_card = pick_latest_release(
+            [card for cards in target_cards.values() for card in cards]
+        )
 
         def _latest_applicable_card_for_route(
             route: dict[str, Any],
         ) -> tuple[ReleaseCard, str] | None:
             target_key = str(route["target_key"])
             route_country = route.get("country_code")
-            source_target_keys = [target_key]
-            if target_key != global_target_key:
-                source_target_keys.append(global_target_key)
 
-            candidates: list[tuple[ReleaseCard, str]] = []
-            for source_target_key in source_target_keys:
+            def _latest_for_target(source_target_key: str) -> ReleaseCard | None:
                 cards = target_cards.get(source_target_key, [])
                 if isinstance(route_country, str):
-                    latest_card = pick_latest_release_for_country(
-                        cards, route_country, alias_map=country_alias_map
+                    return pick_latest_release_for_country(
+                        cards,
+                        route_country,
+                        alias_map=country_alias_map,
+                        latest_known=latest_known_card,
                     )
-                else:
-                    latest_card = pick_latest_global_release(
-                        cards, alias_map=country_alias_map
-                    )
-                if latest_card is not None:
-                    candidates.append((latest_card, source_target_key))
+                return pick_latest_global_release(
+                    cards,
+                    alias_map=country_alias_map,
+                    latest_known=latest_known_card,
+                )
 
-            if not candidates:
-                return None
+            route_card = _latest_for_target(target_key)
+            if target_key == global_target_key:
+                return (route_card, target_key) if route_card is not None else None
 
-            selected_card, selected_target_key = candidates[0]
-            for candidate_card, candidate_target_key in candidates[1:]:
-                if _is_same_release_card(selected_card, candidate_card):
-                    continue
-                latest_card = pick_latest_release([selected_card, candidate_card])
-                if latest_card is candidate_card:
-                    selected_card = candidate_card
-                    selected_target_key = candidate_target_key
-            return selected_card, selected_target_key
+            global_card = _latest_for_target(global_target_key)
+            if route_card is None:
+                return (
+                    (global_card, global_target_key)
+                    if global_card is not None
+                    else None
+                )
+            if global_card is None or _is_same_release_card(route_card, global_card):
+                return route_card, target_key
+
+            route_is_fallback = _is_global_fallback_card(
+                route_card, alias_map=country_alias_map
+            )
+            global_is_fallback = _is_global_fallback_card(
+                global_card, alias_map=country_alias_map
+            )
+            if route_is_fallback and not global_is_fallback:
+                return global_card, global_target_key
+
+            route_family = _version_family(route_card.version)
+            global_family = _version_family(global_card.version)
+            if route_family and route_family == global_family:
+                return route_card, target_key
+
+            latest_card = pick_latest_release([route_card, global_card])
+            if latest_card is global_card:
+                return global_card, global_target_key
+            return route_card, target_key
 
         def _entry_for_route(route: dict[str, Any]) -> dict[str, Any] | None:
             selected_card = _latest_applicable_card_for_route(route)
@@ -1941,7 +2016,23 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
                 apps_url=str(target["apps_url"]),
             )
 
-        latest_global_entry = target_entries.get(global_target_key)
+        latest_global_card = pick_latest_global_release(
+            target_cards.get(global_target_key, []),
+            alias_map=country_alias_map,
+            latest_known=latest_known_card,
+        )
+        latest_global_entry = (
+            card_to_runtime_entry(
+                card=latest_global_card,
+                product_type=str(global_target["product_type"]),
+                topic_id=int(global_target["topic_id"]),
+                product_media_name_id=target_product_ids[global_target_key],
+                locales=list(global_target["locales"]),
+                apps_url=global_apps_url,
+            )
+            if latest_global_card
+            else None
+        )
         latest_global = (
             _entry_with_locale_url(latest_global_entry, "en")
             if isinstance(latest_global_entry, dict)
@@ -2083,9 +2174,9 @@ def build_catalog(output_dir: Path, *, timeout: int, max_pages: int) -> None:
             "targets": {
                 key: {
                     "label": TARGET_PRODUCTS[key]["label"],
-                    "product_media_name_id": int(
-                        devices_catalog[key]["product_media_name_id"]
-                    ),
+                    "product_media_name_id": devices_catalog[key][
+                        "product_media_name_id"
+                    ],
                 }
                 for key in TARGET_PRODUCTS
                 if key in devices_catalog
