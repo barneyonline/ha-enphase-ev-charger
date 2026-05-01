@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v3.0.0 - 2026-05-01
 
 ### 🚧 Breaking changes
 - Raised the advertised minimum Home Assistant version from `2024.12.0` to `2026.3.0` and moved the development/test toolchain to Python `3.14`.
