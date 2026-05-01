@@ -485,6 +485,7 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
         phase_timings={},
         fallback_data={},
         first_refresh=True,
+        auth_refresh_rejected_count_at_start=2,
     )
 
     await coord._async_run_post_status_refresh_pipeline(context)
@@ -494,6 +495,72 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
     assert coord._auth_refresh_rejected_count == 0
     assert coord._auth_refresh_rejected_until is None
     assert coord._auth_refresh_rejected_ends_utc is None
+
+
+@pytest.mark.asyncio
+async def test_post_status_preserves_new_auth_refresh_rejection(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import RefreshPipelineContext
+
+    coord = coordinator_factory()
+
+    async def _reject_during_followup(*_args, **_kwargs) -> None:
+        coord._auth_refresh_rejected_count = 1
+        coord._auth_refresh_rejected_until = time.monotonic() + 60
+        coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
+            seconds=60
+        )
+        return ("tariff_s", 0.123)
+
+    coord.refresh_runner.async_run_refresh_call = AsyncMock(
+        side_effect=_reject_during_followup
+    )
+    coord._auth_refresh_rejected_count = 0
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = None
+    context = RefreshPipelineContext(
+        started_mono=time.monotonic(),
+        refresh_started_utc=datetime.now(timezone.utc),
+        phase_timings={},
+        fallback_data={},
+        first_refresh=True,
+        auth_refresh_rejected_count_at_start=0,
+    )
+
+    await coord._async_run_post_status_refresh_pipeline(context)
+
+    coord.refresh_runner.async_run_refresh_call.assert_awaited_once()
+    assert coord._auth_refresh_rejected_count == 1
+    assert coord._auth_refresh_rejected_until is not None
+    assert coord._auth_refresh_rejected_ends_utc is not None
+
+
+def test_clear_auth_refresh_rejection_state_if_unchanged_preserves_suspension(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import RefreshPipelineContext
+
+    coord = coordinator_factory()
+    coord._auth_refresh_rejected_count = 3
+    coord._auth_refresh_rejected_until = None
+    coord._auth_refresh_rejected_ends_utc = None
+    coord._auth_refresh_suspended_until_utc = datetime.now(timezone.utc) + timedelta(
+        seconds=60
+    )
+    context = RefreshPipelineContext(
+        started_mono=time.monotonic(),
+        refresh_started_utc=datetime.now(timezone.utc),
+        phase_timings={},
+        fallback_data={},
+        first_refresh=False,
+        auth_refresh_rejected_count_at_start=3,
+    )
+
+    coord._clear_auth_refresh_rejection_state_if_unchanged(context)
+
+    assert coord._auth_refresh_rejected_count == 3
+    assert coord._auth_refresh_suspended_until_utc is not None
 
 
 def test_coordinator_init_restores_auth_refresh_state(hass, monkeypatch):
