@@ -85,6 +85,22 @@ def _smart_charging_context(coord: EnphaseCoordinator, sn: str | None = None) ->
     return False
 
 
+def _explicit_charge_mode(coord: EnphaseCoordinator, sn: str) -> str | None:
+    try:
+        data = (coord.data or {}).get(sn, {})
+    except Exception:
+        data = {}
+    for key in ("charge_mode_pref", "charge_mode"):
+        normalizer = getattr(coord, "_normalize_charge_mode_preference", None)
+        raw = data.get(key) if isinstance(data, dict) else None
+        value = normalizer(raw) if callable(normalizer) else raw
+        if value is not None:
+            return str(value)
+    cached = getattr(coord, "_cached_charge_mode_preference", None)
+    value = cached(sn) if callable(cached) else None
+    return str(value) if value is not None else None
+
+
 def _solar_mode(coord: EnphaseCoordinator, sn: str | None = None) -> tuple[str, str]:
     if _smart_charging_context(coord, sn):
         # The Enphase UI can present the same solar option as Smart Charging
@@ -689,6 +705,8 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 translation_domain=DOMAIN,
                 translation_key="charge_mode_invalid_option",
             )
+        if _explicit_charge_mode(self._coord, self._sn) == mode:
+            return
         try:
             await self._coord.client.set_charge_mode(self._sn, mode)
             self._coord.mark_scheduler_available()
