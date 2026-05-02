@@ -1290,7 +1290,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def gateway_inventory_summary(self) -> dict[str, object]:
         source = self.inventory_runtime._gateway_inventory_summary_marker()
         summary = getattr(self, "_gateway_inventory_summary_cache", {}) or {}
-        if not summary or source != self._gateway_inventory_summary_source:
+        if source != self._gateway_inventory_summary_source:
             summary = self.inventory_runtime._build_gateway_inventory_summary()
             self._gateway_inventory_summary_cache = summary
             self._gateway_inventory_summary_source = source
@@ -1299,7 +1299,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def microinverter_inventory_summary(self) -> dict[str, object]:
         source = self.inventory_runtime._microinverter_inventory_summary_marker()
         summary = getattr(self, "_microinverter_inventory_summary_cache", {}) or {}
-        if not summary or source != self._microinverter_inventory_summary_source:
+        if source != self._microinverter_inventory_summary_source:
             summary = self.inventory_runtime._build_microinverter_inventory_summary()
             self._microinverter_inventory_summary_cache = summary
             self._microinverter_inventory_summary_source = source
@@ -1308,7 +1308,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def heatpump_inventory_summary(self) -> dict[str, object]:
         source = self.inventory_runtime._heatpump_inventory_summary_marker()
         summary = getattr(self, "_heatpump_inventory_summary_cache", {}) or {}
-        if not summary or source != self._heatpump_inventory_summary_source:
+        if source != self._heatpump_inventory_summary_source:
             summary = self.inventory_runtime._build_heatpump_inventory_summary()
             self._heatpump_inventory_summary_cache = summary
             self._heatpump_inventory_summary_source = source
