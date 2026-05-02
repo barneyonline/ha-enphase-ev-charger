@@ -162,6 +162,25 @@ def test_safe_response_error_message_handles_header_failures() -> None:
     assert "content_type" not in message
 
 
+def test_scheduler_error_code_ignores_unexpected_payload_shapes() -> None:
+    assert api._scheduler_error_context_from_text(None) == (None, None)  # noqa: SLF001
+    assert api._scheduler_error_context_from_text(
+        json.dumps(["bad"])
+    ) == (  # noqa: SLF001
+        None,
+        None,
+    )
+    assert api._scheduler_error_context_from_text(
+        json.dumps({"error": "bad"})
+    ) == (  # noqa: SLF001
+        None,
+        None,
+    )
+
+    err = _make_cre(400, json.dumps({"error": "bad"}))
+    assert api._scheduler_error_code(err) is None  # noqa: SLF001
+
+
 def _make_optional_payload_error(endpoint: str) -> api.InvalidPayloadError:
     return api.InvalidPayloadError(
         "Invalid JSON response",
@@ -1817,6 +1836,34 @@ async def test_json_raises_response_error_with_structured_body_summary() -> None
     assert "body_sha256=" not in err.value.message
     assert "secret cloud failure" not in err.value.message
     assert "SITE" not in err.value.message
+    assert not hasattr(err.value, "enphase_response_body")
+
+
+@pytest.mark.asyncio
+async def test_json_attaches_scheduler_error_context_without_raw_body() -> None:
+    body = json.dumps(
+        {
+            "error": {
+                "displayMessage": "No Schedules enabled for Scheduled Charging",
+                "errorMessageCode": "iqevc_sch_10031",
+            }
+        }
+    )
+    session = _FakeSession([_FakeResponse(status=400, json_body={}, text_body=body)])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    with pytest.raises(aiohttp.ClientResponseError) as err:
+        await client._json(
+            "PUT",
+            "https://example.test/service/evse_scheduler/api/v1/iqevc/"
+            "charging-mode/SITE/SN/preference",
+        )
+
+    assert err.value.enphase_scheduler_error == {
+        "code": "iqevc_sch_10031",
+        "display": "No Schedules enabled for Scheduled Charging",
+    }
+    assert not hasattr(err.value, "enphase_response_body")
 
 
 @pytest.mark.asyncio
@@ -3628,10 +3675,210 @@ async def test_charge_mode_returns_none_when_no_enabled() -> None:
 async def test_set_charge_mode_passes_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"status": "ok"})
-    out = await client.set_charge_mode("SN", "GREEN_CHARGING")
+    out = await client.set_charge_mode(
+        "SN", "GREEN_CHARGING", previous_mode="MANUAL_CHARGING"
+    )
     assert out == {"status": "ok"}
     args, kwargs = client._json.await_args
     assert kwargs["json"] == {"mode": "GREEN_CHARGING"}
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_skips_write_when_already_active() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "modes": {
+                    "manualCharging": {
+                        "enabled": True,
+                        "chargingMode": "MANUAL_CHARGING",
+                    }
+                }
+            }
+        }
+    )
+
+    out = await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert out == {"status": "already_set", "mode": "MANUAL_CHARGING"}
+    assert client._json.await_args.args[0] == "GET"
+    assert client._json.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_accepts_verified_preference_after_400() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "modes": {
+                        "greenCharging": {
+                            "enabled": True,
+                            "chargingMode": "GREEN_CHARGING",
+                        }
+                    }
+                }
+            },
+            _make_cre(400, "HTTP error from Enphase endpoint (status=400)"),
+            {
+                "data": {
+                    "modes": {
+                        "manualCharging": {
+                            "enabled": True,
+                            "chargingMode": "MANUAL_CHARGING",
+                        }
+                    }
+                }
+            },
+        ]
+    )
+
+    out = await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert out == {
+        "status": "accepted",
+        "mode": "MANUAL_CHARGING",
+        "verified_after_error": True,
+    }
+    assert client._json.await_args_list[0].args[0] == "GET"
+    assert client._json.await_args_list[1].args[0] == "PUT"
+    assert client._json.await_args_list[2].args[0] == "GET"
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_retries_verified_preference_after_400(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "modes": {
+                        "greenCharging": {
+                            "enabled": True,
+                            "chargingMode": "GREEN_CHARGING",
+                        }
+                    }
+                }
+            },
+            _make_cre(400, "HTTP error from Enphase endpoint (status=400)"),
+            {
+                "data": {
+                    "modes": {
+                        "greenCharging": {
+                            "enabled": True,
+                            "chargingMode": "GREEN_CHARGING",
+                        }
+                    }
+                }
+            },
+            {
+                "data": {
+                    "modes": {
+                        "manualCharging": {
+                            "enabled": True,
+                            "chargingMode": "MANUAL_CHARGING",
+                        }
+                    }
+                }
+            },
+        ]
+    )
+    sleep = AsyncMock()
+    monkeypatch.setattr(api.asyncio, "sleep", sleep)
+
+    out = await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert out["verified_after_error"] is True
+    sleep.assert_awaited_once_with(2)
+    assert client._json.await_count == 4
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_does_not_verify_schedule_required_error() -> None:
+    client = _make_client()
+    err = _make_cre(400, "HTTP error from Enphase endpoint (status=400)")
+    err.enphase_scheduler_error = {
+        "code": "iqevc_sch_10031",
+        "display": "No Schedules enabled for Scheduled Charging",
+    }
+    client._json = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "modes": {
+                        "manualCharging": {
+                            "enabled": True,
+                            "chargingMode": "MANUAL_CHARGING",
+                        }
+                    }
+                }
+            },
+            err,
+        ]
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.set_charge_mode("SN", "SCHEDULED_CHARGING")
+
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_preserves_scheduler_unavailable_error() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(503, "Scheduler MS unavailable"))
+
+    with pytest.raises(api.SchedulerUnavailable):
+        await client.set_charge_mode(
+            "SN", "MANUAL_CHARGING", previous_mode="GREEN_CHARGING"
+        )
+
+    assert client._json.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_reraises_when_400_readback_never_matches(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = _make_cre(400, "HTTP error from Enphase endpoint (status=400)")
+    green_payload = {
+        "data": {
+            "modes": {
+                "greenCharging": {
+                    "enabled": True,
+                    "chargingMode": "GREEN_CHARGING",
+                }
+            }
+        }
+    }
+    client._json = AsyncMock(side_effect=[green_payload, err, *([green_payload] * 6)])
+    sleep = AsyncMock()
+    monkeypatch.setattr(api.asyncio, "sleep", sleep)
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert client._json.await_count == 8
+    assert sleep.await_count == 5
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_reraises_when_400_readback_fails() -> None:
+    client = _make_client()
+    err = _make_cre(400, "HTTP error from Enphase endpoint (status=400)")
+    client._json = AsyncMock(side_effect=[err, aiohttp.ClientError("down")])
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.set_charge_mode(
+            "SN", "MANUAL_CHARGING", previous_mode="GREEN_CHARGING"
+        )
+
+    assert client._json.await_count == 2
 
 
 @pytest.mark.asyncio
