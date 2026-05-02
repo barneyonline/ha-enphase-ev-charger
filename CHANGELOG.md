@@ -2,10 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## v3.0.1 - 2026-05-02
+
+### 🚧 Breaking changes
+- None
 
 ### ✨ New features
 - Added read-only current export rate support for Enphase sites whose NEM/export buyback rates are only exposed by the dated tariff-rates endpoint.
+
+### 🐛 Bug fixes
+- Mapped IQ EV charger status `mode` values into the effective charge mode so manual override states no longer appear as green charging.
+- Fixed last CFG schedule deletion so the integration sends the follow-up BatteryConfig disable write even when no replacement charge-from-grid schedule window remains.
+- Resolved current tariff price selection when Enphase time-of-use payloads include an all-day fallback period alongside timed peak periods.
 
 ### 🔧 Improvements
 - Tracked dated tariff-rate availability separately so unsupported regional endpoints back off without degrading the main tariff refresh.
