@@ -1607,8 +1607,8 @@ async def test_battery_schedule_services_support_crud_and_validation(
     assert isinstance(update_payload["acceptedItcDisclaimer"], str)
     delete_cfg_payload = coord.client.set_battery_settings.await_args_list[2].args[0]
     assert delete_cfg_payload["chargeFromGridScheduleEnabled"] is False
-    assert delete_cfg_payload["chargeBeginTime"] == 60
-    assert delete_cfg_payload["chargeEndTime"] == 210
+    assert "chargeBeginTime" not in delete_cfg_payload
+    assert "chargeEndTime" not in delete_cfg_payload
     delete_dtg_payload = coord.client.set_battery_settings.await_args_list[3].args[0]
     assert delete_dtg_payload == {
         "dtgControl": {

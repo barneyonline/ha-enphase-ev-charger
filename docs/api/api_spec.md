@@ -5307,6 +5307,7 @@ Notes:
 - Observed `chargeFromGrid` values so far: `true`, `false`.
 - The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local). Observed values so far: `chargeFromGridScheduleEnabled=true`, `chargeBeginTime=120`, `chargeEndTime=300`.
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
+- Live local verification for issue `#634` on 2026-05-02 showed the final-CFG-delete path needs a follow-up `PUT /batterySettings/<site_id>` disable write even when no replacement CFG window remains. The backend accepted a payload with `chargeFromGridScheduleEnabled:false`, the current `chargeFromGrid` value, `acceptedItcDisclaimer`, and `cfgControl.forceScheduleOpted:false` while omitting `chargeBeginTime` and `chargeEndTime`; the follow-up read returned zero CFG schedules with `chargeFromGridScheduleEnabled:false`.
 - First-party browser captures documented for this repository used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
 - The current integration uses both shapes: direct charge-from-grid enablement sends boolean `true` after calling `acceptDisclaimer`, while CFG schedule/settings payloads send the stored timestamp or a current UTC timestamp.
 - `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`. Observed values so far: `veryLowSoc=5` and `15`, `veryLowSocMin=5` and `10`, `veryLowSocMax=25`.
@@ -5593,6 +5594,7 @@ Observed behavior:
 - A `/delete` alias also exists. This path is useful as a compatibility note, but it was not present in the newer browser traces captured for this repository.
 - The current client implements the legacy `/delete` alias and sends it through the same compatibility write planner used by schedule create/update, including the raw-cookie browser request on affected sites.
 - The current integration treats the `/delete` alias response as opaque JSON and confirms the deletion via the follow-up `GET /schedules` refresh.
+- For CFG specifically, deleting the final saved schedule does not by itself prove the schedule-family toggle is off. Live local verification for issue `#634` confirmed clients should send the paired `PUT /batterySettings/<site_id>` disable write and should allow that settings payload to omit `chargeBeginTime` / `chargeEndTime` when no CFG schedule window remains.
 
 ### 5.9 Battery Schedule Validation
 ```
@@ -5748,6 +5750,7 @@ Observed behavior:
 - Ordinary time/limit edits on the affected site preserved `isEnabled: false` when updating the existing real disabled CFG/DTG/RBD schedules without sending `isEnabled`.
 - Temporary disabled schedules created with `isEnabled: false` were still echoed back from later update/readback calls as `isEnabled: true` even when the follow-up `PUT` omitted `isEnabled`.
 - Explicit CFG schedule-entry toggle writes that included `isEnabled: true` or `isEnabled: false` still read back as `false` for the existing real schedule on the affected site, indicating that effective CFG enablement is controlled by `batterySettings.chargeFromGridScheduleEnabled`, not reliably by the `/schedules` entry flag.
+- Live local verification for issue `#634` also reproduced a disabled CFG recreate quirk: creating a replacement CFG schedule with `isEnabled:false` could echo the new entry as `isEnabled:true` while `batterySettings.chargeFromGridScheduleEnabled` stayed `false`. An explicit schedule update with `isEnabled:false` plus the BatterySettings disable write restored both the entry flag and the effective settings flag.
 - Captured DTG/RBD enablement toggles were also observed as partial `PUT /batterySettings/<site_id>` payloads (`dtgControl.enabled` / `rbdControl.enabled`), so clients should not assume all schedule-family toggles go through `PUT /battery/sites/<site_id>/schedules/<schedule_id>`.
 - The current DTG runtime now follows that split explicitly:
   - toggle enable/disable uses `PUT /batterySettings/<site_id>`

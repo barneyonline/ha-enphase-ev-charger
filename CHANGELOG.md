@@ -31,6 +31,7 @@ All notable changes to this project will be documented in this file.
 - Reported the charger-specific minimum amp value during EV charger safe-limit charging instead of always showing `8 A`.
 - Redacted Enphase site IDs from logs and diagnostics, expanding the existing redaction coverage across API, summary, session history, EVSE timeseries, coordinator diagnostics, and service messages.
 - Made same-value IQ Battery reserve and shutdown-level number writes no-ops so unchanged settings do not trip the BatteryConfig write debounce or send unnecessary cloud writes.
+- Fixed last CFG schedule deletion so the integration sends the follow-up BatteryConfig disable write even when no replacement charge-from-grid schedule window remains.
 - Made same-value EV charger charge mode selections no-ops so the scheduler is not called when Home Assistant selects the already-active mode, avoiding Enphase `400` responses on unchanged selections.
 - Kept tariff refresh data stale-but-available when Enphase tariff endpoints are degraded, and made empty/unconfigured tariff responses explicit in diagnostics instead of failing normal polling.
 - Resolved current tariff price selection when Enphase time-of-use payloads include an all-day fallback period alongside timed peak periods.
