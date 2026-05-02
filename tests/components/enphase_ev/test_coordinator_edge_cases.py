@@ -471,8 +471,18 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
     from custom_components.enphase_ev.coordinator import RefreshPipelineContext
 
     coord = coordinator_factory()
-    coord.refresh_runner.async_run_refresh_call = AsyncMock(
-        return_value=("tariff_s", 0.123)
+
+    async def _run_first_refresh_calls(phase_timings, *, calls, **_kwargs) -> None:
+        durations = {
+            "tariff_s": 0.123,
+            "battery_site_settings_s": 0.234,
+            "storm_guard_s": 0.345,
+        }
+        for timing_key, *_rest in calls:
+            phase_timings[timing_key] = durations[timing_key]
+
+    coord.refresh_runner.async_run_refresh_calls = AsyncMock(
+        side_effect=_run_first_refresh_calls
     )
     coord._auth_refresh_rejected_count = 2
     coord._auth_refresh_rejected_until = time.monotonic() + 60
@@ -490,8 +500,16 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
 
     await coord._async_run_post_status_refresh_pipeline(context)
 
-    coord.refresh_runner.async_run_refresh_call.assert_awaited_once()
+    coord.refresh_runner.async_run_refresh_calls.assert_awaited_once()
+    calls = coord.refresh_runner.async_run_refresh_calls.await_args.kwargs["calls"]
+    assert [call[0] for call in calls] == [
+        "tariff_s",
+        "battery_site_settings_s",
+        "storm_guard_s",
+    ]
     assert context.phase_timings["tariff_s"] == 0.123
+    assert context.phase_timings["battery_site_settings_s"] == 0.234
+    assert context.phase_timings["storm_guard_s"] == 0.345
     assert coord._auth_refresh_rejected_count == 0
     assert coord._auth_refresh_rejected_until is None
     assert coord._auth_refresh_rejected_ends_utc is None
@@ -505,15 +523,16 @@ async def test_post_status_preserves_new_auth_refresh_rejection(
 
     coord = coordinator_factory()
 
-    async def _reject_during_followup(*_args, **_kwargs) -> None:
+    async def _reject_during_followup(phase_timings, *, calls, **_kwargs) -> None:
         coord._auth_refresh_rejected_count = 1
         coord._auth_refresh_rejected_until = time.monotonic() + 60
         coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
             seconds=60
         )
-        return ("tariff_s", 0.123)
+        for timing_key, *_rest in calls:
+            phase_timings[timing_key] = 0.123
 
-    coord.refresh_runner.async_run_refresh_call = AsyncMock(
+    coord.refresh_runner.async_run_refresh_calls = AsyncMock(
         side_effect=_reject_during_followup
     )
     coord._auth_refresh_rejected_count = 0
@@ -530,10 +549,39 @@ async def test_post_status_preserves_new_auth_refresh_rejection(
 
     await coord._async_run_post_status_refresh_pipeline(context)
 
-    coord.refresh_runner.async_run_refresh_call.assert_awaited_once()
+    coord.refresh_runner.async_run_refresh_calls.assert_awaited_once()
     assert coord._auth_refresh_rejected_count == 1
     assert coord._auth_refresh_rejected_until is not None
     assert coord._auth_refresh_rejected_ends_utc is not None
+
+
+@pytest.mark.parametrize(
+    ("selected", "site_only", "serials", "has_encharge", "expected"),
+    [
+        ({"iqevse"}, False, {"EV123"}, None, True),
+        ({"microinverter"}, False, {"EV123"}, None, False),
+        ({"envoy"}, True, set(), None, True),
+        ({"encharge"}, True, set(), None, False),
+        (None, False, {"EV123"}, False, False),
+    ],
+)
+def test_first_refresh_storm_guard_followups_are_gated(
+    coordinator_factory,
+    selected,
+    site_only,
+    serials,
+    has_encharge,
+    expected,
+) -> None:
+    coord = coordinator_factory()
+    coord._selected_type_keys = selected  # noqa: SLF001
+    coord.site_only = site_only
+    coord.serials = serials
+    coord._battery_has_encharge = has_encharge  # noqa: SLF001
+
+    assert (
+        coord._first_refresh_storm_guard_followups_needed() is expected
+    )  # noqa: SLF001
 
 
 def test_clear_auth_refresh_rejection_state_if_unchanged_preserves_suspension(

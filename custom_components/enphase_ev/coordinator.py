@@ -2457,14 +2457,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._sync_site_energy_issue()
         phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
         if context.first_refresh:
-            timing_key, duration = await self.refresh_runner.async_run_refresh_call(
-                "tariff_s",
-                "tariff",
-                lambda: self.tariff_runtime.async_refresh(force=True),
-                endpoint_family="tariff",
-            )
-            if duration is not None:
-                phase_timings[timing_key] = duration
+            await self._async_run_first_refresh_followups(phase_timings)
         else:
             followup_plan = build_site_only_followup_plan(
                 self,
@@ -2515,14 +2508,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         context: RefreshPipelineContext,
     ) -> None:
         if context.first_refresh:
-            timing_key, duration = await self.refresh_runner.async_run_refresh_call(
-                "tariff_s",
-                "tariff",
-                lambda: self.tariff_runtime.async_refresh(force=True),
-                endpoint_family="tariff",
-            )
-            if duration is not None:
-                context.phase_timings[timing_key] = duration
+            await self._async_run_first_refresh_followups(context.phase_timings)
         else:
             followup_plan = build_followup_plan(
                 self,
@@ -2534,6 +2520,50 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     plan=followup_plan,
                 )
         self._clear_auth_refresh_rejection_state_if_unchanged(context)
+
+    async def _async_run_first_refresh_followups(
+        self,
+        phase_timings: dict[str, float],
+    ) -> None:
+        calls = [
+            (
+                "tariff_s",
+                "tariff",
+                lambda: self.tariff_runtime.async_refresh(force=True),
+                "tariff",
+            )
+        ]
+        if self._first_refresh_storm_guard_followups_needed():
+            calls.extend(
+                (
+                    (
+                        "battery_site_settings_s",
+                        "battery site settings",
+                        lambda: self._async_refresh_battery_site_settings(),
+                        "battery_site_settings",
+                    ),
+                    (
+                        "storm_guard_s",
+                        "storm guard",
+                        lambda: self._async_refresh_storm_guard_profile(),
+                        "storm_guard",
+                    ),
+                )
+            )
+        await self.refresh_runner.async_run_refresh_calls(
+            phase_timings,
+            calls=tuple(calls),
+        )
+
+    def _first_refresh_storm_guard_followups_needed(self) -> bool:
+        if getattr(self, "_battery_has_encharge", None) is False:
+            return False
+        selected = getattr(self, "_selected_type_keys", None)
+        if isinstance(selected, set) and selected:
+            if self.site_only or not self.serials:
+                return "envoy" in selected
+            return bool({"encharge", "envoy", "iqevse"} & selected)
+        return bool(self.site_id and (self.serials or self.site_only))
 
     async def _async_run_post_session_refresh_pipeline(
         self,
