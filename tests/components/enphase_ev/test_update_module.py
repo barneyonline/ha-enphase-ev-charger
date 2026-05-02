@@ -424,9 +424,37 @@ async def test_gateway_update_entity_states_and_release_url_selection(hass) -> N
 
     coord._gateway_version = "8.3.5300"
     entity._refresh_from_catalog(regional_payload)
-    assert entity.latest_version == "8.3.5427"
-    assert entity.release_url == "https://example.test/envoy/global-newer"
-    assert entity.release_summary == "Gateway global"
+    assert entity.latest_version == "8.3.5300"
+    assert entity.release_url is None
+    assert entity.release_summary is None
+
+    coord.battery_locale = "en-AU"
+    coord._gateway_version = "8.3.5232"
+    regional_payload["devices"]["envoy"]["latest_by_locale"]["en-au"] = {
+        "version": "8.3.5427",
+        "summary": "Gateway non-regional",
+        "urls_by_locale": {
+            "en": "https://example.test/envoy/global-newer",
+            "en-au": "https://example.test/envoy/global-au",
+        },
+    }
+    entity._refresh_from_catalog(regional_payload)
+    assert entity.latest_version == "8.3.5232"
+    assert entity.release_url == "https://example.test/envoy/au-regional"
+    assert entity.release_summary == "Gateway regional"
+    assert entity.extra_state_attributes["catalog_source_scope"] == "country"
+    assert entity.extra_state_attributes["locale_used"] == "en-au"
+
+    coord.battery_country_code = None
+    hass.config.country = None
+    entity._refresh_from_catalog(regional_payload)
+    assert entity.latest_version is None
+    assert entity.release_url is None
+    assert entity.extra_state_attributes["country_used"] is None
+    assert entity.extra_state_attributes["catalog_source_scope"] is None
+
+    coord.battery_country_code = "AU"
+    coord.battery_locale = "fr-fr"
 
     coord._gateway_version = "8.2.4300"
     entity._refresh_from_catalog(manager.cached_catalog)
@@ -521,7 +549,7 @@ async def test_charger_update_entity_uses_fw_details_payload(hass) -> None:
     assert attrs["is_auto_ota"] is False
     assert attrs["firmware_rollout_enabled"] is True
     assert attrs["details_last_error"] is None
-    assert attrs["catalog_source_scope"] == "locale"
+    assert attrs["catalog_source_scope"] == "country"
     assert attrs["catalog_generated_at"] == "2026-03-01T00:00:00Z"
 
     entity.async_write_ha_state = lambda: None
@@ -801,6 +829,7 @@ async def test_refresh_from_catalog_none_and_locale_fallback_paths(hass) -> None
     payload["devices"]["envoy"]["latest_by_country"] = {}
     payload["devices"]["envoy"]["latest_global"] = {
         "version": "8.2.4401",
+        "countries_text": "Worldwide",
         "summary": "Global only",
         "urls_by_locale": {
             "de-de": "https://example.test/envoy/de",
