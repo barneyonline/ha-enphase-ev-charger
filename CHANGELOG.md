@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## v3.0.2 - 2026-05-02
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Refreshed Storm Guard state during startup so restored coordinator data does not leave stale storm-protection values until the next scheduled refresh.
+- Suppressed transient Enphase scheduler `400` errors for IQ EV charger mode changes when read-back confirms the requested mode was applied.
+- Fixed regional firmware selection so country-scoped firmware catalog entries are matched without stale global fallback prompts.
+- Guarded HEMS authentication refresh loops so repeated recoverable failures do not trigger unnecessary retry churn or stale rejection handling.
+
+### 🔧 Improvements
+- Optimized performance cache refreshes by caching unchanged inventory summaries and suppressing no-op session-history publishes.
+
+### 🔄 Other changes
+- Updated repository workflow guidance for agents.
+
 ## v3.0.1 - 2026-05-02
 
 ### 🚧 Breaking changes
@@ -14,7 +34,6 @@ All notable changes to this project will be documented in this file.
 - Mapped IQ EV charger status `mode` values into the effective charge mode so manual override states no longer appear as green charging.
 - Fixed last CFG schedule deletion so the integration sends the follow-up BatteryConfig disable write even when no replacement charge-from-grid schedule window remains.
 - Resolved current tariff price selection when Enphase time-of-use payloads include an all-day fallback period alongside timed peak periods.
-- Suppressed transient Enphase scheduler `400` errors for IQ EV charger mode changes when read-back confirms the requested mode was applied.
 
 ### 🔧 Improvements
 - Tracked dated tariff-rate availability separately so unsupported regional endpoints back off without degrading the main tariff refresh.
