@@ -3585,13 +3585,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     charge_mode_pref_source = "battery_profile_fallback"
 
             charge_mode_source = None
-            charge_mode = self._normalize_effective_charge_mode(
-                obj.get("chargeMode")
-                or obj.get("chargingMode")
-                or (obj.get("sch_d") or {}).get("mode")
-            )
-            if charge_mode is not None:
-                charge_mode_source = "explicit_status"
+            charge_mode = None
+            for charge_mode_candidate in (
+                obj.get("mode"),
+                obj.get("chargeMode"),
+                obj.get("chargingMode"),
+                obj.get("charge_mode"),
+                (obj.get("sch_d") or {}).get("mode"),
+            ):
+                charge_mode = self._normalize_effective_charge_mode(
+                    charge_mode_candidate
+                )
+                if charge_mode is not None:
+                    charge_mode_source = "explicit_status"
+                    break
             if charge_mode is None:
                 if charge_mode_pref:
                     charge_mode = charge_mode_pref
@@ -4334,7 +4341,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Check whether the status payload already exposes a charge mode."""
         if not isinstance(obj, dict):
             return False
-        for key in ("chargeMode", "chargingMode", "charge_mode"):
+        for key in ("mode", "chargeMode", "chargingMode", "charge_mode"):
             val = obj.get(key)
             if val is not None:
                 return True

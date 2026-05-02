@@ -2052,6 +2052,90 @@ async def test_async_update_data_uses_cached_charge_preference_when_status_only_
 
 
 @pytest.mark.asyncio
+async def test_async_update_data_uses_status_mode_for_effective_charge_mode(
+    coordinator_factory,
+):
+    coord = coordinator_factory(
+        serials=["EV1"],
+        data={
+            "EV1": {
+                "sn": "EV1",
+                "name": "Garage EV",
+                "charge_mode_pref": "GREEN_CHARGING",
+                "charge_mode": "GREEN_CHARGING",
+            }
+        },
+    )
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._scheduler_available = False  # noqa: SLF001
+    coord._scheduler_backoff_active = lambda: False  # type: ignore[assignment]  # noqa: SLF001
+    coord._charge_mode_cache["EV1"] = (
+        "GREEN_CHARGING",
+        coord_mod.time.monotonic(),
+    )
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": "EV1",
+                    "name": "Garage EV",
+                    "mode": 0,
+                    "connectors": [
+                        {
+                            "connectorStatusType": coord_mod.SUSPENDED_EVSE_STATUS,
+                            "connectorStatusReason": "INSUFFICIENT_SOLAR",
+                        }
+                    ],
+                    "sch_d": {"status": 1, "info": [{"type": "greencharging"}]},
+                    "session_d": {},
+                    "charging": False,
+                    "pluggedIn": True,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+    )
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **kwargs: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=lambda: None,
+    )
+    coord.evse_timeseries.async_refresh = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.evse_timeseries.merge_charger_payloads = MagicMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_dry_contact_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._get_charge_mode = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert result["EV1"]["charge_mode_pref"] == "GREEN_CHARGING"
+    assert result["EV1"]["charge_mode"] == "MANUAL_CHARGING"
+    assert result["EV1"]["charge_mode_source"] == "explicit_status"
+
+
+@pytest.mark.asyncio
 async def test_async_update_data_drops_expired_cached_charge_preference_when_status_only_has_custom_schedule(
     coordinator_factory,
 ):

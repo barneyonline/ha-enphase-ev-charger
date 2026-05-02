@@ -6098,7 +6098,7 @@ There is no single universal header set; the implementation varies headers by en
 | `charging` | Active charging session |
 | `faulted` | Fault present |
 | `offGrid` | Charger grid-mode label from `/ev_chargers/status`; observed value so far: `ON_GRID` |
-| `mode` | Charger operating-mode integer from `/ev_chargers/status`; observed value so far: `1` |
+| `mode` | Charger operating-mode integer from `/ev_chargers/status`; observed values so far: `0` for manual charging and `1` for green charging |
 | `commissioned` | Status payload commissioning flag; observed value so far: `1` |
 | `smartEV.hasToken` | Smart-EV token availability flag; observed value so far: `false` |
 | `smartEV.hasEVDetails` | Smart-EV vehicle-details availability flag; observed value so far: `false` |
