@@ -118,6 +118,7 @@ Status labels:
 | Legacy site tariff flags | `GET` | `/app-api/<site_id>/tariff.json?country=<country>` | authenticated session cookies + `e-auth-token` | Browser capture only |
 | Site billing-cycle details | `GET/POST` | `/service/tariff/tariff-ms/systems/<site_id>/billing-details[?date=<YYYY-MM-DD>]` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | Runtime |
 | Site tariff configuration | `GET/PUT` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` and `/service/tariff/tariff-ms/systems/<site_id>/tariff?user-id=<user_id>` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`, `X-Requested-With`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | Runtime |
+| Dated site tariff rates | `GET` | `/service/tariff/tariff-ms/systems/<site_id>/tariffs?rateType=<BUYBACK>&date=<YYYY-MM-DD>&includeUtility=` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`, `X-Requested-With` | Runtime |
 | Tariff settings MQTT authorizer | `GET` | `/pv/aws_sigv4/tariff_settings_response_stream?serial_number=<gateway_sn>` | authenticated Enlighten session cookies + `e-auth-token` + `x-xsrf-token` | Browser capture only |
 | EVSE tariff-change notification | `PUT` | `/service/evse_scheduler/api/v1/siteConfig/<site_id>/tariff_change` | tariff web write headers + JSON `null` body | Runtime (best-effort) |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies + optional `Authorization: Bearer <token>` (current implementation adds bearer when available) | Runtime |
@@ -2619,6 +2620,67 @@ Example response (anonymized; representative values only):
   "dtCustomChargeEnabled": true
 }
 ```
+
+#### Dated Tariff Rates Read
+```
+GET /service/tariff/tariff-ms/systems/<site_id>/tariffs?rateType=BUYBACK&date=<YYYY-MM-DD>&includeUtility=
+```
+
+Returns date-specific tariff rate windows for sites where the main tariff configuration can include an empty `buyback.seasons[]` branch.
+The active runtime uses this endpoint as a read-only fallback for current export price sensors; these rates are not exposed as editable tariff number entities.
+
+Observed query parameters:
+- `rateType`: observed as `BUYBACK` for export compensation rates.
+- `date`: local date whose rates should be returned, formatted as `YYYY-MM-DD`.
+- `includeUtility`: observed with an empty value.
+
+Observed response shape:
+```json
+{
+  "type": "tariff-rates",
+  "timestamp": "2026-05-01T16:25:02.851080797Z",
+  "data": {
+    "tariff-version-id": "0123456789abcdef01234567",
+    "tariff-type": "static",
+    "currency": "$",
+    "timezone": "US/Pacific",
+    "siteDetails": {
+      "currency": "$",
+      "timezone": "US/Pacific",
+      "importPlanType": "NEM3",
+      "exportPlanType": "NEM3",
+      "exportApplicabilityYear": 2026,
+      "interconnectionApplicationDate": "2024-01-15T00:00:00Z",
+      "installDate": "2024-01-15",
+      "lastExportDate": "2033-09-11T07:00:00Z"
+    },
+    "buyback": [
+      {
+        "start": 0,
+        "end": 59,
+        "rate": 0.0789
+      },
+      {
+        "start": 60,
+        "end": 119,
+        "rate": 0.0733
+      },
+      {
+        "start": 1380,
+        "end": 1439,
+        "rate": 0.0764
+      }
+    ]
+  }
+}
+```
+
+Observed notes:
+- `data.buyback[]` contains rate windows for the requested date. `start` and `end` are minute offsets from local midnight; observed rows used inclusive end minutes, for example `0..59` for 00:00-01:00 and `1380..1439` for 23:00-00:00.
+- `data.timezone` and `data.siteDetails.timezone` identify the site timezone for interpreting those minute offsets.
+- The endpoint can provide export rates even when `GET /tariff?include-site-details=true` returns `buyback.seasons: []`.
+- The runtime currently uses this endpoint only for read-only `Current Export Rate` selection when the main tariff payload has no usable export rate specs.
+- This endpoint is not expected to be available for every account or region. The runtime tracks it as its own optional endpoint family (`tariff_dated_rates`) so unsupported or degraded responses back off independently from the main tariff configuration endpoint.
 
 #### Tariff Update
 ```

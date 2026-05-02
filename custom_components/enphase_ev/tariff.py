@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .coordinator import EnphaseCoordinator
 
 TARIFF_ENDPOINT_FAMILY = "tariff"
+TARIFF_DATED_RATES_ENDPOINT_FAMILY = "tariff_dated_rates"
 TARIFF_BRANCH_KEYS = frozenset({"purchase", "buyback"})
 TARIFF_TYPE_IDS = frozenset({"flat", "tou", "tiered"})
 TARIFF_TYPE_KINDS = frozenset(
@@ -898,6 +899,79 @@ def parse_tariff_rate(
     )
 
 
+def parse_dated_tariff_rate(
+    payload: object,
+    branch_key: str,
+) -> TariffRateSnapshot | None:
+    """Return a read-only tariff snapshot from the dated rates endpoint."""
+
+    if branch_key not in TARIFF_BRANCH_KEYS or not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    rate_rows = data.get(branch_key)
+    if not isinstance(rate_rows, list):
+        return None
+
+    periods: list[dict[str, object]] = []
+    for index, row in enumerate(rate_rows, start=1):
+        if not isinstance(row, dict) or _rate_value(row.get("rate")) is None:
+            continue
+        period: dict[str, object] = {
+            "id": f"rate-{index}",
+            "type": branch_key,
+            "rate": _clean_text(row.get("rate")),
+        }
+        start = _int_or_none(row.get("start"))
+        end = _int_or_none(row.get("end"))
+        if (
+            start is not None
+            and end is not None
+            and 0 <= start < 24 * 60
+            and 0 <= end < 24 * 60
+        ):
+            period["start_time"] = _minutes_to_hhmm(start)
+            period["end_time"] = _minutes_to_hhmm(end + 1)
+        periods.append(period)
+
+    if not periods:
+        return None
+
+    site_details = data.get("siteDetails")
+    if not isinstance(site_details, dict):
+        site_details = {}
+    currency = _clean_text(data.get("currency")) or _clean_text(
+        site_details.get("currency")
+    )
+    rate_structure = "Flat" if len(periods) == 1 else "Time of use"
+    export_plan = None
+    if branch_key == "buyback":
+        export_plan = _clean_text(site_details.get("exportPlanType"))
+
+    return TariffRateSnapshot(
+        state=rate_structure,
+        rate_structure=rate_structure,
+        variation_type="Single",
+        source=_clean_text(data.get("tariff-type")) or _clean_text(payload.get("type")),
+        currency=currency,
+        export_plan=export_plan,
+        seasons=(
+            {
+                "id": _clean_text(data.get("tariff-version-id")) or "current",
+                "days": [
+                    {
+                        "id": "all",
+                        "days": [1, 2, 3, 4, 5, 6, 7],
+                        "periods": periods,
+                    }
+                ],
+            },
+        ),
+        branch_key=None,
+    )
+
+
 def _format_write_rate(value: float) -> str:
     if not math.isfinite(value) or value < 0:
         _raise_tariff_validation(
@@ -1168,6 +1242,41 @@ def _locate_tariff_rate(
     )
 
 
+def _site_local_today(coord: EnphaseCoordinator) -> date:
+    tz_name = None
+    site_tz = getattr(coord, "_site_timezone_name", None)
+    if callable(site_tz):
+        tz_name = site_tz()
+    tzinfo = dt_util.get_time_zone(tz_name) if isinstance(tz_name, str) else None
+    return dt_util.now(tzinfo or dt_util.DEFAULT_TIME_ZONE).date()
+
+
+def _endpoint_family_diagnostics(coord: EnphaseCoordinator, family: str) -> dict:
+    health = coord._endpoint_family_state(family)
+    return {
+        "support_state": health.support_state,
+        "cooldown_active": health.cooldown_active,
+        "consecutive_failures": health.consecutive_failures,
+        "last_success_utc": (
+            health.last_success_utc.isoformat()
+            if health.last_success_utc is not None
+            else None
+        ),
+        "last_failure_utc": (
+            health.last_failure_utc.isoformat()
+            if health.last_failure_utc is not None
+            else None
+        ),
+        "last_status": health.last_status,
+        "last_error": health.last_error,
+        "next_retry_utc": (
+            health.next_retry_utc.isoformat()
+            if health.next_retry_utc is not None
+            else None
+        ),
+    }
+
+
 class TariffRuntime:
     """Fetch, normalize, and update site tariff data."""
 
@@ -1193,6 +1302,7 @@ class TariffRuntime:
             billing = parse_tariff_billing(billing_payload)
             import_rate = parse_tariff_rate(tariff_payload, "purchase")
             export_rate = parse_tariff_rate(tariff_payload, "buyback")
+            export_rate = await self._async_export_rate_with_dated_fallback(export_rate)
         except (
             aiohttp.ClientError,
             AttributeError,
@@ -1218,6 +1328,59 @@ class TariffRuntime:
         if isinstance(tariff_payload, dict) and tariff_payload:
             coord.tariff_rates_last_refresh_utc = refresh_time
         coord._note_endpoint_family_success(TARIFF_ENDPOINT_FAMILY)
+
+    async def _async_export_rate_with_dated_fallback(
+        self,
+        export_rate: TariffRateSnapshot | None,
+    ) -> TariffRateSnapshot | None:
+        """Fetch dated export rates when the main tariff payload has no rates."""
+
+        if export_rate is None:
+            return None
+        if tariff_rate_sensor_specs(export_rate):
+            return export_rate
+        coord = self.coordinator
+        site_tariff_rates = getattr(coord.client, "site_tariff_rates", None)
+        if not callable(site_tariff_rates):
+            return export_rate
+        if not coord._endpoint_family_should_run(TARIFF_DATED_RATES_ENDPOINT_FAMILY):
+            previous = getattr(coord, "tariff_export_rate", None)
+            if tariff_rate_sensor_specs(previous):
+                return previous
+            return export_rate
+        try:
+            payload = await site_tariff_rates(
+                rate_type="BUYBACK",
+                request_date=_site_local_today(coord),
+            )
+            fallback = parse_dated_tariff_rate(payload, "buyback")
+        except (
+            aiohttp.ClientError,
+            AttributeError,
+            InvalidPayloadError,
+            OptionalEndpointUnavailable,
+            TimeoutError,
+        ) as err:
+            coord._note_endpoint_family_failure(TARIFF_DATED_RATES_ENDPOINT_FAMILY, err)
+            _LOGGER.debug(
+                "Dated export tariff rates are unavailable for site %s: %s",
+                getattr(coord, "site_id", None),
+                err,
+            )
+            previous = getattr(coord, "tariff_export_rate", None)
+            if tariff_rate_sensor_specs(previous):
+                return previous
+            return export_rate
+        if fallback is None:
+            coord._note_endpoint_family_failure(
+                TARIFF_DATED_RATES_ENDPOINT_FAMILY,
+                OptionalEndpointUnavailable(
+                    "Dated export tariff rates did not include data"
+                ),
+            )
+            return export_rate
+        coord._note_endpoint_family_success(TARIFF_DATED_RATES_ENDPOINT_FAMILY)
+        return fallback
 
     async def async_set_tariff_rate(
         self,
@@ -1376,7 +1539,6 @@ class TariffRuntime:
         """Return tariff refresh diagnostics without raw tariff payloads."""
 
         coord = self.coordinator
-        health = coord._endpoint_family_state(TARIFF_ENDPOINT_FAMILY)
         last_refresh_utc = getattr(coord, "tariff_last_refresh_utc", None)
         rates_last_refresh_utc = getattr(coord, "tariff_rates_last_refresh_utc", None)
         return {
@@ -1397,26 +1559,10 @@ class TariffRuntime:
                 if hasattr(rates_last_refresh_utc, "isoformat")
                 else None
             ),
-            "endpoint_family": {
-                "support_state": health.support_state,
-                "cooldown_active": health.cooldown_active,
-                "consecutive_failures": health.consecutive_failures,
-                "last_success_utc": (
-                    health.last_success_utc.isoformat()
-                    if health.last_success_utc is not None
-                    else None
-                ),
-                "last_failure_utc": (
-                    health.last_failure_utc.isoformat()
-                    if health.last_failure_utc is not None
-                    else None
-                ),
-                "next_retry_utc": (
-                    health.next_retry_utc.isoformat()
-                    if health.next_retry_utc is not None
-                    else None
-                ),
-                "last_status": health.last_status,
-                "last_error": health.last_error,
-            },
+            "endpoint_family": _endpoint_family_diagnostics(
+                coord, TARIFF_ENDPOINT_FAMILY
+            ),
+            "dated_rates_endpoint_family": _endpoint_family_diagnostics(
+                coord, TARIFF_DATED_RATES_ENDPOINT_FAMILY
+            ),
         }
