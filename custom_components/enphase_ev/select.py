@@ -194,6 +194,17 @@ def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
     return (str(code) if code else None, str(display) if display else None)
 
 
+def _scheduler_error_context(
+    err: aiohttp.ClientResponseError,
+) -> tuple[str | None, str | None]:
+    context = getattr(err, "enphase_scheduler_error", None)
+    if isinstance(context, dict):
+        code = context.get("code")
+        display = context.get("display")
+        return (str(code) if code else None, str(display) if display else None)
+    return _parse_scheduler_error(err.message)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -705,10 +716,13 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 translation_domain=DOMAIN,
                 translation_key="charge_mode_invalid_option",
             )
-        if _explicit_charge_mode(self._coord, self._sn) == mode:
+        previous_mode = _explicit_charge_mode(self._coord, self._sn)
+        if previous_mode == mode:
             return
         try:
-            await self._coord.client.set_charge_mode(self._sn, mode)
+            await self._coord.client.set_charge_mode(
+                self._sn, mode, previous_mode=previous_mode
+            )
             self._coord.mark_scheduler_available()
         except SchedulerUnavailable as err:
             self._coord.note_scheduler_unavailable(err)
@@ -721,7 +735,7 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 ),
             )
         except aiohttp.ClientResponseError as err:
-            code, display = _parse_scheduler_error(err.message)
+            code, display = _scheduler_error_context(err)
             if err.status == 400 and (
                 code == "iqevc_sch_10031"
                 or (display and "No Schedules enabled" in display)

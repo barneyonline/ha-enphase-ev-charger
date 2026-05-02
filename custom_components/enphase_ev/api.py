@@ -363,6 +363,52 @@ def _safe_response_error_message(
     return f"HTTP error from Enphase endpoint ({', '.join(detail_parts)})"
 
 
+def _scheduler_error_context_from_text(
+    text: str | None,
+) -> tuple[str | None, str | None]:
+    """Return a scheduler error code/display tuple from a response body."""
+
+    if not text:
+        return None, None
+    try:
+        payload = json.loads(text)
+    except (TypeError, ValueError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return None, None
+    code = error.get("errorMessageCode")
+    display = error.get("displayMessage") or error.get("additionalInfo")
+    return (str(code) if code else None, str(display) if display else None)
+
+
+def _scheduler_error_context(
+    err: aiohttp.ClientResponseError,
+) -> tuple[str | None, str | None]:
+    """Return scheduler error context attached to a response error."""
+
+    context = getattr(err, "enphase_scheduler_error", None)
+    if isinstance(context, dict):
+        code = context.get("code")
+        display = context.get("display")
+        return (str(code) if code else None, str(display) if display else None)
+    return _scheduler_error_context_from_text(err.message)
+
+
+def _scheduler_error_code(err: aiohttp.ClientResponseError) -> str | None:
+    """Return a scheduler error code from a response error when available."""
+
+    return _scheduler_error_context(err)[0]
+
+
+def _is_scheduler_charging_mode_endpoint(endpoint: str | None) -> bool:
+    """Return True for IQ EV charger scheduler mode endpoints."""
+
+    return "/service/evse_scheduler/api/v1/iqevc/charging-mode/" in str(endpoint or "")
+
+
 def validate_ocpp_trigger_message(requested_message: object) -> str:
     """Return a supported OCPP trigger message name or raise ValueError."""
 
@@ -4276,13 +4322,23 @@ class EnphaseEVClient:
                                             max_length=256,
                                         ),
                                     )
-                                raise aiohttp.ClientResponseError(
+                                response_error = aiohttp.ClientResponseError(
                                     r.request_info,
                                     r.history,
                                     status=r.status,
                                     message=message,
                                     headers=r.headers,
                                 )
+                                if _is_scheduler_charging_mode_endpoint(endpoint):
+                                    code, display = _scheduler_error_context_from_text(
+                                        body_text
+                                    )
+                                    if code or display:
+                                        response_error.enphase_scheduler_error = {
+                                            "code": code,
+                                            "display": display,
+                                        }
+                                raise response_error
                             try:
                                 payload = await r.json()
                             except (aiohttp.ContentTypeError, ValueError) as err:
@@ -4975,7 +5031,9 @@ class EnphaseEVClient:
             return None
         return None
 
-    async def set_charge_mode(self, sn: str, mode: str) -> dict:
+    async def set_charge_mode(
+        self, sn: str, mode: str, *, previous_mode: str | None = None
+    ) -> dict:
         """Set the charging mode via scheduler API.
 
         PUT /service/evse_scheduler/api/v1/iqevc/charging-mode/<site>/<sn>/preference
@@ -4985,13 +5043,53 @@ class EnphaseEVClient:
         url = f"{BASE_URL}/service/evse_scheduler/api/v1/iqevc/charging-mode/{self._site}/{sn}/preference"
         headers = self._today_json_headers()
         headers.update(self._control_headers())
-        payload = {"mode": str(mode)}
+        normalized_mode = str(mode)
+        observed_previous_mode = str(previous_mode) if previous_mode else None
+        if observed_previous_mode is None:
+            try:
+                observed_previous_mode = await self.charge_mode(sn)
+            except SchedulerUnavailable:
+                raise
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                observed_previous_mode = None
+        if observed_previous_mode == normalized_mode:
+            return {
+                "status": "already_set",
+                "mode": normalized_mode,
+            }
+        payload = {"mode": normalized_mode}
         try:
             return await self._json("PUT", url, json=payload, headers=headers)
         except aiohttp.ClientResponseError as err:
             if is_scheduler_unavailable_error(err.message, err.status, url):
                 raise SchedulerUnavailable(str(err)) from err
+            if (
+                err.status == 400
+                and observed_previous_mode is not None
+                and observed_previous_mode != normalized_mode
+                and _scheduler_error_code(err) != "iqevc_sch_10031"
+                and await self._charge_mode_write_landed(sn, normalized_mode)
+            ):
+                return {
+                    "status": "accepted",
+                    "mode": normalized_mode,
+                    "verified_after_error": True,
+                }
             raise
+
+    async def _charge_mode_write_landed(self, sn: str, mode: str) -> bool:
+        """Return True if a failed preference write is visible on read-back."""
+
+        for attempt in range(6):
+            if attempt:
+                await asyncio.sleep(2)
+            try:
+                current_mode = await self.charge_mode(sn)
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                return False
+            if current_mode == mode:
+                return True
+        return False
 
     async def green_charging_settings(self, sn: str) -> list[dict[str, Any]]:
         """Return green charging settings for the charger.
