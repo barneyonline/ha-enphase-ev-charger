@@ -86,6 +86,116 @@ def _prepare_refresh_target(
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
 
 
+def test_topology_refresh_reuses_summary_caches_for_unchanged_sources(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.inventory_runtime
+    runtime._build_gateway_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={"gateway": "summary"}
+    )
+    runtime._build_microinverter_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={"micro": "summary"}
+    )
+    runtime._build_heatpump_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={"heatpump": "summary"}
+    )
+    runtime._build_heatpump_type_summaries = MagicMock(  # type: ignore[method-assign]
+        return_value={"HPWH": {"member_count": 1}}
+    )
+    runtime.gateway_iq_energy_router_records = MagicMock(  # type: ignore[method-assign]
+        return_value=[]
+    )
+    runtime._gateway_iq_energy_router_summary_records = MagicMock(  # type: ignore[method-assign]
+        return_value=[]
+    )
+
+    assert runtime._refresh_cached_topology() is True  # noqa: SLF001
+    assert runtime._refresh_cached_topology() is False  # noqa: SLF001
+
+    runtime._build_gateway_inventory_summary.assert_called_once()
+    runtime._build_microinverter_inventory_summary.assert_called_once()
+    runtime._build_heatpump_inventory_summary.assert_called_once()
+    runtime._build_heatpump_type_summaries.assert_called_once()
+    runtime._gateway_iq_energy_router_summary_records.assert_called_once()
+
+    coord._hems_devices_payload = {"changed": True}  # noqa: SLF001
+
+    assert runtime._refresh_cached_topology() is False  # noqa: SLF001
+
+    runtime._build_gateway_inventory_summary.assert_called_once()
+    runtime._build_microinverter_inventory_summary.assert_called_once()
+    assert runtime._build_heatpump_inventory_summary.call_count == 2
+    assert runtime._build_heatpump_type_summaries.call_count == 2
+    assert runtime._gateway_iq_energy_router_summary_records.call_count == 2
+
+
+def test_session_history_apply_updates_skips_unchanged_publish(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1", "EV2"])
+    sessions = [{"session_id": "cached", "energy_kwh": 1.25}]
+    coord.data = {
+        "EV1": {
+            "display_name": "Garage EV",
+            "energy_today_sessions": sessions,
+            "energy_today_sessions_kwh": 1.25,
+        },
+        "EV2": {"display_name": "Driveway EV"},
+    }
+    publish = MagicMock()
+    coord.session_history._publish_callback = publish  # noqa: SLF001
+
+    coord.session_history._apply_updates({"EV1": list(sessions)})  # noqa: SLF001
+
+    publish.assert_not_called()
+
+    fresh_sessions = [{"session_id": "fresh", "energy_kwh": 2.0}]
+
+    coord.session_history._apply_updates({"EV1": fresh_sessions})  # noqa: SLF001
+
+    publish.assert_called_once()
+    merged = publish.call_args.args[0]
+    assert merged["EV1"]["energy_today_sessions"] == fresh_sessions
+    assert merged["EV1"]["energy_today_sessions_kwh"] == 2.0
+    assert merged["EV2"] is coord.data["EV2"]
+
+
+def test_coordinator_summary_wrappers_cache_empty_summaries(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.inventory_runtime._gateway_inventory_summary_marker = MagicMock(  # type: ignore[method-assign]
+        return_value=("gateway",)
+    )
+    coord.inventory_runtime._microinverter_inventory_summary_marker = MagicMock(  # type: ignore[method-assign]
+        return_value=("micro",)
+    )
+    coord.inventory_runtime._heatpump_inventory_summary_marker = MagicMock(  # type: ignore[method-assign]
+        return_value=("heatpump",)
+    )
+    coord.inventory_runtime._build_gateway_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={}
+    )
+    coord.inventory_runtime._build_microinverter_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={}
+    )
+    coord.inventory_runtime._build_heatpump_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={}
+    )
+
+    assert coord.gateway_inventory_summary() == {}
+    assert coord.gateway_inventory_summary() == {}
+    assert coord.microinverter_inventory_summary() == {}
+    assert coord.microinverter_inventory_summary() == {}
+    assert coord.heatpump_inventory_summary() == {}
+    assert coord.heatpump_inventory_summary() == {}
+
+    coord.inventory_runtime._build_gateway_inventory_summary.assert_called_once()
+    coord.inventory_runtime._build_microinverter_inventory_summary.assert_called_once()
+    coord.inventory_runtime._build_heatpump_inventory_summary.assert_called_once()
+
+
 @pytest.mark.asyncio
 async def test_post_status_evse_enrichment_uses_hot_caches_without_followup_io(
     coordinator_factory,

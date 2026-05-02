@@ -383,7 +383,7 @@ class InventoryRuntime:
     def gateway_inventory_summary(self) -> dict[str, object]:
         source = self._gateway_inventory_summary_marker()
         summary = getattr(self, "_gateway_inventory_summary_cache", {}) or {}
-        if not summary or source != self._gateway_inventory_summary_source:
+        if source != self._gateway_inventory_summary_source:
             summary = self._build_gateway_inventory_summary()
             self._gateway_inventory_summary_cache = summary
             self._gateway_inventory_summary_source = source
@@ -392,7 +392,7 @@ class InventoryRuntime:
     def microinverter_inventory_summary(self) -> dict[str, object]:
         source = self._microinverter_inventory_summary_marker()
         summary = getattr(self, "_microinverter_inventory_summary_cache", {}) or {}
-        if not summary or source != self._microinverter_inventory_summary_source:
+        if source != self._microinverter_inventory_summary_source:
             summary = self._build_microinverter_inventory_summary()
             self._microinverter_inventory_summary_cache = summary
             self._microinverter_inventory_summary_source = source
@@ -401,7 +401,7 @@ class InventoryRuntime:
     def heatpump_inventory_summary(self) -> dict[str, object]:
         source = self._heatpump_inventory_summary_marker()
         summary = getattr(self, "_heatpump_inventory_summary_cache", {}) or {}
-        if not summary or source != self._heatpump_inventory_summary_source:
+        if source != self._heatpump_inventory_summary_source:
             summary = self._build_heatpump_inventory_summary()
             self._heatpump_inventory_summary_cache = summary
             self._heatpump_inventory_summary_source = source
@@ -426,7 +426,7 @@ class InventoryRuntime:
     def gateway_iq_energy_router_summary_records(self) -> list[dict[str, object]]:
         source = self._gateway_iq_energy_router_records_marker()
         records = getattr(self, "_gateway_iq_energy_router_records_cache", [])
-        if not records or source != self._gateway_iq_energy_router_records_source:
+        if source != self._gateway_iq_energy_router_records_source:
             records = self._gateway_iq_energy_router_summary_records(
                 self.gateway_iq_energy_router_records()
             )
@@ -1701,31 +1701,46 @@ class InventoryRuntime:
         micro_source = self._microinverter_inventory_summary_marker()
         heatpump_source = self._heatpump_inventory_summary_marker()
         router_source = self._gateway_iq_energy_router_records_marker()
-        gateway_summary = self._build_gateway_inventory_summary()
-        micro_summary = self._build_microinverter_inventory_summary()
-        heatpump_summary = self._build_heatpump_inventory_summary()
-        heatpump_type_summaries = self._build_heatpump_type_summaries()
-        router_records = self._gateway_iq_energy_router_summary_records(
-            self.gateway_iq_energy_router_records()
-        )
-        router_by_key = {
-            record["key"]: record
-            for record in router_records
-            if isinstance(record, dict) and isinstance(record.get("key"), str)
-        }
-        self._update_shared_state(
-            _gateway_inventory_summary_cache=gateway_summary,
-            _gateway_inventory_summary_source=gateway_source,
-            _microinverter_inventory_summary_cache=micro_summary,
-            _microinverter_inventory_summary_source=micro_source,
-            _heatpump_inventory_summary_cache=heatpump_summary,
-            _heatpump_inventory_summary_source=heatpump_source,
-            _heatpump_type_summaries_cache=heatpump_type_summaries,
-            _heatpump_type_summaries_source=heatpump_source,
-            _gateway_iq_energy_router_records_cache=router_records,
-            _gateway_iq_energy_router_records_source=router_source,
-            _gateway_iq_energy_router_records_by_key_cache=router_by_key,
-        )
+        updates: dict[str, object] = {}
+
+        if gateway_source != self._gateway_inventory_summary_source:
+            updates["_gateway_inventory_summary_cache"] = (
+                self._build_gateway_inventory_summary()
+            )
+            updates["_gateway_inventory_summary_source"] = gateway_source
+
+        if micro_source != self._microinverter_inventory_summary_source:
+            updates["_microinverter_inventory_summary_cache"] = (
+                self._build_microinverter_inventory_summary()
+            )
+            updates["_microinverter_inventory_summary_source"] = micro_source
+
+        if heatpump_source != self._heatpump_inventory_summary_source:
+            updates["_heatpump_inventory_summary_cache"] = (
+                self._build_heatpump_inventory_summary()
+            )
+            updates["_heatpump_inventory_summary_source"] = heatpump_source
+
+        if heatpump_source != self._heatpump_type_summaries_source:
+            updates["_heatpump_type_summaries_cache"] = (
+                self._build_heatpump_type_summaries()
+            )
+            updates["_heatpump_type_summaries_source"] = heatpump_source
+
+        if router_source != self._gateway_iq_energy_router_records_source:
+            router_records = self._gateway_iq_energy_router_summary_records(
+                self.gateway_iq_energy_router_records()
+            )
+            updates["_gateway_iq_energy_router_records_cache"] = router_records
+            updates["_gateway_iq_energy_router_records_source"] = router_source
+            updates["_gateway_iq_energy_router_records_by_key_cache"] = {
+                record["key"]: record
+                for record in router_records
+                if isinstance(record, dict) and isinstance(record.get("key"), str)
+            }
+
+        if updates:
+            self._update_shared_state(**updates)
 
     async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
         coord = self.coordinator
