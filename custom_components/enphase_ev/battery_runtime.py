@@ -1749,9 +1749,10 @@ class BatteryRuntime:
         normalized_schedule_type = str(schedule_type).lower()
         coord = self.coordinator
         if normalized_schedule_type == "cfg":
-            if start_minutes is None or end_minutes is None:
+            include_window = start_minutes is not None and end_minutes is not None
+            if enabled and not include_window:
                 return None
-            if start_minutes == end_minutes:
+            if include_window and start_minutes == end_minutes:
                 self._raise_validation(
                     "charge_from_grid_schedule_times_different",
                     message=(
@@ -1769,10 +1770,11 @@ class BatteryRuntime:
             payload: dict[str, object] = {
                 "chargeFromGrid": (True if enabled else bool(charge_from_grid_enabled)),
                 "chargeFromGridScheduleEnabled": bool(enabled),
-                "chargeBeginTime": start_minutes,
-                "chargeEndTime": end_minutes,
                 "acceptedItcDisclaimer": self.battery_itc_disclaimer_value(),
             }
+            if include_window:
+                payload["chargeBeginTime"] = start_minutes
+                payload["chargeEndTime"] = end_minutes
             cfg_control = coord.battery_cfg_control
             if isinstance(cfg_control, dict):
                 cfg_payload: dict[str, object] = {}
@@ -1818,7 +1820,18 @@ class BatteryRuntime:
         coord = self.coordinator
         start_minutes = self._normalize_schedule_minutes(start_time)
         end_minutes = self._normalize_schedule_minutes(end_time)
-        if start_minutes is None or end_minutes is None:
+        effective_enabled = self._schedule_family_effective_enabled(
+            normalized_schedule_type, enabled
+        )
+        omit_missing_cfg_disable_window = (
+            normalized_schedule_type == "cfg"
+            and effective_enabled is False
+            and start_time is None
+            and end_time is None
+        )
+        if (
+            start_minutes is None or end_minutes is None
+        ) and not omit_missing_cfg_disable_window:
             current_start, current_end = self._current_battery_schedule_window_for_type(
                 normalized_schedule_type
             )
@@ -1831,9 +1844,7 @@ class BatteryRuntime:
             normalized_schedule_type,
             start_minutes=start_minutes,
             end_minutes=end_minutes,
-            enabled=self._schedule_family_effective_enabled(
-                normalized_schedule_type, enabled
-            ),
+            enabled=effective_enabled,
         )
         if payload is None:
             return
