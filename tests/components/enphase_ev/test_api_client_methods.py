@@ -9,6 +9,7 @@ import hashlib
 from http.cookies import SimpleCookie
 import json
 import logging
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -143,6 +144,14 @@ def test_request_count_reset_and_snapshot() -> None:
     client.reset_request_count()
 
     assert client.request_count == 0
+
+
+def test_hems_auth_refresh_suppression_expires() -> None:
+    client = _make_client()
+    client._hems_auth_refresh_suppressed_until = time.monotonic() - 1  # noqa: SLF001
+
+    assert client._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
+    assert client._hems_auth_refresh_suppressed_until is None  # noqa: SLF001
 
 
 def test_safe_response_error_message_handles_header_failures() -> None:
@@ -1660,6 +1669,58 @@ async def test_json_reauth_retry_rebuilds_callable_headers() -> None:
         "enlighten_manager_token_production=NEW-BEAR; XSRF-TOKEN=new-xsrf"
     )
     assert second_headers["X-CSRF-Token"] == "new-xsrf"
+
+
+@pytest.mark.asyncio
+async def test_json_hems_401_suppresses_repeated_password_refreshes() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=200, json_body={"ok": True}),
+            _FakeResponse(status=401, json_body={}),
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    reauth = AsyncMock(return_value=True)
+    client.set_reauth_callback(reauth)
+
+    payload = await client._json(
+        "GET",
+        "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+    )
+
+    assert payload == {"ok": True}
+    with pytest.raises(api.Unauthorized):
+        await client._json(
+            "GET",
+            "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+        )
+    reauth.assert_awaited_once_with()
+    assert len(session.calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_json_hems_refresh_suppression_does_not_affect_other_endpoints() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=200, json_body={"ok": True}),
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=200, json_body={"other": True}),
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    reauth = AsyncMock(return_value=True)
+    client.set_reauth_callback(reauth)
+
+    await client._json(
+        "GET",
+        "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+    )
+    payload = await client._json("GET", "https://example.test/other")
+
+    assert payload == {"other": True}
+    assert reauth.await_count == 2
 
 
 @pytest.mark.asyncio

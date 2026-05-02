@@ -1201,7 +1201,7 @@ def async_setup_services(
         }
         if success.retry_after_seconds is not None:
             response["retry_after_seconds"] = success.retry_after_seconds
-        if success.success:
+        if success.success and bool(getattr(success, "performed_refresh", True)):
             await coord.async_request_refresh()
         return response
 

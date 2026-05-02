@@ -15,6 +15,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from http import HTTPStatus
@@ -33,6 +34,7 @@ from .const import (
     DEFAULT_AUTH_TIMEOUT,
     ENTREZ_URL,
     GREEN_BATTERY_SETTING,
+    HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S,
     LOGIN_FORM_URL,
     LOGIN_URL,
     MFA_RESEND_URL,
@@ -2013,6 +2015,7 @@ class EnphaseEVClient:
         self._cookie = cookie or ""
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
+        self._hems_auth_refresh_suppressed_until: float | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._last_unauthorized_request: str | None = None
         self._request_count = 0
@@ -2031,6 +2034,30 @@ class EnphaseEVClient:
         """Register coroutine used to refresh credentials on 401."""
 
         self._reauth_cb = callback
+
+    @staticmethod
+    def _is_hems_api_endpoint(endpoint: str | None) -> bool:
+        """Return True for HEMS JSON API endpoints that are optional/read-only."""
+
+        return bool(endpoint and endpoint.startswith("/api/v1/hems/"))
+
+    def _hems_auth_refresh_suppressed_active(self) -> bool:
+        """Return True while HEMS 401s should not trigger password refresh."""
+
+        suppressed_until = self._hems_auth_refresh_suppressed_until
+        if not isinstance(suppressed_until, (int, float)):
+            return False
+        if time.monotonic() < float(suppressed_until):
+            return True
+        self._hems_auth_refresh_suppressed_until = None
+        return False
+
+    def _suppress_hems_auth_refresh_after_success(self) -> None:
+        """Temporarily stop HEMS 401s from causing repeated password logins."""
+
+        self._hems_auth_refresh_suppressed_until = (
+            time.monotonic() + HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S
+        )
 
     @property
     def last_unauthorized_request(self) -> str | None:
@@ -4203,7 +4230,18 @@ class EnphaseEVClient:
                         ) as r:
                             if r.status == 401:
                                 self._last_unauthorized_request = safe_request_label
-                                if self._reauth_cb and attempt == 0:
+                                hems_api_endpoint = self._is_hems_api_endpoint(
+                                    endpoint or None
+                                )
+                                if (
+                                    hems_api_endpoint
+                                    and self._hems_auth_refresh_suppressed_active()
+                                ):
+                                    _LOGGER.debug(
+                                        "Received 401 for %s while HEMS auth refresh is temporarily suppressed",
+                                        safe_request_label,
+                                    )
+                                elif self._reauth_cb and attempt == 0:
                                     _LOGGER.debug(
                                         "Received 401 for %s; attempting stored-credential refresh",
                                         safe_request_label,
@@ -4211,6 +4249,8 @@ class EnphaseEVClient:
                                     attempt += 1
                                     reauth_ok = await self._reauth_cb()
                                     if reauth_ok:
+                                        if hems_api_endpoint:
+                                            self._suppress_hems_auth_refresh_after_success()
                                         _LOGGER.debug(
                                             "Stored-credential refresh succeeded for %s; retrying request",
                                             safe_request_label,

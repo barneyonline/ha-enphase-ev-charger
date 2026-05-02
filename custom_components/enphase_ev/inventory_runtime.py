@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
 
+from .api import OptionalEndpointUnavailable
 from .const import DEFAULT_FAST_POLL_INTERVAL, DOMAIN
 from .device_types import (
     member_is_retired as device_member_is_retired,
@@ -56,6 +57,7 @@ if TYPE_CHECKING:  # pragma: no cover
 _LOGGER = logging.getLogger(__name__)
 
 DEVICES_INVENTORY_CACHE_TTL = 300.0
+HEMS_INVENTORY_ENDPOINT_FAMILY = "hems_inventory"
 HEMS_DEVICES_STALE_AFTER_S = 90.0
 HEMS_DEVICES_CACHE_TTL = 15.0
 # System-dashboard detail calls are fan-out requests against the same cloud service.
@@ -1813,14 +1815,36 @@ class InventoryRuntime:
         return callable(fetcher)
 
     async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
+        coord = self.coordinator
         now = time.monotonic()
         cache_ttl = self._hems_devices_cache_ttl_s()
+        family = HEMS_INVENTORY_ENDPOINT_FAMILY
+        previous_payload = getattr(self, "_hems_devices_payload", None)
+        health = coord._endpoint_family_state(family)
+        if health.cooldown_active and coord._endpoint_family_wait_active(family):
+            if previous_payload is not None and coord._endpoint_family_can_use_stale(
+                family
+            ):
+                self._update_shared_state(
+                    _hems_devices_payload=previous_payload,
+                    _hems_devices_using_stale=True,
+                    _hems_inventory_ready=True,
+                    _hems_devices_cache_until=(
+                        coord._endpoint_family_next_retry_mono(family)
+                        or now + cache_ttl
+                    ),
+                )
+                self._merge_heatpump_type_bucket()
+                self._debug_log_summary_if_changed(
+                    "hems_inventory",
+                    "HEMS discovery summary",
+                    self._debug_hems_inventory_summary(),
+                )
+            return
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
-        await self.coordinator.heatpump_runtime.async_refresh_hems_support_preflight(
-            force=force
-        )
+        await coord.heatpump_runtime.async_refresh_hems_support_preflight(force=force)
         if getattr(self.client, "hems_site_supported", None) is False:
             self._update_shared_state(
                 _hems_devices_payload=None,
@@ -1838,7 +1862,6 @@ class InventoryRuntime:
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
             return
-        previous_payload = getattr(self, "_hems_devices_payload", None)
 
         stale_allowed = False
         if previous_payload is not None:
@@ -1849,6 +1872,8 @@ class InventoryRuntime:
         try:
             payload = await fetcher(refresh_data=force)
         except Exception as err:  # noqa: BLE001
+            if getattr(self.client, "hems_site_supported", None) is not False:
+                coord._note_endpoint_family_failure(family, err)
             _LOGGER.debug(
                 "HEMS device inventory fetch failed: %s",
                 redact_text(err, site_ids=(self.site_id,)),
@@ -1902,6 +1927,10 @@ class InventoryRuntime:
                 )
                 return
             if stale_allowed:
+                coord._note_endpoint_family_failure(
+                    family,
+                    OptionalEndpointUnavailable("HEMS device inventory unavailable"),
+                )
                 self._update_shared_state(
                     _hems_devices_payload=previous_payload,
                     _hems_devices_using_stale=True,
@@ -1917,6 +1946,10 @@ class InventoryRuntime:
                     self._debug_hems_inventory_summary(),
                 )
                 return
+            coord._note_endpoint_family_failure(
+                family,
+                OptionalEndpointUnavailable("HEMS device inventory unavailable"),
+            )
             self._update_shared_state(
                 _hems_devices_payload=None,
                 _hems_devices_using_stale=False,
@@ -1946,6 +1979,7 @@ class InventoryRuntime:
         )
         self._merge_heatpump_type_bucket()
         self._set_shared_state_attr("_hems_devices_cache_until", now + cache_ttl)
+        coord._note_endpoint_family_success(family)
         self._debug_log_summary_if_changed(
             "hems_inventory",
             "HEMS discovery summary",
@@ -1953,7 +1987,13 @@ class InventoryRuntime:
         )
 
     def hems_devices_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
         now = time.monotonic()
+        health = coord._endpoint_family_state(HEMS_INVENTORY_ENDPOINT_FAMILY)
+        if health.cooldown_active and coord._endpoint_family_wait_active(
+            HEMS_INVENTORY_ENDPOINT_FAMILY
+        ):
+            return False
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return False
