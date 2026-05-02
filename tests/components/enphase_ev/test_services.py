@@ -569,6 +569,38 @@ async def test_try_reauth_now_uses_stored_credentials_for_selected_site(
 
 
 @pytest.mark.asyncio
+async def test_try_reauth_now_reused_success_does_not_force_refresh(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Manual reauth should not refresh all data when auth was only reused."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    coord.async_try_reauth_now.return_value = SimpleNamespace(
+        success=True,
+        reason=None,
+        retry_after_seconds=None,
+        performed_refresh=False,
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    result = await handlers[(DOMAIN, "try_reauth_now")](
+        SimpleNamespace(data={"site_id": "evse-site"})
+    )
+
+    assert result == {"site_id": "evse-site", "success": True, "reason": None}
+    coord.async_try_reauth_now.assert_awaited_once_with()
+    coord.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_try_reauth_now_reports_missing_stored_credentials(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:

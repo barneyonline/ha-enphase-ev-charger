@@ -43,6 +43,7 @@ class ManualAuthRefreshResult:
     success: bool
     reason: str | None = None
     retry_after_seconds: int | None = None
+    performed_refresh: bool = False
 
 
 class AuthRefreshRuntime:
@@ -120,7 +121,7 @@ class AuthRefreshRuntime:
             )
 
         if self.auth_refresh_recent_success_active():
-            return ManualAuthRefreshResult(success=True)
+            return ManualAuthRefreshResult(success=True, performed_refresh=False)
 
         retry_after = self.manual_refresh_retry_after_seconds()
         if retry_after is not None:
@@ -136,7 +137,7 @@ class AuthRefreshRuntime:
 
         async with coord._refresh_lock:
             if self.auth_refresh_recent_success_active():
-                return ManualAuthRefreshResult(success=True)
+                return ManualAuthRefreshResult(success=True, performed_refresh=False)
 
             retry_after = self.manual_refresh_retry_after_seconds()
             if retry_after is not None:
@@ -184,7 +185,7 @@ class AuthRefreshRuntime:
         result = await asyncio.shield(task)
         if result:
             coord._auth_refresh_manual_retry_until = None
-            return ManualAuthRefreshResult(success=True)
+            return ManualAuthRefreshResult(success=True, performed_refresh=True)
         else:
             coord._auth_refresh_manual_retry_until = (
                 time.monotonic() + AUTH_REFRESH_MANUAL_RETRY_COOLDOWN_S
