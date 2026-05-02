@@ -261,25 +261,6 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
 
         raw_latest = _text(entry.get("version"))
         normalized_latest = normalize_version_token(raw_latest)
-        if (
-            selected.source_scope != "global"
-            and compare_versions(normalized_installed, normalized_latest) is True
-        ):
-            global_selected = select_catalog_entry(
-                catalog,
-                device_type=self._device_type,
-                country=country,
-                locale=normalized_locale,
-                prefer_global=True,
-            )
-            if isinstance(global_selected.entry, dict):
-                selected = global_selected
-                self._source_scope = selected.source_scope
-                self._locale_used = selected.locale_used or normalized_locale
-                entry = global_selected.entry
-                raw_latest = _text(entry.get("version"))
-                normalized_latest = normalize_version_token(raw_latest)
-
         self._raw_latest_version = raw_latest
         self._attr_latest_version = _latest_version_for_state(
             latest=normalized_latest,

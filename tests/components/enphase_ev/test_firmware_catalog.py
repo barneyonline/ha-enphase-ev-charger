@@ -183,6 +183,15 @@ def test_resolve_country_and_locale_priority() -> None:
     assert country == "US"
     assert locale == "fr-fr"
 
+    coord = SimpleNamespace(
+        battery_country_code=None,
+        battery_locale="en-AU",
+    )
+    hass = SimpleNamespace(config=SimpleNamespace(country=None, language="fr-ca"))
+    country, locale = firmware_catalog.resolve_country_and_locale(coord, hass)
+    assert country is None
+    assert locale == "en-au"
+
 
 def test_version_normalization_and_comparison() -> None:
     assert firmware_catalog.normalize_version_token("v04.30.32") == "04.30.32"
@@ -218,6 +227,7 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
                 },
                 "latest_global": {
                     "version": "8.2.4300",
+                    "countries_text": "Worldwide",
                     "urls_by_locale": {"en": "https://example.com/global"},
                 },
             }
@@ -230,9 +240,85 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
         country="AU",
         locale="fr-fr",
     )
-    assert selected.source_scope == "locale"
+    assert selected.source_scope == "country"
     assert selected.locale_used == "fr-fr"
-    assert selected.entry and selected.entry["version"] == "8.2.4500"
+    assert selected.entry and selected.entry["version"] == "8.2.4401"
+
+    exact_locale_does_not_override_country = firmware_catalog.select_catalog_entry(
+        {
+            "schema_version": 1,
+            "generated_at": "2026-03-01T00:00:00Z",
+            "devices": {
+                "envoy": {
+                    "latest_by_locale": {
+                        "en-au": {
+                            "version": "8.3.5427",
+                            "urls_by_locale": {
+                                "en": "https://example.com/global-en",
+                                "en-au": "https://example.com/global-au",
+                            },
+                        }
+                    },
+                    "latest_by_country": {
+                        "AU": {
+                            "version": "8.3.5232",
+                            "urls_by_locale": {
+                                "en-au": "https://example.com/au-regional"
+                            },
+                        }
+                    },
+                    "latest_global": {
+                        "version": "8.3.5427",
+                        "urls_by_locale": {"en": "https://example.com/global"},
+                    },
+                }
+            },
+        },
+        device_type="envoy",
+        country="AU",
+        locale="en-au",
+    )
+    assert exact_locale_does_not_override_country.source_scope == "country"
+    assert exact_locale_does_not_override_country.locale_used == "en-au"
+    assert (
+        exact_locale_does_not_override_country.entry
+        and exact_locale_does_not_override_country.entry["version"] == "8.3.5232"
+    )
+
+    same_release_locale_urls = firmware_catalog.select_catalog_entry(
+        {
+            "schema_version": 1,
+            "generated_at": "2026-03-01T00:00:00Z",
+            "devices": {
+                "envoy": {
+                    "latest_by_locale": {
+                        "fr-be": {
+                            "version": "8.3.5286",
+                            "media_id": "regional-8-3",
+                            "urls_by_locale": {"fr-be": "https://example.com/be-fr"},
+                        }
+                    },
+                    "latest_by_country": {
+                        "BE": {
+                            "version": "8.3.5286",
+                            "media_id": "regional-8-3",
+                            "urls_by_locale": {"nl-be": "https://example.com/be-nl"},
+                        }
+                    },
+                }
+            },
+        },
+        device_type="envoy",
+        country="BE",
+        locale="fr-be",
+    )
+    assert same_release_locale_urls.source_scope == "country"
+    assert same_release_locale_urls.locale_used == "fr-be"
+    assert same_release_locale_urls.entry
+    assert same_release_locale_urls.entry["urls_by_locale"] == {
+        "nl-be": "https://example.com/be-nl",
+        "fr-be": "https://example.com/be-fr",
+    }
 
     locale_only_catalog = {
         "schema_version": 1,
@@ -259,12 +345,8 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
         country="AU",
         locale="fr-ca",
     )
-    assert locale_base_fallback.source_scope == "locale"
-    assert locale_base_fallback.locale_used == "fr-fr"
-    assert (
-        locale_base_fallback.entry
-        and locale_base_fallback.entry["version"] == "8.2.4500"
-    )
+    assert locale_base_fallback.source_scope is None
+    assert locale_base_fallback.entry is None
 
     country_preferred_over_locale_base = firmware_catalog.select_catalog_entry(
         catalog,
@@ -291,10 +373,9 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
         country="FR",
         locale="fr-fr",
     )
-    assert locale_scope_without_urls.source_scope == "locale"
+    assert locale_scope_without_urls.source_scope is None
     assert locale_scope_without_urls.locale_used == "fr-fr"
-    assert locale_scope_without_urls.entry
-    assert locale_scope_without_urls.entry["version"] == "1.2.3"
+    assert locale_scope_without_urls.entry is None
 
     fallback = firmware_catalog.select_catalog_entry(
         catalog,
@@ -338,6 +419,7 @@ def test_select_catalog_entry_country_and_locale_fallback() -> None:
                 },
                 "latest_global": {
                     "version": "8.2.4300",
+                    "countries_text": "Worldwide",
                     "urls_by_locale": {"en": "https://example.com/global"},
                 },
             }
@@ -491,11 +573,41 @@ def test_helper_edge_branches() -> None:
         firmware_catalog._parse_iso_datetime("2026-03-01T00:00:00").tzinfo is not None
     )
 
+    assert firmware_catalog.normalize_locale(None) == "en"
     assert firmware_catalog.normalize_locale(_BadStr()) == "en"
     assert firmware_catalog.normalize_country("AUS") is None
     assert firmware_catalog.normalize_country(_BadStr()) is None
     assert firmware_catalog.normalize_version_token(None) is None
     assert firmware_catalog.normalize_version_token(_BadStr()) is None
+    assert firmware_catalog._text_or_none(None) is None
+    assert firmware_catalog._text_or_none(_BadStr()) is None
+    assert firmware_catalog._exact_locale_entry([], "en") is None
+    assert firmware_catalog._exact_locale_entry({"en": "bad"}, "en") is None
+    assert not firmware_catalog._same_catalog_release(None, {})
+    assert firmware_catalog._same_catalog_release(
+        {"version": "1.0", "media_id": "same"},
+        {"version": "2.0", "media_id": "same"},
+    )
+    assert not firmware_catalog._same_catalog_release(
+        {"version": "unknown"},
+        {"version": None},
+    )
+    assert firmware_catalog._with_merged_locale_urls({"version": "1.0"}, None) == {
+        "version": "1.0"
+    }
+    assert firmware_catalog._with_merged_locale_urls(
+        {"version": "1.0"}, {"urls_by_locale": []}
+    ) == {"version": "1.0"}
+    assert not firmware_catalog._is_worldwide_catalog_entry(None)
+    assert not firmware_catalog._is_worldwide_catalog_entry({"countries_text": None})
+    assert not firmware_catalog._is_worldwide_catalog_entry(
+        {"countries_text": "All countries except Ireland"}
+    )
+    assert firmware_catalog._is_worldwide_catalog_entry({"countries_text": "Worldwide"})
+    assert firmware_catalog._is_worldwide_catalog_entry(
+        {"countries_text": "All countries"}
+    )
+    assert firmware_catalog._repair_legacy_release_urls({}, {}) == {}
     assert firmware_catalog._parse_version_parts("") is None
     assert firmware_catalog._parse_version_parts("1.a") is None
 
