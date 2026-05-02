@@ -682,6 +682,15 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 suppress_after_failures=3,
                 support_state_on_success=True,
             ),
+            "tariff_dated_rates": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=86400.0,
+                failure_backoff_schedule_s=(3600.0, 21600.0, 86400.0),
+                max_backoff_s=86400.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
             "inventory_topology": EndpointFamilyPolicy(
                 success_ttl_s=21600.0,
                 failure_backoff_schedule_s=(1800.0, 3600.0, 7200.0, 21600.0),

@@ -3863,6 +3863,45 @@ async def test_site_tariff_passes_include_site_details() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_tariff_rates_passes_rate_type_and_date() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": {"buyback": []}})
+
+    out = await client.site_tariff_rates(
+        rate_type="buyback",
+        request_date=datetime.date(2026, 5, 1),
+    )
+
+    assert out == {"data": {"buyback": []}}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "/service/tariff/tariff-ms/systems/SITE/tariffs" in args[1]
+    assert kwargs["params"] == {
+        "rateType": "BUYBACK",
+        "date": "2026-05-01",
+        "includeUtility": "",
+    }
+    assert (
+        kwargs["headers"]["Accept"] == "application/json, text/javascript, */*; q=0.01"
+    )
+
+    await client.site_tariff_rates(
+        rate_type="purchase",
+        request_date=datetime.datetime(2026, 5, 2, 12, 0),
+    )
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"]["date"] == "2026-05-02"
+
+    await client.site_tariff_rates(rate_type="buyback", request_date="2026-05-03")
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"]["date"] == "2026-05-03"
+
+    await client.site_tariff_rates(rate_type="buyback")
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"]["date"] == datetime.date.today().isoformat()
+
+
+@pytest.mark.asyncio
 async def test_site_tariff_bundle_fetches_billing_and_tariff() -> None:
     client = _make_client()
     client.site_tariff_billing_details = AsyncMock(

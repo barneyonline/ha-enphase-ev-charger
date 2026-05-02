@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### ✨ New features
+- Added read-only current export rate support for Enphase sites whose NEM/export buyback rates are only exposed by the dated tariff-rates endpoint.
+
+### 🔧 Improvements
+- Tracked dated tariff-rate availability separately so unsupported regional endpoints back off without degrading the main tariff refresh.
+
 ## v3.0.0 - 2026-05-01
 
 ### 🚧 Breaking changes

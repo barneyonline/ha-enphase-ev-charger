@@ -21,6 +21,7 @@ from custom_components.enphase_ev.sensor import (
     async_setup_entry,
 )
 from custom_components.enphase_ev.tariff import (
+    TARIFF_DATED_RATES_ENDPOINT_FAMILY,
     TARIFF_ENDPOINT_FAMILY,
     TariffBillingUpdate,
     TariffRateLocator,
@@ -35,6 +36,7 @@ from custom_components.enphase_ev.tariff import (
     next_billing_date,
     next_tariff_rate_change,
     parse_tariff_billing,
+    parse_dated_tariff_rate,
     parse_tariff_rate,
     tariff_rate_sensor_specs,
 )
@@ -226,6 +228,73 @@ def test_parse_tariff_rate_flat_tou_and_tiered_shapes() -> None:
     assert buyback.attributes["export_plan"] == "netFit"
     assert buyback.seasons[0]["off_peak"] == "0.04"
     assert buyback.seasons[0]["tiers"][1]["unbounded"] is True
+
+
+def test_parse_dated_tariff_rate_builds_read_only_buyback_snapshot() -> None:
+    snapshot = parse_dated_tariff_rate(
+        {
+            "type": "tariff-rates",
+            "data": {
+                "tariff-version-id": "abc123",
+                "tariff-type": "static",
+                "currency": "$",
+                "siteDetails": {"exportPlanType": "NEM3"},
+                "buyback": [
+                    {"start": 0, "end": 59, "rate": 0.0789},
+                    {"start": 60, "end": 119, "rate": "0.0733"},
+                    {"start": 1380, "end": 1439, "rate": 0.0764},
+                ],
+            },
+        },
+        "buyback",
+    )
+
+    assert snapshot is not None
+    assert snapshot.state == "Time of use"
+    assert snapshot.source == "static"
+    assert snapshot.export_plan == "NEM3"
+    assert snapshot.branch_key is None
+    specs = tariff_rate_sensor_specs(snapshot)
+    assert len(specs) == 3
+    assert specs[0]["state"] == 0.0789
+    assert specs[0]["attributes"]["start_time"] == "00:00"
+    assert specs[0]["attributes"]["end_time"] == "01:00"
+    assert specs[2]["attributes"]["start_time"] == "23:00"
+    assert specs[2]["attributes"]["end_time"] == "00:00"
+    assert "tariff_locator" not in specs[0]["attributes"]
+    current = current_tariff_rate_sensor_spec(
+        snapshot,
+        datetime(2026, 5, 1, 1, 30, tzinfo=timezone.utc),
+    )
+    assert current is not None
+    assert current["state"] == 0.0733
+
+
+def test_parse_dated_tariff_rate_rejects_bad_payloads() -> None:
+    assert parse_dated_tariff_rate({}, "buyback") is None
+    assert parse_dated_tariff_rate({"data": {"buyback": {}}}, "buyback") is None
+    assert parse_dated_tariff_rate({"data": {"buyback": []}}, "buyback") is None
+    assert (
+        parse_dated_tariff_rate({"data": {"buyback": [{"rate": "bad"}]}}, "buyback")
+        is None
+    )
+    flat = parse_dated_tariff_rate(
+        {
+            "data": {
+                "siteDetails": "bad",
+                "currency": "USD",
+                "buyback": [{"rate": "0.01"}],
+            }
+        },
+        "buyback",
+    )
+    assert flat is not None
+    assert flat.state == "Flat"
+    assert flat.currency == "USD"
+    assert (
+        parse_dated_tariff_rate({"data": {"buyback": [{"rate": "0.01"}]}}, "bad")
+        is None
+    )
 
 
 def test_tariff_rate_sensor_specs_for_tou_and_tiered_rates() -> None:
@@ -1153,6 +1222,336 @@ async def test_tariff_runtime_refreshes_snapshots(coordinator_factory) -> None:
     assert coord.tariff_last_refresh_utc is not None
     assert coord.tariff_rates_last_refresh_utc is coord.tariff_last_refresh_utc
     assert coord._endpoint_family_state("tariff").support_state == "supported"
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_uses_dated_buyback_when_export_seasons_empty(
+    coordinator_factory,
+    monkeypatch,
+) -> None:
+    fixed_now = datetime(2026, 5, 1, 16, 25, tzinfo=timezone.utc)
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.tariff.dt_util.now",
+        lambda tz=None: fixed_now.astimezone(tz) if tz is not None else fixed_now,
+    )
+    coord = coordinator_factory()
+    coord._site_timezone_name = lambda: "UTC"  # noqa: SLF001
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {
+                "anyBillPeriodStartDate": "2025-08-18",
+                "billingFrequency": "MONTH",
+                "billingIntervalValue": 1,
+            },
+            {
+                "currency": "$",
+                "purchase": {
+                    "typeKind": "single",
+                    "typeId": "flat",
+                    "source": "manual",
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "days": [{"id": "all", "periods": [{"rate": "0.30"}]}],
+                        }
+                    ],
+                },
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "source": "autofill",
+                    "exportPlan": "nem",
+                    "seasons": [],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = AsyncMock(
+        return_value={
+            "type": "tariff-rates",
+            "data": {
+                "tariff-version-id": "abc123",
+                "tariff-type": "static",
+                "currency": "$",
+                "siteDetails": {"exportPlanType": "NEM3"},
+                "buyback": [
+                    {"start": 0, "end": 959, "rate": 0.0402},
+                    {"start": 960, "end": 1019, "rate": 0.0426},
+                    {"start": 1020, "end": 1439, "rate": 0.0567},
+                ],
+            },
+        }
+    )
+
+    await TariffRuntime(coord).async_refresh()
+
+    coord.client.site_tariff_rates.assert_awaited_once_with(
+        rate_type="BUYBACK",
+        request_date=date(2026, 5, 1),
+    )
+    assert coord.tariff_export_rate is not None
+    assert coord.tariff_export_rate.state == "Time of use"
+    assert coord.tariff_export_rate.export_plan == "NEM3"
+    assert (
+        coord._endpoint_family_state(TARIFF_DATED_RATES_ENDPOINT_FAMILY).support_state
+        == "supported"
+    )
+    current = current_tariff_rate_sensor_spec(
+        coord.tariff_export_rate,
+        fixed_now,
+    )
+    assert current is not None
+    assert current["state"] == 0.0426
+    assert "tariff_locator" not in current["attributes"]
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_skips_dated_buyback_when_export_has_specs(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {},
+            {
+                "currency": "$",
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "flat",
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "days": [{"id": "all", "periods": [{"rate": "0.01"}]}],
+                        }
+                    ],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = AsyncMock()
+
+    await TariffRuntime(coord).async_refresh()
+
+    coord.client.site_tariff_rates.assert_not_awaited()
+    assert coord.tariff_export_rate is not None
+    assert tariff_rate_sensor_specs(coord.tariff_export_rate)[0]["state"] == 0.01
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_keeps_empty_export_when_dated_api_missing(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {},
+            {
+                "currency": "$",
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = None
+
+    await TariffRuntime(coord).async_refresh()
+
+    assert coord.tariff_export_rate is not None
+    assert coord.tariff_export_rate.state == "Time of use"
+    assert tariff_rate_sensor_specs(coord.tariff_export_rate) == ()
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_preserves_previous_export_on_dated_api_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    previous = parse_tariff_rate(
+        {
+            "currency": "$",
+            "buyback": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [{"id": "all", "periods": [{"rate": "0.01"}]}],
+                    }
+                ],
+            },
+        },
+        "buyback",
+    )
+    coord.tariff_export_rate = previous
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {},
+            {
+                "currency": "$",
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = AsyncMock(side_effect=aiohttp.ClientError("boom"))
+
+    await TariffRuntime(coord).async_refresh()
+
+    assert coord.tariff_export_rate is previous
+    health = coord._endpoint_family_state(TARIFF_DATED_RATES_ENDPOINT_FAMILY)
+    assert health.consecutive_failures == 1
+    assert health.cooldown_active is True
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_keeps_empty_export_on_dated_api_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {},
+            {
+                "currency": "$",
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = AsyncMock(side_effect=aiohttp.ClientError("boom"))
+
+    await TariffRuntime(coord).async_refresh()
+
+    assert coord.tariff_export_rate is not None
+    assert coord.tariff_export_rate.state == "Time of use"
+    assert tariff_rate_sensor_specs(coord.tariff_export_rate) == ()
+    assert (
+        coord._endpoint_family_state(TARIFF_DATED_RATES_ENDPOINT_FAMILY).last_error
+        == "boom"
+    )
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_skips_dated_buyback_during_cooldown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    previous = parse_tariff_rate(
+        {
+            "currency": "$",
+            "buyback": {
+                "typeKind": "single",
+                "typeId": "flat",
+                "seasons": [
+                    {
+                        "id": "default",
+                        "days": [{"id": "all", "periods": [{"rate": "0.01"}]}],
+                    }
+                ],
+            },
+        },
+        "buyback",
+    )
+    coord.tariff_export_rate = previous
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {},
+            {
+                "currency": "$",
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = AsyncMock()
+    coord._note_endpoint_family_failure(
+        TARIFF_DATED_RATES_ENDPOINT_FAMILY,
+        aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=404,
+        ),
+    )
+
+    await TariffRuntime(coord).async_refresh()
+
+    coord.client.site_tariff_rates.assert_not_awaited()
+    assert coord.tariff_export_rate is previous
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_keeps_empty_export_during_dated_cooldown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {},
+            {
+                "currency": "$",
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = AsyncMock()
+    coord._note_endpoint_family_failure(
+        TARIFF_DATED_RATES_ENDPOINT_FAMILY,
+        aiohttp.ClientResponseError(
+            request_info=None,
+            history=(),
+            status=404,
+        ),
+    )
+
+    await TariffRuntime(coord).async_refresh()
+
+    coord.client.site_tariff_rates.assert_not_awaited()
+    assert coord.tariff_export_rate is not None
+    assert tariff_rate_sensor_specs(coord.tariff_export_rate) == ()
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_marks_empty_dated_buyback_response_unavailable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {},
+            {
+                "currency": "$",
+                "buyback": {
+                    "typeKind": "single",
+                    "typeId": "tou",
+                    "seasons": [],
+                },
+            },
+        )
+    )
+    coord.client.site_tariff_rates = AsyncMock(return_value={"data": {"buyback": []}})
+
+    await TariffRuntime(coord).async_refresh()
+
+    health = coord._endpoint_family_state(TARIFF_DATED_RATES_ENDPOINT_FAMILY)
+    assert health.consecutive_failures == 1
+    assert health.cooldown_active is True
+    assert health.last_error == "Dated export tariff rates did not include data"
 
 
 @pytest.mark.asyncio
@@ -2199,6 +2598,10 @@ def test_tariff_runtime_diagnostics(coordinator_factory) -> None:
     health.consecutive_failures = 1
     health.last_failure_utc = datetime(2026, 4, 25, tzinfo=timezone.utc)
     health.last_error = "Tariff payload did not include data"
+    dated_health = coord._endpoint_family_state(TARIFF_DATED_RATES_ENDPOINT_FAMILY)
+    dated_health.support_state = "suppressed"
+    dated_health.last_status = 404
+    dated_health.last_error = "404"
 
     diag = TariffRuntime(coord).diagnostics()
 
@@ -2213,6 +2616,8 @@ def test_tariff_runtime_diagnostics(coordinator_factory) -> None:
     assert (
         diag["endpoint_family"]["last_error"] == "Tariff payload did not include data"
     )
+    assert diag["dated_rates_endpoint_family"]["support_state"] == "suppressed"
+    assert diag["dated_rates_endpoint_family"]["last_status"] == 404
 
 
 def test_tariff_sensors_expose_state_attributes_and_gateway_device(
