@@ -57,6 +57,10 @@ CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
     "SMART": "SMART_CHARGING",
     "SMART_CHARGING": "SMART_CHARGING",
 }
+EFFECTIVE_CHARGE_MODE_INTEGER_MAP: dict[int, str] = {
+    0: "MANUAL_CHARGING",
+    1: "GREEN_CHARGING",
+}
 EFFECTIVE_CHARGE_MODE_VALUES: frozenset[str] = frozenset(
     {
         *CHARGE_MODE_PREFERENCE_MAP.values(),
@@ -1769,6 +1773,8 @@ class EvseRuntime:
         return CHARGE_MODE_PREFERENCE_MAP.get(normalized)
 
     def normalize_effective_charge_mode(self, value: object) -> str | None:
+        if isinstance(value, int) and not isinstance(value, bool):
+            return EFFECTIVE_CHARGE_MODE_INTEGER_MAP.get(value)
         preferred = self.normalize_charge_mode_preference(value)
         if preferred is not None:
             return preferred
@@ -1780,6 +1786,8 @@ class EvseRuntime:
             return None
         if not normalized:
             return None
+        if normalized.isdecimal():
+            return EFFECTIVE_CHARGE_MODE_INTEGER_MAP.get(int(normalized))
         if normalized in EFFECTIVE_CHARGE_MODE_VALUES:
             return normalized
         return None

@@ -37,6 +37,7 @@ All notable changes to this project will be documented in this file.
 - Hardened setup, polling, and EV charger service inputs by bounding scan/runtime intervals, restricting OCPP trigger messages to supported values, requiring confirmation for advanced trigger messages, and keeping raw Enphase error bodies out of raised exceptions.
 - Rejected unresolved EV charger and site service targets with clear validation errors instead of allowing ambiguous calls to fall through to the wrong coordinator.
 - Reported the charger-specific minimum amp value during EV charger safe-limit charging instead of always showing `8 A`.
+- Mapped IQ EV charger status `mode` values into the effective charge mode so manual override states no longer appear as green charging.
 - Redacted Enphase site IDs from logs and diagnostics, expanding the existing redaction coverage across API, summary, session history, EVSE timeseries, coordinator diagnostics, and service messages.
 - Made same-value IQ Battery reserve and shutdown-level number writes no-ops so unchanged settings do not trip the BatteryConfig write debounce or send unnecessary cloud writes.
 - Fixed last CFG schedule deletion so the integration sends the follow-up BatteryConfig disable write even when no replacement charge-from-grid schedule window remains.
