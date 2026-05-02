@@ -3338,7 +3338,7 @@ async def test_first_refresh_soft_fails_optional_evse_status_endpoint(
 
 
 @pytest.mark.asyncio
-async def test_first_refresh_defers_warmup_only_calls(
+async def test_first_refresh_runs_storm_guard_startup_calls_and_defers_warmup_only_calls(
     hass, monkeypatch, config_entry
 ) -> None:
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
@@ -3431,13 +3431,93 @@ async def test_first_refresh_defers_warmup_only_calls(
 
     await coord.async_refresh()
 
-    for mock in deferred_methods.values():
+    deferred_methods["_async_refresh_battery_site_settings"].assert_awaited_once()
+    deferred_methods["_async_refresh_storm_guard_profile"].assert_awaited_once()
+    for name, mock in deferred_methods.items():
+        if name in {
+            "_async_refresh_battery_site_settings",
+            "_async_refresh_storm_guard_profile",
+        }:
+            continue
         mock.assert_not_awaited()
     coord.energy._async_refresh_site_energy.assert_not_awaited()
     coord.evse_timeseries.async_refresh.assert_not_awaited()
     assert "status_s" in coord.bootstrap_phase_timings
     assert "summary_s" in coord.bootstrap_phase_timings
     assert "site_energy_s" not in coord.bootstrap_phase_timings
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_populates_storm_guard_state_before_entities(
+    hass, monkeypatch, config_entry
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.switch import StormGuardSwitch
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+        CONF_SITE_ONLY: False,
+    }
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+
+    class DummyClient:
+        async def status(self):
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "connectors": [{}],
+                        "session_d": {},
+                        "sch_d": {},
+                        "charging": False,
+                    }
+                ],
+                "ts": 1_700_000_000,
+            }
+
+        async def summary_v2(self):
+            return [{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+
+        async def battery_site_settings(self):
+            return {
+                "data": {
+                    "showStormGuard": True,
+                    "hasEncharge": True,
+                    "userDetails": {"isOwner": True, "isInstaller": False},
+                }
+            }
+
+        async def storm_guard_profile(self, **_kwargs):
+            return {
+                "data": {
+                    "stormGuardState": "enabled",
+                    "evseStormEnabled": True,
+                }
+            }
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=config_entry)
+    coord.client = DummyClient()
+    coord.tariff_runtime.async_refresh = AsyncMock()
+
+    await coord.async_refresh()
+
+    assert coord.data[RANDOM_SERIAL]["storm_guard_state"] == "enabled"
+    assert coord.data[RANDOM_SERIAL]["storm_evse_enabled"] is True
+    assert StormGuardSwitch(coord).available is True
 
 
 def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) -> None:
