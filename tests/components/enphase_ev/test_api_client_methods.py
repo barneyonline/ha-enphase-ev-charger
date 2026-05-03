@@ -178,6 +178,46 @@ def test_hems_auth_refresh_suppression_uses_registered_callbacks() -> None:
     assert state["suppressed"] == 1
 
 
+def test_hems_auth_refresh_suppression_active_callback_failure_falls_back(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _make_client()
+    client._hems_auth_refresh_suppressed_until = time.monotonic() + 30  # noqa: SLF001
+
+    def _active() -> bool:
+        raise RuntimeError("boom")
+
+    client.set_hems_auth_refresh_suppression_callbacks(
+        active_callback=_active,
+        suppress_callback=None,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger=api._LOGGER.name):
+        assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+
+    assert "HEMS auth refresh suppression callback failed" in caplog.text
+
+
+def test_hems_auth_refresh_suppression_suppress_callback_failure_uses_local(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _make_client()
+
+    def _suppress() -> None:
+        raise RuntimeError("boom")
+
+    client.set_hems_auth_refresh_suppression_callbacks(
+        active_callback=None,
+        suppress_callback=_suppress,
+    )
+
+    with caplog.at_level(logging.DEBUG, logger=api._LOGGER.name):
+        client._suppress_hems_auth_refresh_after_success()  # noqa: SLF001
+
+    assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+    assert "HEMS auth refresh suppression callback failed" in caplog.text
+
+
 def test_safe_response_error_message_handles_header_failures() -> None:
     class BadHeaders:
         def get(self, *_args, **_kwargs):

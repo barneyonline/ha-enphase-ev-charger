@@ -186,6 +186,57 @@ async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(
     assert "config_entry" in init_calls[0]
 
 
+@pytest.mark.parametrize("raise_type_error", [False, True])
+def test_coordinator_init_handles_async_hems_suppression_callback_registration(
+    hass, monkeypatch, raise_type_error
+):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass)
+    callback_kwargs: dict[str, object] = {}
+    task_calls: list[dict[str, str]] = []
+
+    class Client:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def set_reauth_callback(self, *_args) -> None:
+            return None
+
+        def set_hems_auth_refresh_suppression_callbacks(self, **kwargs):
+            callback_kwargs.update(kwargs)
+
+            async def _async_result() -> None:
+                return None
+
+            return _async_result()
+
+    def _create_task(coro, **kwargs):
+        task_calls.append(dict(kwargs))
+        if raise_type_error and kwargs:
+            raise TypeError("legacy signature")
+        coro.close()
+        return object()
+
+    monkeypatch.setattr(coord_mod, "EnphaseEVClient", Client)
+    monkeypatch.setattr(hass, "async_create_task", _create_task)
+
+    EnphaseCoordinator(hass, entry.data, config_entry=entry)
+
+    assert callable(callback_kwargs["active_callback"])
+    assert callable(callback_kwargs["suppress_callback"])
+    if raise_type_error:
+        assert task_calls == [
+            {"name": "enphase_ev_set_hems_auth_refresh_suppression_callbacks"},
+            {},
+        ]
+    else:
+        assert task_calls == [
+            {"name": "enphase_ev_set_hems_auth_refresh_suppression_callbacks"}
+        ]
+
+
 def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -444,6 +495,29 @@ def test_persist_auth_refresh_suspension_state_stores_field(hass, monkeypatch):
     assert (
         captured[-1][CONF_AUTH_REFRESH_SUSPENDED_UNTIL] == "2026-05-01T12:00:00+00:00"
     )
+
+
+def test_persist_auth_refresh_suspension_state_marks_internal_update(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass)
+    object.__setattr__(entry, "runtime_data", SimpleNamespace(skip_reload_once=False))
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._auth_refresh_suspended_until_utc = datetime(
+        2026, 5, 1, 12, 0, tzinfo=timezone.utc
+    )
+
+    def _update_entry(entry_obj, data=None, **kwargs):
+        assert entry_obj is entry
+        return True
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", _update_entry)
+
+    coord._persist_auth_refresh_suspension_state()
+
+    assert entry.runtime_data.skip_reload_once is True
 
 
 def test_clear_auth_refresh_rejection_state_resets_counter_and_cooldown(hass):

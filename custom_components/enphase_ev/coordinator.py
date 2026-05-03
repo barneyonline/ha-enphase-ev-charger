@@ -623,10 +623,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.client, "set_hems_auth_refresh_suppression_callbacks", None
         )
         if callable(set_hems_suppression_callbacks):
-            set_hems_suppression_callbacks(
+            result = set_hems_suppression_callbacks(
                 active_callback=self._hems_auth_refresh_suppressed_active,
                 suppress_callback=self._suppress_hems_auth_refresh_after_success,
             )
+            if inspect.isawaitable(result):
+                try:
+                    self.hass.async_create_task(
+                        result,
+                        name=f"{DOMAIN}_set_hems_auth_refresh_suppression_callbacks",
+                    )
+                except TypeError:
+                    self.hass.async_create_task(result)
         from .schedule_sync import ScheduleSync
 
         self.schedule_sync = ScheduleSync(hass, self, config_entry)
