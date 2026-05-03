@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug fixes
 - Kept cleared Envoy history migration mappings skipped on the final confirmation step instead of restoring suggested entities.
+- Persisted HEMS authentication refresh suppression across API client state resets and token persistence so repeated HEMS `401` responses do not restart stored-credential refresh attempts every few seconds.
 
 ### 🔧 Improvements
 - Moved slower optional startup work out of the blocking first refresh path so Home Assistant can finish setting up the integration faster, with tariff and site-only state updates published after warmup.
