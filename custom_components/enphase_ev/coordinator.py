@@ -229,6 +229,246 @@ COORDINATOR_RUNTIME_CLASSES: dict[str, type] = {
 }
 
 
+def _coerce_epoch_seconds(value: object) -> int | None:
+    try:
+        timestamp = int(value)
+    except Exception:
+        return None
+    if timestamp > 10**12:
+        timestamp = timestamp // 1000
+    return timestamp
+
+
+def _charger_sample_datetime(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=_tz.utc)
+        return value.astimezone(_tz.utc)
+    if isinstance(value, (int, float)):
+        try:
+            numeric = float(value)
+        except Exception:
+            return None
+        if numeric > 10**12:
+            numeric = numeric / 1000.0
+        if numeric <= 0:
+            return None
+        try:
+            return datetime.fromtimestamp(numeric, tz=_tz.utc)
+        except Exception:
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.isdigit():
+            return _charger_sample_datetime(int(text))
+        parsed = dt_util.parse_datetime(text)
+        if parsed is None:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=_tz.utc)
+        return parsed.astimezone(_tz.utc)
+    return None
+
+
+def _extract_error_description(raw: str | None) -> str | None:
+    """Best-effort extraction of a descriptive message from error payloads."""
+
+    if not raw:
+        return None
+    text = str(raw).strip()
+
+    def _search(obj):
+        if isinstance(obj, dict):
+            for key in (
+                "description",
+                "code_description",
+                "codeDescription",
+                "displayMessage",
+                "message",
+                "detail",
+                "error_description",
+                "errorDescription",
+                "errorMessage",
+            ):
+                val = obj.get(key)
+                if isinstance(val, str) and val.strip():
+                    return val.strip()
+            for key in ("error", "details", "data"):
+                nested = obj.get(key)
+                result = _search(nested)
+                if result:
+                    return result
+        elif isinstance(obj, list):
+            for item in obj:
+                result = _search(item)
+                if result:
+                    return result
+        elif isinstance(obj, str) and obj.strip():
+            return obj.strip()
+        return None
+
+    candidates = [text]
+    trimmed = text.strip("\"'")
+    if trimmed != text:
+        candidates.append(trimmed)
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except Exception:
+            continue
+        description = _search(parsed)
+        if description:
+            return description
+    return None
+
+
+def _coerce_boolish(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes", "y")
+    return False
+
+
+def _coerce_optional_boolish(value: object) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "1", "yes", "y", "enabled", "enable", "on"):
+            return True
+        if normalized in (
+            "false",
+            "0",
+            "no",
+            "n",
+            "disabled",
+            "disable",
+            "off",
+        ):
+            return False
+    return None
+
+
+def _coerce_floatish(value: object, *, precision: int | None = None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        parsed = float(value)
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = float(text)
+        except Exception:
+            return None
+    else:
+        return None
+    if precision is not None:
+        try:
+            return round(parsed, precision)
+        except Exception:
+            return parsed
+    return parsed
+
+
+def _coerce_intish(value: object) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return int(value)
+        except Exception:
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return int(float(text))
+        except Exception:
+            return None
+    return None
+
+
+def _coerce_textish(value: object) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:
+        return None
+    return text or None
+
+
+def _coerce_int_list(value: object) -> list[int] | None:
+    if not isinstance(value, list):
+        return None
+    parsed: list[int] = []
+    for item in value:
+        coerced = _coerce_intish(item)
+        if coerced is not None:
+            parsed.append(coerced)
+    return parsed or None
+
+
+def _power_parse_timestamp(raw: object) -> float | None:
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        try:
+            value = float(raw)
+        except Exception:
+            return None
+        if value > 10**12:
+            value = value / 1000.0
+        if value <= 0:
+            return None
+        try:
+            datetime.fromtimestamp(value, tz=_tz.utc)
+        except Exception:
+            return None
+        return value
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return None
+        normalized = stripped.replace("[UTC]", "").replace("Z", "+00:00")
+        try:
+            dt_obj = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if dt_obj.tzinfo is None:
+            dt_obj = dt_obj.replace(tzinfo=_tz.utc)
+        return dt_obj.astimezone(_tz.utc).timestamp()
+    return None
+
+
+def _power_as_float(raw: object) -> float | None:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _power_as_int(raw: object) -> int | None:
+    try:
+        return int(float(raw))
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass(slots=True)
 class ChargerState:
     sn: str
@@ -486,6 +726,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         super_kwargs = {
             "name": DOMAIN,
             "update_interval": timedelta(seconds=self._configured_slow_poll_interval),
+            "always_update": False,
         }
         if config_entry is not None:
             super_kwargs["config_entry"] = config_entry
@@ -2701,107 +2942,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         if self.site_only or not self.serials:
             return await self._async_run_site_only_refresh_pipeline(context)
 
-        # Helper to normalize epoch-like inputs to seconds
-        def _sec(v):
-            try:
-                iv = int(v)
-                # Convert ms -> s if too large
-                if iv > 10**12:
-                    iv = iv // 1000
-                return iv
-            except Exception:
-                return None
-
-        def _charger_sample_datetime(value: object) -> datetime | None:
-            if value is None:
-                return None
-            if isinstance(value, datetime):
-                if value.tzinfo is None:
-                    return value.replace(tzinfo=_tz.utc)
-                return value.astimezone(_tz.utc)
-            if isinstance(value, (int, float)):
-                try:
-                    numeric = float(value)
-                except Exception:
-                    return None
-                if numeric > 10**12:
-                    numeric = numeric / 1000.0
-                if numeric <= 0:
-                    return None
-                try:
-                    return datetime.fromtimestamp(numeric, tz=_tz.utc)
-                except Exception:
-                    return None
-            if isinstance(value, str):
-                text = value.strip()
-                if not text:
-                    return None
-                if text.isdigit():
-                    return _charger_sample_datetime(int(text))
-                parsed = dt_util.parse_datetime(text)
-                if parsed is None:
-                    return None
-                if parsed.tzinfo is None:
-                    parsed = parsed.replace(tzinfo=_tz.utc)
-                return parsed.astimezone(_tz.utc)
-            return None
-
-        def _extract_description(raw: str | None) -> str | None:
-            """Best-effort extraction of a descriptive message from error payloads."""
-
-            if not raw:
-                return None
-            text = str(raw).strip()
-
-            def _search(obj):
-                if isinstance(obj, dict):
-                    for key in (
-                        "description",
-                        "code_description",
-                        "codeDescription",
-                        "displayMessage",
-                        "message",
-                        "detail",
-                        "error_description",
-                        "errorDescription",
-                        "errorMessage",
-                    ):
-                        val = obj.get(key)
-                        if isinstance(val, str) and val.strip():
-                            return val.strip()
-                    # Dive into common nested containers
-                    for key in ("error", "details", "data"):
-                        nested = obj.get(key)
-                        result = _search(nested)
-                        if result:
-                            return result
-                elif isinstance(obj, list):
-                    for item in obj:
-                        result = _search(item)
-                        if result:
-                            return result
-                elif isinstance(obj, str):
-                    if obj.strip():
-                        return obj.strip()
-                return None
-
-            candidates = [text]
-            trimmed = text.strip("\"'")
-            if trimmed != text:
-                candidates.append(trimmed)
-            for candidate in candidates:
-                try:
-                    parsed = json.loads(candidate)
-                except Exception:
-                    continue
-                description = _search(parsed)
-                if description:
-                    return description
-            return None
-
         # Handle backoff window
         if self._backoff_until and time.monotonic() < self._backoff_until:
-            raise UpdateFailed("In backoff due to rate limiting or server errors")
+            retry_after = max(0.0, self._backoff_until - time.monotonic())
+            raise UpdateFailed(
+                "In backoff due to rate limiting or server errors",
+                retry_after=retry_after,
+            )
 
         if self._auth_block_active():
             self._last_error = "auth_blocked"
@@ -2939,7 +3086,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._schedule_backoff_timer(backoff)
                 if self._payload_errors >= 2:
                     self.diagnostics.report_cloud_issue()
-                raise UpdateFailed(f"Invalid API payload: {reason}")
+                raise UpdateFailed(
+                    f"Invalid API payload: {reason}",
+                    retry_after=backoff,
+                )
         except aiohttp.ClientResponseError as err:
             url = None
             try:
@@ -2977,7 +3127,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 else:
                     self.diagnostics.clear_cloud_issue()
             raw_payload = redact_text(err.message, site_ids=(self.site_id,))
-            description = _extract_description(raw_payload)
+            description = _extract_error_description(raw_payload)
             reason = redact_text(err.message, site_ids=(self.site_id,))
             if not reason:
                 reason = err.__class__.__name__
@@ -2997,7 +3147,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_endpoint = str(url) if url is not None else None
             self.payload_using_stale = False
             self.payload_failure_kind = None
-            raise UpdateFailed(f"Cloud error {err.status}: {reason}")
+            raise UpdateFailed(
+                f"Cloud error {err.status}: {reason}",
+                retry_after=backoff,
+            )
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             msg = redact_text(err, site_ids=(self.site_id,))
             if not msg:
@@ -3039,7 +3192,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_endpoint = None
             self.payload_using_stale = False
             self.payload_failure_kind = None
-            raise UpdateFailed(f"Error communicating with API: {msg}")
+            raise UpdateFailed(
+                f"Error communicating with API: {msg}",
+                retry_after=backoff,
+            )
         finally:
             if not status_refresh_succeeded:
                 await self._async_cancel_first_refresh_followups(context)
@@ -3087,37 +3243,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             first_refresh=first_refresh,
         )
 
-        def _as_bool(v):
-            if isinstance(v, bool):
-                return v
-            if isinstance(v, (int, float)):
-                return v != 0
-            if isinstance(v, str):
-                return v.strip().lower() in ("true", "1", "yes", "y")
-            return False
-
-        def _as_optional_bool(v):
-            if v is None:
-                return None
-            if isinstance(v, bool):
-                return v
-            if isinstance(v, (int, float)):
-                return v != 0
-            if isinstance(v, str):
-                normalized = v.strip().lower()
-                if normalized in ("true", "1", "yes", "y", "enabled", "enable", "on"):
-                    return True
-                if normalized in (
-                    "false",
-                    "0",
-                    "no",
-                    "n",
-                    "disabled",
-                    "disable",
-                    "off",
-                ):
-                    return False
-            return None
+        _as_bool = _coerce_boolish
+        _as_optional_bool = _coerce_optional_boolish
+        _as_float = _coerce_floatish
+        _as_int = _coerce_intish
+        _as_text = _coerce_textish
+        _as_int_list = _coerce_int_list
+        _sec = _coerce_epoch_seconds
 
         def _support_value_and_source(
             runtime_value: bool | None,
@@ -3128,109 +3260,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if feature_flag_value is not None:
                 return feature_flag_value, "feature_flag"
             return None, "unknown"
-
-        def _as_float(v, *, precision: int | None = None):
-            if v is None:
-                return None
-            if isinstance(v, (int, float)):
-                val = float(v)
-            elif isinstance(v, str):
-                s = v.strip()
-                if not s:
-                    return None
-                try:
-                    val = float(s)
-                except Exception:
-                    return None
-            else:
-                return None
-            if precision is not None:
-                try:
-                    return round(val, precision)
-                except Exception:
-                    return val
-            return val
-
-        def _as_int(v):
-            if isinstance(v, bool) or v is None:
-                return None
-            if isinstance(v, (int, float)):
-                try:
-                    return int(v)
-                except Exception:
-                    return None
-            if isinstance(v, str):
-                s = v.strip()
-                if not s:
-                    return None
-                try:
-                    return int(float(s))
-                except Exception:
-                    return None
-            return None
-
-        def _as_text(v):
-            if v is None:
-                return None
-            try:
-                text = str(v).strip()
-            except Exception:
-                return None
-            return text or None
-
-        def _as_int_list(v):
-            if not isinstance(v, list):
-                return None
-            out: list[int] = []
-            for item in v:
-                coerced = _as_int(item)
-                if coerced is None:
-                    continue
-                out.append(coerced)
-            return out or None
-
-        def _power_parse_timestamp(raw: object) -> float | None:
-            if raw is None:
-                return None
-            if isinstance(raw, (int, float)):
-                try:
-                    value = float(raw)
-                except Exception:
-                    return None
-                if value > 10**12:
-                    value = value / 1000.0
-                if value <= 0:
-                    return None
-                try:
-                    datetime.fromtimestamp(value, tz=_tz.utc)
-                except Exception:
-                    return None
-                return value
-            if isinstance(raw, str):
-                stripped = raw.strip()
-                if not stripped:
-                    return None
-                normalized = stripped.replace("[UTC]", "").replace("Z", "+00:00")
-                try:
-                    dt_obj = datetime.fromisoformat(normalized)
-                except ValueError:
-                    return None
-                if dt_obj.tzinfo is None:
-                    dt_obj = dt_obj.replace(tzinfo=_tz.utc)
-                return dt_obj.astimezone(_tz.utc).timestamp()
-            return None
-
-        def _power_as_float(raw: object) -> float | None:
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                return None
-
-        def _power_as_int(raw: object) -> int | None:
-            try:
-                return int(float(raw))
-            except (TypeError, ValueError):
-                return None
 
         def _power_topology(entry: dict[str, object]) -> str:
             phase_mode = entry.get("phase_mode")
@@ -4367,20 +4396,48 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # by current chargers are retained for normal TTL behavior.
         self._prune_runtime_caches(active_serials=out.keys(), keep_day_keys=day_locals)
 
-        for (day_key, max_cache_age), serials in immediate_by_day.items():
+        async def _async_fetch_immediate_session_updates(
+            day_key: str,
+            max_cache_age: float | None,
+            serials: list[str],
+        ) -> dict[str, list[dict]]:
             if max_cache_age is None:
-                updates = await self._async_enrich_sessions(
+                return await self._async_enrich_sessions(
                     serials,
                     day_locals.get(day_key, day_local_default),
                     in_background=False,
                 )
-            else:
-                updates = await self._async_enrich_sessions(
-                    serials,
-                    day_locals.get(day_key, day_local_default),
-                    in_background=False,
-                    max_cache_age=max_cache_age,
-                )
+            return await self._async_enrich_sessions(
+                serials,
+                day_locals.get(day_key, day_local_default),
+                in_background=False,
+                max_cache_age=max_cache_age,
+            )
+
+        immediate_items = tuple(immediate_by_day.items())
+        if len(immediate_items) == 1:
+            (day_key, max_cache_age), serials = immediate_items[0]
+            immediate_updates = (
+                await _async_fetch_immediate_session_updates(
+                    day_key, max_cache_age, serials
+                ),
+            )
+        elif immediate_items:
+            tasks: list[asyncio.Task[dict[str, list[dict]]]] = []
+            async with asyncio.TaskGroup() as task_group:
+                for (day_key, max_cache_age), serials in immediate_items:
+                    task = task_group.create_task(
+                        _async_fetch_immediate_session_updates(
+                            day_key, max_cache_age, serials
+                        ),
+                        name=f"{DOMAIN}_session_history_{day_key}",
+                    )
+                    tasks.append(task)
+            immediate_updates = tuple(task.result() for task in tasks)
+        else:
+            immediate_updates = ()
+
+        for updates in immediate_updates:
             for sn, sessions in updates.items():
                 cur = out.get(sn)
                 if cur is None:

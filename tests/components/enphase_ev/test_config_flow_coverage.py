@@ -2298,6 +2298,14 @@ def test_options_flow_schema_bounds_runtime_options(hass) -> None:
     handler.hass = hass
 
     schema = handler._build_schema()
+    api_timeout_selector = next(
+        value
+        for marker, value in schema.schema.items()
+        if isinstance(marker, VolOptional) and marker.schema == OPT_API_TIMEOUT
+    )
+
+    assert api_timeout_selector.selector_type == "number"
+    assert api_timeout_selector.config["mode"] == "box"
 
     assert (
         schema(
@@ -2787,7 +2795,7 @@ async def test_options_flow_normalizes_poll_intervals_on_save(hass) -> None:
             OPT_FAST_POLL_INTERVAL: 45,
             OPT_SLOW_POLL_INTERVAL: MIN_SLOW_POLL_INTERVAL,
             OPT_FAST_WHILE_STREAMING: True,
-            OPT_API_TIMEOUT: 15,
+            OPT_API_TIMEOUT: 15.0,
             OPT_NOMINAL_VOLTAGE: 230,
             OPT_SESSION_HISTORY_INTERVAL: 10,
             OPT_SCHEDULE_SYNC_ENABLED: False,
@@ -2798,8 +2806,46 @@ async def test_options_flow_normalizes_poll_intervals_on_save(hass) -> None:
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][OPT_API_TIMEOUT] == 15
     assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
     assert result["data"][OPT_SLOW_POLL_INTERVAL] == 45
+
+
+@pytest.mark.asyncio
+async def test_options_flow_rejects_non_integral_api_timeout_float(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "microinverter"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_settings(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_ENCHARGE: False,
+            CONF_TYPE_AC_BATTERY: False,
+            CONF_TYPE_IQEVSE: False,
+            CONF_TYPE_HEATPUMP: False,
+            CONF_TYPE_MICROINVERTER: True,
+            OPT_FAST_POLL_INTERVAL: 45,
+            OPT_SLOW_POLL_INTERVAL: MIN_SLOW_POLL_INTERVAL,
+            OPT_FAST_WHILE_STREAMING: True,
+            OPT_API_TIMEOUT: 15.5,
+            OPT_NOMINAL_VOLTAGE: 230,
+            OPT_SESSION_HISTORY_INTERVAL: 10,
+            OPT_SCHEDULE_SYNC_ENABLED: False,
+            OPT_BATTERY_SCHEDULES_ENABLED: False,
+        }
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {OPT_API_TIMEOUT: "unknown"}
 
 
 @pytest.mark.asyncio

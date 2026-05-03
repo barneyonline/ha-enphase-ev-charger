@@ -896,13 +896,14 @@ async def test_http_error_retry_after_date_triggers_rate_limit_issue(hass, monke
     coord.client = StubClient()
     coord._rate_limit_hits = 1  # ensure branch triggers issue creation
 
-    with pytest.raises(UpdateFailed):
+    with pytest.raises(UpdateFailed) as exc_info:
         await coord._async_update_data()
 
     assert coord.last_failure_status == 429
     assert coord.last_failure_source == "http"
     assert issue_calls, "Expected rate limit issue creation"
     assert scheduled["delay"] > 0
+    assert exc_info.value.retry_after == pytest.approx(scheduled["delay"])
     assert coord._backoff_until == pytest.approx(time_keeper.value + scheduled["delay"])
 
 

@@ -163,6 +163,8 @@ def _coerce_int_value(value: object) -> int | None:
         return int(value)
     if isinstance(value, int):
         return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
     if isinstance(value, str):
         try:
             return int(value)
@@ -1326,9 +1328,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
                     default=self._entry.options.get(
                         OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT
                     ),
-                ): vol.All(
-                    vol.Coerce(int),
-                    vol.Range(min=MIN_API_TIMEOUT, max=MAX_API_TIMEOUT),
+                ): selector(
+                    {
+                        "number": {
+                            "min": MIN_API_TIMEOUT,
+                            "max": MAX_API_TIMEOUT,
+                            "step": 1,
+                            "mode": "box",
+                            "unit_of_measurement": "s",
+                        }
+                    }
                 ),
                 vol.Optional(
                     OPT_NOMINAL_VOLTAGE,
