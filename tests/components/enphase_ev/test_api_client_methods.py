@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from contextlib import asynccontextmanager
 import datetime
@@ -4228,6 +4229,30 @@ async def test_site_tariff_bundle_fetches_billing_and_tariff() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_tariff_bundle_cancels_sibling_and_unwraps_single_failure() -> None:
+    client = _make_client()
+    err = RuntimeError("tariff billing failed")
+    tariff_cancelled = asyncio.Event()
+    client.site_tariff_billing_details = AsyncMock(side_effect=err)
+
+    async def _site_tariff() -> dict:
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            tariff_cancelled.set()
+            raise
+        return {"purchase": {"typeId": "flat"}}
+
+    client.site_tariff = AsyncMock(side_effect=_site_tariff)
+
+    with pytest.raises(RuntimeError) as exc:
+        await client.site_tariff_bundle()
+
+    assert exc.value is err
+    assert tariff_cancelled.is_set()
+
+
+@pytest.mark.asyncio
 async def test_site_tariff_update_passes_user_id_and_write_headers() -> None:
     token = _make_token({"user_id": "77"})
     client = _make_client()
@@ -5146,6 +5171,86 @@ def test_battery_config_write_payload_helpers_cover_merge_and_base_fallbacks() -
     ) == {
         "dtgControl": {"enabled": True, "startTime": "00:00"},
         "devices": {"iqEvse": {"enabled": True}},
+    }
+    assert (  # noqa: SLF001
+        client._battery_config_attempt_json_body(None, "battery_settings", attempt)
+        is None
+    )
+    lean_attempt = api._BatteryConfigWriteAttempt(  # noqa: SLF001
+        attempt_id="lean",
+        auth_mode=api._BATTERY_CONFIG_VARIANT_PRIMARY,
+    )
+    assert (  # noqa: SLF001
+        client._battery_config_attempt_json_body(None, "battery_settings", lean_attempt)
+        is None
+    )
+
+
+def test_battery_config_write_payload_helpers_preserve_inputs() -> None:
+    client = _make_client()
+    read_payload = {
+        "data": {
+            "dtgControl": {
+                "enabled": False,
+                "startTime": "00:00",
+                "schedule": {"weekday": True},
+            },
+            "devices": {"iqEvse": {"enabled": True}},
+        }
+    }
+    client._remember_battery_config_write_base(  # noqa: SLF001
+        "battery_settings", read_payload
+    )
+    write_payload = {
+        "dtgControl": {"schedule": {"weekday": False}},
+        "devices": {"iqEvse": {"enabled": False}},
+    }
+
+    merged = client._battery_config_merged_write_payload(  # noqa: SLF001
+        "battery_settings", write_payload
+    )
+
+    write_payload["dtgControl"]["schedule"]["weekday"] = "mutated"
+    assert merged == {
+        "dtgControl": {
+            "enabled": False,
+            "startTime": "00:00",
+            "schedule": {"weekday": False},
+        },
+        "devices": {"iqEvse": {"enabled": False}},
+    }
+    assert client._battery_config_write_bases["battery_settings"] == {  # noqa: SLF001
+        "dtgControl": {
+            "enabled": False,
+            "startTime": "00:00",
+            "schedule": {"weekday": True},
+        },
+        "devices": {"iqEvse": {"enabled": True}},
+    }
+
+    attempt = api._BatteryConfigWriteAttempt(  # noqa: SLF001
+        attempt_id="lean",
+        auth_mode=api._BATTERY_CONFIG_VARIANT_PRIMARY,
+        strip_devices=True,
+        disclaimer_bool_true=True,
+    )
+    request_payload = {
+        "acceptedItcDisclaimer": "true",
+        "devices": {"iqEvse": {"enabled": False}},
+        "dtgControl": {"enabled": True},
+    }
+    adjusted = client._battery_config_attempt_json_body(  # noqa: SLF001
+        request_payload, "battery_settings", attempt
+    )
+
+    assert adjusted == {
+        "acceptedItcDisclaimer": True,
+        "dtgControl": {"enabled": True},
+    }
+    assert request_payload == {
+        "acceptedItcDisclaimer": "true",
+        "devices": {"iqEvse": {"enabled": False}},
+        "dtgControl": {"enabled": True},
     }
 
 
