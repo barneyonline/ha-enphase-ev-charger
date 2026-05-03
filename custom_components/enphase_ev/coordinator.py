@@ -264,6 +264,7 @@ class RefreshPipelineContext:
     phase_timings: dict[str, float]
     fallback_data: dict[str, dict]
     first_refresh: bool
+    first_refresh_followups_task: asyncio.Task[None] | None = None
     auth_refresh_rejected_count_at_start: int = 0
     status_used_stale: bool = False
     fast_poll: bool = False
@@ -2460,13 +2461,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error = None
         self.backoff_ends_utc = None
         self._has_successful_refresh = True
+        if context.first_refresh:
+            self._start_first_refresh_followups(context)
         site_energy_start = time.monotonic()
-        await self.energy._async_refresh_site_energy()
+        try:
+            await self.energy._async_refresh_site_energy()
+        except Exception:
+            await self._async_cancel_first_refresh_followups(context)
+            raise
         self.discovery_snapshot.sync_site_energy_discovery_state()
         self._sync_site_energy_issue()
         phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
         if context.first_refresh:
-            await self._async_run_first_refresh_followups(phase_timings)
+            await self._async_await_first_refresh_followups(context)
         else:
             followup_plan = build_site_only_followup_plan(
                 self,
@@ -2517,7 +2524,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         context: RefreshPipelineContext,
     ) -> None:
         if context.first_refresh:
-            await self._async_run_first_refresh_followups(context.phase_timings)
+            await self._async_await_first_refresh_followups(context)
         else:
             followup_plan = build_followup_plan(
                 self,
@@ -2530,18 +2537,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 )
         self._clear_auth_refresh_rejection_state_if_unchanged(context)
 
-    async def _async_run_first_refresh_followups(
+    def _first_refresh_followup_calls(
         self,
-        phase_timings: dict[str, float],
-    ) -> None:
-        calls = [
-            (
-                "tariff_s",
-                "tariff",
-                lambda: self.tariff_runtime.async_refresh(force=True),
-                "tariff",
-            )
-        ]
+    ) -> tuple[tuple[str, str, Callable[[], object], str | None], ...]:
+        calls = []
         if self._first_refresh_storm_guard_followups_needed():
             calls.extend(
                 (
@@ -2559,10 +2558,55 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     ),
                 )
             )
+        return tuple(calls)
+
+    async def _async_run_first_refresh_followups(
+        self,
+        phase_timings: dict[str, float],
+    ) -> None:
+        calls = self._first_refresh_followup_calls()
+        if not calls:
+            return
         await self.refresh_runner.async_run_refresh_calls(
             phase_timings,
-            calls=tuple(calls),
+            calls=calls,
         )
+
+    def _start_first_refresh_followups(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        if context.first_refresh_followups_task is not None:
+            return
+        context.first_refresh_followups_task = asyncio.create_task(
+            self._async_run_first_refresh_followups(context.phase_timings),
+            name=f"{DOMAIN}_first_refresh_followups",
+        )
+
+    async def _async_await_first_refresh_followups(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        task = context.first_refresh_followups_task
+        if task is None:
+            await self._async_run_first_refresh_followups(context.phase_timings)
+            return
+        try:
+            await task
+        finally:
+            context.first_refresh_followups_task = None
+
+    async def _async_cancel_first_refresh_followups(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        task = context.first_refresh_followups_task
+        if task is None:
+            return
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        context.first_refresh_followups_task = None
 
     def _first_refresh_storm_guard_followups_needed(self) -> bool:
         if getattr(self, "_battery_has_encharge", None) is False:
@@ -2773,6 +2817,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.diagnostics.create_auth_block_issue()
             raise ConfigEntryAuthFailed(self.last_failure_description)
 
+        if first_refresh:
+            self._start_first_refresh_followups(context)
+        status_refresh_succeeded = False
         try:
             status_start = time.monotonic()
             data = await self.client.status()
@@ -2789,6 +2836,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.payload_failure_kind = None
             self._unauth_errors = 0
             self._clear_auth_repair_issues_on_success()
+            status_refresh_succeeded = True
         except ConfigEntryAuthFailed:
             raise
         except Unauthorized as err:
@@ -2837,6 +2885,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._network_errors = 0
             self._http_errors = 0
             self._clear_auth_repair_issues_on_success()
+            status_refresh_succeeded = True
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
             signature = err.signature_dict()
@@ -2872,6 +2921,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._backoff_until = None
                 self._clear_backoff_timer()
                 self.diagnostics.clear_cloud_issue()
+                status_refresh_succeeded = True
             else:
                 self.payload_using_stale = False
                 self._note_payload_endpoint_failure(
@@ -2991,6 +3041,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.payload_failure_kind = None
             raise UpdateFailed(f"Error communicating with API: {msg}")
         finally:
+            if not status_refresh_succeeded:
+                await self._async_cancel_first_refresh_followups(context)
             self.latency_ms = int((time.monotonic() - t0) * 1000)
 
         self._record_status_refresh_success(context)

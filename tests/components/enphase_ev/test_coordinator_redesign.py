@@ -316,7 +316,7 @@ class _RefreshOwner:
             refresh_due=lambda: True,
         )
         self.tariff_runtime = SimpleNamespace(
-            async_refresh=lambda: self._record("tariff"),
+            async_refresh=lambda **_kwargs: self._record("tariff"),
             refresh_due=lambda: True,
         )
         self.heatpump_runtime = SimpleNamespace(
@@ -477,6 +477,7 @@ def test_refresh_plans_bind_dynamic_followup_and_warmup_calls() -> None:
         None,
         "energy",
     ]
+    assert "tariff_s" in [call[0] for call in bound_warmup.stages[1].parallel_calls]
     assert bound_warmup.stages[2].ordered_calls[0][2]() == "heatpump-runtime"
     assert bound_warmup.stages[3].parallel_calls[0][2]() == "warmup-site-energy"
     assert bound_warmup.stages[3].parallel_calls[1][2]() == "warmup-evse-timeseries"
