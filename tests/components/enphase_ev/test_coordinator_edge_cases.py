@@ -474,7 +474,6 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
 
     async def _run_first_refresh_calls(phase_timings, *, calls, **_kwargs) -> None:
         durations = {
-            "tariff_s": 0.123,
             "battery_site_settings_s": 0.234,
             "storm_guard_s": 0.345,
         }
@@ -503,11 +502,9 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
     coord.refresh_runner.async_run_refresh_calls.assert_awaited_once()
     calls = coord.refresh_runner.async_run_refresh_calls.await_args.kwargs["calls"]
     assert [call[0] for call in calls] == [
-        "tariff_s",
         "battery_site_settings_s",
         "storm_guard_s",
     ]
-    assert context.phase_timings["tariff_s"] == 0.123
     assert context.phase_timings["battery_site_settings_s"] == 0.234
     assert context.phase_timings["storm_guard_s"] == 0.345
     assert coord._auth_refresh_rejected_count == 0

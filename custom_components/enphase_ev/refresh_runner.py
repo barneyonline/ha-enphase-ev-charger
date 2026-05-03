@@ -44,6 +44,27 @@ class RefreshRunner:
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self._coordinator = coordinator
 
+    def _warmup_site_state_available(self) -> bool:
+        coordinator = self._coordinator
+        energy = getattr(coordinator, "energy", None)
+        site_energy = (
+            getattr(energy, "site_energy", None)
+            if energy is not None
+            else getattr(coordinator, "site_energy", None)
+        )
+        if isinstance(site_energy, dict) and site_energy:
+            return True
+        return any(
+            getattr(coordinator, attr, None) is not None
+            for attr in (
+                "tariff_billing",
+                "tariff_import_rate",
+                "tariff_export_rate",
+                "tariff_last_refresh_utc",
+                "tariff_rates_last_refresh_utc",
+            )
+        )
+
     async def async_run_refresh_call(
         self,
         timing_key: str,
@@ -229,7 +250,7 @@ class RefreshRunner:
                 warmup_timings,
                 plan=warmup_plan(warmup_data),
             )
-            if warmup_data:
+            if warmup_data or self._warmup_site_state_available():
                 coordinator.async_set_updated_data(warmup_data)
         except asyncio.CancelledError:
             raise

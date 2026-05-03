@@ -218,6 +218,13 @@ WARMUP_STATE_STAGE = RefreshStage(
         ),
         method_task("storm_alert_s", "storm alert", "_async_refresh_storm_alert"),
         object_method_task(
+            "tariff_s",
+            "tariff",
+            "tariff_runtime",
+            "async_refresh",
+            force=True,
+        ),
+        object_method_task(
             "grid_control_check_s",
             "grid control",
             "battery_runtime",

@@ -1602,6 +1602,64 @@ async def test_site_only_clears_issues_and_counters(
 
 
 @pytest.mark.asyncio
+async def test_site_only_first_refresh_cancels_startup_followups_when_energy_fails(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.site_only = True
+    coord.serials = set()
+    coord._serial_order = []  # noqa: SLF001
+    coord._has_successful_refresh = False  # noqa: SLF001
+    followup_cancelled = asyncio.Event()
+
+    async def _fail_site_energy() -> None:
+        await asyncio.sleep(0)
+        raise RuntimeError("site energy failed")
+
+    async def _run_first_refresh_followups(_phase_timings) -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            followup_cancelled.set()
+            raise
+
+    coord._async_run_first_refresh_followups = _run_first_refresh_followups  # type: ignore[method-assign]  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(  # noqa: SLF001
+        side_effect=_fail_site_energy
+    )
+
+    with pytest.raises(RuntimeError, match="site energy failed"):
+        await coord._async_update_data()  # noqa: SLF001
+
+    assert followup_cancelled.is_set()
+
+
+@pytest.mark.asyncio
+async def test_start_first_refresh_followups_keeps_existing_task(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import RefreshPipelineContext
+
+    coord = coordinator_factory()
+    existing_task = asyncio.create_task(asyncio.sleep(0))
+    context = RefreshPipelineContext(
+        started_mono=time.monotonic(),
+        refresh_started_utc=datetime.now(timezone.utc),
+        phase_timings={},
+        fallback_data={},
+        first_refresh=True,
+        first_refresh_followups_task=existing_task,
+    )
+    coord._async_run_first_refresh_followups = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+
+    coord._start_first_refresh_followups(context)  # noqa: SLF001
+
+    assert context.first_refresh_followups_task is existing_task
+    coord._async_run_first_refresh_followups.assert_not_called()
+    await existing_task
+
+
+@pytest.mark.asyncio
 async def test_backoff_on_429(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -3448,6 +3506,54 @@ async def test_first_refresh_runs_storm_guard_startup_calls_and_defers_warmup_on
 
 
 @pytest.mark.asyncio
+async def test_first_refresh_overlaps_startup_followups_with_status(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    status_started = asyncio.Event()
+    followup_started = asyncio.Event()
+
+    async def _status():
+        status_started.set()
+        await followup_started.wait()
+        return {
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": False,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+
+    async def _run_first_refresh_calls(phase_timings, *, calls, **_kwargs) -> None:
+        followup_started.set()
+        await status_started.wait()
+        for timing_key, *_rest in calls:
+            phase_timings[timing_key] = 0.001
+
+    coord.client.status = AsyncMock(side_effect=_status)
+    coord.client.summary_v2 = AsyncMock(
+        return_value=[{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+    )
+    coord.refresh_runner.async_run_refresh_calls = AsyncMock(
+        side_effect=_run_first_refresh_calls
+    )
+
+    await asyncio.wait_for(coord.async_refresh(), timeout=1)
+
+    assert followup_started.is_set()
+    assert coord.refresh_runner.async_run_refresh_calls.await_count == 1
+    assert "status_s" in coord.bootstrap_phase_timings
+    assert "battery_site_settings_s" in coord.bootstrap_phase_timings
+    assert "tariff_s" not in coord.bootstrap_phase_timings
+
+
+@pytest.mark.asyncio
 async def test_first_refresh_populates_storm_guard_state_before_entities(
     hass, monkeypatch, config_entry
 ) -> None:
@@ -3845,6 +3951,23 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     assert "heatpump_runtime_s" in coord._warmup_phase_timings  # noqa: SLF001
     assert "heatpump_daily_s" in coord._warmup_phase_timings  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory(data={})
+    coord.data = {}
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
+    coord.async_set_updated_data = Mock()  # type: ignore[assignment]
+    coord.tariff_runtime.async_refresh = AsyncMock()  # type: ignore[method-assign]
+    coord.tariff_last_refresh_utc = datetime.now(timezone.utc)
+
+    await coord.refresh_runner.async_startup_warmup_runner()
+
+    coord.async_set_updated_data.assert_called_once_with({})  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory(data={})
+    coord.data = {}
+    coord.energy.site_energy = {"production": []}
+    assert coord.refresh_runner._warmup_site_state_available() is True  # noqa: SLF001
 
     coord = coordinator_factory()
     coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
