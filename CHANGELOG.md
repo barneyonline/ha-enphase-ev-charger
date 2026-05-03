@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## v3.0.3 - 2026-05-03
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Kept cleared Envoy history migration mappings skipped on the final confirmation step instead of restoring suggested entities.
+
+### 🔧 Improvements
+- Moved slower optional startup work out of the blocking first refresh path so Home Assistant can finish setting up the integration faster, with tariff and site-only state updates published after warmup.
+- Improved refresh performance by reducing repeated helper work, preserving retry timing, coordinating concurrent refresh and session-history work, and suppressing unchanged discovery snapshot writes.
+- Reduced discovery and write overhead by reusing charger serials from inventory when available, fetching tariff billing and configuration data concurrently, and trimming BatteryConfig payload copy churn.
+
+### 🔄 Other changes
+- Overhauled the wiki with clearer navigation, refreshed device and workflow pages, consistent tables and screenshot layouts, updated screenshots/banners, and improved technical/development references.
+
 ## v3.0.2 - 2026-05-02
 
 ### 🚧 Breaking changes
