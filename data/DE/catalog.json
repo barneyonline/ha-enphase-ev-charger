@@ -4,30 +4,30 @@
     "envoy": {
       "document_topic_id": 217,
       "latest": {
-        "countries_text": null,
+        "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
         "document_topic_id": 217,
-        "media_id": "33132",
+        "media_id": "29811",
         "product_media_name_id": null,
         "product_type": "141",
-        "release_date": "2026-04-24",
-        "summary": "The 8.3.5169 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-        "title": "IQ Gateway software release notes (8.3.5169)",
+        "release_date": "2025-11-20",
+        "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+        "title": "IQ Gateway software release notes (8.3.5286)",
         "urls_by_locale": {
           "de-de": "https://enphase.com/de-de/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-de&field_alternative_language=de-de"
         },
-        "version": "8.3.5169"
+        "version": "8.3.5286"
       },
       "product_media_name_id": null
     }
   },
-  "generated_at": "2026-05-01T06:23:18.847724Z",
+  "generated_at": "2026-05-03T06:12:26.498918Z",
   "schema_version": 1,
   "source": {
     "apps_url": "https://enphase.com/installers/resources/documentation/communication",
     "crawl": {
       "envoy": {
         "bootstrap_error_targets": [],
-        "count": 128,
+        "count": 127,
         "crawl_error_targets": [],
         "empty_release_targets": [
           "https://enphase.com/en-lac/|en-lac",
@@ -167,7 +167,7 @@
           "https://enphase.com/de-de/|de-de": {
             "apps_url": "https://enphase.com/de-de/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 2,
+            "count": 1,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/de-de/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-de&field_alternative_language=de-de&page=0"
