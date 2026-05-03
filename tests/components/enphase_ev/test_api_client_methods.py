@@ -155,6 +155,29 @@ def test_hems_auth_refresh_suppression_expires() -> None:
     assert client._hems_auth_refresh_suppressed_until is None  # noqa: SLF001
 
 
+def test_hems_auth_refresh_suppression_uses_registered_callbacks() -> None:
+    client = _make_client()
+    state = {"active": False, "suppressed": 0}
+
+    def _active() -> bool:
+        return state["active"]
+
+    def _suppress() -> None:
+        state["active"] = True
+        state["suppressed"] += 1
+
+    client.set_hems_auth_refresh_suppression_callbacks(
+        active_callback=_active,
+        suppress_callback=_suppress,
+    )
+
+    assert client._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
+    client._suppress_hems_auth_refresh_after_success()  # noqa: SLF001
+
+    assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+    assert state["suppressed"] == 1
+
+
 def test_safe_response_error_message_handles_header_failures() -> None:
     class BadHeaders:
         def get(self, *_args, **_kwargs):
@@ -1689,6 +1712,50 @@ async def test_json_hems_401_suppresses_repeated_password_refreshes() -> None:
         "GET",
         "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
     )
+
+    assert payload == {"ok": True}
+    with pytest.raises(api.Unauthorized):
+        await client._json(
+            "GET",
+            "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+        )
+    reauth.assert_awaited_once_with()
+    assert len(session.calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_json_hems_401_suppression_survives_client_state_reset() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=200, json_body={"ok": True}),
+            _FakeResponse(status=401, json_body={}),
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    reauth = AsyncMock(return_value=True)
+    suppressed_until: float | None = None
+
+    def _active() -> bool:
+        return (
+            isinstance(suppressed_until, float) and time.monotonic() < suppressed_until
+        )
+
+    def _suppress() -> None:
+        nonlocal suppressed_until
+        suppressed_until = time.monotonic() + 300
+
+    client.set_reauth_callback(reauth)
+    client.set_hems_auth_refresh_suppression_callbacks(
+        active_callback=_active,
+        suppress_callback=_suppress,
+    )
+
+    payload = await client._json(
+        "GET",
+        "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+    )
+    client._hems_auth_refresh_suppressed_until = None  # noqa: SLF001
 
     assert payload == {"ok": True}
     with pytest.raises(api.Unauthorized):

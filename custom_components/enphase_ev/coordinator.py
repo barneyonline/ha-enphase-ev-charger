@@ -619,6 +619,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     )
                 except TypeError:
                     self.hass.async_create_task(result)
+        set_hems_suppression_callbacks = getattr(
+            self.client, "set_hems_auth_refresh_suppression_callbacks", None
+        )
+        if callable(set_hems_suppression_callbacks):
+            set_hems_suppression_callbacks(
+                active_callback=self._hems_auth_refresh_suppressed_active,
+                suppress_callback=self._suppress_hems_auth_refresh_after_success,
+            )
         from .schedule_sync import ScheduleSync
 
         self.schedule_sync = ScheduleSync(hass, self, config_entry)
@@ -4558,7 +4566,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             merged[CONF_AUTH_BLOCK_REASON] = self._auth_block_reason
         else:
             merged.pop(CONF_AUTH_BLOCK_REASON, None)
-        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+        changed = self.hass.config_entries.async_update_entry(config_entry, data=merged)
+        if changed:
+            self._mark_internal_config_entry_data_update()
 
     def _persist_auth_refresh_suspension_state(self) -> None:
         """Persist stored-credential auto-refresh suspension metadata."""
@@ -4573,7 +4583,17 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             merged[CONF_AUTH_REFRESH_SUSPENDED_UNTIL] = (
                 self._auth_refresh_suspended_until_utc.isoformat()
             )
-        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+        changed = self.hass.config_entries.async_update_entry(config_entry, data=merged)
+        if changed:
+            self._mark_internal_config_entry_data_update()
+
+    def _mark_internal_config_entry_data_update(self) -> None:
+        """Avoid reloading this entry for coordinator-owned data persistence."""
+
+        config_entry = getattr(self, "config_entry", None)
+        runtime_data = getattr(config_entry, "runtime_data", None)
+        if hasattr(runtime_data, "skip_reload_once"):
+            runtime_data.skip_reload_once = True
 
     def _clear_auth_refresh_rejection_state(self) -> None:
         """Clear the short rejected-refresh streak and cooldown state."""
@@ -4745,6 +4765,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         return self.auth_refresh_runtime.auth_refresh_recent_success_active()
 
+    def _hems_auth_refresh_suppressed_active(self) -> bool:
+        """Return True while HEMS 401s should not trigger password refresh."""
+
+        return self.auth_refresh_runtime.hems_auth_refresh_suppressed_active()
+
+    def _suppress_hems_auth_refresh_after_success(self) -> None:
+        """Temporarily stop HEMS 401s from causing repeated password logins."""
+
+        self.auth_refresh_runtime.suppress_hems_auth_refresh_after_success()
+
     async def _async_run_auto_refresh(self) -> bool:
         """Run one stored-credential refresh attempt for all concurrent waiters (delegates to ``AuthRefreshRuntime``)."""
 
@@ -4844,7 +4874,11 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         diagnostics = getattr(self, "diagnostics", None)
         if diagnostics is not None:
             diagnostics.clear_reauth_issue()
-        self.hass.config_entries.async_update_entry(self.config_entry, data=merged)
+        changed = self.hass.config_entries.async_update_entry(
+            self.config_entry, data=merged
+        )
+        if changed:
+            self._mark_internal_config_entry_data_update()
 
     def kick_fast(self, seconds: int = 60) -> None:
         self.evse_runtime.kick_fast(seconds)

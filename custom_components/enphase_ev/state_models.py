@@ -128,6 +128,7 @@ class RefreshHealthState:
     _auth_refresh_rejected_ends_utc: datetime | None = None
     _auth_refresh_manual_retry_until: float | None = None
     _auth_refresh_last_success_mono: float | None = None
+    _hems_auth_refresh_suppressed_until: float | None = None
     _auth_refresh_suspended_until_utc: datetime | None = None
     _auth_blocked_until_utc: datetime | None = None
     _auth_block_reason: str | None = None
