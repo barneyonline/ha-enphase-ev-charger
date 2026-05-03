@@ -3837,6 +3837,19 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
         async_save=AsyncMock(side_effect=RuntimeError("boom"))
     )
     await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_awaited_once_with(  # type: ignore[attr-defined]
+        {"serial_order": []}
+    )
+
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
+        async_save=AsyncMock()
+    )
+    await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_awaited_once_with(  # type: ignore[attr-defined]
+        {"serial_order": []}
+    )
+    await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_awaited_once()
 
     create_calls: list[object] = []
 
@@ -3856,8 +3869,15 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
 
     monkeypatch.setattr(snapshot_mod, "async_call_later", _capture_call_later)
     coord._discovery_snapshot_save_cancel = lambda: None  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.capture = Mock(return_value={"serial_order": []})  # type: ignore[assignment]
     coord.discovery_snapshot.schedule_save()
     assert scheduled == []
+    assert coord._discovery_snapshot_pending is False  # noqa: SLF001
+
+    coord.discovery_snapshot.capture = Mock(return_value={"serial_order": ["NEW"]})  # type: ignore[assignment]
+    coord.discovery_snapshot.schedule_save()
+    assert scheduled == []
+    assert coord._discovery_snapshot_pending is True  # noqa: SLF001
 
     coord._discovery_snapshot_save_cancel = None  # noqa: SLF001
     coord.discovery_snapshot.schedule_save()
@@ -4249,6 +4269,12 @@ async def test_restore_discovery_state_applies_snapshot_topology(
     assert coord.discovery_snapshot.site_energy_channel_known("water_heater") is True
     router_records = coord.inventory_view.gateway_iq_energy_router_records()
     assert router_records[0]["device-uid"] == "ROUTER-1"
+
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
+        async_save=AsyncMock()
+    )
+    await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_not_awaited()  # type: ignore[attr-defined]
 
 
 def test_restored_site_energy_and_router_hints_expire_after_authoritative_refresh(

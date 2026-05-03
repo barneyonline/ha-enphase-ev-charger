@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from builtins import ExceptionGroup
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -820,6 +821,156 @@ async def test_coordinator_run_refresh_calls_drains_siblings_before_batch_end(
     coord._end_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
     assert drained is True
     assert end_saw_drained is True
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_cancelled_child_drains_siblings(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    started = asyncio.Event()
+    drained = False
+    end_saw_drained = False
+
+    async def _slow() -> None:
+        nonlocal drained
+        started.set()
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            drained = True
+            raise
+
+    async def _cancel() -> None:
+        await started.wait()
+        raise asyncio.CancelledError
+
+    def _end_topology_batch() -> None:
+        nonlocal end_saw_drained
+        end_saw_drained = drained
+
+    coord._begin_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    coord._end_topology_refresh_batch = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        side_effect=_end_topology_batch
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("slow_s", "slow", _slow, None),
+                ("cancel_s", "cancel", _cancel, None),
+            ),
+            defer_topology=True,
+        )
+
+    coord._begin_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    coord._end_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    assert drained is True
+    assert end_saw_drained is True
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_prefers_failure_over_child_cancel(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    started = 0
+    ready = asyncio.Event()
+
+    async def _wait_until_ready() -> None:
+        nonlocal started
+        started += 1
+        if started == 2:
+            ready.set()
+        await ready.wait()
+
+    async def _cancel() -> None:
+        await _wait_until_ready()
+        raise asyncio.CancelledError
+
+    async def _fail() -> None:
+        await _wait_until_ready()
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("cancel_s", "cancel", _cancel, None),
+                ("fail_s", "fail", _fail, None),
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_filters_child_cancel_from_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    started = 0
+    ready = asyncio.Event()
+
+    async def _wait_until_ready() -> None:
+        nonlocal started
+        started += 1
+        if started == 3:
+            ready.set()
+        await ready.wait()
+
+    async def _cancel() -> None:
+        await _wait_until_ready()
+        raise asyncio.CancelledError
+
+    async def _fail_runtime() -> None:
+        await _wait_until_ready()
+        raise RuntimeError("boom")
+
+    async def _fail_value() -> None:
+        await _wait_until_ready()
+        raise ValueError("bad")
+
+    with pytest.raises(ExceptionGroup) as exc_info:
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("cancel_s", "cancel", _cancel, None),
+                ("runtime_s", "runtime", _fail_runtime, None),
+                ("value_s", "value", _fail_value, None),
+            ),
+        )
+
+    assert {type(err) for err in exc_info.value.exceptions} == {
+        RuntimeError,
+        ValueError,
+    }
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_preserves_multiple_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    async def _fail_runtime() -> None:
+        raise RuntimeError("boom")
+
+    async def _fail_value() -> None:
+        raise ValueError("bad")
+
+    with pytest.raises(ExceptionGroup) as exc_info:
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("runtime_s", "runtime", _fail_runtime, None),
+                ("value_s", "value", _fail_value, None),
+            ),
+        )
+
+    assert {type(err) for err in exc_info.value.exceptions} == {
+        RuntimeError,
+        ValueError,
+    }
 
 
 @pytest.mark.asyncio

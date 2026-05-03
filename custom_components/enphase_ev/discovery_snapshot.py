@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -70,6 +71,23 @@ class DiscoverySnapshotManager:
             DISCOVERY_SNAPSHOT_STORE_VERSION,
             f"{DOMAIN}.discovery_snapshot.{entry_id}",
         )
+        self._last_persisted_signature: str | None = None
+
+    def _snapshot_signature(self, snapshot: object) -> str:
+        compatible = _snapshot_compatible_value(snapshot)
+        return json.dumps(
+            compatible,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+    def _capture_signature(self) -> tuple[dict[str, object], str]:
+        snapshot = self.capture()
+        return snapshot, self._snapshot_signature(snapshot)
+
+    def _mark_persisted(self, snapshot: object) -> None:
+        self._last_persisted_signature = self._snapshot_signature(snapshot)
 
     def live_site_energy_channels(self) -> set[str]:
         channels: set[str] = set()
@@ -308,6 +326,7 @@ class DiscoverySnapshotManager:
                 dict(item) for item in restored_router_records if isinstance(item, dict)
             ]
         self.coordinator._refresh_cached_topology()
+        self._mark_persisted(self.capture())
 
     async def async_restore_state(self) -> None:
         if self.coordinator._discovery_snapshot_loaded:
@@ -329,7 +348,9 @@ class DiscoverySnapshotManager:
 
     async def async_save(self) -> None:
         self.coordinator._discovery_snapshot_pending = False
-        snapshot = self.capture()
+        snapshot, signature = self._capture_signature()
+        if signature == self._last_persisted_signature:
+            return
         try:
             await self._store.async_save(snapshot)
         except Exception:  # noqa: BLE001
@@ -338,8 +359,14 @@ class DiscoverySnapshotManager:
                 redact_site_id(self.coordinator.site_id),
                 exc_info=True,
             )
+            return
+        self._last_persisted_signature = signature
 
     def schedule_save(self) -> None:
+        _, signature = self._capture_signature()
+        if signature == self._last_persisted_signature:
+            self.coordinator._discovery_snapshot_pending = False
+            return
         self.coordinator._discovery_snapshot_pending = True
         if self.coordinator._discovery_snapshot_save_cancel is not None:
             return
