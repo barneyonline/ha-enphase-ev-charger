@@ -777,6 +777,7 @@ def test_score_candidate_hits_additional_flow_branches() -> None:
 
 
 def test_selected_mappings_skips_empty_values() -> None:
+    assert skip_option_value()
     assert selected_mappings(
         {
             "solar_production": "sensor.a",
@@ -814,7 +815,7 @@ def test_source_helpers_render_options() -> None:
     assert candidate_options(source)[0]["value"] == skip_option_value()
     assert candidate_options(source)[0]["label"] == ""
     assert [option["value"] for option in candidate_options(source, extra)] == [
-        "",
+        skip_option_value(),
         "sensor.envoy_lifetime_production",
         "sensor.template_energy_total",
     ]

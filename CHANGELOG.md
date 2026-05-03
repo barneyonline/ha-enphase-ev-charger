@@ -15,6 +15,7 @@ All notable changes to this project will be documented in this file.
 - Suppressed transient Enphase scheduler `400` errors for IQ EV charger mode changes when read-back confirms the requested mode was applied.
 - Fixed regional firmware selection so country-scoped firmware catalog entries are matched without stale global fallback prompts.
 - Guarded HEMS authentication refresh loops so repeated recoverable failures do not trigger unnecessary retry churn or stale rejection handling.
+- Kept cleared Envoy history migration mappings skipped on the final confirmation step instead of restoring suggested entities.
 
 ### 🔧 Improvements
 - Optimized performance cache refreshes by caching unchanged inventory summaries and suppressing no-op session-history publishes.

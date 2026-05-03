@@ -33,7 +33,7 @@ FLOW_LABELS: dict[str, str] = {
 }
 ALLOWED_STATE_CLASSES = {"total", "total_increasing"}
 LOW_VALUE_TOLERANCE_KWH = 0.01
-_OPTION_SKIP = ""
+_OPTION_SKIP = "__skip__"
 _EXCLUDED_OBJECT_ID_TERMS = ("daily", "today", "current", "power")
 _PHASE_OBJECT_ID_PATTERN = re.compile(r"(^|_)(l[123]|phase_[a-z0-9]+)$")
 _UNIT_TO_KWH: dict[str, float] = {

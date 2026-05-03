@@ -3577,7 +3577,7 @@ async def test_options_flow_migrate_mapping_includes_external_compatible_sensors
     selector_config = next(iter(schema.schema.values())).config
     options = selector_config["options"]
     assert [option["value"] for option in options] == [
-        "",
+        skip_option_value(),
         envoy_entity,
         template_entity,
     ]
@@ -3631,6 +3631,76 @@ async def test_options_flow_migrate_mapping_handles_user_input_paths(
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "migrate_envoy_confirm"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_preview_excludes_skipped_suggestions(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    prod_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    cons_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-cons",
+        object_id="envoy_lifetime_consumption",
+        state="4.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "consumption"),
+        object_id="site_consumption",
+        state="4.2",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_mapping(
+        {
+            "solar_production": prod_entity,
+            "consumption": skip_option_value(),
+        }
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_confirm"
+    assert handler._migration_selection == {"solar_production": prod_entity}
+    mapping_preview = result["description_placeholders"]["mapping_preview"]
+    assert prod_entity in mapping_preview
+    assert cons_entity not in mapping_preview
 
 
 @pytest.mark.asyncio
