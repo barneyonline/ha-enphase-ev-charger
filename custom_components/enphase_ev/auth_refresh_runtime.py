@@ -27,6 +27,7 @@ from .const import (
     AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD,
     AUTH_REFRESH_SUSPENDED_COOLDOWN_S,
     AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S,
+    HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S,
 )
 from .log_redaction import redact_text
 
@@ -260,6 +261,25 @@ class AuthRefreshRuntime:
             return False
         return (time.monotonic() - float(last_success)) <= float(
             AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S
+        )
+
+    def hems_auth_refresh_suppressed_active(self) -> bool:
+        """Return True while HEMS 401s should not trigger password refresh."""
+
+        coord = self.coordinator
+        suppressed_until = getattr(coord, "_hems_auth_refresh_suppressed_until", None)
+        if not isinstance(suppressed_until, (int, float)):
+            return False
+        if time.monotonic() < float(suppressed_until):
+            return True
+        coord._hems_auth_refresh_suppressed_until = None
+        return False
+
+    def suppress_hems_auth_refresh_after_success(self) -> None:
+        """Temporarily stop HEMS 401s from causing repeated password logins."""
+
+        self.coordinator._hems_auth_refresh_suppressed_until = (
+            time.monotonic() + HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S
         )
 
     def note_login_wall_block(self, *, reason: str) -> None:

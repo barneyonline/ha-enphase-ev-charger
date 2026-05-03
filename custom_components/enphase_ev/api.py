@@ -2017,6 +2017,8 @@ class EnphaseEVClient:
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
         self._hems_auth_refresh_suppressed_until: float | None = None
+        self._hems_auth_refresh_suppressed_active_cb: Callable[[], bool] | None = None
+        self._hems_auth_refresh_suppressed_cb: Callable[[], None] | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._last_unauthorized_request: str | None = None
         self._request_count = 0
@@ -2036,6 +2038,17 @@ class EnphaseEVClient:
 
         self._reauth_cb = callback
 
+    def set_hems_auth_refresh_suppression_callbacks(
+        self,
+        *,
+        active_callback: Callable[[], bool] | None,
+        suppress_callback: Callable[[], None] | None,
+    ) -> None:
+        """Register coordinator-backed HEMS auth-refresh suppression callbacks."""
+
+        self._hems_auth_refresh_suppressed_active_cb = active_callback
+        self._hems_auth_refresh_suppressed_cb = suppress_callback
+
     @staticmethod
     def _is_hems_api_endpoint(endpoint: str | None) -> bool:
         """Return True for HEMS JSON API endpoints that are optional/read-only."""
@@ -2045,6 +2058,15 @@ class EnphaseEVClient:
     def _hems_auth_refresh_suppressed_active(self) -> bool:
         """Return True while HEMS 401s should not trigger password refresh."""
 
+        active_cb = self._hems_auth_refresh_suppressed_active_cb
+        if active_cb is not None:
+            try:
+                if active_cb():
+                    return True
+            except Exception:  # noqa: BLE001 - suppression must not break requests
+                _LOGGER.debug(
+                    "HEMS auth refresh suppression callback failed", exc_info=True
+                )
         suppressed_until = self._hems_auth_refresh_suppressed_until
         if not isinstance(suppressed_until, (int, float)):
             return False
@@ -2059,6 +2081,14 @@ class EnphaseEVClient:
         self._hems_auth_refresh_suppressed_until = (
             time.monotonic() + HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S
         )
+        suppress_cb = self._hems_auth_refresh_suppressed_cb
+        if suppress_cb is not None:
+            try:
+                suppress_cb()
+            except Exception:  # noqa: BLE001 - local suppression is already active
+                _LOGGER.debug(
+                    "HEMS auth refresh suppression callback failed", exc_info=True
+                )
 
     @property
     def last_unauthorized_request(self) -> str | None:

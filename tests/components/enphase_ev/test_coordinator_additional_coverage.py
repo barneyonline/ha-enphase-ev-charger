@@ -3610,12 +3610,21 @@ async def test_handle_client_unauthorized_paths(
 def test_persist_tokens_updates_entry(coordinator_factory, config_entry):
     coord = coordinator_factory()
     coord.config_entry = config_entry
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(skip_reload_once=False),
+    )
 
     def _fake_update_entry(entry, *, data=None, options=None):
+        changed = False
         if data is not None:
+            changed = entry.data != data
             object.__setattr__(entry, "data", MappingProxyType(dict(data)))
         if options is not None:
+            changed = changed or entry.options != options
             object.__setattr__(entry, "options", MappingProxyType(dict(options)))
+        return changed
 
     coord.hass.config_entries.async_update_entry = _fake_update_entry  # type: ignore[assignment]
 
@@ -3625,6 +3634,40 @@ def test_persist_tokens_updates_entry(coordinator_factory, config_entry):
     coord._persist_tokens(tokens)
     assert config_entry.data[coord_mod.CONF_COOKIE] == "c"
     assert config_entry.data[coord_mod.CONF_ACCESS_TOKEN] == "t"
+    assert config_entry.runtime_data.skip_reload_once is True
+
+
+def test_persist_tokens_does_not_mark_reload_skip_for_noop_update(
+    coordinator_factory, config_entry
+):
+    coord = coordinator_factory()
+    coord.config_entry = config_entry
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(skip_reload_once=False),
+    )
+
+    coord.hass.config_entries.async_update_entry = MagicMock(return_value=False)
+
+    tokens = coord_mod.AuthTokens(
+        cookie="c", session_id="s", access_token="t", token_expires_at=123
+    )
+    coord._persist_tokens(tokens)
+
+    assert config_entry.runtime_data.skip_reload_once is False
+
+
+def test_hems_auth_refresh_suppression_is_coordinator_backed(coordinator_factory):
+    coord = coordinator_factory()
+
+    assert coord._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
+    coord._suppress_hems_auth_refresh_after_success()  # noqa: SLF001
+
+    assert coord._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+    coord._hems_auth_refresh_suppressed_until = time.monotonic() - 1  # noqa: SLF001
+    assert coord._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
+    assert coord._hems_auth_refresh_suppressed_until is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
