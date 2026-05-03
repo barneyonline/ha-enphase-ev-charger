@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from builtins import ExceptionGroup
 import copy
 import hashlib
 import json
@@ -3261,7 +3262,7 @@ class EnphaseEVClient:
             and isinstance(json_body, dict)
             and "devices" in json_body
         ):
-            body_for_attempt = copy.deepcopy(json_body)
+            body_for_attempt = dict(json_body)
             body_for_attempt.pop("devices", None)
 
         if attempt.merged_payload:
@@ -3269,8 +3270,12 @@ class EnphaseEVClient:
                 endpoint_family,
                 body_for_attempt,
             )
+        elif isinstance(body_for_attempt, dict):
+            adjusted = dict(body_for_attempt)
+        elif isinstance(body_for_attempt, list):
+            adjusted = list(body_for_attempt)
         else:
-            adjusted = copy.deepcopy(body_for_attempt)
+            adjusted = body_for_attempt
         if not isinstance(adjusted, dict):
             return adjusted
         if attempt.strip_devices:
@@ -3445,12 +3450,13 @@ class EnphaseEVClient:
 
         base_payload = self._battery_config_write_bases.get(endpoint_family)
         if not isinstance(base_payload, dict):
-            return copy.deepcopy(json_body)
+            return dict(json_body)
 
-        merged = copy.deepcopy(base_payload)
+        merged = dict(base_payload)
         for key, value in json_body.items():
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                nested = dict(merged[key])
+            base_value = merged.get(key)
+            if isinstance(value, dict) and isinstance(base_value, dict):
+                nested = dict(base_value)
                 nested.update(copy.deepcopy(value))
                 merged[key] = nested
                 continue
@@ -5310,11 +5316,19 @@ class EnphaseEVClient:
     async def site_tariff_bundle(self) -> tuple[dict, dict]:
         """Return billing details and tariff configuration for the site."""
 
-        billing, tariff = await asyncio.gather(
-            self.site_tariff_billing_details(),
-            self.site_tariff(),
-        )
-        return billing, tariff
+        try:
+            async with asyncio.TaskGroup() as task_group:
+                billing_task = task_group.create_task(
+                    self.site_tariff_billing_details(),
+                    name="enphase_ev_site_tariff_billing",
+                )
+                tariff_task = task_group.create_task(
+                    self.site_tariff(),
+                    name="enphase_ev_site_tariff_config",
+                )
+        except ExceptionGroup as err:
+            raise err.exceptions[0] from err
+        return billing_task.result(), tariff_task.result()
 
     async def site_tariff_update(self, payload: dict[str, Any]) -> dict:
         """Update site import/export tariff configuration."""

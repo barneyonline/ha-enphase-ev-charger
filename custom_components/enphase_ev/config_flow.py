@@ -747,6 +747,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
     async def _ensure_chargers(self) -> None:
         if self._chargers_loaded:
             return
+        if self._inventory_iqevse_serials:
+            self._chargers = [
+                (serial, None) for serial in self._inventory_iqevse_serials
+            ]
+            self._chargers_loaded = True
+            return
         if not self._auth_tokens or not self._selected_site_id:
             self._chargers_loaded = True
             return
@@ -847,13 +853,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         ]
 
     async def _ensure_device_selection_data(self) -> None:
-        tasks = []
-        if not self._chargers_loaded:
-            tasks.append(self._ensure_chargers())
         if not self._type_keys_loaded:
-            tasks.append(self._ensure_available_type_keys())
-        if tasks:
-            await asyncio.gather(*tasks)
+            await self._ensure_available_type_keys()
+        if not self._chargers_loaded:
+            await self._ensure_chargers()
 
     def _reset_discovery_cache(self) -> None:
         self._chargers = []
@@ -1507,22 +1510,30 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
         )
         session = async_get_clientsession(self.hass)
 
-        chargers = await async_fetch_chargers(session, site_id, tokens)
         discovered: list[str] = []
+        try:
+            payload = await async_fetch_devices_inventory(session, site_id, tokens)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed to fetch device inventory during IQ EVSE serial discovery "
+                "for site %s: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
+            )
+        else:
+            discovered = self._normalize_serials(
+                active_type_serials_from_inventory(payload, type_key="iqevse")
+            )
+        if discovered:
+            return discovered
+
+        chargers = await async_fetch_chargers(session, site_id, tokens)
         for charger in chargers:
             if charger.serial:
                 serial = str(charger.serial).strip()
                 if serial and serial not in discovered:
                     discovered.append(serial)
-        if discovered:
-            return discovered
-
-        payload = await async_fetch_devices_inventory(session, site_id, tokens)
-        if payload is None:
-            return []
-        return self._normalize_serials(
-            active_type_serials_from_inventory(payload, type_key="iqevse")
-        )
+        return discovered
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

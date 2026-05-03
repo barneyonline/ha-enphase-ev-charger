@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -619,7 +618,7 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
-        ),
+        ) as mock_chargers,
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
             AsyncMock(
@@ -648,7 +647,8 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
     flow = hass.config_entries.flow._progress[result["flow_id"]]
     assert flow._selected_site_id == "12345"
     assert flow._chargers_loaded is True
-    assert flow._chargers == [("EV123", "Driveway")]
+    assert flow._chargers == [("EV123", None)]
+    mock_chargers.assert_not_awaited()
     hass.config_entries.flow.async_abort(result["flow_id"])
 
 
@@ -1543,33 +1543,27 @@ async def test_ensure_available_type_keys_skips_when_already_loaded(hass) -> Non
 
 
 @pytest.mark.asyncio
-async def test_ensure_device_selection_data_fetches_discovery_concurrently(
+async def test_ensure_device_selection_data_reuses_inventory_charger_serials(
     hass,
 ) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
     flow._selected_site_id = "12345"
-    chargers_started = asyncio.Event()
-    inventory_started = asyncio.Event()
-
-    async def _fetch_chargers(*_args, **_kwargs):
-        chargers_started.set()
-        await inventory_started.wait()
-        return []
-
-    async def _fetch_inventory(*_args, **_kwargs):
-        inventory_started.set()
-        await chargers_started.wait()
-        return {"result": []}
 
     with (
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
-            _fetch_chargers,
-        ),
+            AsyncMock(side_effect=AssertionError("should not fetch chargers")),
+        ) as mock_chargers,
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
-            _fetch_inventory,
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {"type": "iqevse", "devices": [{"serial_number": "EV1"}]}
+                    ]
+                }
+            ),
         ),
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
@@ -1584,10 +1578,49 @@ async def test_ensure_device_selection_data_fetches_discovery_concurrently(
             AsyncMock(return_value=None),
         ),
     ):
-        await asyncio.wait_for(flow._ensure_device_selection_data(), timeout=1)
+        await flow._ensure_device_selection_data()
 
     assert flow._chargers_loaded is True
+    assert flow._chargers == [("EV1", None)]
     assert flow._type_keys_loaded is True
+    mock_chargers.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ensure_device_selection_data_falls_back_to_charger_api(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[ChargerInfo(serial="EV2", name="Garage")]),
+        ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_inverters_inventory",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        await flow._ensure_device_selection_data()
+
+    assert flow._chargers_loaded is True
+    assert flow._chargers == [("EV2", "Garage")]
+    mock_chargers.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -2544,6 +2577,73 @@ async def test_options_flow_discover_iqevse_serials_returns_empty_when_inventory
 
 
 @pytest.mark.asyncio
+async def test_options_flow_discover_iqevse_serials_prefers_inventory(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+        },
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(side_effect=AssertionError("should not fetch chargers")),
+        ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {"type": "iqevse", "devices": [{"serial_number": "EV-INV"}]}
+                    ]
+                }
+            ),
+        ),
+    ):
+        assert await handler._discover_iqevse_serials() == ["EV-INV"]
+
+    mock_chargers.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_discover_iqevse_serials_falls_back_when_inventory_fails(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+        },
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[ChargerInfo(serial="EV-FALLBACK", name="Garage")]),
+        ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(side_effect=RuntimeError("inventory failed")),
+        ) as mock_inventory,
+    ):
+        assert await handler._discover_iqevse_serials() == ["EV-FALLBACK"]
+
+    mock_inventory.assert_awaited_once()
+    mock_chargers.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_options_flow_forget_password(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -2929,7 +3029,7 @@ async def test_options_flow_enabling_iqevse_discovers_serials(hass) -> None:
     assert entry.data[CONF_SERIALS] == ["EV-DISCOVERED"]
     assert entry.data[CONF_SITE_ONLY] is False
     assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "encharge", "iqevse"]
-    mock_inventory.assert_not_awaited()
+    mock_inventory.assert_awaited_once()
 
 
 @pytest.mark.asyncio
