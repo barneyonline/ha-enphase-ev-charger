@@ -303,6 +303,13 @@
       "locale": "fr-nc",
       "type": "country_variant"
     },
+    "North Macedonia (MK-MK)": {
+      "iso_codes": [
+        "MK"
+      ],
+      "locale": "mk-mk",
+      "type": "country_variant"
+    },
     "Norway (NO)": {
       "iso_codes": [
         "NO"
