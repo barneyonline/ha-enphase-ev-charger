@@ -1,11 +1,11 @@
 # Service Status History
 
 - Current status: **Fully Operational**
-- Last updated: `2026-05-06 05:56 UTC`
+- Last updated: `2026-05-06 11:05 UTC`
 - Failed checks in latest run: `1`
 - Latest failed checks: battery_config
-- Retained hourly samples: `472`
-- Incident windows in last 30 days: `5`
+- Retained hourly samples: `470`
+- Incident windows in last 30 days: `4`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
 
@@ -16,22 +16,20 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-04-06T05:56:57, 0ms
-    Window end :vert, window-end, 2026-05-06T05:56:57, 0ms
+    Window start :vert, window-start, 2026-04-06T11:05:52, 0ms
+    Window end :vert, window-end, 2026-05-06T11:05:52, 0ms
     section Down
     Down 1 (2026-04-14 0901 UTC) :crit, down-1, 2026-04-14T09:01:13, 60m
     Down 2 (2026-04-18 2234 UTC) :crit, down-2, 2026-04-18T22:34:13, 60m
     section Degraded
-    Degraded 1 (2026-04-06 0742 UTC) :active, degraded-1, 2026-04-06T07:42:09, 85m
-    Degraded 2 (2026-04-21 1213 UTC) :active, degraded-2, 2026-04-21T12:13:11, 60m
-    Degraded 3 (2026-05-01 1700 UTC) :active, degraded-3, 2026-05-01T17:00:22, 60m
+    Degraded 1 (2026-04-21 1213 UTC) :active, degraded-1, 2026-04-21T12:13:11, 60m
+    Degraded 2 (2026-05-01 1700 UTC) :active, degraded-2, 2026-05-01T17:00:22, 60m
 ```
 
 ## Incident Summary
 
 | Status | Started (UTC) | Ended (UTC) | Duration | Failed checks |
 | --- | --- | --- | --- | --- |
-| Degraded | 2026-04-06 07:42 UTC | 2026-04-06 09:08 UTC | 1h 25m | battery_config, session_history |
 | Down | 2026-04-14 09:01 UTC | Unknown after last seen 2026-04-14 09:01 UTC | Observed 0m | battery_config, evse_runtime, evse_scheduler |
 | Down | 2026-04-18 22:34 UTC | 2026-04-18 23:33 UTC | 59m | battery_config, evse_runtime, evse_scheduler |
 | Degraded | 2026-04-21 12:13 UTC | Unknown after last seen 2026-04-21 12:13 UTC | Observed 0m | battery_config, battery_runtime, discovery, evse_scheduler, inventory, microinverters, site_energy, site_live |
