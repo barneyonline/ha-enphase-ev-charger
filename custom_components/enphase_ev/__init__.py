@@ -38,11 +38,29 @@ from .entity_cleanup import (
 from .log_redaction import redact_identifier, redact_site_id, redact_text
 from .runtime_data import EnphaseConfigEntry, EnphaseRuntimeData, get_runtime_data
 from .runtime_helpers import coerce_optional_text as _clean_optional_text
-from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+def async_setup_services(
+    hass: HomeAssistant, *, supports_response: object = SupportsResponse
+) -> None:
+    """Register integration services without importing service schemas at module load."""
+
+    from .services import async_setup_services as setup_services
+
+    setup_services(hass, supports_response=supports_response)
+
+
+def async_unload_services(hass: HomeAssistant) -> None:
+    """Unload integration services without importing service schemas at module load."""
+
+    from .services import async_unload_services as unload_services
+
+    unload_services(hass)
+
 
 PLATFORMS: list[str] = [
     "sensor",
