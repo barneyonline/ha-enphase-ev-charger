@@ -3665,9 +3665,40 @@ def test_hems_auth_refresh_suppression_is_coordinator_backed(coordinator_factory
     coord._suppress_hems_auth_refresh_after_success()  # noqa: SLF001
 
     assert coord._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+    metrics = coord.collect_site_metrics()
+    assert metrics["hems_auth_refresh_suppressed_active"] is True
+    assert metrics["hems_auth_refresh_suppressed_remaining_s"] is not None
     coord._hems_auth_refresh_suppressed_until = time.monotonic() - 1  # noqa: SLF001
     assert coord._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
     assert coord._hems_auth_refresh_suppressed_until is None  # noqa: SLF001
+
+
+def test_hems_auth_refresh_suppression_uses_recent_success(coordinator_factory):
+    coord = coordinator_factory()
+    coord._auth_refresh_last_success_mono = time.monotonic() - 10  # noqa: SLF001
+
+    assert coord._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+    metrics = coord.collect_site_metrics()
+    assert metrics["auth_refresh_recent_success_active"] is True
+    assert metrics["hems_auth_refresh_suppressed_active"] is True
+    assert metrics["hems_auth_refresh_suppressed_remaining_s"] is None
+
+
+def test_collect_site_metrics_handles_unavailable_auth_suppression_helpers(
+    coordinator_factory,
+):
+    coord = coordinator_factory()
+
+    def _raise() -> bool:
+        raise RuntimeError("boom")
+
+    coord._auth_refresh_recent_success_active = None  # type: ignore[method-assign]  # noqa: SLF001
+    coord._hems_auth_refresh_suppressed_active = _raise  # type: ignore[method-assign]  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+
+    assert metrics["auth_refresh_recent_success_active"] is False
+    assert metrics["hems_auth_refresh_suppressed_active"] is False
 
 
 @pytest.mark.asyncio

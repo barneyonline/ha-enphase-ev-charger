@@ -268,11 +268,18 @@ class AuthRefreshRuntime:
 
         coord = self.coordinator
         suppressed_until = getattr(coord, "_hems_auth_refresh_suppressed_until", None)
+        if self.auth_refresh_recent_success_active():
+            _LOGGER.debug(
+                "HEMS auth refresh suppressed by recent successful stored-credential refresh"
+            )
+            return True
         if not isinstance(suppressed_until, (int, float)):
             return False
-        if time.monotonic() < float(suppressed_until):
+        remaining = float(suppressed_until) - time.monotonic()
+        if remaining > 0:
             return True
         coord._hems_auth_refresh_suppressed_until = None
+        _LOGGER.debug("Coordinator HEMS auth refresh suppression expired")
         return False
 
     def suppress_hems_auth_refresh_after_success(self) -> None:
@@ -280,6 +287,10 @@ class AuthRefreshRuntime:
 
         self.coordinator._hems_auth_refresh_suppressed_until = (
             time.monotonic() + HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S
+        )
+        _LOGGER.debug(
+            "Coordinator suppressing HEMS auth refresh attempts for %.0fs",
+            HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S,
         )
 
     def note_login_wall_block(self, *, reason: str) -> None:

@@ -106,6 +106,20 @@ class CoordinatorDiagnostics:
             except Exception:
                 return str(value)
 
+        def _seconds_until(value: object) -> float | None:
+            if not isinstance(value, (int, float)):
+                return None
+            return max(0.0, round(float(value) - time.monotonic(), 3))
+
+        def _safe_bool_call(name: str) -> bool:
+            func = getattr(coord, name, None)
+            if not callable(func):
+                return False
+            try:
+                return bool(func())
+            except Exception:
+                return False
+
         backoff_until = coord._backoff_until or 0.0
         backoff_active = bool(backoff_until and backoff_until > time.monotonic())
         scheduler_backoff_active = coord._scheduler_backoff_active()
@@ -306,6 +320,15 @@ class CoordinatorDiagnostics:
             ),
             "auth_refresh_rejected_count": getattr(
                 coord, "_auth_refresh_rejected_count", 0
+            ),
+            "auth_refresh_recent_success_active": _safe_bool_call(
+                "_auth_refresh_recent_success_active"
+            ),
+            "hems_auth_refresh_suppressed_active": _safe_bool_call(
+                "_hems_auth_refresh_suppressed_active"
+            ),
+            "hems_auth_refresh_suppressed_remaining_s": _seconds_until(
+                getattr(coord, "_hems_auth_refresh_suppressed_until", None)
             ),
             "auth_blocked_active": coord._auth_block_active(),
             "auth_blocked_until": _iso(getattr(coord, "_auth_blocked_until_utc", None)),

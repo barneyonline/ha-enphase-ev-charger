@@ -75,6 +75,8 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
     }
     assert runtime._debug_topology_summary(snapshot) == {  # noqa: SLF001
         "inventory_ready": False,
+        "devices_inventory_ready": True,
+        "hems_inventory_ready": False,
         "charger_count": 0,
         "battery_count": 0,
         "ac_battery_count": 0,

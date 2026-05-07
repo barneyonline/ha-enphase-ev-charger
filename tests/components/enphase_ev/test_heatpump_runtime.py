@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -1713,6 +1714,39 @@ def test_heatpump_runtime_type_helpers_cover_guard_paths(coordinator_factory) ->
     assert runtime._type_bucket_members("envoy") == [
         {"serial": "ENV-1"}
     ]  # noqa: SLF001
+
+
+def test_heatpump_runtime_type_helpers_use_coordinator_buckets(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.heatpump_runtime
+    runtime._type_device_buckets = None  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "heatpump": {
+            "count": 1,
+            "devices": [{"device_uid": "HP-1", "device_type": "HEAT_PUMP"}],
+        }
+    }
+
+    assert (
+        runtime._type_device_buckets_map() == coord._type_device_buckets
+    )  # noqa: SLF001
+    assert runtime.has_type("heatpump") is True
+    assert runtime._type_bucket_members("heatpump") == [  # noqa: SLF001
+        {"device_uid": "HP-1", "device_type": "HEAT_PUMP"}
+    ]
+
+
+def test_heatpump_runtime_type_bucket_map_falls_back_to_coordinator() -> None:
+    runtime = HeatpumpRuntime.__new__(HeatpumpRuntime)
+    runtime.coordinator = SimpleNamespace(
+        _type_device_buckets={"heatpump": {"count": 1, "devices": []}}
+    )
+
+    assert runtime._type_device_buckets_map() == {  # noqa: SLF001
+        "heatpump": {"count": 1, "devices": []}
+    }
 
 
 @pytest.mark.asyncio
