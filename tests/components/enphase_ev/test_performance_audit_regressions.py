@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -17,6 +20,38 @@ from custom_components.enphase_ev.const import (
 from custom_components.enphase_ev.session_history import SessionCacheView
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+
+def test_config_flow_import_keeps_heavy_modules_lazy() -> None:
+    script = """
+import importlib
+import json
+import sys
+
+importlib.import_module("custom_components.enphase_ev.config_flow")
+print(json.dumps({
+    name: name in sys.modules
+    for name in (
+        "custom_components.enphase_ev.config_flow",
+        "custom_components.enphase_ev.services",
+        "homeassistant.components.recorder",
+        "homeassistant.components.recorder.statistics",
+    )
+}))
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    modules = json.loads(result.stdout)
+
+    assert modules["custom_components.enphase_ev.config_flow"] is True
+    assert modules["custom_components.enphase_ev.services"] is False
+    assert modules["homeassistant.components.recorder"] is False
+    assert modules["homeassistant.components.recorder.statistics"] is False
 
 
 def _prepare_refresh_target(
