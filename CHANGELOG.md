@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## v3.0.4 - 2026-05-07
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Hardened HEMS authentication-refresh suppression so follow-up HEMS `401` responses after a successful stored-credential refresh do not trigger repeated password login attempts. (#659)
+
+### 🔧 Improvements
+- Added recent HEMS authentication refresh and suppression state to site diagnostics to make degraded Enphase HEMS responses easier to troubleshoot. (#659)
+- Preferred coordinator-backed heat-pump topology data when available, with local topology fallback only when coordinator buckets are unavailable. (#659)
+- Kept config-flow imports lightweight by lazy-loading service registration and recorder statistics helpers until setup, unload, or Envoy history migration needs them. (#660)
+
+### 🔄 Other changes
+- Bumped `actions/upload-artifact` from `6` to `7` in GitHub Actions. (#658)
+
 ## v3.0.3 - 2026-05-03
 
 ### 🚧 Breaking changes
