@@ -76,11 +76,11 @@ class HeatpumpRuntime:
         return self.coordinator.site_id
 
     def _type_device_buckets_map(self) -> dict[str, object]:
-        """Return current topology buckets, preferring local test overrides."""
+        """Return current topology buckets from the coordinator when available."""
 
-        buckets = getattr(self, "_type_device_buckets", None)
+        buckets = getattr(self.coordinator, "_type_device_buckets", None)
         if not isinstance(buckets, dict):
-            buckets = getattr(self.coordinator, "_type_device_buckets", None)
+            buckets = getattr(self, "_type_device_buckets", None)
         return buckets if isinstance(buckets, dict) else {}
 
     def has_type(self, type_key: object) -> bool:

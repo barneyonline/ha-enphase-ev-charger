@@ -60,6 +60,8 @@ SITE_SEARCH_URL = f"{BASE_URL}/app-api/search_sites.json?searchText=&favourite=f
 DEFAULT_AUTH_TIMEOUT = 15
 AUTH_REFRESH_REJECTED_COOLDOWN_S = 300.0
 AUTH_REFRESH_MANUAL_RETRY_COOLDOWN_S = 60.0
+# Reuse a just-successful stored-credential refresh globally so stale 401s,
+# including follow-up HEMS calls, can settle without another password login.
 AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S = 30.0
 HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S = 300.0
 AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD = 3
