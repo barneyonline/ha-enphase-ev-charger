@@ -2017,6 +2017,7 @@ class EnphaseEVClient:
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
         self._hems_auth_refresh_suppressed_until: float | None = None
+        self._hems_auth_refresh_suppressed_last_mono: float | None = None
         self._hems_auth_refresh_suppressed_active_cb: Callable[[], bool] | None = None
         self._hems_auth_refresh_suppressed_cb: Callable[[], None] | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
@@ -2048,6 +2049,11 @@ class EnphaseEVClient:
 
         self._hems_auth_refresh_suppressed_active_cb = active_callback
         self._hems_auth_refresh_suppressed_cb = suppress_callback
+        _LOGGER.debug(
+            "Registered HEMS auth refresh suppression callbacks: active=%s suppress=%s",
+            active_callback is not None,
+            suppress_callback is not None,
+        )
 
     @staticmethod
     def _is_hems_api_endpoint(endpoint: str | None) -> bool:
@@ -2069,17 +2075,42 @@ class EnphaseEVClient:
                 )
         suppressed_until = self._hems_auth_refresh_suppressed_until
         if not isinstance(suppressed_until, (int, float)):
+            last_suppressed = self._hems_auth_refresh_suppressed_last_mono
+            if isinstance(last_suppressed, (int, float)):
+                remaining = HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S - (
+                    time.monotonic() - float(last_suppressed)
+                )
+                if remaining > 0:
+                    self._hems_auth_refresh_suppressed_until = (
+                        time.monotonic() + remaining
+                    )
+                    _LOGGER.warning(
+                        "HEMS auth refresh suppression timestamp was missing %.1fs after it was set; repairing local suppression for %.1fs",
+                        HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S - remaining,
+                        remaining,
+                    )
+                    return True
             return False
-        if time.monotonic() < float(suppressed_until):
+        remaining = float(suppressed_until) - time.monotonic()
+        if remaining > 0:
             return True
         self._hems_auth_refresh_suppressed_until = None
+        self._hems_auth_refresh_suppressed_last_mono = None
+        _LOGGER.debug("HEMS auth refresh suppression expired")
         return False
 
     def _suppress_hems_auth_refresh_after_success(self) -> None:
         """Temporarily stop HEMS 401s from causing repeated password logins."""
 
+        now = time.monotonic()
+        self._hems_auth_refresh_suppressed_last_mono = now
         self._hems_auth_refresh_suppressed_until = (
-            time.monotonic() + HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S
+            now + HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S
+        )
+        _LOGGER.debug(
+            "Suppressing HEMS auth refresh attempts for %.0fs after successful stored-credential refresh; callback_wired=%s",
+            HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S,
+            self._hems_auth_refresh_suppressed_cb is not None,
         )
         suppress_cb = self._hems_auth_refresh_suppressed_cb
         if suppress_cb is not None:

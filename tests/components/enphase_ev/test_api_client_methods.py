@@ -155,6 +155,21 @@ def test_hems_auth_refresh_suppression_expires() -> None:
     assert client._hems_auth_refresh_suppressed_until is None  # noqa: SLF001
 
 
+def test_hems_auth_refresh_suppression_repairs_missing_timestamp(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client = _make_client()
+    client._hems_auth_refresh_suppressed_last_mono = (
+        time.monotonic() - 10
+    )  # noqa: SLF001
+
+    with caplog.at_level(logging.WARNING, logger=api._LOGGER.name):
+        assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+
+    assert client._hems_auth_refresh_suppressed_until is not None  # noqa: SLF001
+    assert "HEMS auth refresh suppression timestamp was missing" in caplog.text
+
+
 def test_hems_auth_refresh_suppression_uses_registered_callbacks() -> None:
     client = _make_client()
     state = {"active": False, "suppressed": 0}

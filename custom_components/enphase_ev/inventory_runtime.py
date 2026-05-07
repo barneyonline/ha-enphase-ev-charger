@@ -351,6 +351,10 @@ class InventoryRuntime:
     ) -> dict[str, object]:
         return {
             "inventory_ready": bool(snapshot.inventory_ready),
+            "devices_inventory_ready": bool(
+                getattr(self, "_devices_inventory_ready", False)
+            ),
+            "hems_inventory_ready": bool(getattr(self, "_hems_inventory_ready", False)),
             "charger_count": len(snapshot.charger_serials),
             "battery_count": len(snapshot.battery_serials),
             "ac_battery_count": len(snapshot.ac_battery_serials),
