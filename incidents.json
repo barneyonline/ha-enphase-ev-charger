@@ -1,6 +1,6 @@
 {
   "current_status": "Degraded",
-  "generated_at": "2026-05-07T21:03:21.068756Z",
+  "generated_at": "2026-05-07T22:34:13.339931Z",
   "incidents": [
     {
       "active": false,
@@ -98,13 +98,13 @@
     },
     {
       "active": true,
-      "duration_minutes": 81,
+      "duration_minutes": 172,
       "ended_at": null,
       "failed_checks": [
         "battery_config",
         "evse_scheduler"
       ],
-      "last_seen_at": "2026-05-07T21:03:21.068756Z",
+      "last_seen_at": "2026-05-07T22:34:13.339931Z",
       "started_at": "2026-05-07T19:42:10.910391Z",
       "status": "Degraded"
     }
