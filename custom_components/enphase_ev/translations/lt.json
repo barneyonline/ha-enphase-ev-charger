@@ -860,6 +860,31 @@
           "network_error": "Tinklo klaida"
         }
       },
+      "site_service_status": {
+        "name": "Paslaugos būsena",
+        "state": {
+          "ok": "Gerai",
+          "unknown": "Nežinoma",
+          "degraded": "Suprastėjusi"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Suprastėjusios paslaugos"
+          },
+          "degraded_endpoint_families": {
+            "name": "Suprastėjusios galinių taškų grupės"
+          },
+          "degraded_service_count": {
+            "name": "Suprastėjusių paslaugų skaičius"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Suprastėjusių galinių taškų grupių skaičius"
+          },
+          "metrics_available": {
+            "name": "Metrikos pasiekiamos"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Debesies backoff pabaiga",
         "state": {

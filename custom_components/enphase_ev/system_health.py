@@ -80,6 +80,7 @@ async def system_health_info(hass: HomeAssistant):
         "tariff_failures": primary.get("tariff_failures"),
         "tariff_backoff_active": primary.get("tariff_backoff_active"),
         "tariff_backoff_ends_utc": primary.get("tariff_backoff_ends_utc"),
+        "degraded_endpoint_families": primary.get("degraded_endpoint_families", []),
         "degraded_services": primary.get("degraded_services", []),
         "firmware_catalog_last_fetch_utc": primary.get(
             "firmware_catalog_last_fetch_utc"

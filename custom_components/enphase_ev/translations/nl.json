@@ -860,6 +860,31 @@
           "network_error": "Netwerkfout"
         }
       },
+      "site_service_status": {
+        "name": "Servicestatus",
+        "state": {
+          "ok": "In orde",
+          "unknown": "Onbekend",
+          "degraded": "Verminderd"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Verminderde services"
+          },
+          "degraded_endpoint_families": {
+            "name": "Verminderde endpointfamilies"
+          },
+          "degraded_service_count": {
+            "name": "Aantal verminderde services"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Aantal verminderde endpointfamilies"
+          },
+          "metrics_available": {
+            "name": "Metrieken beschikbaar"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud-backoff eindigt",
         "state": {

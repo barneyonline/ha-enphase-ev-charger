@@ -860,6 +860,31 @@
           "network_error": "Tīkla kļūda"
         }
       },
+      "site_service_status": {
+        "name": "Pakalpojuma statuss",
+        "state": {
+          "ok": "Labi",
+          "unknown": "Nezināms",
+          "degraded": "Pasliktināts"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Pasliktināti pakalpojumi"
+          },
+          "degraded_endpoint_families": {
+            "name": "Pasliktinātas galapunktu grupas"
+          },
+          "degraded_service_count": {
+            "name": "Pasliktināto pakalpojumu skaits"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Pasliktināto galapunktu grupu skaits"
+          },
+          "metrics_available": {
+            "name": "Metrikas pieejamas"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Mākoņa backoff beidzas",
         "state": {

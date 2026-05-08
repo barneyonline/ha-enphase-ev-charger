@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## v3.0.5 - 2026-05-08
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a site-level diagnostic service-status sensor on the Enphase Site device that reports `OK`, `Degraded`, or `Unknown`, lists degraded Enphase service families, and exposes whether the service metrics snapshot is available.
+
+### 🐛 Bug fixes
+- Updated the GitHub service-status badge path to use a low-cache Shields endpoint backed by a purgeable jsDelivr URL so badge updates are not blocked by the raw GitHub SVG cache.
+- Classified broad multi-service Enphase outages as `Down` while keeping explicitly non-impacting checks from forcing outage status unless they are part of a broad-outage endpoint family.
+- Kept the site service-status sensor from reporting `OK` when metrics cannot be collected; it now reports `Unknown`.
+- Attached the site service-status sensor to the Enphase Site device instead of the Enphase Cloud service device.
+
+### 🔧 Improvements
+- Made Home Assistant diagnostics downloads snapshot-only so optional Enphase endpoint prefetches no longer make diagnostics collection wait on degraded services.
+- Included degraded endpoint families in site metrics and system health output.
+- Cached one site service-status metrics snapshot per coordinator update so the sensor state and attributes are derived from the same data.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `3.0.5`.
+
 ## v3.0.4 - 2026-05-07
 
 ### 🚧 Breaking changes

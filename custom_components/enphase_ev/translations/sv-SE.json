@@ -860,6 +860,31 @@
           "network_error": "Nätverksfel"
         }
       },
+      "site_service_status": {
+        "name": "Tjänstestatus",
+        "state": {
+          "ok": "Fungerar",
+          "unknown": "Okänd",
+          "degraded": "Försämrad"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Försämrade tjänster"
+          },
+          "degraded_endpoint_families": {
+            "name": "Försämrade slutpunktsfamiljer"
+          },
+          "degraded_service_count": {
+            "name": "Antal försämrade tjänster"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Antal försämrade slutpunktsfamiljer"
+          },
+          "metrics_available": {
+            "name": "Mätvärden tillgängliga"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud-backoff slutar",
         "state": {

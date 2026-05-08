@@ -860,6 +860,31 @@
           "network_error": "Chyba sítě"
         }
       },
+      "site_service_status": {
+        "name": "Stav služby",
+        "state": {
+          "ok": "V pořádku",
+          "unknown": "Neznámý",
+          "degraded": "Snížený výkon"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Služby se sníženým výkonem"
+          },
+          "degraded_endpoint_families": {
+            "name": "Skupiny koncových bodů se sníženým výkonem"
+          },
+          "degraded_service_count": {
+            "name": "Počet služeb se sníženým výkonem"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Počet skupin koncových bodů se sníženým výkonem"
+          },
+          "metrics_available": {
+            "name": "Metriky dostupné"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud backoff končí",
         "state": {

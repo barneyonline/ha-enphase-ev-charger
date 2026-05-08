@@ -860,6 +860,31 @@
           "network_error": "Error de red"
         }
       },
+      "site_service_status": {
+        "name": "Estado del servicio",
+        "state": {
+          "ok": "Correcto",
+          "unknown": "Desconocido",
+          "degraded": "Degradado"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Servicios degradados"
+          },
+          "degraded_endpoint_families": {
+            "name": "Familias de endpoints degradadas"
+          },
+          "degraded_service_count": {
+            "name": "Recuento de servicios degradados"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Recuento de familias de endpoints degradadas"
+          },
+          "metrics_available": {
+            "name": "Métricas disponibles"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Fin del tiempo de espera en la nube",
         "state": {

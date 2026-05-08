@@ -863,6 +863,31 @@
           "network_error": "Network error"
         }
       },
+      "site_service_status": {
+        "name": "Service Status",
+        "state": {
+          "ok": "OK",
+          "degraded": "Degraded",
+          "unknown": "Unknown"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Degraded Services"
+          },
+          "degraded_endpoint_families": {
+            "name": "Degraded Endpoint Families"
+          },
+          "degraded_service_count": {
+            "name": "Degraded Service Count"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Degraded Endpoint Family Count"
+          },
+          "metrics_available": {
+            "name": "Metrics Available"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud Backoff Ends",
         "state": {

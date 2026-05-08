@@ -273,7 +273,48 @@ def test_tariff_endpoint_family_failure_reports_degraded_service(
     assert metrics["tariff_last_error"] == "Tariff payload did not include data"
     assert metrics["tariff_backoff_active"] is True
     assert metrics["tariff_backoff_ends_utc"] == tariff_health["next_retry_utc"]
+    assert metrics["degraded_endpoint_families"] == ["tariff"]
     assert "tariff" in metrics["degraded_services"]
+
+
+def test_battery_endpoint_family_failure_reports_degraded_service(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    monkeypatch.setattr(coord_mod.random, "uniform", lambda _a, _b: 1.0)
+
+    err = OptionalEndpointUnavailable("battery status temporarily unavailable")
+
+    assert (
+        coord._note_endpoint_family_failure("battery_status", err) is True
+    )  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+    assert metrics["degraded_endpoint_families"] == ["battery_status"]
+    assert "battery_status" in metrics["degraded_services"]
+
+
+def test_degraded_endpoint_family_rollup_tolerates_unexpected_health(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    monkeypatch.setattr(
+        coord.diagnostics,
+        "endpoint_family_health_diagnostics",
+        lambda: {
+            "invalid": object(),
+            "suppressed": {
+                "consecutive_failures": "bad",
+                "cooldown_active": False,
+                "suppressed": True,
+            },
+        },
+    )
+
+    metrics = coord.collect_site_metrics()
+
+    assert metrics["degraded_endpoint_families"] == ["suppressed"]
+    assert "suppressed" in metrics["degraded_services"]
 
 
 def test_endpoint_family_misc_branches_and_diagnostics(

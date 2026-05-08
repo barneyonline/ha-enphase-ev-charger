@@ -860,6 +860,31 @@
           "network_error": "Eroare de rețea"
         }
       },
+      "site_service_status": {
+        "name": "Starea serviciului",
+        "state": {
+          "ok": "Funcțional",
+          "unknown": "Necunoscut",
+          "degraded": "Degradat"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Servicii degradate"
+          },
+          "degraded_endpoint_families": {
+            "name": "Familii de endpointuri degradate"
+          },
+          "degraded_service_count": {
+            "name": "Număr servicii degradate"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Număr familii de endpointuri degradate"
+          },
+          "metrics_available": {
+            "name": "Metrici disponibile"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Backoff cloud se încheie",
         "state": {

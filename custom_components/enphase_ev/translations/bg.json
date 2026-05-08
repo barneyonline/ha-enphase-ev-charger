@@ -860,6 +860,31 @@
           "network_error": "Мрежова грешка"
         }
       },
+      "site_service_status": {
+        "name": "Състояние на услугата",
+        "state": {
+          "ok": "В изправност",
+          "unknown": "Неизвестно",
+          "degraded": "Влошено"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Влошени услуги"
+          },
+          "degraded_endpoint_families": {
+            "name": "Влошени групи крайни точки"
+          },
+          "degraded_service_count": {
+            "name": "Брой влошени услуги"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Брой влошени групи крайни точки"
+          },
+          "metrics_available": {
+            "name": "Налични показатели"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud backoff приключва",
         "state": {

@@ -860,6 +860,31 @@
           "network_error": "Netzwerkfehler"
         }
       },
+      "site_service_status": {
+        "name": "Dienststatus",
+        "state": {
+          "ok": "In Ordnung",
+          "unknown": "Unbekannt",
+          "degraded": "Beeinträchtigt"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Beeinträchtigte Dienste"
+          },
+          "degraded_endpoint_families": {
+            "name": "Beeinträchtigte Endpunktfamilien"
+          },
+          "degraded_service_count": {
+            "name": "Anzahl beeinträchtigter Dienste"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Anzahl beeinträchtigter Endpunktfamilien"
+          },
+          "metrics_available": {
+            "name": "Metriken verfügbar"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Ende des Cloud-Backoffs",
         "state": {

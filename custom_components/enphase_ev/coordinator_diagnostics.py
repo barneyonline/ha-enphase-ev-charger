@@ -875,6 +875,26 @@ class CoordinatorDiagnostics:
         if evse_timeseries is not None:
             metrics["evse_timeseries"] = evse_timeseries.diagnostics()
 
+        def _endpoint_family_degraded(state: object) -> bool:
+            if not isinstance(state, dict):
+                return False
+            try:
+                failures = int(state.get("consecutive_failures") or 0)
+            except (TypeError, ValueError):
+                failures = 0
+            return (
+                bool(state.get("cooldown_active"))
+                or failures > 0
+                or bool(state.get("suppressed"))
+            )
+
+        degraded_endpoint_families = [
+            family
+            for family, state in endpoint_family_health.items()
+            if _endpoint_family_degraded(state)
+        ]
+        metrics["degraded_endpoint_families"] = degraded_endpoint_families
+
         degraded_services = [
             service
             for service, available_key in (
@@ -888,6 +908,11 @@ class CoordinatorDiagnostics:
         ]
         if tariff_service_status == "degraded":
             degraded_services.append(TARIFF_ENDPOINT_FAMILY)
+        degraded_services.extend(
+            family
+            for family in degraded_endpoint_families
+            if family not in degraded_services
+        )
         metrics["degraded_services"] = degraded_services
 
         firmware_catalog_manager = getattr(coord, "firmware_catalog_manager", None)

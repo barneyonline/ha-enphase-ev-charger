@@ -15,7 +15,7 @@
 [![Open Issues](https://img.shields.io/github/issues/barneyonline/ha-enphase-energy)](https://github.com/barneyonline/ha-enphase-energy/issues)
 ![Development Status](https://img.shields.io/badge/development-active-success?style=flat-square)
 
-[![Enphase Service Status](https://raw.githubusercontent.com/barneyonline/ha-enphase-energy/service-status/status.svg)](https://github.com/barneyonline/ha-enphase-energy/wiki/Service-Status-History)
+[![Enphase Service Status](https://img.shields.io/endpoint?url=https%3A%2F%2Fcdn.jsdelivr.net%2Fgh%2Fbarneyonline%2Fha-enphase-energy%40service-status%2Fstatus_badge.json&cacheSeconds=60)](https://github.com/barneyonline/ha-enphase-energy/wiki/Service-Status-History)
 
 Cloud-based Home Assistant integration for Enphase Energy systems.
 

@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.const import UnitOfEnergy
+from homeassistant.helpers.entity import EntityCategory
 
 from custom_components.enphase_ev import sensor as sensor_mod
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
@@ -5267,6 +5268,7 @@ def test_cloud_sensor_device_info_falls_back_to_default_cloud_device(
         EnphaseSiteBackoffEndsSensor,
         EnphaseSiteEnergySensor,
         EnphaseSiteLastErrorCodeSensor,
+        EnphaseSiteServiceStatusSensor,
     )
 
     coord = coordinator_factory(serials=[])
@@ -5291,13 +5293,16 @@ def test_cloud_sensor_device_info_falls_back_to_default_cloud_device(
     current_power = EnphaseCurrentPowerConsumptionSensor(coord)
     latency = EnphaseCloudLatencySensor(coord)
     last_error = EnphaseSiteLastErrorCodeSensor(coord)
+    service_status = EnphaseSiteServiceStatusSensor(coord)
     backoff = EnphaseSiteBackoffEndsSensor(coord)
 
     expected_identifiers = {("enphase_ev", f"type:{coord.site_id}:cloud")}
+    expected_site_identifiers = {("enphase_ev", f"site:{coord.site_id}")}
     assert site_energy.device_info["identifiers"] == expected_identifiers
     assert current_power.device_info["identifiers"] == expected_identifiers
     assert latency.device_info["identifiers"] == expected_identifiers
     assert last_error.device_info["identifiers"] == expected_identifiers
+    assert service_status.device_info["identifiers"] == expected_site_identifiers
     assert backoff.device_info["identifiers"] == expected_identifiers
 
 
@@ -5370,6 +5375,7 @@ async def test_async_setup_entry_adds_cloud_site_entities_without_envoy_type(
         EnphaseCurrentPowerConsumptionSensor,
         EnphaseSiteBackoffEndsSensor,
         EnphaseSiteLastErrorCodeSensor,
+        EnphaseSiteServiceStatusSensor,
         EnphaseSiteLastUpdateSensor,
         async_setup_entry,
     )
@@ -5399,7 +5405,132 @@ async def test_async_setup_entry_adds_cloud_site_entities_without_envoy_type(
     assert any(isinstance(ent, EnphaseCloudLatencySensor) for ent in added)
     assert any(isinstance(ent, EnphaseCurrentPowerConsumptionSensor) for ent in added)
     assert any(isinstance(ent, EnphaseSiteLastErrorCodeSensor) for ent in added)
+    assert any(isinstance(ent, EnphaseSiteServiceStatusSensor) for ent in added)
     assert any(isinstance(ent, EnphaseSiteBackoffEndsSensor) for ent in added)
+
+
+def test_site_service_status_sensor_reports_degraded_services(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteServiceStatusSensor
+
+    coord = coordinator_factory(serials=[])
+    coord.collect_site_metrics = lambda: {
+        "degraded_services": ["site_energy", "battery_status"],
+        "degraded_endpoint_families": ["battery_status"],
+    }
+    sensor = EnphaseSiteServiceStatusSensor(coord)
+
+    assert sensor.native_value == "degraded"
+    assert sensor.entity_category is EntityCategory.DIAGNOSTIC
+    attrs = sensor.extra_state_attributes
+    assert attrs["degraded_services"] == ["battery_status", "site_energy"]
+    assert attrs["degraded_endpoint_families"] == ["battery_status"]
+    assert attrs["degraded_service_count"] == 2
+    assert attrs["degraded_endpoint_family_count"] == 1
+    assert attrs["metrics_available"] is True
+
+
+def test_site_service_status_sensor_reports_unknown_for_invalid_metrics(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteServiceStatusSensor
+
+    coord = coordinator_factory(serials=[])
+    coord.collect_site_metrics = lambda: "bad"
+    sensor = EnphaseSiteServiceStatusSensor(coord)
+
+    assert sensor.native_value == "unknown"
+    assert sensor.extra_state_attributes["degraded_services"] == []
+    assert sensor.extra_state_attributes["metrics_available"] is False
+
+
+def test_site_service_status_sensor_reports_ok_without_degraded_services(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteServiceStatusSensor
+
+    coord = coordinator_factory(serials=[])
+    coord.collect_site_metrics = lambda: {
+        "degraded_services": [],
+        "degraded_endpoint_families": None,
+    }
+    sensor = EnphaseSiteServiceStatusSensor(coord)
+
+    assert sensor.native_value == "ok"
+    assert sensor.extra_state_attributes["degraded_services"] == []
+
+
+def test_site_service_status_sensor_handles_metrics_errors(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteServiceStatusSensor
+
+    coord = coordinator_factory(serials=[])
+
+    def _raise_metrics():
+        raise RuntimeError("boom")
+
+    coord.collect_site_metrics = _raise_metrics
+    sensor = EnphaseSiteServiceStatusSensor(coord)
+
+    assert sensor.native_value == "unknown"
+    assert sensor.extra_state_attributes["degraded_endpoint_families"] == []
+    assert sensor.extra_state_attributes["metrics_available"] is False
+
+
+def test_site_service_status_sensor_handles_missing_metrics_callback(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteServiceStatusSensor
+
+    coord = coordinator_factory(serials=[])
+    coord.collect_site_metrics = None
+    sensor = EnphaseSiteServiceStatusSensor(coord)
+
+    assert sensor.native_value == "unknown"
+
+
+def test_site_service_status_sensor_reuses_cached_metrics_snapshot(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteServiceStatusSensor
+
+    coord = coordinator_factory(serials=[])
+    calls = 0
+
+    def _metrics():
+        nonlocal calls
+        calls += 1
+        return {"degraded_services": ["site_energy"]}
+
+    coord.collect_site_metrics = _metrics
+    sensor = EnphaseSiteServiceStatusSensor(coord)
+
+    assert sensor.native_value == "degraded"
+    assert sensor.extra_state_attributes["degraded_services"] == ["site_energy"]
+    assert calls == 1
+
+
+def test_site_service_status_sensor_refreshes_snapshot_on_coordinator_update(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteServiceStatusSensor
+
+    coord = coordinator_factory(serials=[])
+    degraded = False
+
+    def _metrics():
+        return {"degraded_services": ["site_energy"] if degraded else []}
+
+    coord.collect_site_metrics = _metrics
+    sensor = EnphaseSiteServiceStatusSensor(coord)
+    sensor.async_write_ha_state = lambda: None
+
+    assert sensor.native_value == "ok"
+    degraded = True
+    sensor._handle_coordinator_update()
+    assert sensor.native_value == "degraded"
 
 
 @pytest.mark.asyncio

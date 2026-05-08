@@ -516,33 +516,6 @@ async def async_get_config_entry_diagnostics(
         payload_health = {}
 
     try:
-        ensure_system_dashboard = getattr(
-            coord, "async_ensure_system_dashboard_diagnostics", None
-        )
-        if callable(ensure_system_dashboard):
-            # Device diagnostics may need optional dashboard payloads that are
-            # not fetched during every normal coordinator refresh.
-            await ensure_system_dashboard()
-    except DIAGNOSTIC_CAPTURE_ERRORS:
-        pass
-
-    try:
-        ensure_heatpump_runtime = getattr(
-            coord, "async_ensure_heatpump_runtime_diagnostics", None
-        )
-        if callable(ensure_heatpump_runtime):
-            await ensure_heatpump_runtime()
-    except DIAGNOSTIC_CAPTURE_ERRORS:
-        pass
-
-    try:
-        ensure_ac_battery = getattr(coord, "async_ensure_ac_battery_diagnostics", None)
-        if callable(ensure_ac_battery):
-            await ensure_ac_battery()
-    except DIAGNOSTIC_CAPTURE_ERRORS:
-        pass
-
-    try:
         system_dashboard = coord.system_dashboard_diagnostics()
     except DIAGNOSTIC_CAPTURE_ERRORS:
         system_dashboard = {}
@@ -674,11 +647,14 @@ async def async_get_device_diagnostics(hass, entry, device):
     sn = None
     type_key = None
     type_site_id = None
+    site_device_id = None
     for domain, ident in dev.identifiers:
         if domain != DOMAIN:
             continue
         ident_text = str(ident)
         if ident_text.startswith("site:"):
+            site_device_id = ident_text.removeprefix("site:").strip() or None
+            site_ids = _normalize_site_ids([*site_ids, site_device_id])
             continue
         if ident_text.startswith("type:"):
             parsed = parse_type_identifier(ident_text)
@@ -739,14 +715,6 @@ async def async_get_device_diagnostics(hass, entry, device):
             payload["microinverter_summary"] = _microinverter_summary(payload)
         if type_key in ("envoy", "encharge") and coord is not None:
             system_dashboard_payload = {}
-            ensure_system_dashboard = getattr(
-                coord, "async_ensure_system_dashboard_diagnostics", None
-            )
-            if callable(ensure_system_dashboard):
-                try:
-                    await ensure_system_dashboard()
-                except DIAGNOSTIC_CAPTURE_ERRORS:
-                    pass
             helper = getattr(coord, "system_dashboard_diagnostics", None)
             if callable(helper):
                 try:
@@ -783,14 +751,6 @@ async def async_get_device_diagnostics(hass, entry, device):
             if system_dashboard_payload:
                 payload["system_dashboard_details"] = system_dashboard_payload
         if type_key == "encharge" and coord is not None:
-            ensure_battery_status = getattr(
-                coord, "async_ensure_battery_status_diagnostics", None
-            )
-            if callable(ensure_battery_status):
-                try:
-                    await ensure_battery_status()
-                except DIAGNOSTIC_CAPTURE_ERRORS:
-                    pass
             battery_status_payload = getattr(coord, "battery_status_payload", None)
             if not isinstance(battery_status_payload, dict):
                 battery_status_payload = getattr(coord, "_battery_status_payload", None)
@@ -803,14 +763,6 @@ async def async_get_device_diagnostics(hass, entry, device):
             if battery_status_summary:
                 payload["battery_status_summary"] = battery_status_summary
         if type_key == "ac_battery" and coord is not None:
-            ensure_ac_battery = getattr(
-                coord, "async_ensure_ac_battery_diagnostics", None
-            )
-            if callable(ensure_ac_battery):
-                try:
-                    await ensure_ac_battery()
-                except DIAGNOSTIC_CAPTURE_ERRORS:
-                    pass
             ac_battery_devices_payload = getattr(
                 coord, "_ac_battery_devices_payload", None
             )
@@ -841,14 +793,6 @@ async def async_get_device_diagnostics(hass, entry, device):
             if ac_battery_status_summary:
                 payload["ac_battery_status_summary"] = ac_battery_status_summary
         if type_key == "heatpump" and coord is not None:
-            ensure_heatpump_runtime = getattr(
-                coord, "async_ensure_heatpump_runtime_diagnostics", None
-            )
-            if callable(ensure_heatpump_runtime):
-                try:
-                    await ensure_heatpump_runtime()
-                except DIAGNOSTIC_CAPTURE_ERRORS:
-                    pass
             helper = getattr(coord, "heatpump_runtime_diagnostics", None)
             if callable(helper):
                 try:
@@ -859,6 +803,49 @@ async def async_get_device_diagnostics(hass, entry, device):
                     payload["heatpump_runtime"] = runtime_payload
         return _redact_diagnostics_payload(payload, site_ids=site_ids)
     if not sn:
+        if site_device_id:
+            coord = None
+            try:
+                coord = get_runtime_data(entry).coordinator
+            except RuntimeError:
+                pass
+            metrics: dict[str, Any] = {}
+            metrics_available = False
+            if coord is not None:
+                raw_metrics: object = None
+                try:
+                    raw_metrics = coord.collect_site_metrics()
+                except DIAGNOSTIC_CAPTURE_ERRORS:
+                    pass
+                if isinstance(raw_metrics, dict):
+                    metrics = raw_metrics
+                    metrics_available = True
+                site_ids = _normalize_site_ids(
+                    [
+                        *site_ids,
+                        getattr(coord, "site_id", None),
+                        metrics.get("site_id") if metrics else None,
+                    ]
+                )
+            return _redact_diagnostics_payload(
+                {
+                    "device_kind": "site",
+                    "site_id": site_device_id,
+                    "metrics_available": metrics_available,
+                    "site_metrics": metrics or None,
+                    "serials_count": (
+                        len(getattr(coord, "serials", []) or [])
+                        if coord is not None
+                        else None
+                    ),
+                    "phase_timings": (
+                        getattr(coord, "phase_timings", None)
+                        if coord is not None
+                        else None
+                    ),
+                },
+                site_ids=site_ids,
+            )
         return {"error": "serial_not_resolved"}
     coord = None
     try:

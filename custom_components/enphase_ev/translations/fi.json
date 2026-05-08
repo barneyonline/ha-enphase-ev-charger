@@ -860,6 +860,31 @@
           "network_error": "Verkkovirhe"
         }
       },
+      "site_service_status": {
+        "name": "Palvelun tila",
+        "state": {
+          "ok": "Kunnossa",
+          "unknown": "Tuntematon",
+          "degraded": "Heikentynyt"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Heikentyneet palvelut"
+          },
+          "degraded_endpoint_families": {
+            "name": "Heikentyneet päätepisteryhmät"
+          },
+          "degraded_service_count": {
+            "name": "Heikentyneiden palvelujen määrä"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Heikentyneiden päätepisteryhmien määrä"
+          },
+          "metrics_available": {
+            "name": "Mittarit saatavilla"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud Backoff päättyy",
         "state": {
