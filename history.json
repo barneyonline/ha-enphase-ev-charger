@@ -1,6 +1,6 @@
 {
-  "current_status": "Degraded",
-  "generated_at": "2026-05-08T04:41:46.936142Z",
+  "current_status": "Down",
+  "generated_at": "2026-05-08T05:29:47.710356Z",
   "retention_days": 30,
   "samples": [
     {
@@ -3740,6 +3740,15 @@
         "evse_scheduler"
       ],
       "status": "Degraded"
+    },
+    {
+      "checked_at": "2026-05-08T05:29:47.710356Z",
+      "checks_failed": 2,
+      "failed_check_names": [
+        "battery_config",
+        "evse_runtime"
+      ],
+      "status": "Down"
     }
   ]
 }

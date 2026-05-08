@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-05-08T04:41:46.936142Z",
+  "checked_at": "2026-05-08T05:29:47.710356Z",
   "checks": [
     {
       "affects": true,
@@ -34,7 +34,7 @@
       ],
       "group": "main",
       "name": "evse_runtime",
-      "ok": true
+      "ok": false
     },
     {
       "affects": true,
@@ -47,7 +47,7 @@
       ],
       "group": "degraded",
       "name": "evse_scheduler",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -272,12 +272,12 @@
       "category": "evse_runtime",
       "check_group": "evse_runtime",
       "check_mode": "all",
-      "error": null,
+      "error": "The read operation timed out",
       "group": "main",
       "method": "GET",
       "name": "charger_status",
-      "ok": true,
-      "status": 200,
+      "ok": false,
+      "status": null,
       "url": "/service/evse_controller/{site_id}/ev_chargers/status"
     },
     {
@@ -286,12 +286,12 @@
       "category": "evse_scheduler",
       "check_group": "evse_scheduler",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_charge_mode",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
     },
     {
@@ -334,7 +334,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=fbbebaea-7a39-4c91-b793-d2b2a24cc9a0&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=2a8b60cb-4e5c-4204-a65b-5cd971a99fd6&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -404,7 +404,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=fbbebaea-7a39-4c91-b793-d2b2a24cc9a0&start_date=2026-05-08&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=2a8b60cb-4e5c-4204-a65b-5cd971a99fd6&start_date=2026-05-08&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -418,7 +418,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=fbbebaea-7a39-4c91-b793-d2b2a24cc9a0&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=2a8b60cb-4e5c-4204-a65b-5cd971a99fd6&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -729,7 +729,7 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Down",
   "summary": {
     "checks_failed": 2,
     "checks_failed_affecting": 1,
