@@ -1,6 +1,6 @@
 {
   "current_status": "Degraded",
-  "generated_at": "2026-05-08T02:12:39.056804Z",
+  "generated_at": "2026-05-08T02:50:13.986633Z",
   "incidents": [
     {
       "active": false,
@@ -110,7 +110,7 @@
     },
     {
       "active": true,
-      "duration_minutes": 0,
+      "duration_minutes": 37,
       "ended_at": null,
       "failed_checks": [
         "battery_config",
@@ -124,7 +124,7 @@
         "system_dashboard_details",
         "system_dashboard_tree"
       ],
-      "last_seen_at": "2026-05-08T02:12:39.056804Z",
+      "last_seen_at": "2026-05-08T02:50:13.986633Z",
       "started_at": "2026-05-08T02:12:39.056804Z",
       "status": "Degraded"
     }

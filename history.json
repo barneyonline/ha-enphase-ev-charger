@@ -1,6 +1,6 @@
 {
   "current_status": "Degraded",
-  "generated_at": "2026-05-08T02:12:39.056804Z",
+  "generated_at": "2026-05-08T02:50:13.986633Z",
   "retention_days": 30,
   "samples": [
     {
@@ -3708,6 +3708,23 @@
     },
     {
       "checked_at": "2026-05-08T02:12:39.056804Z",
+      "checks_failed": 10,
+      "failed_check_names": [
+        "battery_config",
+        "battery_runtime",
+        "discovery",
+        "evse_scheduler",
+        "inventory",
+        "microinverters",
+        "site_energy",
+        "site_live",
+        "system_dashboard_details",
+        "system_dashboard_tree"
+      ],
+      "status": "Degraded"
+    },
+    {
+      "checked_at": "2026-05-08T02:50:13.986633Z",
       "checks_failed": 10,
       "failed_check_names": [
         "battery_config",

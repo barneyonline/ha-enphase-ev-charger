@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-05-08T02:12:39.056804Z",
+  "checked_at": "2026-05-08T02:50:13.986633Z",
   "checks": [
     {
       "affects": true,
@@ -308,7 +308,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=590119e6-c606-4a27-8d7d-5bbafe7638b9&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=18ae87ac-0e05-4f89-9f7f-645371b6318e&username=2999024"
     },
     {
       "affects_status": true,
@@ -328,12 +328,12 @@
       "category": "site_energy",
       "check_group": "site_energy",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": "The read operation timed out",
       "group": "degraded",
       "method": "GET",
       "name": "site_energy",
       "ok": false,
-      "status": 503,
+      "status": null,
       "url": "/pv/systems/{site_id}/lifetime_energy"
     },
     {
@@ -373,7 +373,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=590119e6-c606-4a27-8d7d-5bbafe7638b9&start_date=2026-05-08&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=18ae87ac-0e05-4f89-9f7f-645371b6318e&start_date=2026-05-08&username=2999024"
     },
     {
       "affects_status": false,
@@ -386,7 +386,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=590119e6-c606-4a27-8d7d-5bbafe7638b9&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=18ae87ac-0e05-4f89-9f7f-645371b6318e&username=2999024"
     },
     {
       "affects_status": false,
@@ -432,12 +432,12 @@
       "category": "battery_config",
       "check_group": "battery_config",
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": "The read operation timed out",
       "group": "degraded",
       "method": "GET",
       "name": "battery_profile",
       "ok": false,
-      "status": 500,
+      "status": null,
       "url": "/service/batteryConfig/api/v1/profile/{site_id}?userId=2999024&source=enho&locale=en-AU"
     },
     {
@@ -471,12 +471,12 @@
       "category": "battery_config",
       "check_group": "battery_config",
       "check_mode": "all",
-      "error": "HTTP 500",
+      "error": "The read operation timed out",
       "group": "degraded",
       "method": "GET",
       "name": "battery_schedules",
       "ok": false,
-      "status": 500,
+      "status": null,
       "url": "/service/batteryConfig/api/v1/battery/sites/{site_id}/schedules"
     },
     {
@@ -601,12 +601,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": "The read operation timed out",
       "group": "degraded",
       "method": "GET",
       "name": "battery_status",
       "ok": false,
-      "status": 503,
+      "status": null,
       "url": "/pv/settings/{site_id}/battery_status.json"
     },
     {
