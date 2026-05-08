@@ -860,6 +860,31 @@
           "network_error": "Hálózati hiba"
         }
       },
+      "site_service_status": {
+        "name": "Szolgáltatás állapota",
+        "state": {
+          "ok": "Rendben",
+          "unknown": "Ismeretlen",
+          "degraded": "Korlátozott"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Korlátozott szolgáltatások"
+          },
+          "degraded_endpoint_families": {
+            "name": "Korlátozott végpontcsaládok"
+          },
+          "degraded_service_count": {
+            "name": "Korlátozott szolgáltatások száma"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Korlátozott végpontcsaládok száma"
+          },
+          "metrics_available": {
+            "name": "Mérőszámok elérhetők"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud backoff vége",
         "state": {

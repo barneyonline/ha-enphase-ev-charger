@@ -860,6 +860,31 @@
           "network_error": "Võrgu viga"
         }
       },
+      "site_service_status": {
+        "name": "Teenuse olek",
+        "state": {
+          "ok": "Korras",
+          "unknown": "Teadmata",
+          "degraded": "Halvenenud"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Halvenenud teenused"
+          },
+          "degraded_endpoint_families": {
+            "name": "Halvenenud lõpp-punktide rühmad"
+          },
+          "degraded_service_count": {
+            "name": "Halvenenud teenuste arv"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Halvenenud lõpp-punktide rühmade arv"
+          },
+          "metrics_available": {
+            "name": "Mõõdikud saadaval"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Pilve backoff lõpeb",
         "state": {

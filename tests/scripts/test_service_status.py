@@ -256,6 +256,38 @@ def test_render_mermaid_timeline_anchors_to_30_day_window(
     assert "section Window" not in content
 
 
+def test_nested_payload_and_timeline_helpers(
+    service_status_module, monkeypatch
+) -> None:
+    payload = {
+        "devices": [
+            "bad",
+            {"type": "heat_pump", "device_uid": "HP-1"},
+            {"device_type": "iq_er", "uid": "ER-1"},
+        ]
+    }
+
+    assert (
+        service_status_module._first_device_uid(
+            payload, type_tokens=("heat_pump", "heatpump")
+        )
+        == "HP-1"
+    )
+    assert service_status_module._first_device_uid({}, type_tokens=("missing",)) is None
+    assert service_status_module._extract_summary_hems_flag("bad") is None
+    assert service_status_module._extract_summary_hems_flag({"is_hems": True}) is True
+
+    window_start, window_end = service_status_module._timeline_window(checked_at="bad")
+    assert window_start < window_end
+
+    monkeypatch.setattr(service_status_module, "DEFAULT_HISTORY_DAYS", -1)
+    window_start, window_end = service_status_module._timeline_window(
+        checked_at="2026-03-18T23:23:31Z"
+    )
+    assert window_start == "2026-03-18T22:23:31"
+    assert window_end == "2026-03-18T23:23:31"
+
+
 def test_write_outputs_generates_status_history_and_wiki(
     service_status_module, tmp_path: Path
 ) -> None:
@@ -296,6 +328,13 @@ def test_write_outputs_generates_status_history_and_wiki(
     wiki_text = (tmp_path / "out" / "wiki" / "Service-Status-History.md").read_text()
 
     assert (tmp_path / "out" / "status.svg").exists()
+    badge_payload = json.loads((tmp_path / "out" / "status_badge.json").read_text())
+    assert badge_payload == {
+        "schemaVersion": 1,
+        "label": "Enphase Service Status",
+        "message": "Fully Operational",
+        "color": "#4c1",
+    }
     assert history_payload["samples"][-1]["checked_at"] == "2026-03-07T08:00:00Z"
     assert incidents_payload["incidents"][0]["status"] == "Degraded"
     assert "Current status.json" in wiki_text
@@ -593,6 +632,23 @@ def test_endpoint_result_and_status_evaluation(service_status_module) -> None:
     assert (
         endpoint["url"] == "/service/{site_id}/{serial}?site={site_id}&serial={serial}"
     )
+    optional_spec = service_status_module.EndpointSpec(
+        name="battery_status",
+        method="GET",
+        url="https://example.invalid/app-api/SITE/battery_status.json",
+        group="degraded",
+        category="battery_runtime",
+        affects_status=False,
+    )
+    optional_endpoint = service_status_module._endpoint_result(
+        optional_spec,
+        500,
+        "HTTP 500",
+        site_id="SITE",
+        serial="SERIAL",
+    )
+    assert optional_endpoint["affects_status"] is False
+    assert optional_endpoint["affects_broad_outage"] is True
 
     status, details = service_status_module._evaluate_status(
         [
@@ -616,6 +672,179 @@ def test_endpoint_result_and_status_evaluation(service_status_module) -> None:
     )
     assert status == "Down"
     assert details["summary"]["checks_failed"] == 1
+    assert details["summary"]["checks_failed_affecting"] == 1
+
+
+def test_evaluate_status_escalates_multiple_degraded_failures(
+    service_status_module,
+) -> None:
+    status, details = service_status_module._evaluate_status(
+        [
+            {
+                "name": "site_energy",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "auth_settings",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "charger_status",
+                "group": "main",
+                "ok": True,
+                "affects_status": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+        ]
+    )
+
+    assert status == "Down"
+    assert details["summary"]["checks_failed"] == 2
+    assert details["summary"]["checks_failed_affecting"] == 2
+
+
+def test_evaluate_status_escalates_broad_non_affecting_outage(
+    service_status_module,
+) -> None:
+    status, details = service_status_module._evaluate_status(
+        [
+            {
+                "name": "charger_status",
+                "group": "main",
+                "ok": True,
+                "affects_status": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "battery_config",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": False,
+                "affects_broad_outage": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "battery_runtime",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": False,
+                "affects_broad_outage": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "microinverters",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": False,
+                "affects_broad_outage": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+        ]
+    )
+
+    assert status == "Down"
+    assert details["summary"]["checks_failed"] == 3
+    assert details["summary"]["checks_failed_affecting"] == 0
+    assert details["summary"]["checks_failed_non_affecting"] == 3
+    assert details["summary"]["checks_failed_broad_outage"] == 3
+
+
+def test_evaluate_status_ignores_non_affecting_non_broad_outage_failures(
+    service_status_module,
+) -> None:
+    status, details = service_status_module._evaluate_status(
+        [
+            {
+                "name": "charger_status",
+                "group": "main",
+                "ok": True,
+                "affects_status": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "optional_a",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": False,
+                "affects_broad_outage": False,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "optional_b",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": False,
+                "affects_broad_outage": False,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "optional_c",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": False,
+                "affects_broad_outage": False,
+                "check_group": None,
+                "check_mode": "all",
+            },
+        ]
+    )
+
+    assert status == "Fully Operational"
+    assert details["summary"]["checks_failed"] == 3
+    assert details["summary"]["checks_failed_broad_outage"] == 0
+
+
+def test_evaluate_status_keeps_single_degraded_failure_degraded(
+    service_status_module,
+) -> None:
+    status, details = service_status_module._evaluate_status(
+        [
+            {
+                "name": "site_energy",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "battery_config",
+                "group": "degraded",
+                "ok": False,
+                "affects_status": False,
+                "check_group": None,
+                "check_mode": "all",
+            },
+            {
+                "name": "charger_status",
+                "group": "main",
+                "ok": True,
+                "affects_status": True,
+                "check_group": None,
+                "check_mode": "all",
+            },
+        ]
+    )
+
+    assert status == "Degraded"
+    assert details["summary"]["checks_failed"] == 2
+    assert details["summary"]["checks_failed_affecting"] == 1
 
 
 def test_render_table_unknown_gap_and_incident_duration_default(
@@ -1030,3 +1259,79 @@ def test_main_success_generates_history_and_wiki(
         not in wiki_text
     )
     assert "raw.example.invalid/service-status/history.json" in wiki_text
+
+
+def test_main_checks_hems_endpoints_when_inventory_reports_hems(
+    service_status_module, tmp_path: Path, monkeypatch
+) -> None:
+    token = _jwt({"user_id": "user-1", "session_id": "session-1"})
+    seen_urls: list[str] = []
+
+    monkeypatch.setenv("ENPHASE_EMAIL", "user@example.com")
+    monkeypatch.setenv("ENPHASE_PASSWORD", "secret")
+    monkeypatch.setenv("ENPHASE_SITE_ID", "SITE")
+    monkeypatch.setenv("ENPHASE_SERIAL", "SERIAL")
+    monkeypatch.setattr(
+        service_status_module,
+        "_cookie_header_for",
+        lambda url, jar: (
+            f"XSRF-TOKEN=xsrf-token; enlighten_manager_token_production={token}"
+            if "enlighten" in url
+            else ""
+        ),
+    )
+
+    def fake_request(opener, method, url, **kwargs):  # noqa: ARG001
+        seen_urls.append(url)
+        if url == service_status_module.LOGIN_URL:
+            return 200, {}, b'{"session_id":"session-1","success":true}', None
+        if url == f"{service_status_module.ENTREZ_URL}/tokens":
+            return 200, {}, json.dumps({"token": token}).encode("utf-8"), None
+        if url.endswith("/ev_chargers/status"):
+            return 200, {}, b'{"evChargerData":[{"serial":"SERIAL"}]}', None
+        if url.endswith("/devices.json"):
+            return 200, {}, b'{"devices":[{"kind":"hems"}]}', None
+        if "/system_dashboard/api_internal/cs/sites/" in url:
+            return 500, {}, b"{}", "HTTP 500"
+        if "hems-devices" in url:
+            return (
+                200,
+                {},
+                json.dumps(
+                    {
+                        "devices": [
+                            {"type": "heat_pump", "device_uid": "HP-1"},
+                            {"device_type": "iq_er", "uid": "ER-1"},
+                        ]
+                    }
+                ).encode("utf-8"),
+                None,
+            )
+        return 200, {}, b"{}", None
+
+    monkeypatch.setattr(service_status_module, "_request", fake_request)
+
+    argv = [
+        "service_status.py",
+        "--output-dir",
+        str(tmp_path / "out"),
+    ]
+    old_argv = sys.argv
+    sys.argv = argv
+    try:
+        result = service_status_module.main()
+    finally:
+        sys.argv = old_argv
+
+    status_payload = json.loads((tmp_path / "out" / "status.json").read_text())
+    endpoint_names = {endpoint["name"] for endpoint in status_payload["endpoints"]}
+
+    assert result == 0
+    assert status_payload["status"] == "Fully Operational"
+    assert "hems_devices" in endpoint_names
+    assert "hems_heatpump_state" in endpoint_names
+    assert "hems_power_timeseries" in endpoint_names
+    assert "heat_pump_events" in endpoint_names
+    assert "iq_er_events" in endpoint_names
+    assert any("hems_consumption_lifetime" in url for url in seen_urls)
+    assert any("energy-consumption" in url for url in seen_urls)

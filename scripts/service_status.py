@@ -28,6 +28,21 @@ DEFAULT_WIKI_PAGE = "Service-Status-History.md"
 MIN_VISIBLE_INCIDENT_MINUTES = 60
 MAX_INCIDENT_SAMPLE_GAP_MINUTES = 90
 DEFAULT_REPOSITORY = "barneyonline/ha-enphase-energy"
+DOWN_FAILED_AFFECTING_CHECK_THRESHOLD = 2
+BROAD_OUTAGE_FAILED_CHECK_THRESHOLD = 3
+BROAD_OUTAGE_ENDPOINT_CATEGORIES = frozenset(
+    {
+        "battery_config",
+        "battery_runtime",
+        "evse_management",
+        "evse_timeseries",
+        "hems",
+        "inventory",
+        "microinverters",
+        "site_live",
+        "system_dashboard",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -41,6 +56,7 @@ class EndpointSpec:
     form: dict[str, Any] | None = None
     json_body: Any | None = None
     affects_status: bool = True
+    affects_broad_outage: bool | None = None
     check_group: str | None = None
     check_mode: str = "all"  # "all" or "any"
     ok_statuses: tuple[int, ...] = (200,)
@@ -150,6 +166,15 @@ def _badge_svg(label: str, value: str, color: str) -> str:
         f'<text x="{value_x}" y="14">{value}</text>'
         f"</g></svg>"
     )
+
+
+def _shields_badge_payload(label: str, value: str, color: str) -> dict[str, Any]:
+    return {
+        "schemaVersion": 1,
+        "label": label,
+        "message": value,
+        "color": color,
+    }
 
 
 def _decode_jwt_payload(token: str) -> dict[str, Any] | None:
@@ -368,8 +393,6 @@ def _first_device_uid(payload: Any, *, type_tokens: tuple[str, ...]) -> str | No
 
     tokens = tuple(token.lower() for token in type_tokens)
     for item in _walk_payload(payload):
-        if not isinstance(item, dict):
-            continue
         type_candidates = [
             item.get("type"),
             item.get("device_type"),
@@ -455,6 +478,11 @@ def _endpoint_result(
     ok = status in ok_statuses if status is not None else False
     if ok:
         error = None
+    affects_broad_outage = (
+        spec.affects_broad_outage
+        if spec.affects_broad_outage is not None
+        else spec.affects_status or spec.category in BROAD_OUTAGE_ENDPOINT_CATEGORIES
+    )
 
     return {
         "name": spec.name,
@@ -468,6 +496,7 @@ def _endpoint_result(
         "check_group": spec.check_group or spec.category,
         "check_mode": spec.check_mode,
         "affects_status": spec.affects_status,
+        "affects_broad_outage": affects_broad_outage,
     }
 
 
@@ -483,6 +512,9 @@ def _evaluate_status(results: list[dict[str, Any]]) -> tuple[str, dict[str, Any]
                 "group": item.get("group"),
                 "category": item.get("category") or key,
                 "affects": bool(item.get("affects_status", True)),
+                "affects_broad_outage": bool(
+                    item.get("affects_broad_outage", item.get("affects_status", True))
+                ),
                 "endpoints": [],
             }
             groups[key] = entry
@@ -490,6 +522,11 @@ def _evaluate_status(results: list[dict[str, Any]]) -> tuple[str, dict[str, Any]
             entry["group"] = _merge_status_group(entry.get("group"), item.get("group"))
             entry["affects"] = bool(entry.get("affects")) or bool(
                 item.get("affects_status", True)
+            )
+            entry["affects_broad_outage"] = bool(
+                entry.get("affects_broad_outage")
+            ) or bool(
+                item.get("affects_broad_outage", item.get("affects_status", True))
             )
         entry["endpoints"].append(item)
 
@@ -507,18 +544,28 @@ def _evaluate_status(results: list[dict[str, Any]]) -> tuple[str, dict[str, Any]
                 "category": entry["category"],
                 "ok": ok,
                 "affects": entry["affects"],
+                "affects_broad_outage": entry["affects_broad_outage"],
                 "endpoints": [ep["name"] for ep in entry["endpoints"]],
             }
         )
 
+    failed_checks = [c for c in checks if not c["ok"]]
     affecting = [c for c in checks if c["affects"]]
+    failed_affecting = [c for c in affecting if not c["ok"]]
     all_down = bool(affecting) and all(not c["ok"] for c in affecting)
-    main_down = any(c["group"] == "main" and not c["ok"] for c in affecting)
-    degraded_down = any(
-        c["group"] in ("degraded", "other") and not c["ok"] for c in affecting
+    main_down = any(c["group"] == "main" for c in failed_affecting)
+    degraded_down = any(c["group"] in ("degraded", "other") for c in failed_affecting)
+    multiple_affecting_down = (
+        len(failed_affecting) >= DOWN_FAILED_AFFECTING_CHECK_THRESHOLD
+    )
+    failed_broad_outage_checks = [
+        c for c in failed_checks if c.get("affects_broad_outage")
+    ]
+    broad_outage = (
+        len(failed_broad_outage_checks) >= BROAD_OUTAGE_FAILED_CHECK_THRESHOLD
     )
 
-    if main_down or all_down:
+    if main_down or all_down or multiple_affecting_down or broad_outage:
         status = "Down"
     elif degraded_down:
         status = "Degraded"
@@ -532,6 +579,9 @@ def _evaluate_status(results: list[dict[str, Any]]) -> tuple[str, dict[str, Any]
         "endpoints_total": len(results),
         "endpoints_ok": sum(1 for r in results if r["ok"]),
         "endpoints_failed": sum(1 for r in results if not r["ok"]),
+        "checks_failed_affecting": len(failed_affecting),
+        "checks_failed_non_affecting": len(failed_checks) - len(failed_affecting),
+        "checks_failed_broad_outage": len(failed_broad_outage_checks),
     }
     return status, {"checks": checks, "summary": summary}
 
@@ -964,6 +1014,14 @@ def _write_outputs(
     }
     svg = _badge_svg("Enphase Service Status", status, color_map.get(status, "#9f9f9f"))
     (output_path / "status.svg").write_text(f"{svg}\n", encoding="utf-8")
+    _write_json_file(
+        output_path / "status_badge.json",
+        _shields_badge_payload(
+            "Enphase Service Status",
+            status,
+            color_map.get(status, "#9f9f9f"),
+        ),
+    )
 
     history_samples = _build_history_samples(
         _load_history_samples(previous_history_file),
@@ -1794,9 +1852,6 @@ def main() -> int:
                 )
             ):
                 hems_supported = True
-        elif spec.name == "hems_devices":
-            hems_devices_body = body
-
     if hems_supported:
         hems_devices_spec = EndpointSpec(
             name="hems_devices",

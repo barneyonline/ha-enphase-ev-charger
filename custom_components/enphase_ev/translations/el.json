@@ -860,6 +860,31 @@
           "network_error": "Σφάλμα δικτύου"
         }
       },
+      "site_service_status": {
+        "name": "Κατάσταση υπηρεσίας",
+        "state": {
+          "ok": "Εντάξει",
+          "unknown": "Άγνωστη",
+          "degraded": "Υποβαθμισμένη"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Υποβαθμισμένες υπηρεσίες"
+          },
+          "degraded_endpoint_families": {
+            "name": "Υποβαθμισμένες οικογένειες τελικών σημείων"
+          },
+          "degraded_service_count": {
+            "name": "Πλήθος υποβαθμισμένων υπηρεσιών"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Πλήθος υποβαθμισμένων οικογενειών τελικών σημείων"
+          },
+          "metrics_available": {
+            "name": "Διαθέσιμες μετρήσεις"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Λήξη backoff cloud",
         "state": {

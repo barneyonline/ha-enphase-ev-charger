@@ -860,6 +860,31 @@
           "network_error": "Nettverksfeil"
         }
       },
+      "site_service_status": {
+        "name": "Tjenestestatus",
+        "state": {
+          "ok": "I orden",
+          "unknown": "Ukjent",
+          "degraded": "Degradert"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Degraderte tjenester"
+          },
+          "degraded_endpoint_families": {
+            "name": "Degraderte endepunktfamilier"
+          },
+          "degraded_service_count": {
+            "name": "Antall degraderte tjenester"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Antall degraderte endepunktfamilier"
+          },
+          "metrics_available": {
+            "name": "Målinger tilgjengelige"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Sky-backoff slutter",
         "state": {

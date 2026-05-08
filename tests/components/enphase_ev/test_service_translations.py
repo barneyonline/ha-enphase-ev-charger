@@ -142,6 +142,49 @@ def test_cloud_error_code_states_exist_for_all_locales() -> None:
             ), f"{name} should localize issues.rate_limited.title"
 
 
+def test_site_service_status_states_exist_for_all_locales() -> None:
+    """Ensure the site service-status diagnostic sensor can be translated."""
+
+    from custom_components.enphase_ev.sensor import SITE_SERVICE_STATUS_STATES
+
+    root = (
+        pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "enphase_ev"
+    )
+    translations_dir = root / "translations"
+    paths = [
+        "entity.sensor.site_service_status.name",
+        "entity.sensor.site_service_status.state.ok",
+        "entity.sensor.site_service_status.state.degraded",
+        "entity.sensor.site_service_status.state.unknown",
+        "entity.sensor.site_service_status.state_attributes.degraded_services.name",
+        "entity.sensor.site_service_status.state_attributes.degraded_endpoint_families.name",
+        "entity.sensor.site_service_status.state_attributes.degraded_service_count.name",
+        "entity.sensor.site_service_status.state_attributes.degraded_endpoint_family_count.name",
+        "entity.sensor.site_service_status.state_attributes.metrics_available.name",
+    ]
+    strings_data = json.loads((root / "strings.json").read_text(encoding="utf-8"))
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    assert set(strings_data["entity"]["sensor"]["site_service_status"]["state"]) == set(
+        SITE_SERVICE_STATUS_STATES
+    )
+    for path in paths:
+        value = _at_path(strings_data, path)
+        assert value.strip(), f"strings.json missing value for {path}"
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        assert set(data["entity"]["sensor"]["site_service_status"]["state"]) == set(
+            SITE_SERVICE_STATUS_STATES
+        ), f"{name} site service-status states differ from sensor options"
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
+
+
 def _at_path(data: dict, path: str) -> str:
     cur = data
     for part in path.split("."):

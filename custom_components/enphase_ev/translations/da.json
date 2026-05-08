@@ -860,6 +860,31 @@
           "network_error": "Netværksfejl"
         }
       },
+      "site_service_status": {
+        "name": "Tjenestestatus",
+        "state": {
+          "ok": "I orden",
+          "unknown": "Ukendt",
+          "degraded": "Forringet"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Forringede tjenester"
+          },
+          "degraded_endpoint_families": {
+            "name": "Forringede endpointfamilier"
+          },
+          "degraded_service_count": {
+            "name": "Antal forringede tjenester"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Antal forringede endpointfamilier"
+          },
+          "metrics_available": {
+            "name": "Metrikker tilgængelige"
+          }
+        }
+      },
       "cloud_backoff_ends": {
         "name": "Cloud-backoff slutter",
         "state": {
