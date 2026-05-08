@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Enphase Energy battery profile update pending",
       "description": "A battery profile change for site {site_id} has been pending for more than {pending_timeout_minutes} minutes. The cloud may still be processing the request."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS temporarily paused",
+      "description": "Heat Pump/HEMS polling for site {site_id} is paused until {backoff_until} after {failure_count} auth-like failures ({reason}). Wallbox, battery, gateway, and other data can continue. Disable the Heat Pump device group to stop HEMS polling, or use Clear HEMS Auth Backoff after Enphase recovers."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Device",
           "description": "Optional Enphase device to choose the site for billing or structural tariff updates."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Clear HEMS Auth Backoff",
+      "description": "Clear the temporary HEMS/Heat Pump auth backoff without performing password login.",
+      "fields": {
+        "device_id": {
+          "name": "Site devices",
+          "description": "Select an Enphase site device whose HEMS auth backoff should be cleared."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Success",
+            "description": "Whether the HEMS auth backoff was cleared."
+          },
+          "site_id": {
+            "name": "Site ID",
+            "description": "The Enphase site that was targeted."
+          },
+          "reason": {
+            "name": "Reason",
+            "description": "Result reason for the clear request."
+          },
+          "retry_after_seconds": {
+            "name": "Retry after seconds",
+            "description": "Seconds to wait before trying this action again."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS backoff until",
+            "description": "Previous HEMS backoff expiry time, when one was active."
+          }
         }
       }
     }

@@ -186,57 +186,6 @@ async def test_coordinator_init_handles_bad_scalar_serial_and_legacy_super(
     assert "config_entry" in init_calls[0]
 
 
-@pytest.mark.parametrize("raise_type_error", [False, True])
-def test_coordinator_init_handles_async_hems_suppression_callback_registration(
-    hass, monkeypatch, raise_type_error
-):
-    from custom_components.enphase_ev import coordinator as coord_mod
-    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-
-    entry = _make_entry(hass)
-    callback_kwargs: dict[str, object] = {}
-    task_calls: list[dict[str, str]] = []
-
-    class Client:
-        def __init__(self, *_args, **_kwargs) -> None:
-            pass
-
-        def set_reauth_callback(self, *_args) -> None:
-            return None
-
-        def set_hems_auth_refresh_suppression_callbacks(self, **kwargs):
-            callback_kwargs.update(kwargs)
-
-            async def _async_result() -> None:
-                return None
-
-            return _async_result()
-
-    def _create_task(coro, **kwargs):
-        task_calls.append(dict(kwargs))
-        if raise_type_error and kwargs:
-            raise TypeError("legacy signature")
-        coro.close()
-        return object()
-
-    monkeypatch.setattr(coord_mod, "EnphaseEVClient", Client)
-    monkeypatch.setattr(hass, "async_create_task", _create_task)
-
-    EnphaseCoordinator(hass, entry.data, config_entry=entry)
-
-    assert callable(callback_kwargs["active_callback"])
-    assert callable(callback_kwargs["suppress_callback"])
-    if raise_type_error:
-        assert task_calls == [
-            {"name": "enphase_ev_set_hems_auth_refresh_suppression_callbacks"},
-            {},
-        ]
-    else:
-        assert task_calls == [
-            {"name": "enphase_ev_set_hems_auth_refresh_suppression_callbacks"}
-        ]
-
-
 def test_collect_site_metrics_handles_unfriendly_datetime(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -501,7 +450,9 @@ def test_persist_auth_refresh_suspension_state_marks_internal_update(hass, monke
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
     entry = _make_entry(hass)
-    object.__setattr__(entry, "runtime_data", SimpleNamespace(skip_reload_once=False))
+    object.__setattr__(
+        entry, "runtime_data", SimpleNamespace(reload_suppression_count=0)
+    )
     coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
     coord.hass = hass
     coord.config_entry = entry
@@ -517,7 +468,7 @@ def test_persist_auth_refresh_suspension_state_marks_internal_update(hass, monke
 
     coord._persist_auth_refresh_suspension_state()
 
-    assert entry.runtime_data.skip_reload_once is True
+    assert entry.runtime_data.reload_suppression_count == 1
 
 
 def test_clear_auth_refresh_rejection_state_resets_counter_and_cooldown(hass):
@@ -1812,12 +1763,64 @@ async def test_manual_auth_refresh_reuses_recent_success(hass):
     coord._stored_password = "secret"
     coord._auth_refresh_last_success_mono = time.monotonic()
     coord._auth_refresh_manual_retry_until = None
+    coord._auth_blocked_until_utc = None
+    coord._auth_block_reason = None
+    coord._auth_refresh_suspended_until_utc = None
+    coord._hems_auth_backoff_until = None
+    coord._hems_auth_backoff_ends_utc = None
+    coord._hems_auth_failure_count = 0
+    coord._hems_auth_last_endpoint = None
+    coord._hems_auth_last_status = None
+    coord._hems_auth_last_reason = None
     coord.auth_refresh_runtime.async_run_auto_refresh = AsyncMock(return_value=True)
 
     result = await coord.async_try_reauth_now()
     assert result.success is True
     assert result.reason is None
     coord.auth_refresh_runtime.async_run_auto_refresh.assert_not_called()
+    assert coord._auth_blocked_until_utc is None
+    assert coord._auth_block_reason is None
+    assert coord._auth_refresh_suspended_until_utc is None
+    assert coord._hems_auth_backoff_until is None
+    assert coord._hems_auth_last_endpoint is None
+    assert coord._hems_auth_last_status is None
+    assert coord._hems_auth_last_reason is None
+    assert coord._hems_auth_failure_count == 0
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_does_not_reuse_recent_success_during_active_block(
+    hass,
+):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_last_success_mono = time.monotonic()
+    coord._auth_refresh_manual_retry_until = None
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+    coord._auth_block_reason = "too_many_active_sessions"
+    coord._auth_refresh_suspended_until_utc = None
+    coord._hems_auth_backoff_until = time.monotonic() + 60
+    coord._hems_auth_backoff_ends_utc = datetime.now(timezone.utc) + timedelta(
+        minutes=15
+    )
+    coord._hems_auth_failure_count = 1
+    coord._hems_auth_last_endpoint = "hems_devices"
+    coord._hems_auth_last_status = 401
+    coord._hems_auth_last_reason = "unauthorized"
+    coord.auth_refresh_runtime.async_run_auto_refresh = AsyncMock(return_value=True)
+
+    result = await coord.async_try_reauth_now()
+
+    assert result.success is True
+    assert result.performed_refresh is True
+    coord.auth_refresh_runtime.async_run_auto_refresh.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio

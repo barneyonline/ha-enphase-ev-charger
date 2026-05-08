@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Gaida Enphase Energy akumulatora profila atjauninājumu",
       "description": "Akumulatora profila maiņa vietnei {site_id} gaida ilgāk nekā {pending_timeout_minutes} minūtes. Mākoņserviss, iespējams, joprojām apstrādā pieprasījumu."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS īslaicīgi apturēts",
+      "description": "Heat Pump/HEMS aptauja vietnei {site_id} ir apturēta līdz {backoff_until} pēc {failure_count} autentifikācijai līdzīgām kļūdām ({reason}). Wallbox, akumulators, vārteja un citi dati var turpināties. Atspējojiet Heat Pump ierīču grupu vai izmantojiet Clear HEMS Auth Backoff pēc Enphase atjaunošanās."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Notīrīt HEMS auth backoff",
+      "description": "Notīra īslaicīgo HEMS/Heat Pump autentifikācijas pauzi bez paroles pieteikšanās.",
+      "fields": {
+        "device_id": {
+          "name": "Vietnes ierīces",
+          "description": "Izvēlieties Enphase vietnes ierīci, kurai notīrīt HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, izvēloties ierīci."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Veiksmīgi",
+            "description": "Vai HEMS auth backoff tika notīrīts."
+          },
+          "site_id": {
+            "name": "Vietnes ID",
+            "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, izvēloties ierīci."
+          },
+          "reason": {
+            "name": "Iemesls",
+            "description": "Notīrīšanas pieprasījuma iemesls vai statuss."
+          },
+          "retry_after_seconds": {
+            "name": "Mēģināt vēlreiz pēc sekundēm",
+            "description": "Sekundes, kas jāgaida pirms atkārtota mēģinājuma."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS backoff līdz",
+            "description": "Iepriekšējais HEMS pauzes beigu laiks, ja tā bija aktīva."
+          }
         }
       }
     }

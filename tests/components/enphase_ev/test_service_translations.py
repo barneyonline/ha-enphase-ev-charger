@@ -32,6 +32,8 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
     translations_dir = root / "translations"
     paths = [
         "issues.auth_blocked.description",
+        "issues.hems_auth_degraded.title",
+        "issues.hems_auth_degraded.description",
         "issues.too_many_active_sessions.title",
         "issues.too_many_active_sessions.description",
         "config.error.too_many_active_sessions",
@@ -41,6 +43,22 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         "services.try_reauth_now.fields.device_id.description",
         "services.try_reauth_now.fields.site_id.name",
         "services.try_reauth_now.fields.site_id.description",
+        "services.clear_hems_auth_backoff.name",
+        "services.clear_hems_auth_backoff.description",
+        "services.clear_hems_auth_backoff.fields.device_id.name",
+        "services.clear_hems_auth_backoff.fields.device_id.description",
+        "services.clear_hems_auth_backoff.fields.site_id.name",
+        "services.clear_hems_auth_backoff.fields.site_id.description",
+        "services.clear_hems_auth_backoff.response.fields.success.name",
+        "services.clear_hems_auth_backoff.response.fields.success.description",
+        "services.clear_hems_auth_backoff.response.fields.site_id.name",
+        "services.clear_hems_auth_backoff.response.fields.site_id.description",
+        "services.clear_hems_auth_backoff.response.fields.reason.name",
+        "services.clear_hems_auth_backoff.response.fields.reason.description",
+        "services.clear_hems_auth_backoff.response.fields.retry_after_seconds.name",
+        "services.clear_hems_auth_backoff.response.fields.retry_after_seconds.description",
+        "services.clear_hems_auth_backoff.response.fields.hems_backoff_until.name",
+        "services.clear_hems_auth_backoff.response.fields.hems_backoff_until.description",
     ]
     strings_data = json.loads((root / "strings.json").read_text(encoding="utf-8"))
     for path in paths:
@@ -84,6 +102,11 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         assert (
             "{blocked_until}" in sessions_issue
         ), f"{name} missing {{blocked_until}} placeholder"
+        hems_issue = _at_path(data, "issues.hems_auth_degraded.description")
+        for placeholder in ("site_id", "backoff_until", "failure_count", "reason"):
+            assert (
+                "{" + placeholder + "}" in hems_issue
+            ), f"{name} missing {{{placeholder}}} placeholder"
 
 
 def test_cloud_error_code_states_exist_for_all_locales() -> None:

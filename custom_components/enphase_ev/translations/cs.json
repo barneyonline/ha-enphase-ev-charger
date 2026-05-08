@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Probíhá aktualizace profilu baterie Enphase Energy",
       "description": "Změna profilu baterie pro lokalitu {site_id} čeká déle než {pending_timeout_minutes} minut. Cloud může požadavek stále zpracovávat."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS je dočasně pozastaveno",
+      "description": "Dotazování Heat Pump/HEMS pro lokalitu {site_id} je pozastaveno do {backoff_until} po {failure_count} chybách podobných ověření ({reason}). Wallbox, baterie, brána a ostatní data mohou pokračovat. Vypněte skupinu Heat Pump, nebo použijte Clear HEMS Auth Backoff po obnově Enphase."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Vymazat HEMS auth backoff",
+      "description": "Vymaže dočasnou pauzu ověření HEMS/Heat Pump bez přihlášení heslem.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení lokality",
+          "description": "Vyberte zařízení lokality Enphase, u kterého se má HEMS auth backoff vymazat."
+        },
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; zjistí se automaticky při výběru zařízení."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Úspěch",
+            "description": "Zda byl HEMS auth backoff vymazán."
+          },
+          "site_id": {
+            "name": "ID lokality",
+            "description": "Volitelný identifikátor lokality; zjistí se automaticky při výběru zařízení."
+          },
+          "reason": {
+            "name": "Důvod",
+            "description": "Důvod nebo stav požadavku na vymazání."
+          },
+          "retry_after_seconds": {
+            "name": "Opakovat za sekund",
+            "description": "Počet sekund, které je třeba počkat před dalším pokusem."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS backoff do",
+            "description": "Předchozí čas vypršení HEMS pauzy, pokud byla aktivní."
+          }
         }
       }
     }

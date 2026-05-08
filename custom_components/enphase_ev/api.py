@@ -16,7 +16,6 @@ import hashlib
 import json
 import logging
 import re
-import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timezone
 from http import HTTPStatus
@@ -35,7 +34,6 @@ from .const import (
     DEFAULT_AUTH_TIMEOUT,
     ENTREZ_URL,
     GREEN_BATTERY_SETTING,
-    HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S,
     LOGIN_FORM_URL,
     LOGIN_URL,
     MFA_RESEND_URL,
@@ -2016,10 +2014,6 @@ class EnphaseEVClient:
         self._cookie = cookie or ""
         self._eauth = eauth or None
         self._hems_site_supported: bool | None = None
-        self._hems_auth_refresh_suppressed_until: float | None = None
-        self._hems_auth_refresh_suppressed_last_mono: float | None = None
-        self._hems_auth_refresh_suppressed_active_cb: Callable[[], bool] | None = None
-        self._hems_auth_refresh_suppressed_cb: Callable[[], None] | None = None
         self._reauth_cb: Callable[[], Awaitable[bool]] | None = reauth_callback
         self._last_unauthorized_request: str | None = None
         self._request_count = 0
@@ -2039,87 +2033,11 @@ class EnphaseEVClient:
 
         self._reauth_cb = callback
 
-    def set_hems_auth_refresh_suppression_callbacks(
-        self,
-        *,
-        active_callback: Callable[[], bool] | None,
-        suppress_callback: Callable[[], None] | None,
-    ) -> None:
-        """Register coordinator-backed HEMS auth-refresh suppression callbacks."""
-
-        self._hems_auth_refresh_suppressed_active_cb = active_callback
-        self._hems_auth_refresh_suppressed_cb = suppress_callback
-        _LOGGER.debug(
-            "Registered HEMS auth refresh suppression callbacks: active=%s suppress=%s",
-            active_callback is not None,
-            suppress_callback is not None,
-        )
-
     @staticmethod
     def _is_hems_api_endpoint(endpoint: str | None) -> bool:
         """Return True for HEMS JSON API endpoints that are optional/read-only."""
 
         return bool(endpoint and endpoint.startswith("/api/v1/hems/"))
-
-    def _hems_auth_refresh_suppressed_active(self) -> bool:
-        """Return True while HEMS 401s should not trigger password refresh."""
-
-        active_cb = self._hems_auth_refresh_suppressed_active_cb
-        if active_cb is not None:
-            try:
-                if active_cb():
-                    return True
-            except Exception:  # noqa: BLE001 - suppression must not break requests
-                _LOGGER.debug(
-                    "HEMS auth refresh suppression callback failed", exc_info=True
-                )
-        suppressed_until = self._hems_auth_refresh_suppressed_until
-        if not isinstance(suppressed_until, (int, float)):
-            last_suppressed = self._hems_auth_refresh_suppressed_last_mono
-            if isinstance(last_suppressed, (int, float)):
-                remaining = HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S - (
-                    time.monotonic() - float(last_suppressed)
-                )
-                if remaining > 0:
-                    self._hems_auth_refresh_suppressed_until = (
-                        time.monotonic() + remaining
-                    )
-                    _LOGGER.warning(
-                        "HEMS auth refresh suppression timestamp was missing %.1fs after it was set; repairing local suppression for %.1fs",
-                        HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S - remaining,
-                        remaining,
-                    )
-                    return True
-            return False
-        remaining = float(suppressed_until) - time.monotonic()
-        if remaining > 0:
-            return True
-        self._hems_auth_refresh_suppressed_until = None
-        self._hems_auth_refresh_suppressed_last_mono = None
-        _LOGGER.debug("HEMS auth refresh suppression expired")
-        return False
-
-    def _suppress_hems_auth_refresh_after_success(self) -> None:
-        """Temporarily stop HEMS 401s from causing repeated password logins."""
-
-        now = time.monotonic()
-        self._hems_auth_refresh_suppressed_last_mono = now
-        self._hems_auth_refresh_suppressed_until = (
-            now + HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S
-        )
-        _LOGGER.debug(
-            "Suppressing HEMS auth refresh attempts for %.0fs after successful stored-credential refresh; callback_wired=%s",
-            HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S,
-            self._hems_auth_refresh_suppressed_cb is not None,
-        )
-        suppress_cb = self._hems_auth_refresh_suppressed_cb
-        if suppress_cb is not None:
-            try:
-                suppress_cb()
-            except Exception:  # noqa: BLE001 - local suppression is already active
-                _LOGGER.debug(
-                    "HEMS auth refresh suppression callback failed", exc_info=True
-                )
 
     @property
     def last_unauthorized_request(self) -> str | None:
@@ -4265,6 +4183,7 @@ class EnphaseEVClient:
             "debug_battery_attempt_changes",
             None,
         )
+        allow_reauth = bool(kwargs.pop("allow_reauth", True))
         attempt = 0
         request_label = _request_label(method, url)
         safe_request_label = redact_text(
@@ -4300,12 +4219,10 @@ class EnphaseEVClient:
                                 hems_api_endpoint = self._is_hems_api_endpoint(
                                     endpoint or None
                                 )
-                                if (
-                                    hems_api_endpoint
-                                    and self._hems_auth_refresh_suppressed_active()
-                                ):
+                                reauth_allowed = allow_reauth and not hems_api_endpoint
+                                if not reauth_allowed:
                                     _LOGGER.debug(
-                                        "Received 401 for %s while HEMS auth refresh is temporarily suppressed",
+                                        "Received 401 for %s with stored-credential refresh disabled for this endpoint family",
                                         safe_request_label,
                                     )
                                 elif self._reauth_cb and attempt == 0:
@@ -4316,8 +4233,6 @@ class EnphaseEVClient:
                                     attempt += 1
                                     reauth_ok = await self._reauth_cb()
                                     if reauth_ok:
-                                        if hems_api_endpoint:
-                                            self._suppress_hems_auth_refresh_after_success()
                                         _LOGGER.debug(
                                             "Stored-credential refresh succeeded for %s; retrying request",
                                             safe_request_label,
@@ -6040,7 +5955,9 @@ class EnphaseEVClient:
         )
         return None
 
-    async def show_livestream(self) -> dict[str, object] | None:
+    async def show_livestream(
+        self, *, allow_reauth: bool = True
+    ) -> dict[str, object] | None:
         """Return live-status/vitals capability flags when available."""
 
         url = f"{BASE_URL}/app-api/{self._site}/show_livestream"
@@ -6049,8 +5966,11 @@ class EnphaseEVClient:
                 "GET",
                 url,
                 headers=self._system_dashboard_headers(),
+                allow_reauth=allow_reauth,
             )
         except Unauthorized:
+            if not allow_reauth:
+                raise
             return None
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
@@ -6058,6 +5978,8 @@ class EnphaseEVClient:
             raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
+                if not allow_reauth and err.status in (401, 403):
+                    raise
                 return None
             raise
         return data if isinstance(data, dict) else None
@@ -6252,8 +6174,15 @@ class EnphaseEVClient:
                 url,
                 headers=self._systems_json_headers(),
                 log_invalid_payload=False,
+                allow_reauth=False,
             )
             self._hems_site_supported = True
+        except Unauthorized:
+            _LOGGER.debug(
+                "HEMS lifetime endpoint unavailable for site %s (unauthorized)",
+                redact_site_id(self._site),
+            )
+            raise
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
@@ -6265,7 +6194,14 @@ class EnphaseEVClient:
             self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+            if err.status in (401, 403):
+                _LOGGER.debug(
+                    "HEMS lifetime endpoint auth failure for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                raise
+            if err.status == 404 or _is_hems_invalid_site_error(err):
                 if _is_hems_invalid_site_error(err):
                     self._hems_site_supported = False
                 _LOGGER.debug(
@@ -6328,14 +6264,19 @@ class EnphaseEVClient:
         if timezone:
             url = url.update_query({"timezone": str(timezone).strip()})
         try:
-            data = await self._json("GET", str(url), headers=self._hems_headers)
+            data = await self._json(
+                "GET",
+                str(url),
+                headers=self._hems_headers,
+                allow_reauth=False,
+            )
             self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS heat pump state endpoint unavailable for site %s (unauthorized)",
                 redact_site_id(self._site),
             )
-            return None
+            raise
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
@@ -6346,7 +6287,14 @@ class EnphaseEVClient:
                 return None
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+            if err.status in (401, 403):
+                _LOGGER.debug(
+                    "HEMS heat pump state endpoint auth failure for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                raise
+            if err.status == 404 or _is_hems_invalid_site_error(err):
                 if _is_hems_invalid_site_error(err):
                     self._hems_site_supported = False
                 _LOGGER.debug(
@@ -6381,14 +6329,19 @@ class EnphaseEVClient:
             )
         )
         try:
-            data = await self._json("GET", url, headers=self._hems_headers)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._hems_headers,
+                allow_reauth=False,
+            )
             self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS energy consumption endpoint unavailable for site %s (unauthorized)",
                 redact_site_id(self._site),
             )
-            return None
+            raise
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
@@ -6399,7 +6352,14 @@ class EnphaseEVClient:
                 return None
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+            if err.status in (401, 403):
+                _LOGGER.debug(
+                    "HEMS energy consumption endpoint auth failure for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                raise
+            if err.status == 404 or _is_hems_invalid_site_error(err):
                 if _is_hems_invalid_site_error(err):
                     self._hems_site_supported = False
                 _LOGGER.debug(
@@ -6411,13 +6371,20 @@ class EnphaseEVClient:
             raise
         return self._normalize_hems_energy_consumption_payload(data)
 
-    async def pv_system_today(self) -> dict | None:
+    async def pv_system_today(self, *, allow_reauth: bool = True) -> dict | None:
         """Return the site today payload when available."""
 
         url = f"{BASE_URL}/pv/systems/{self._site}/today"
         try:
-            data = await self._json("GET", url, headers=self._today_json_headers)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._today_json_headers,
+                allow_reauth=allow_reauth,
+            )
         except Unauthorized:
+            if not allow_reauth:
+                raise
             _LOGGER.debug(
                 "PV site today endpoint unavailable for site %s (unauthorized)",
                 redact_site_id(self._site),
@@ -6434,6 +6401,8 @@ class EnphaseEVClient:
             raise
         except aiohttp.ClientResponseError as err:
             if err.status in (401, 403, 404):
+                if not allow_reauth and err.status in (401, 403):
+                    raise
                 _LOGGER.debug(
                     "PV site today endpoint unavailable for site %s (status=%s)",
                     redact_site_id(self._site),
@@ -6589,6 +6558,7 @@ class EnphaseEVClient:
                     "GET",
                     url,
                     headers=self._systems_json_headers(),
+                    allow_reauth=False,
                 )
                 self._hems_site_supported = True
             except Unauthorized:
@@ -6596,7 +6566,7 @@ class EnphaseEVClient:
                     "HEMS power endpoint unavailable (unauthorized, context=%s)",
                     debug_context,
                 )
-                return None
+                raise
             except InvalidPayloadError as err:
                 if _is_optional_non_json_payload(err):
                     safe_summary = self._debug_error_message(
@@ -6629,7 +6599,14 @@ class EnphaseEVClient:
                         debug_context,
                     )
                     return None
-                if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+                if err.status in (401, 403):
+                    _LOGGER.debug(
+                        "HEMS power endpoint auth failure (status=%s, context=%s)",
+                        err.status,
+                        debug_context,
+                    )
+                    raise
+                if err.status == 404 or _is_hems_invalid_site_error(err):
                     if _is_hems_invalid_site_error(err):
                         self._hems_site_supported = False
                     _LOGGER.debug(
@@ -6667,13 +6644,14 @@ class EnphaseEVClient:
                 url,
                 headers=self._systems_json_headers(),
                 log_invalid_payload=False,
+                allow_reauth=False,
             )
         except Unauthorized:
             _LOGGER.debug(
                 "Heat pump events endpoint unavailable for site %s (unauthorized)",
                 redact_site_id(self._site),
             )
-            return None
+            raise
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
@@ -6687,7 +6665,14 @@ class EnphaseEVClient:
             self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+            if err.status in (401, 403):
+                _LOGGER.debug(
+                    "Heat pump events endpoint auth failure for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                raise
+            if err.status == 404 or _is_hems_invalid_site_error(err):
                 _LOGGER.debug(
                     "Heat pump events endpoint unavailable for site %s (status=%s)",
                     redact_site_id(self._site),
@@ -6713,13 +6698,14 @@ class EnphaseEVClient:
                 url,
                 headers=self._systems_json_headers(),
                 log_invalid_payload=False,
+                allow_reauth=False,
             )
         except Unauthorized:
             _LOGGER.debug(
                 "IQ Energy Router events endpoint unavailable for site %s (unauthorized)",
                 redact_site_id(self._site),
             )
-            return None
+            raise
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
@@ -6733,7 +6719,14 @@ class EnphaseEVClient:
             self._log_invalid_payload(err)
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+            if err.status in (401, 403):
+                _LOGGER.debug(
+                    "IQ Energy Router events endpoint auth failure for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                raise
+            if err.status == 404 or _is_hems_invalid_site_error(err):
                 _LOGGER.debug(
                     "IQ Energy Router events endpoint unavailable for site %s (status=%s)",
                     redact_site_id(self._site),
@@ -6874,7 +6867,9 @@ class EnphaseEVClient:
         legacy_url = f"{BASE_URL}/pv/systems/{self._site}/system_dashboard/devices-tree"
         return await self._system_dashboard_get(modern_url, legacy_url)
 
-    async def system_dashboard_summary(self) -> dict | None:
+    async def system_dashboard_summary(
+        self, *, allow_reauth: bool = True
+    ) -> dict | None:
         """Return the system dashboard capability summary when available.
 
         GET /service/system_dashboard/api_internal/cs/sites/<site_id>/summary
@@ -6886,8 +6881,21 @@ class EnphaseEVClient:
         )
         headers = self._system_dashboard_headers()
         try:
-            data = await self._json("GET", url, headers=headers)
+            data = await self._json(
+                "GET",
+                url,
+                headers=headers,
+                allow_reauth=allow_reauth,
+            )
         except Exception as err:  # noqa: BLE001
+            if not allow_reauth and (
+                isinstance(err, Unauthorized)
+                or (
+                    isinstance(err, aiohttp.ClientResponseError)
+                    and err.status in (401, 403)
+                )
+            ):
+                raise
             if self._system_dashboard_is_optional_error(err):
                 return None
             raise
@@ -6935,14 +6943,19 @@ class EnphaseEVClient:
             ).update_query({"refreshData": str(bool(refresh_data)).lower()})
         )
         try:
-            data = await self._json("GET", url, headers=self._hems_headers)
+            data = await self._json(
+                "GET",
+                url,
+                headers=self._hems_headers,
+                allow_reauth=False,
+            )
             self._hems_site_supported = True
         except Unauthorized:
             _LOGGER.debug(
                 "HEMS devices endpoint unavailable for site %s (unauthorized)",
                 redact_site_id(self._site),
             )
-            return None
+            raise
         except InvalidPayloadError as err:
             if _is_optional_non_json_payload(err):
                 _LOGGER.debug(
@@ -6953,7 +6966,14 @@ class EnphaseEVClient:
                 return None
             raise
         except aiohttp.ClientResponseError as err:
-            if err.status in (401, 403, 404) or _is_hems_invalid_site_error(err):
+            if err.status in (401, 403):
+                _LOGGER.debug(
+                    "HEMS devices endpoint auth failure for site %s (status=%s)",
+                    redact_site_id(self._site),
+                    err.status,
+                )
+                raise
+            if err.status == 404 or _is_hems_invalid_site_error(err):
                 if _is_hems_invalid_site_error(err):
                     self._hems_site_supported = False
                 _LOGGER.debug(

@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Actualizarea profilului bateriei Enphase Energy este în așteptare",
       "description": "O modificare a profilului bateriei pentru site-ul {site_id} este în așteptare de mai mult de {pending_timeout_minutes} minute. Serviciul cloud poate încă procesa solicitarea."
+    },
+    "hems_auth_degraded": {
+      "title": "HEMS Enphase Energy este pauzat temporar",
+      "description": "Interogarea Heat Pump/HEMS pentru site-ul {site_id} este pauzată până la {backoff_until} după {failure_count} erori de tip autentificare ({reason}). Wallbox, bateria, gateway-ul și alte date pot continua. Dezactivează grupul Heat Pump sau folosește Clear HEMS Auth Backoff după revenirea Enphase."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Șterge HEMS auth backoff",
+      "description": "Șterge pauza temporară de autentificare HEMS/Heat Pump fără autentificare cu parolă.",
+      "fields": {
+        "device_id": {
+          "name": "Dispozitive site",
+          "description": "Selectează un dispozitiv de site Enphase pentru care se șterge HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "ID site",
+          "description": "Identificator opțional de site; detectat automat când este selectat un dispozitiv."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Succes",
+            "description": "Dacă HEMS auth backoff a fost șters."
+          },
+          "site_id": {
+            "name": "ID site",
+            "description": "Identificator opțional de site; detectat automat când este selectat un dispozitiv."
+          },
+          "reason": {
+            "name": "Motiv",
+            "description": "Motivul sau starea cererii de ștergere."
+          },
+          "retry_after_seconds": {
+            "name": "Reîncercare după secunde",
+            "description": "Secunde de așteptat înainte de a încerca din nou."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS backoff până la",
+            "description": "Ora anterioară de expirare a pauzei HEMS, dacă a fost activă."
+          }
         }
       }
     }

@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Чакаща актуализация на профила на батерията в Enphase Energy",
       "description": "Промяна на профила на батерията за обект {site_id} е в изчакване повече от {pending_timeout_minutes} минути. Възможно е облачната услуга все още да обработва заявката."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS е временно спрян",
+      "description": "Запитванията Heat Pump/HEMS за сайт {site_id} са спрени до {backoff_until} след {failure_count} грешки, подобни на удостоверяване ({reason}). Wallbox, батерията, шлюзът и другите данни могат да продължат. Изключете групата Heat Pump, за да спрете HEMS, или използвайте Clear HEMS Auth Backoff след възстановяване на Enphase."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Изчистване на HEMS auth backoff",
+      "description": "Изчиства временната HEMS/Heat Pump пауза за удостоверяване без вход с парола.",
+      "fields": {
+        "device_id": {
+          "name": "Устройства на сайта",
+          "description": "Изберете устройство на Enphase сайт, за което да се изчисти HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "ID на сайт",
+          "description": "Незадължителен идентификатор на сайт; открива се автоматично при избрано устройство."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Успех",
+            "description": "Дали HEMS auth backoff беше изчистен."
+          },
+          "site_id": {
+            "name": "ID на сайт",
+            "description": "Незадължителен идентификатор на сайт; открива се автоматично при избрано устройство."
+          },
+          "reason": {
+            "name": "Причина",
+            "description": "Причина или състояние на заявката за изчистване."
+          },
+          "retry_after_seconds": {
+            "name": "Опитайте отново след секунди",
+            "description": "Секунди за изчакване преди повторен опит."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS backoff до",
+            "description": "Предишният час на изтичане на HEMS паузата, ако е била активна."
+          }
         }
       }
     }

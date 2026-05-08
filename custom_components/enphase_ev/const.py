@@ -15,6 +15,13 @@ CONF_TOKEN_EXPIRES_AT = "token_expires_at"
 CONF_AUTH_REFRESH_SUSPENDED_UNTIL = "auth_refresh_suspended_until"
 CONF_AUTH_BLOCKED_UNTIL = "auth_blocked_until"
 CONF_AUTH_BLOCK_REASON = "auth_block_reason"
+CONF_HEMS_AUTH_BACKOFF_UNTIL = "hems_auth_backoff_until"
+CONF_HEMS_AUTH_FAILURE_COUNT = "hems_auth_failure_count"
+CONF_HEMS_AUTH_LAST_FAILURE_UTC = "hems_auth_last_failure_utc"
+CONF_HEMS_AUTH_LAST_SUCCESS_UTC = "hems_auth_last_success_utc"
+CONF_HEMS_AUTH_LAST_ENDPOINT = "hems_auth_last_endpoint"
+CONF_HEMS_AUTH_LAST_STATUS = "hems_auth_last_status"
+CONF_HEMS_AUTH_LAST_REASON = "hems_auth_last_reason"
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
 CONF_REMEMBER_PASSWORD = "remember_password"
@@ -43,6 +50,7 @@ ISSUE_CLOUD_ERRORS = "cloud_service_unavailable"
 ISSUE_RATE_LIMITED = "rate_limited"
 ISSUE_REAUTH_REQUIRED = "reauth_required"
 ISSUE_AUTH_BLOCKED = "auth_blocked"
+ISSUE_HEMS_AUTH_DEGRADED = "hems_auth_degraded"
 ISSUE_TOO_MANY_ACTIVE_SESSIONS = "too_many_active_sessions"
 ISSUE_SCHEDULER_UNAVAILABLE = "scheduler_unavailable"
 ISSUE_SESSION_HISTORY_UNAVAILABLE = "session_history_unavailable"
@@ -60,10 +68,11 @@ SITE_SEARCH_URL = f"{BASE_URL}/app-api/search_sites.json?searchText=&favourite=f
 DEFAULT_AUTH_TIMEOUT = 15
 AUTH_REFRESH_REJECTED_COOLDOWN_S = 300.0
 AUTH_REFRESH_MANUAL_RETRY_COOLDOWN_S = 60.0
-# Reuse a just-successful stored-credential refresh globally so stale 401s,
-# including follow-up HEMS calls, can settle without another password login.
+# Reuse a just-successful stored-credential refresh globally so stale global
+# endpoint 401s can settle without another password login.
 AUTH_REFRESH_SUCCESS_REUSE_WINDOW_S = 30.0
-HEMS_AUTH_REFRESH_SUPPRESS_AFTER_SUCCESS_S = 300.0
+HEMS_AUTH_BACKOFF_STEPS_S = (900.0, 3600.0, 21600.0)
+HEMS_AUTH_MANUAL_CLEAR_COOLDOWN_S = 60.0
 AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD = 3
 AUTH_REFRESH_SUSPENDED_COOLDOWN_S = 86400.0
 AUTH_BLOCKED_COOLDOWN_S = 86400.0

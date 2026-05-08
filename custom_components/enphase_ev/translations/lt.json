@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Laukiama „Enphase Energy“ baterijos profilio atnaujinimo",
       "description": "Baterijos profilio pakeitimas svetainei {site_id} laukia ilgiau nei {pending_timeout_minutes} min. Debesijos paslauga vis dar gali apdoroti užklausą."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS laikinai pristabdyta",
+      "description": "Heat Pump/HEMS apklausa svetainei {site_id} pristabdyta iki {backoff_until} po {failure_count} autentifikavimo tipo klaidų ({reason}). Wallbox, baterija, šliuzas ir kiti duomenys gali tęstis. Išjunkite Heat Pump įrenginių grupę arba naudokite Clear HEMS Auth Backoff, kai Enphase atsigaus."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Išvalyti HEMS auth backoff",
+      "description": "Išvalo laikiną HEMS/Heat Pump autentifikavimo pauzę be slaptažodžio prisijungimo.",
+      "fields": {
+        "device_id": {
+          "name": "Svetainės įrenginiai",
+          "description": "Pasirinkite Enphase svetainės įrenginį, kurio HEMS auth backoff reikia išvalyti."
+        },
+        "site_id": {
+          "name": "Svetainės ID",
+          "description": "Pasirenkamas svetainės identifikatorius; aptinkamas automatiškai pasirinkus įrenginį."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Sėkminga",
+            "description": "Ar HEMS auth backoff buvo išvalytas."
+          },
+          "site_id": {
+            "name": "Svetainės ID",
+            "description": "Pasirenkamas svetainės identifikatorius; aptinkamas automatiškai pasirinkus įrenginį."
+          },
+          "reason": {
+            "name": "Priežastis",
+            "description": "Išvalymo užklausos priežastis arba būsena."
+          },
+          "retry_after_seconds": {
+            "name": "Bandyti dar kartą po sekundžių",
+            "description": "Sekundės, kurias reikia palaukti prieš bandant dar kartą."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS backoff iki",
+            "description": "Ankstesnis HEMS pauzės pabaigos laikas, jei pauzė buvo aktyvi."
+          }
         }
       }
     }

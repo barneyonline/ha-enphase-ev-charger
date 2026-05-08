@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Εκκρεμεί ενημέρωση προφίλ μπαταρίας Enphase Energy",
       "description": "Μια αλλαγή προφίλ μπαταρίας για την εγκατάσταση {site_id} εκκρεμεί για περισσότερο από {pending_timeout_minutes} λεπτά. Το cloud ενδέχεται να επεξεργάζεται ακόμη το αίτημα."
+    },
+    "hems_auth_degraded": {
+      "title": "Το Enphase Energy HEMS έχει παυθεί προσωρινά",
+      "description": "Η ανάκτηση Heat Pump/HEMS για την εγκατάσταση {site_id} έχει παυθεί έως {backoff_until} μετά από {failure_count} σφάλματα τύπου πιστοποίησης ({reason}). Wallbox, μπαταρία, πύλη και άλλα δεδομένα μπορούν να συνεχίσουν. Απενεργοποιήστε την ομάδα Heat Pump ή χρησιμοποιήστε Clear HEMS Auth Backoff όταν ανακάμψει το Enphase."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Εκκαθάριση HEMS auth backoff",
+      "description": "Καθαρίζει την προσωρινή παύση πιστοποίησης HEMS/Heat Pump χωρίς είσοδο με κωδικό.",
+      "fields": {
+        "device_id": {
+          "name": "Συσκευές εγκατάστασης",
+          "description": "Επιλέξτε συσκευή εγκατάστασης Enphase για εκκαθάριση HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "ID εγκατάστασης",
+          "description": "Προαιρετικό αναγνωριστικό εγκατάστασης, εντοπίζεται αυτόματα όταν επιλεγεί συσκευή."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Επιτυχία",
+            "description": "Αν καθαρίστηκε το HEMS auth backoff."
+          },
+          "site_id": {
+            "name": "ID εγκατάστασης",
+            "description": "Προαιρετικό αναγνωριστικό εγκατάστασης, εντοπίζεται αυτόματα όταν επιλεγεί συσκευή."
+          },
+          "reason": {
+            "name": "Αιτία",
+            "description": "Αιτία ή κατάσταση του αιτήματος εκκαθάρισης."
+          },
+          "retry_after_seconds": {
+            "name": "Δοκιμή ξανά σε δευτερόλεπτα",
+            "description": "Δευτερόλεπτα αναμονής πριν από νέα προσπάθεια."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS backoff έως",
+            "description": "Προηγούμενη ώρα λήξης της παύσης HEMS, αν ήταν ενεργή."
+          }
         }
       }
     }

@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Update van Enphase Energy-batterijprofiel in behandeling",
       "description": "Een wijziging van het batterijprofiel voor locatie {site_id} staat al langer dan {pending_timeout_minutes} minuten in behandeling. De cloud verwerkt de aanvraag mogelijk nog."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS tijdelijk gepauzeerd",
+      "description": "Heat Pump/HEMS-polling voor site {site_id} is gepauzeerd tot {backoff_until} na {failure_count} auth-achtige fouten ({reason}). Wallbox, batterij, gateway en andere gegevens kunnen doorgaan. Schakel de Heat Pump-apparaatgroep uit of gebruik Clear HEMS Auth Backoff nadat Enphase is hersteld."
     }
   },
   "system_health": {
@@ -2710,6 +2714,44 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "HEMS auth backoff wissen",
+      "description": "Wist de tijdelijke HEMS/Heat Pump-authenticatiepauze zonder wachtwoordlogin.",
+      "fields": {
+        "device_id": {
+          "name": "Site-apparaten",
+          "description": "Selecteer een Enphase site-apparaat waarvoor HEMS auth backoff moet worden gewist."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een apparaat is geselecteerd."
+        }
+      },
+      "response": {
+        "fields": {
+          "success": {
+            "name": "Geslaagd",
+            "description": "Of de HEMS-authenticatiebackoff is gewist."
+          },
+          "site_id": {
+            "name": "Site-ID",
+            "description": "Optionele site-id; automatisch gedetecteerd wanneer een apparaat is geselecteerd."
+          },
+          "reason": {
+            "name": "Reden",
+            "description": "Reden of status van het wisverzoek."
+          },
+          "retry_after_seconds": {
+            "name": "Opnieuw proberen na seconden",
+            "description": "Aantal seconden wachten voordat opnieuw wordt geprobeerd."
+          },
+          "hems_backoff_until": {
+            "name": "HEMS-backoff tot",
+            "description": "Vorige eindtijd van de HEMS-pauze, als die actief was."
+          }
         }
       }
     }

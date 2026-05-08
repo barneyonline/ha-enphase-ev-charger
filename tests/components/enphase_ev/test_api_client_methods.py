@@ -10,7 +10,6 @@ import hashlib
 from http.cookies import SimpleCookie
 import json
 import logging
-import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -145,92 +144,6 @@ def test_request_count_reset_and_snapshot() -> None:
     client.reset_request_count()
 
     assert client.request_count == 0
-
-
-def test_hems_auth_refresh_suppression_expires() -> None:
-    client = _make_client()
-    client._hems_auth_refresh_suppressed_until = time.monotonic() - 1  # noqa: SLF001
-
-    assert client._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
-    assert client._hems_auth_refresh_suppressed_until is None  # noqa: SLF001
-
-
-def test_hems_auth_refresh_suppression_repairs_missing_timestamp(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    client = _make_client()
-    client._hems_auth_refresh_suppressed_last_mono = (
-        time.monotonic() - 10
-    )  # noqa: SLF001
-
-    with caplog.at_level(logging.WARNING, logger=api._LOGGER.name):
-        assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
-
-    assert client._hems_auth_refresh_suppressed_until is not None  # noqa: SLF001
-    assert "HEMS auth refresh suppression timestamp was missing" in caplog.text
-
-
-def test_hems_auth_refresh_suppression_uses_registered_callbacks() -> None:
-    client = _make_client()
-    state = {"active": False, "suppressed": 0}
-
-    def _active() -> bool:
-        return state["active"]
-
-    def _suppress() -> None:
-        state["active"] = True
-        state["suppressed"] += 1
-
-    client.set_hems_auth_refresh_suppression_callbacks(
-        active_callback=_active,
-        suppress_callback=_suppress,
-    )
-
-    assert client._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
-    client._suppress_hems_auth_refresh_after_success()  # noqa: SLF001
-
-    assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
-    assert state["suppressed"] == 1
-
-
-def test_hems_auth_refresh_suppression_active_callback_failure_falls_back(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    client = _make_client()
-    client._hems_auth_refresh_suppressed_until = time.monotonic() + 30  # noqa: SLF001
-
-    def _active() -> bool:
-        raise RuntimeError("boom")
-
-    client.set_hems_auth_refresh_suppression_callbacks(
-        active_callback=_active,
-        suppress_callback=None,
-    )
-
-    with caplog.at_level(logging.DEBUG, logger=api._LOGGER.name):
-        assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
-
-    assert "HEMS auth refresh suppression callback failed" in caplog.text
-
-
-def test_hems_auth_refresh_suppression_suppress_callback_failure_uses_local(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    client = _make_client()
-
-    def _suppress() -> None:
-        raise RuntimeError("boom")
-
-    client.set_hems_auth_refresh_suppression_callbacks(
-        active_callback=None,
-        suppress_callback=_suppress,
-    )
-
-    with caplog.at_level(logging.DEBUG, logger=api._LOGGER.name):
-        client._suppress_hems_auth_refresh_after_success()  # noqa: SLF001
-
-    assert client._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
-    assert "HEMS auth refresh suppression callback failed" in caplog.text
 
 
 def test_safe_response_error_message_handles_header_failures() -> None:
@@ -1643,7 +1556,7 @@ async def test_evse_feature_flags_login_wall_raises_unauthorized() -> None:
 
 
 @pytest.mark.asyncio
-async def test_optional_heat_pump_events_login_wall_soft_fails() -> None:
+async def test_optional_heat_pump_events_login_wall_raises_auth_failure() -> None:
     session = _FakeSession(
         [
             _FakeResponse(
@@ -1660,7 +1573,8 @@ async def test_optional_heat_pump_events_login_wall_soft_fails() -> None:
     session._responses[0].headers["Content-Type"] = "application/json; charset=utf-8"
     client = api.EnphaseEVClient(session, "SITE", None, None)
 
-    assert await client.heat_pump_events_json("device-1") is None
+    with pytest.raises(api.EnphaseLoginWallUnauthorized):
+        await client.heat_pump_events_json("device-1")
 
 
 @pytest.mark.asyncio
@@ -1751,11 +1665,9 @@ async def test_json_reauth_retry_rebuilds_callable_headers() -> None:
 
 
 @pytest.mark.asyncio
-async def test_json_hems_401_suppresses_repeated_password_refreshes() -> None:
+async def test_json_hems_401_does_not_attempt_password_refresh() -> None:
     session = _FakeSession(
         [
-            _FakeResponse(status=401, json_body={}),
-            _FakeResponse(status=200, json_body={"ok": True}),
             _FakeResponse(status=401, json_body={}),
         ]
     )
@@ -1763,71 +1675,21 @@ async def test_json_hems_401_suppresses_repeated_password_refreshes() -> None:
     reauth = AsyncMock(return_value=True)
     client.set_reauth_callback(reauth)
 
-    payload = await client._json(
-        "GET",
-        "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
-    )
-
-    assert payload == {"ok": True}
     with pytest.raises(api.Unauthorized):
         await client._json(
             "GET",
             "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
         )
-    reauth.assert_awaited_once_with()
-    assert len(session.calls) == 3
+
+    reauth.assert_not_awaited()
+    assert len(session.calls) == 1
 
 
 @pytest.mark.asyncio
-async def test_json_hems_401_suppression_survives_client_state_reset() -> None:
+async def test_json_hems_reauth_disabled_does_not_affect_other_endpoints() -> None:
     session = _FakeSession(
         [
             _FakeResponse(status=401, json_body={}),
-            _FakeResponse(status=200, json_body={"ok": True}),
-            _FakeResponse(status=401, json_body={}),
-        ]
-    )
-    client = api.EnphaseEVClient(session, "SITE", None, None)
-    reauth = AsyncMock(return_value=True)
-    suppressed_until: float | None = None
-
-    def _active() -> bool:
-        return (
-            isinstance(suppressed_until, float) and time.monotonic() < suppressed_until
-        )
-
-    def _suppress() -> None:
-        nonlocal suppressed_until
-        suppressed_until = time.monotonic() + 300
-
-    client.set_reauth_callback(reauth)
-    client.set_hems_auth_refresh_suppression_callbacks(
-        active_callback=_active,
-        suppress_callback=_suppress,
-    )
-
-    payload = await client._json(
-        "GET",
-        "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
-    )
-    client._hems_auth_refresh_suppressed_until = None  # noqa: SLF001
-
-    assert payload == {"ok": True}
-    with pytest.raises(api.Unauthorized):
-        await client._json(
-            "GET",
-            "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
-        )
-    reauth.assert_awaited_once_with()
-    assert len(session.calls) == 3
-
-
-@pytest.mark.asyncio
-async def test_json_hems_refresh_suppression_does_not_affect_other_endpoints() -> None:
-    session = _FakeSession(
-        [
-            _FakeResponse(status=401, json_body={}),
-            _FakeResponse(status=200, json_body={"ok": True}),
             _FakeResponse(status=401, json_body={}),
             _FakeResponse(status=200, json_body={"other": True}),
         ]
@@ -1836,14 +1698,15 @@ async def test_json_hems_refresh_suppression_does_not_affect_other_endpoints() -
     reauth = AsyncMock(return_value=True)
     client.set_reauth_callback(reauth)
 
-    await client._json(
-        "GET",
-        "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
-    )
+    with pytest.raises(api.Unauthorized):
+        await client._json(
+            "GET",
+            "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+        )
     payload = await client._json("GET", "https://example.test/other")
 
     assert payload == {"other": True}
-    assert reauth.await_count == 2
+    assert reauth.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -7123,6 +6986,15 @@ async def test_hems_consumption_lifetime_uses_systems_json_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hems_consumption_lifetime_unauthorized_reraises() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=api.Unauthorized())
+
+    with pytest.raises(api.Unauthorized):
+        await client.hems_consumption_lifetime()
+
+
+@pytest.mark.asyncio
 async def test_hems_heatpump_state_normalization_and_headers() -> None:
     client = _make_client()
     cookie_token = _make_token({"user_id": "user-123"})
@@ -7224,7 +7096,7 @@ def test_hems_heatpump_state_normalizers_cover_edge_cases() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("side_effect", [api.Unauthorized(), _make_cre(404)])
+@pytest.mark.parametrize("side_effect", [_make_cre(404)])
 async def test_hems_heatpump_state_optional_failures_return_none(
     monkeypatch, side_effect
 ) -> None:
@@ -7232,6 +7104,20 @@ async def test_hems_heatpump_state_optional_failures_return_none(
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
 
     assert await client.hems_heatpump_state("HP-1") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "side_effect", [api.Unauthorized(), _make_cre(401), _make_cre(403)]
+)
+async def test_hems_heatpump_state_auth_failures_reraise(
+    monkeypatch, side_effect
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.hems_heatpump_state("HP-1")
 
 
 @pytest.mark.asyncio
@@ -7511,14 +7397,22 @@ async def test_hems_energy_consumption_optional_and_reraise_variants() -> None:
     client = _make_client()
     client._json = AsyncMock(side_effect=api.Unauthorized())
 
-    assert (
+    with pytest.raises(api.Unauthorized):
         await client.hems_energy_consumption(
             start_at="2026-03-20T00:00:00+01:00",
             end_at="2026-03-21T00:00:00+01:00",
             timezone="Europe/Berlin",
         )
-        is None
-    )
+
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(403))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_energy_consumption(
+            start_at="2026-03-20T00:00:00+01:00",
+            end_at="2026-03-21T00:00:00+01:00",
+            timezone="Europe/Berlin",
+        )
 
     client = _make_client()
     invalid_json = api.InvalidPayloadError(
@@ -7586,6 +7480,37 @@ async def test_pv_system_today_normalization_and_headers() -> None:
     headers = kwargs["headers"]()
     assert headers["Accept"] == "application/json, text/javascript, */*; q=0.01"
     assert "/web/SITE/today/graph/hours" in headers["Referer"]
+    assert kwargs["allow_reauth"] is True
+
+
+@pytest.mark.asyncio
+async def test_pv_system_today_can_disable_reauth() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"stats": []})
+
+    assert await client.pv_system_today(allow_reauth=False) == {"stats": []}
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["allow_reauth"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        api.Unauthorized(),
+        _make_cre(401, "Unauthorized"),
+        _make_cre(403, "Forbidden"),
+    ],
+)
+async def test_pv_system_today_auth_errors_reraise_when_reauth_disabled(
+    error,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.pv_system_today(allow_reauth=False)
 
 
 @pytest.mark.asyncio
@@ -7695,6 +7620,55 @@ async def test_system_dashboard_summary_sets_hems_support_hint() -> None:
     assert kwargs["headers"]["Authorization"] == "Bearer BEAR"
     assert kwargs["headers"]["e-auth-token"] == "EAUTH"
     assert kwargs["headers"]["X-CSRF-Token"] == "xsrf"
+    assert kwargs["allow_reauth"] is True
+
+
+@pytest.mark.asyncio
+async def test_system_dashboard_summary_can_disable_reauth() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"is_hems": True})
+
+    assert await client.system_dashboard_summary(allow_reauth=False) == {
+        "is_hems": True
+    }
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["allow_reauth"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        api.Unauthorized(),
+        api.EnphaseLoginWallUnauthorized(
+            endpoint="/service/system_dashboard/api_internal/cs/sites/SITE/summary",
+            request_label="GET /service/system_dashboard/api_internal/cs/sites/SITE/summary",
+            status=200,
+            content_type="text/html",
+        ),
+        _make_cre(401, "Unauthorized"),
+        _make_cre(403, "Forbidden"),
+    ],
+)
+async def test_system_dashboard_summary_auth_errors_reraise_when_reauth_disabled(
+    error,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.system_dashboard_summary(allow_reauth=False)
+
+
+@pytest.mark.asyncio
+async def test_system_dashboard_summary_optional_404_still_soft_fails_without_reauth() -> (
+    None
+):
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(404, "Not found"))
+
+    assert await client.system_dashboard_summary(allow_reauth=False) is None
 
 
 @pytest.mark.asyncio
@@ -7739,15 +7713,27 @@ async def test_hems_devices_returns_none_when_payload_not_dict() -> None:
 
 
 @pytest.mark.asyncio
-async def test_hems_devices_returns_none_on_unauthorized() -> None:
+async def test_hems_devices_raises_on_unauthorized() -> None:
     client = _make_client()
     client._json = AsyncMock(side_effect=api.Unauthorized("nope"))
 
-    assert await client.hems_devices() is None
+    with pytest.raises(api.Unauthorized):
+        await client.hems_devices()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 403, 404])
+@pytest.mark.parametrize("status", [401, 403])
+async def test_hems_devices_auth_errors_reraise(monkeypatch, status) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_devices()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [404])
 async def test_hems_devices_optional_errors_return_none(monkeypatch, status) -> None:
     client = _make_client()
     err = _make_cre(status, "Unavailable")
@@ -7816,7 +7802,42 @@ async def test_show_livestream_returns_capability_payload() -> None:
         "GET",
         f"{api.BASE_URL}/app-api/SITE/show_livestream",
         headers=client._system_dashboard_headers(),
+        allow_reauth=True,
     )
+
+
+@pytest.mark.asyncio
+async def test_show_livestream_can_disable_reauth() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"live_status": True})
+
+    assert await client.show_livestream(allow_reauth=False) == {"live_status": True}
+
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/show_livestream",
+        headers=client._system_dashboard_headers(),
+        allow_reauth=False,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        api.Unauthorized(),
+        _make_cre(401, "Unauthorized"),
+        _make_cre(403, "Forbidden"),
+    ],
+)
+async def test_show_livestream_auth_errors_reraise_when_reauth_disabled(
+    error,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.show_livestream(allow_reauth=False)
 
 
 @pytest.mark.asyncio
@@ -7932,7 +7953,6 @@ async def test_events_json_returns_none_for_blank_device_uid(method_name) -> Non
 @pytest.mark.parametrize(
     "side_effect_factory",
     [
-        lambda endpoint: api.Unauthorized(),
         _make_optional_payload_error,
         lambda _endpoint: _make_cre(404, "Unavailable"),
     ],
@@ -7949,6 +7969,27 @@ async def test_events_json_returns_none_for_optional_failures(
 
     method = getattr(client, method_name)
     assert await method(uid) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method_name", "uid", "side_effect"),
+    [
+        ("heat_pump_events_json", "HP-1", api.Unauthorized()),
+        ("iq_er_events_json", "HP-SG", api.Unauthorized()),
+        ("heat_pump_events_json", "HP-1", _make_cre(401)),
+        ("iq_er_events_json", "HP-SG", _make_cre(403)),
+    ],
+)
+async def test_events_json_auth_failures_reraise(
+    monkeypatch, method_name, uid, side_effect
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
+
+    method = getattr(client, method_name)
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await method(uid)
 
 
 @pytest.mark.asyncio
@@ -8369,7 +8410,20 @@ async def test_lifetime_energy_normalization_accepts_alias_fields() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 403, 404])
+@pytest.mark.parametrize("status", [401, 403])
+async def test_hems_consumption_lifetime_auth_errors_reraise(
+    monkeypatch, status
+) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_consumption_lifetime()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [404])
 async def test_hems_consumption_lifetime_optional_errors_return_none(
     monkeypatch, status
 ) -> None:
@@ -8534,7 +8588,17 @@ async def test_hems_power_timeseries_site_date_falls_back_across_query_variants(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 403, 404])
+@pytest.mark.parametrize("status", [401, 403])
+async def test_hems_power_timeseries_auth_errors_reraise(monkeypatch, status) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=_make_cre(status)))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_power_timeseries()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [404])
 async def test_hems_power_timeseries_optional_errors_return_none(
     monkeypatch, status
 ) -> None:
@@ -8565,11 +8629,12 @@ async def test_hems_power_timeseries_invalid_site_error_returns_none(
 
 
 @pytest.mark.asyncio
-async def test_hems_power_timeseries_unauthorized_returns_none(monkeypatch) -> None:
+async def test_hems_power_timeseries_unauthorized_reraises(monkeypatch) -> None:
     client = _make_client()
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=api.Unauthorized()))
 
-    assert await client.hems_power_timeseries() is None
+    with pytest.raises(api.Unauthorized):
+        await client.hems_power_timeseries()
 
 
 @pytest.mark.asyncio
@@ -8680,7 +8745,7 @@ async def test_hems_power_timeseries_retry_invalid_date_422_returns_none() -> No
 
 
 @pytest.mark.asyncio
-async def test_hems_power_timeseries_retry_unauthorized_returns_none() -> None:
+async def test_hems_power_timeseries_retry_unauthorized_reraises() -> None:
     client = _make_client()
     client._json = AsyncMock(
         side_effect=[
@@ -8689,7 +8754,8 @@ async def test_hems_power_timeseries_retry_unauthorized_returns_none() -> None:
         ]
     )
 
-    assert await client.hems_power_timeseries(device_uid="HP-1") is None
+    with pytest.raises(api.Unauthorized):
+        await client.hems_power_timeseries(device_uid="HP-1")
     assert client._json.await_count == 2
 
 

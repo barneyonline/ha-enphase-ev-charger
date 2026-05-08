@@ -59,11 +59,17 @@ class EnergyManager:
         site_id: str,
         logger: logging.Logger,
         summary_invalidator: Callable[[], None] | None = None,
+        hems_auth_skip: Callable[[str], bool] | None = None,
+        hems_auth_failure: Callable[[BaseException, str], bool] | None = None,
+        hems_auth_success: Callable[[str], None] | None = None,
     ) -> None:
         self._client_provider = client_provider
         self.site_id = site_id
         self._logger = logger
         self._summary_invalidator = summary_invalidator
+        self._hems_auth_skip = hems_auth_skip
+        self._hems_auth_failure = hems_auth_failure
+        self._hems_auth_success = hems_auth_success
         self.site_energy: dict[str, SiteEnergyFlow] = {}
         self._site_energy_meta: dict[str, object] = {}
         self._site_energy_cache_ts: float | None = None
@@ -876,12 +882,21 @@ class EnergyManager:
                     if (
                         self._hems_lifetime_supported is False
                         or self._hems_lifetime_backoff_active()
+                        or (
+                            self._hems_auth_skip is not None
+                            and self._hems_auth_skip("hems_consumption_lifetime")
+                        )
                     ):
                         hems_payload = None
                     else:
                         try:
                             hems_payload = await hems_fetcher()
                         except Exception as err:  # noqa: BLE001
+                            if self._hems_auth_failure is not None:
+                                self._hems_auth_failure(
+                                    err,
+                                    "hems_consumption_lifetime",
+                                )
                             self._note_hems_lifetime_unavailable(err)
                             self._logger.debug(
                                 "Optional HEMS lifetime fallback failed for site %s: %s",
@@ -890,6 +905,8 @@ class EnergyManager:
                             )
                         else:
                             if isinstance(hems_payload, dict):
+                                if self._hems_auth_success is not None:
+                                    self._hems_auth_success("hems_consumption_lifetime")
                                 self._mark_hems_lifetime_available()
                                 payload = self._merge_device_lifetime_channels(
                                     payload, hems_payload

@@ -50,6 +50,7 @@ REGISTERED_SERVICES = (
     "request_grid_toggle_otp",
     "set_grid_mode",
     "clear_reauth_issue",
+    "clear_hems_auth_backoff",
     "try_reauth_now",
     "start_live_stream",
     "stop_live_stream",
@@ -1178,6 +1179,10 @@ def async_setup_services(
         for issue_id in issue_ids:
             ir.async_delete_issue(hass, DOMAIN, issue_id)
 
+    async def _svc_clear_hems_auth_backoff(call: ServiceCall) -> dict[str, object]:
+        coord = await _resolve_single_site_coordinator(call)
+        return await coord.async_clear_hems_auth_backoff()
+
     async def _svc_try_reauth_now(call: ServiceCall) -> dict[str, object]:
         coord = await _resolve_single_site_coordinator(call)
         site_id = str(getattr(coord, "site_id", ""))
@@ -1642,6 +1647,16 @@ def async_setup_services(
     }
     hass.services.async_register(
         DOMAIN, "try_reauth_now", _svc_try_reauth_now, **try_reauth_register_kwargs
+    )
+    clear_hems_auth_backoff_register_kwargs: dict[str, object] = {
+        "schema": CLEAR_SCHEMA,
+        "supports_response": supports_response.OPTIONAL,
+    }
+    hass.services.async_register(
+        DOMAIN,
+        "clear_hems_auth_backoff",
+        _svc_clear_hems_auth_backoff,
+        **clear_hems_auth_backoff_register_kwargs,
     )
     hass.services.async_register(DOMAIN, "start_live_stream", _svc_start_stream)
     hass.services.async_register(DOMAIN, "stop_live_stream", _svc_stop_stream)
