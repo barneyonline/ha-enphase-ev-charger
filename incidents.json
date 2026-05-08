@@ -1,6 +1,6 @@
 {
-  "current_status": "Down",
-  "generated_at": "2026-05-08T05:29:47.710356Z",
+  "current_status": "Degraded",
+  "generated_at": "2026-05-08T07:07:30.175438Z",
   "incidents": [
     {
       "active": false,
@@ -141,7 +141,7 @@
       "status": "Degraded"
     },
     {
-      "active": true,
+      "active": false,
       "duration_minutes": 0,
       "ended_at": null,
       "failed_checks": [
@@ -151,6 +151,18 @@
       "last_seen_at": "2026-05-08T05:29:47.710356Z",
       "started_at": "2026-05-08T05:29:47.710356Z",
       "status": "Down"
+    },
+    {
+      "active": true,
+      "duration_minutes": 0,
+      "ended_at": null,
+      "failed_checks": [
+        "battery_config",
+        "evse_scheduler"
+      ],
+      "last_seen_at": "2026-05-08T07:07:30.175438Z",
+      "started_at": "2026-05-08T07:07:30.175438Z",
+      "status": "Degraded"
     }
   ],
   "retention_days": 30
