@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Enphase Energy -akun profiilin päivitys odottaa",
       "description": "Sivuston {site_id} akun profiilin muutos on ollut odottamassa yli {pending_timeout_minutes} minuuttia. Pilvipalvelu saattaa edelleen käsitellä pyyntöä."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS on tilapäisesti keskeytetty",
+      "description": "Heat Pump/HEMS-kysely kohteelle {site_id} on keskeytetty aikaan {backoff_until} asti {failure_count} todennusluonteisen virheen jälkeen ({reason}). Wallbox, akku, yhdyskäytävä ja muut tiedot voivat jatkua. Poista Heat Pump -laiteryhmä käytöstä tai käytä Clear HEMS Auth Backoff, kun Enphase on palautunut."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Tyhjennä HEMS auth backoff",
+      "description": "Tyhjentää tilapäisen HEMS/Heat Pump -todennustauon ilman salasankirjautumista.",
+      "fields": {
+        "device_id": {
+          "name": "Kohteen laitteet",
+          "description": "Valitse Enphase-kohteen laite, jonka HEMS auth backoff tyhjennetään."
+        },
+        "site_id": {
+          "name": "Kohteen ID",
+          "description": "Valinnainen kohteen tunniste; tunnistetaan automaattisesti, kun laite valitaan."
         }
       }
     }

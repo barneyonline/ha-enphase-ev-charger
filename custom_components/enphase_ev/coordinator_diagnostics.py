@@ -20,6 +20,7 @@ from .const import (
     ISSUE_REAUTH_REQUIRED,
     ISSUE_AUTH_SETTINGS_UNAVAILABLE,
     ISSUE_AUTH_BLOCKED,
+    ISSUE_HEMS_AUTH_DEGRADED,
     ISSUE_TOO_MANY_ACTIVE_SESSIONS,
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
@@ -105,11 +106,6 @@ class CoordinatorDiagnostics:
                 return value.isoformat()
             except Exception:
                 return str(value)
-
-        def _seconds_until(value: object) -> float | None:
-            if not isinstance(value, (int, float)):
-                return None
-            return max(0.0, round(float(value) - time.monotonic(), 3))
 
         def _safe_bool_call(name: str) -> bool:
             func = getattr(coord, name, None)
@@ -267,6 +263,7 @@ class CoordinatorDiagnostics:
             tariff_service_status = "degraded" if tariff_degraded else "available"
             tariff_available = not tariff_degraded
 
+        hems_auth_backoff_remaining_s = coord._hems_auth_backoff_remaining_s()
         metrics: dict[str, object] = {
             "site_id": coord.site_id,
             "site_name": coord.site_name,
@@ -324,12 +321,35 @@ class CoordinatorDiagnostics:
             "auth_refresh_recent_success_active": _safe_bool_call(
                 "_auth_refresh_recent_success_active"
             ),
-            "hems_auth_refresh_suppressed_active": _safe_bool_call(
-                "_hems_auth_refresh_suppressed_active"
+            "auth_refresh_last_attempt_utc": _iso(
+                getattr(coord, "_auth_refresh_last_attempt_utc", None)
             ),
-            "hems_auth_refresh_suppressed_remaining_s": _seconds_until(
-                getattr(coord, "_hems_auth_refresh_suppressed_until", None)
+            "auth_refresh_last_success_utc": _iso(
+                getattr(coord, "_auth_refresh_last_success_utc", None)
             ),
+            "auth_refresh_last_failure_reason": getattr(
+                coord, "_auth_refresh_last_failure_reason", None
+            ),
+            "last_unauthorized_request": getattr(
+                getattr(coord, "client", None),
+                "last_unauthorized_request",
+                None,
+            ),
+            "hems_auth_backoff_remaining_s": hems_auth_backoff_remaining_s,
+            "hems_auth_circuit_active": hems_auth_backoff_remaining_s is not None,
+            "hems_auth_backoff_until": _iso(
+                getattr(coord, "_hems_auth_backoff_ends_utc", None)
+            ),
+            "hems_auth_failure_count": getattr(coord, "_hems_auth_failure_count", 0),
+            "hems_auth_last_failure_utc": _iso(
+                getattr(coord, "_hems_auth_last_failure_utc", None)
+            ),
+            "hems_auth_last_success_utc": _iso(
+                getattr(coord, "_hems_auth_last_success_utc", None)
+            ),
+            "hems_auth_last_endpoint": getattr(coord, "_hems_auth_last_endpoint", None),
+            "hems_auth_last_status": getattr(coord, "_hems_auth_last_status", None),
+            "hems_auth_last_reason": getattr(coord, "_hems_auth_last_reason", None),
             "auth_blocked_active": coord._auth_block_active(),
             "auth_blocked_until": _iso(getattr(coord, "_auth_blocked_until_utc", None)),
             "auth_block_reason": getattr(coord, "_auth_block_reason", None),
@@ -908,6 +928,8 @@ class CoordinatorDiagnostics:
         ]
         if tariff_service_status == "degraded":
             degraded_services.append(TARIFF_ENDPOINT_FAMILY)
+        if metrics.get("hems_auth_circuit_active"):
+            degraded_services.append("hems_auth")
         degraded_services.extend(
             family
             for family in degraded_endpoint_families
@@ -959,6 +981,18 @@ class CoordinatorDiagnostics:
         blocked_until = metrics.get("auth_blocked_until")
         if blocked_until:
             placeholders["blocked_until"] = str(blocked_until)
+        hems_backoff_until = metrics.get("hems_auth_backoff_until")
+        if hems_backoff_until:
+            placeholders["hems_backoff_until"] = str(hems_backoff_until)
+            placeholders["backoff_until"] = str(hems_backoff_until)
+        hems_failure_count = metrics.get("hems_auth_failure_count")
+        if hems_failure_count is not None:
+            placeholders["hems_failure_count"] = str(hems_failure_count)
+            placeholders["failure_count"] = str(hems_failure_count)
+        hems_reason = metrics.get("hems_auth_last_reason")
+        if hems_reason:
+            placeholders["hems_reason"] = str(hems_reason)
+            placeholders["reason"] = str(hems_reason)
         backoff_ends = metrics.get("backoff_ends_utc")
         if backoff_ends:
             placeholders["backoff_ends"] = str(backoff_ends)
@@ -1287,6 +1321,36 @@ class CoordinatorDiagnostics:
     def clear_auth_block_issue(self) -> None:
         self._clear_reported_issue("_auth_block_issue_reported", ISSUE_AUTH_BLOCKED)
         self._delete_issue(ISSUE_TOO_MANY_ACTIVE_SESSIONS)
+
+    def clear_hems_auth_degraded_issue(self) -> None:
+        self._clear_reported_issue(
+            "_hems_auth_issue_reported",
+            ISSUE_HEMS_AUTH_DEGRADED,
+        )
+
+    def create_hems_auth_degraded_issue(self) -> None:
+        coord = self.coordinator
+        placeholders: dict[str, str] = {}
+        backoff_until = coord._format_auth_blocked_until(
+            getattr(coord, "_hems_auth_backoff_ends_utc", None)
+        )
+        if backoff_until:
+            placeholders["backoff_until"] = backoff_until
+        placeholders["failure_count"] = str(
+            int(getattr(coord, "_hems_auth_failure_count", 0) or 0)
+        )
+        reason = getattr(coord, "_hems_auth_last_reason", None)
+        if reason:
+            placeholders["reason"] = str(reason)
+        # Backoff expiry and failure count change as repeated HEMS auth failures
+        # escalate, so refresh the existing repair issue instead of keeping stale
+        # placeholders from the first failure.
+        self._create_site_metrics_issue(
+            ISSUE_HEMS_AUTH_DEGRADED,
+            severity=ir.IssueSeverity.WARNING,
+            placeholders=placeholders,
+        )
+        coord._hems_auth_issue_reported = True
 
     def create_auth_block_issue(self) -> None:
         coord = self.coordinator

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.enphase_ev import inventory_runtime as inventory_runtime_mod
+from custom_components.enphase_ev import api, inventory_runtime as inventory_runtime_mod
 from custom_components.enphase_ev.inventory_runtime import (
     HEMS_DEVICES_STALE_AFTER_S,
     HEMS_INVENTORY_ENDPOINT_FAMILY,
@@ -1519,6 +1519,68 @@ async def test_inventory_runtime_refresh_hems_devices_uses_heatpump_runtime_pref
     runtime._merge_heatpump_type_bucket.assert_called_once_with()  # noqa: SLF001
     assert runtime._hems_inventory_ready is True  # noqa: SLF001
     assert runtime._hems_devices_payload is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_hems_devices_stops_after_preflight_auth_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+
+    async def _open_auth_circuit(*, force: bool = False) -> None:
+        assert force is True
+        coord._note_hems_auth_failure(  # noqa: SLF001
+            api.Unauthorized(),
+            endpoint="hems_support_preflight",
+        )
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=_open_auth_circuit
+    )
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("unused"))
+
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    coord.client.hems_devices.assert_not_awaited()
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_skips_hems_devices_during_auth_circuit(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+    coord._hems_auth_backoff_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("unused"))
+
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    coord.client.hems_devices.assert_not_awaited()
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
+    assert runtime.hems_devices_refresh_due(force=True) is False
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_hems_devices_auth_failure_uses_circuit(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=api.Unauthorized())
+
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio

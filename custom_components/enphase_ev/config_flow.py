@@ -41,6 +41,13 @@ from .const import (
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_HEMS_AUTH_BACKOFF_UNTIL,
+    CONF_HEMS_AUTH_FAILURE_COUNT,
+    CONF_HEMS_AUTH_LAST_ENDPOINT,
+    CONF_HEMS_AUTH_LAST_FAILURE_UTC,
+    CONF_HEMS_AUTH_LAST_REASON,
+    CONF_HEMS_AUTH_LAST_STATUS,
+    CONF_HEMS_AUTH_LAST_SUCCESS_UTC,
     CONF_HEATPUMP_DISCOVERY_HANDLED,
     CONF_INCLUDE_INVERTERS,
     CONF_REMEMBER_PASSWORD,
@@ -670,6 +677,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         data.pop(CONF_AUTH_REFRESH_SUSPENDED_UNTIL, None)
         data.pop(CONF_AUTH_BLOCKED_UNTIL, None)
         data.pop(CONF_AUTH_BLOCK_REASON, None)
+        data.pop(CONF_HEMS_AUTH_BACKOFF_UNTIL, None)
+        data.pop(CONF_HEMS_AUTH_FAILURE_COUNT, None)
+        data.pop(CONF_HEMS_AUTH_LAST_FAILURE_UTC, None)
+        data.pop(CONF_HEMS_AUTH_LAST_SUCCESS_UTC, None)
+        data.pop(CONF_HEMS_AUTH_LAST_ENDPOINT, None)
+        data.pop(CONF_HEMS_AUTH_LAST_STATUS, None)
+        data.pop(CONF_HEMS_AUTH_LAST_REASON, None)
 
         await self.async_set_unique_id(self._selected_site_id)
 
@@ -725,6 +739,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
             merged.pop(CONF_AUTH_REFRESH_SUSPENDED_UNTIL, None)
             merged.pop(CONF_AUTH_BLOCKED_UNTIL, None)
             merged.pop(CONF_AUTH_BLOCK_REASON, None)
+            merged.pop(CONF_HEMS_AUTH_BACKOFF_UNTIL, None)
+            merged.pop(CONF_HEMS_AUTH_FAILURE_COUNT, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_FAILURE_UTC, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_SUCCESS_UTC, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_ENDPOINT, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_STATUS, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_REASON, None)
             if not self._remember_password:
                 merged.pop(CONF_PASSWORD, None)
                 return self.async_update_reload_and_abort(

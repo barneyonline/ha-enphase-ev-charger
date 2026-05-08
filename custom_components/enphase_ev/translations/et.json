@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Enphase Energy aku profiili uuendus on ootel",
       "description": "Asukoha {site_id} aku profiili muudatus on olnud ootel üle {pending_timeout_minutes} minuti. Pilveteenus võib päringut endiselt töödelda."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS on ajutiselt peatatud",
+      "description": "Heat Pump/HEMS päringud saidile {site_id} on peatatud kuni {backoff_until} pärast {failure_count} autentimislaadset tõrget ({reason}). Wallbox, aku, lüüs ja muud andmed võivad jätkata. Keela Heat Pump seadmerühm või kasuta Clear HEMS Auth Backoff pärast Enphase taastumist."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Tühjenda HEMS auth backoff",
+      "description": "Tühjendab ajutise HEMS/Heat Pump autentimispausi ilma parooliga sisselogimiseta.",
+      "fields": {
+        "device_id": {
+          "name": "Saidi seadmed",
+          "description": "Vali Enphase saidi seade, mille HEMS auth backoff tühjendada."
+        },
+        "site_id": {
+          "name": "Saidi ID",
+          "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt seadme valimisel."
         }
       }
     }

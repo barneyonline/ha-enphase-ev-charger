@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Uppdatering av Enphase Energy-batteriprofil väntar",
       "description": "En ändring av batteriprofilen för anläggning {site_id} har varit väntande i mer än {pending_timeout_minutes} minuter. Molntjänsten kan fortfarande bearbeta begäran."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS är tillfälligt pausat",
+      "description": "Heat Pump/HEMS-pollning för plats {site_id} är pausad till {backoff_until} efter {failure_count} auth-liknande fel ({reason}). Wallbox, batteri, gateway och andra data kan fortsätta. Inaktivera Heat Pump-enhetsgruppen eller använd Clear HEMS Auth Backoff när Enphase har återhämtat sig."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Rensa HEMS auth backoff",
+      "description": "Rensar den tillfälliga HEMS/Heat Pump-autentiseringspausen utan lösenordsinloggning.",
+      "fields": {
+        "device_id": {
+          "name": "Platsenheter",
+          "description": "Välj en Enphase-platsenhet vars HEMS auth backoff ska rensas."
+        },
+        "site_id": {
+          "name": "Plats-ID",
+          "description": "Valfri platsidentifierare; identifieras automatiskt när en enhet väljs."
         }
       }
     }

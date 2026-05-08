@@ -56,6 +56,13 @@ from .const import (
     DEFAULT_NOMINAL_VOLTAGE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_HEMS_AUTH_BACKOFF_UNTIL,
+    CONF_HEMS_AUTH_FAILURE_COUNT,
+    CONF_HEMS_AUTH_LAST_ENDPOINT,
+    CONF_HEMS_AUTH_LAST_FAILURE_UTC,
+    CONF_HEMS_AUTH_LAST_REASON,
+    CONF_HEMS_AUTH_LAST_STATUS,
+    CONF_HEMS_AUTH_LAST_SUCCESS_UTC,
     CONF_INCLUDE_INVERTERS,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
@@ -80,6 +87,8 @@ from .const import (
     DRY_CONTACT_SETTINGS_STALE_AFTER_S,
     DOMAIN,
     GRID_CONTROL_CHECK_STALE_AFTER_S,
+    HEMS_AUTH_BACKOFF_STEPS_S,
+    HEMS_AUTH_MANUAL_CLEAR_COOLDOWN_S,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_NOMINAL_VOLTAGE,
@@ -595,6 +604,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         auth_block_reason = (
             str(raw_auth_block_reason).strip() if raw_auth_block_reason else None
         )
+        hems_auth_backoff_until = self._coerce_utc_datetime(
+            config.get(CONF_HEMS_AUTH_BACKOFF_UNTIL)
+        )
+        hems_auth_last_failure_utc = self._coerce_utc_datetime(
+            config.get(CONF_HEMS_AUTH_LAST_FAILURE_UTC)
+        )
+        hems_auth_last_success_utc = self._coerce_utc_datetime(
+            config.get(CONF_HEMS_AUTH_LAST_SUCCESS_UTC)
+        )
+        raw_hems_auth_failure_count = config.get(CONF_HEMS_AUTH_FAILURE_COUNT, 0)
+        try:
+            hems_auth_failure_count = max(0, int(raw_hems_auth_failure_count or 0))
+        except (TypeError, ValueError):
+            hems_auth_failure_count = 0
+        raw_hems_auth_last_status = config.get(CONF_HEMS_AUTH_LAST_STATUS)
+        try:
+            hems_auth_last_status = (
+                int(raw_hems_auth_last_status)
+                if raw_hems_auth_last_status not in (None, "")
+                else None
+            )
+        except (TypeError, ValueError):
+            hems_auth_last_status = None
+        raw_hems_auth_last_endpoint = config.get(CONF_HEMS_AUTH_LAST_ENDPOINT)
+        raw_hems_auth_last_reason = config.get(CONF_HEMS_AUTH_LAST_REASON)
         timeout = DEFAULT_API_TIMEOUT
         if config_entry:
             timeout = helper_coerce_int(
@@ -616,22 +650,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 try:
                     self.hass.async_create_task(
                         result, name=f"{DOMAIN}_set_reauth_callback"
-                    )
-                except TypeError:
-                    self.hass.async_create_task(result)
-        set_hems_suppression_callbacks = getattr(
-            self.client, "set_hems_auth_refresh_suppression_callbacks", None
-        )
-        if callable(set_hems_suppression_callbacks):
-            result = set_hems_suppression_callbacks(
-                active_callback=self._hems_auth_refresh_suppressed_active,
-                suppress_callback=self._suppress_hems_auth_refresh_after_success,
-            )
-            if inspect.isawaitable(result):
-                try:
-                    self.hass.async_create_task(
-                        result,
-                        name=f"{DOMAIN}_set_hems_auth_refresh_suppression_callbacks",
                     )
                 except TypeError:
                     self.hass.async_create_task(result)
@@ -669,6 +687,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_refresh_suspended_until_utc = auth_refresh_suspended_until
         self._auth_blocked_until_utc = auth_blocked_until
         self._auth_block_reason = auth_block_reason
+        self._hems_auth_failure_count = hems_auth_failure_count
+        self._hems_auth_last_failure_utc = hems_auth_last_failure_utc
+        self._hems_auth_last_success_utc = hems_auth_last_success_utc
+        self._hems_auth_last_endpoint = (
+            str(raw_hems_auth_last_endpoint).strip()
+            if raw_hems_auth_last_endpoint
+            else None
+        )
+        self._hems_auth_last_status = hems_auth_last_status
+        self._hems_auth_last_reason = (
+            str(raw_hems_auth_last_reason).strip()
+            if raw_hems_auth_last_reason
+            else None
+        )
+        self._hems_auth_backoff_ends_utc = hems_auth_backoff_until
+        self._hems_auth_backoff_until = None
+        if isinstance(hems_auth_backoff_until, datetime):
+            remaining = (hems_auth_backoff_until - dt_util.utcnow()).total_seconds()
+            if remaining > 0:
+                self._hems_auth_backoff_until = time.monotonic() + remaining
         # Nominal voltage for estimated power when API omits voltage; user-configurable
         self._nominal_v = resolve_nominal_voltage_for_hass(hass)
         if config_entry is not None:
@@ -710,6 +748,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             site_id=self.site_id,
             logger=_LOGGER,
             summary_invalidator=self.summary.invalidate,
+            hems_auth_skip=lambda endpoint: self._skip_hems_polling_due_to_auth_circuit(
+                endpoint=endpoint
+            ),
+            hems_auth_failure=lambda err, endpoint: self._note_hems_auth_failure(
+                err,
+                endpoint=endpoint,
+            ),
+            hems_auth_success=lambda endpoint: self._note_hems_auth_success(
+                endpoint=endpoint
+            ),
         )
         self.evse_timeseries = EVSETimeseriesManager(
             hass,
@@ -802,6 +850,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 logger=_LOGGER,
                 summary_invalidator=getattr(
                     getattr(self, "summary", None), "invalidate", None
+                ),
+                hems_auth_skip=lambda endpoint: self._skip_hems_polling_due_to_auth_circuit(
+                    endpoint=endpoint
+                ),
+                hems_auth_failure=lambda err, endpoint: self._note_hems_auth_failure(
+                    err,
+                    endpoint=endpoint,
+                ),
+                hems_auth_success=lambda endpoint: self._note_hems_auth_success(
+                    endpoint=endpoint
                 ),
             )
             self.__dict__["energy"] = energy
@@ -4574,9 +4632,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             merged[CONF_AUTH_BLOCK_REASON] = self._auth_block_reason
         else:
             merged.pop(CONF_AUTH_BLOCK_REASON, None)
-        changed = self.hass.config_entries.async_update_entry(config_entry, data=merged)
-        if changed:
-            self._mark_internal_config_entry_data_update()
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="auth_block",
+        )
 
     def _persist_auth_refresh_suspension_state(self) -> None:
         """Persist stored-credential auto-refresh suspension metadata."""
@@ -4591,17 +4650,111 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             merged[CONF_AUTH_REFRESH_SUSPENDED_UNTIL] = (
                 self._auth_refresh_suspended_until_utc.isoformat()
             )
-        changed = self.hass.config_entries.async_update_entry(config_entry, data=merged)
-        if changed:
-            self._mark_internal_config_entry_data_update()
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="auth_refresh_suspension",
+        )
+
+    def _persist_hems_auth_circuit_state(self) -> None:
+        """Persist optional HEMS auth circuit metadata on the config entry."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return
+        merged = dict(config_entry.data)
+        updates = {
+            CONF_HEMS_AUTH_BACKOFF_UNTIL: (
+                self._hems_auth_backoff_ends_utc.isoformat()
+                if isinstance(self._hems_auth_backoff_ends_utc, datetime)
+                else None
+            ),
+            CONF_HEMS_AUTH_FAILURE_COUNT: (
+                self._hems_auth_failure_count
+                if int(getattr(self, "_hems_auth_failure_count", 0) or 0) > 0
+                else None
+            ),
+            CONF_HEMS_AUTH_LAST_FAILURE_UTC: (
+                self._hems_auth_last_failure_utc.isoformat()
+                if isinstance(self._hems_auth_last_failure_utc, datetime)
+                else None
+            ),
+            CONF_HEMS_AUTH_LAST_SUCCESS_UTC: (
+                self._hems_auth_last_success_utc.isoformat()
+                if isinstance(self._hems_auth_last_success_utc, datetime)
+                else None
+            ),
+            CONF_HEMS_AUTH_LAST_ENDPOINT: self._hems_auth_last_endpoint,
+            CONF_HEMS_AUTH_LAST_STATUS: self._hems_auth_last_status,
+            CONF_HEMS_AUTH_LAST_REASON: self._hems_auth_last_reason,
+        }
+        for key, value in updates.items():
+            if value in (None, ""):
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="hems_auth_circuit",
+        )
+
+    def _async_update_config_entry_data_internal(
+        self,
+        merged: dict[str, object],
+        *,
+        reason: str,
+    ) -> bool:
+        """Persist coordinator-owned config-entry data without reloading the entry."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return False
+        old_data = dict(config_entry.data)
+        changed_keys = sorted(
+            key
+            for key in set(old_data) | set(merged)
+            if old_data.get(key) != merged.get(key)
+        )
+        if not changed_keys:
+            return False
+        self._mark_internal_config_entry_data_update()
+        try:
+            changed = self.hass.config_entries.async_update_entry(
+                config_entry, data=merged
+            )
+        except Exception:
+            self._unmark_internal_config_entry_data_update()
+            raise
+        if not changed:
+            self._unmark_internal_config_entry_data_update()
+            return False
+        _LOGGER.debug(
+            "Persisted internal Enphase config-entry state for site %s (%s): keys=%s",
+            redact_site_id(str(getattr(self, "site_id", ""))),
+            reason,
+            changed_keys,
+        )
+        return True
 
     def _mark_internal_config_entry_data_update(self) -> None:
         """Avoid reloading this entry for coordinator-owned data persistence."""
 
         config_entry = getattr(self, "config_entry", None)
         runtime_data = getattr(config_entry, "runtime_data", None)
-        if hasattr(runtime_data, "skip_reload_once"):
-            runtime_data.skip_reload_once = True
+        if hasattr(runtime_data, "reload_suppression_count"):
+            runtime_data.reload_suppression_count = (
+                int(getattr(runtime_data, "reload_suppression_count", 0)) + 1
+            )
+
+    def _unmark_internal_config_entry_data_update(self) -> None:
+        """Undo a reload-suppression mark when Home Assistant made no data change."""
+
+        config_entry = getattr(self, "config_entry", None)
+        runtime_data = getattr(config_entry, "runtime_data", None)
+        if hasattr(runtime_data, "reload_suppression_count"):
+            runtime_data.reload_suppression_count = max(
+                0,
+                int(getattr(runtime_data, "reload_suppression_count", 0)) - 1,
+            )
 
     def _clear_auth_refresh_rejection_state(self) -> None:
         """Clear the short rejected-refresh streak and cooldown state."""
@@ -4728,6 +4881,203 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         return True
 
+    def _hems_auth_backoff_remaining_s(self) -> int | None:
+        """Return remaining optional HEMS auth backoff seconds."""
+
+        backoff_until = getattr(self, "_hems_auth_backoff_until", None)
+        if not isinstance(backoff_until, (int, float)):
+            return None
+        remaining = float(backoff_until) - time.monotonic()
+        if remaining <= 0:
+            self._clear_hems_auth_circuit(persist=True, reset_failure_count=False)
+            return None
+        return max(1, int(remaining + 0.999))
+
+    def _hems_auth_circuit_active(self) -> bool:
+        """Return True while optional HEMS/Heat Pump polling is paused."""
+
+        return self._hems_auth_backoff_remaining_s() is not None
+
+    def _hems_auth_backoff_delay_s(self) -> float:
+        """Return the next HEMS auth backoff duration."""
+
+        count = max(1, int(getattr(self, "_hems_auth_failure_count", 0) or 0))
+        index = min(count - 1, len(HEMS_AUTH_BACKOFF_STEPS_S) - 1)
+        return float(HEMS_AUTH_BACKOFF_STEPS_S[index])
+
+    def _hems_auth_exception_details(
+        self, err: BaseException
+    ) -> tuple[int | None, str] | None:
+        """Return auth-like HEMS failure details for errors that should isolate HEMS."""
+
+        if isinstance(err, EnphaseLoginWallUnauthorized):
+            return getattr(err, "status", 200), "login_wall"
+        if isinstance(err, Unauthorized):
+            return getattr(err, "status", 401), "unauthorized"
+        if isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403):
+            return int(err.status), "forbidden" if err.status == 403 else "unauthorized"
+        return None
+
+    def _note_hems_auth_failure(
+        self,
+        err: BaseException,
+        *,
+        endpoint: str,
+    ) -> bool:
+        """Open the optional HEMS auth circuit for HEMS-only auth failures."""
+
+        details = self._hems_auth_exception_details(err)
+        if details is None:
+            return False
+        status, reason = details
+        self._hems_auth_failure_count = (
+            int(getattr(self, "_hems_auth_failure_count", 0) or 0) + 1
+        )
+        delay = self._hems_auth_backoff_delay_s()
+        now = dt_util.utcnow()
+        self._hems_auth_last_failure_utc = now
+        self._hems_auth_last_endpoint = redact_text(
+            endpoint,
+            site_ids=(self.site_id,),
+            max_length=256,
+        )
+        self._hems_auth_last_status = status
+        self._hems_auth_last_reason = reason
+        self._hems_auth_backoff_until = time.monotonic() + delay
+        self._hems_auth_backoff_ends_utc = now + timedelta(seconds=delay)
+        self._last_error = "hems_auth_degraded"
+        self._persist_hems_auth_circuit_state()
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.create_hems_auth_degraded_issue()
+        _LOGGER.warning(
+            "Pausing optional HEMS polling for site %s after HEMS auth failure: endpoint=%s status=%s reason=%s failure_count=%s retry_at=%s",
+            redact_site_id(self.site_id),
+            self._hems_auth_last_endpoint,
+            status,
+            reason,
+            self._hems_auth_failure_count,
+            self._format_auth_blocked_until(self._hems_auth_backoff_ends_utc)
+            or self._hems_auth_backoff_ends_utc,
+        )
+        return True
+
+    def _note_hems_auth_success(self, *, endpoint: str | None = None) -> None:
+        """Record successful optional HEMS polling and clear any HEMS auth circuit."""
+
+        had_circuit = bool(
+            getattr(self, "_hems_auth_backoff_until", None)
+            or getattr(self, "_hems_auth_last_reason", None)
+            or int(getattr(self, "_hems_auth_failure_count", 0) or 0)
+        )
+        self._clear_hems_auth_circuit(persist=False, reset_failure_count=True)
+        if endpoint:
+            self._hems_auth_last_endpoint = redact_text(
+                endpoint,
+                site_ids=(self.site_id,),
+                max_length=256,
+            )
+        self._hems_auth_last_success_utc = dt_util.utcnow()
+        if had_circuit:
+            _LOGGER.info(
+                "Optional HEMS polling recovered for site %s",
+                redact_site_id(self.site_id),
+            )
+            self._persist_hems_auth_circuit_state()
+
+    def _clear_hems_auth_circuit(
+        self,
+        *,
+        persist: bool = True,
+        reset_failure_count: bool = True,
+    ) -> None:
+        """Clear optional HEMS auth backoff state without touching global auth."""
+
+        had_state = bool(
+            getattr(self, "_hems_auth_backoff_until", None)
+            or getattr(self, "_hems_auth_backoff_ends_utc", None)
+            or getattr(self, "_hems_auth_last_reason", None)
+            or getattr(self, "_hems_auth_last_status", None) is not None
+            or getattr(self, "_hems_auth_last_failure_utc", None)
+            or int(getattr(self, "_hems_auth_failure_count", 0) or 0)
+        )
+        self._hems_auth_backoff_until = None
+        self._hems_auth_backoff_ends_utc = None
+        if reset_failure_count:
+            self._hems_auth_last_endpoint = None
+            self._hems_auth_last_status = None
+            self._hems_auth_last_reason = None
+            self._hems_auth_last_failure_utc = None
+            self._hems_auth_failure_count = 0
+        diagnostics = getattr(self, "diagnostics", None)
+        clear_issue = getattr(diagnostics, "clear_hems_auth_degraded_issue", None)
+        if callable(clear_issue):
+            clear_issue()
+        if persist and had_state:
+            self._persist_hems_auth_circuit_state()
+
+    def _skip_hems_polling_due_to_auth_circuit(self, *, endpoint: str) -> bool:
+        """Return True when a HEMS poll should fail fast due to active backoff."""
+
+        remaining = self._hems_auth_backoff_remaining_s()
+        if remaining is None:
+            return False
+        _LOGGER.debug(
+            "Skipping optional HEMS polling for site %s while auth circuit is active: endpoint=%s remaining_s=%s",
+            redact_site_id(self.site_id),
+            redact_text(endpoint, site_ids=(self.site_id,), max_length=256),
+            remaining,
+        )
+        return True
+
+    def _hems_auth_manual_clear_retry_after_seconds(self) -> int | None:
+        """Return remaining seconds for manual HEMS backoff clear throttling."""
+
+        cooldown_until = getattr(self, "_hems_auth_manual_clear_until", None)
+        if not isinstance(cooldown_until, (int, float)):
+            return None
+        remaining = float(cooldown_until) - time.monotonic()
+        if remaining > 0:
+            return max(1, int(remaining + 0.999))
+        self._hems_auth_manual_clear_until = None
+        return None
+
+    async def async_clear_hems_auth_backoff(self) -> dict[str, object]:
+        """Clear optional HEMS auth backoff without attempting password login."""
+
+        retry_after = self._hems_auth_manual_clear_retry_after_seconds()
+        if retry_after is not None:
+            response: dict[str, object] = {
+                "site_id": str(self.site_id),
+                "success": False,
+                "reason": "manual_clear_cooldown_active",
+                "retry_after_seconds": retry_after,
+            }
+            if isinstance(self._hems_auth_backoff_ends_utc, datetime):
+                response["hems_backoff_until"] = (
+                    self._hems_auth_backoff_ends_utc.isoformat()
+                )
+            return response
+        self._hems_auth_manual_clear_until = (
+            time.monotonic() + HEMS_AUTH_MANUAL_CLEAR_COOLDOWN_S
+        )
+        was_active = self._hems_auth_circuit_active()
+        backoff_until = (
+            self._hems_auth_backoff_ends_utc.isoformat()
+            if isinstance(self._hems_auth_backoff_ends_utc, datetime)
+            else None
+        )
+        self._clear_hems_auth_circuit(persist=True, reset_failure_count=False)
+        await self.async_request_refresh()
+        response = {
+            "site_id": str(self.site_id),
+            "success": True,
+            "reason": "cleared" if was_active else "not_active",
+        }
+        if backoff_until:
+            response["hems_backoff_until"] = backoff_until
+        return response
+
     def _blocked_auth_failure_message(self) -> str:
         """Return the user-facing auth-block failure message."""
 
@@ -4772,16 +5122,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Return True when a recent successful refresh can satisfy stale 401s (delegates to ``AuthRefreshRuntime``)."""
 
         return self.auth_refresh_runtime.auth_refresh_recent_success_active()
-
-    def _hems_auth_refresh_suppressed_active(self) -> bool:
-        """Return True while HEMS 401s should not trigger password refresh."""
-
-        return self.auth_refresh_runtime.hems_auth_refresh_suppressed_active()
-
-    def _suppress_hems_auth_refresh_after_success(self) -> None:
-        """Temporarily stop HEMS 401s from causing repeated password logins."""
-
-        self.auth_refresh_runtime.suppress_hems_auth_refresh_after_success()
 
     async def _async_run_auto_refresh(self) -> bool:
         """Run one stored-credential refresh attempt for all concurrent waiters (delegates to ``AuthRefreshRuntime``)."""
@@ -4869,6 +5209,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             CONF_AUTH_REFRESH_SUSPENDED_UNTIL: None,
             CONF_AUTH_BLOCKED_UNTIL: None,
             CONF_AUTH_BLOCK_REASON: None,
+            CONF_HEMS_AUTH_BACKOFF_UNTIL: None,
+            CONF_HEMS_AUTH_FAILURE_COUNT: None,
+            CONF_HEMS_AUTH_LAST_FAILURE_UTC: None,
+            CONF_HEMS_AUTH_LAST_ENDPOINT: None,
+            CONF_HEMS_AUTH_LAST_STATUS: None,
+            CONF_HEMS_AUTH_LAST_REASON: None,
         }
         for key, value in updates.items():
             if value is None:
@@ -4879,14 +5225,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_refresh_suspended_until_utc = None
         self._auth_blocked_until_utc = None
         self._auth_block_reason = None
+        self._clear_hems_auth_circuit(persist=False, reset_failure_count=True)
         diagnostics = getattr(self, "diagnostics", None)
         if diagnostics is not None:
             diagnostics.clear_reauth_issue()
-        changed = self.hass.config_entries.async_update_entry(
-            self.config_entry, data=merged
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="tokens",
         )
-        if changed:
-            self._mark_internal_config_entry_data_update()
 
     def kick_fast(self, seconds: int = 60) -> None:
         self.evse_runtime.kick_fast(seconds)

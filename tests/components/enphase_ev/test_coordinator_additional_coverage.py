@@ -1582,6 +1582,8 @@ def test_collect_site_metrics_serializes_dates(coordinator_factory):
         "last_error": "boom",
         "last_status": "500",
         "backoff_ends": "backoff",
+        "failure_count": "0",
+        "hems_failure_count": "0",
     }
 
 
@@ -3613,7 +3615,7 @@ def test_persist_tokens_updates_entry(coordinator_factory, config_entry):
     object.__setattr__(
         config_entry,
         "runtime_data",
-        SimpleNamespace(skip_reload_once=False),
+        SimpleNamespace(reload_suppression_count=0),
     )
 
     def _fake_update_entry(entry, *, data=None, options=None):
@@ -3634,7 +3636,7 @@ def test_persist_tokens_updates_entry(coordinator_factory, config_entry):
     coord._persist_tokens(tokens)
     assert config_entry.data[coord_mod.CONF_COOKIE] == "c"
     assert config_entry.data[coord_mod.CONF_ACCESS_TOKEN] == "t"
-    assert config_entry.runtime_data.skip_reload_once is True
+    assert config_entry.runtime_data.reload_suppression_count == 1
 
 
 def test_persist_tokens_does_not_mark_reload_skip_for_noop_update(
@@ -3645,7 +3647,7 @@ def test_persist_tokens_does_not_mark_reload_skip_for_noop_update(
     object.__setattr__(
         config_entry,
         "runtime_data",
-        SimpleNamespace(skip_reload_once=False),
+        SimpleNamespace(reload_suppression_count=0),
     )
 
     coord.hass.config_entries.async_update_entry = MagicMock(return_value=False)
@@ -3655,50 +3657,247 @@ def test_persist_tokens_does_not_mark_reload_skip_for_noop_update(
     )
     coord._persist_tokens(tokens)
 
-    assert config_entry.runtime_data.skip_reload_once is False
+    assert config_entry.runtime_data.reload_suppression_count == 0
 
 
-def test_hems_auth_refresh_suppression_is_coordinator_backed(coordinator_factory):
+def test_hems_auth_circuit_is_coordinator_backed(
+    coordinator_factory,
+    mock_issue_registry,
+):
     coord = coordinator_factory()
 
-    assert coord._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
-    coord._suppress_hems_auth_refresh_after_success()  # noqa: SLF001
+    assert coord._hems_auth_circuit_active() is False  # noqa: SLF001
+    assert coord._note_hems_auth_failure(  # noqa: SLF001
+        coord_mod.Unauthorized(),
+        endpoint="hems_devices",
+    )
 
-    assert coord._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
     metrics = coord.collect_site_metrics()
-    assert metrics["hems_auth_refresh_suppressed_active"] is True
-    assert metrics["hems_auth_refresh_suppressed_remaining_s"] is not None
-    coord._hems_auth_refresh_suppressed_until = time.monotonic() - 1  # noqa: SLF001
-    assert coord._hems_auth_refresh_suppressed_active() is False  # noqa: SLF001
-    assert coord._hems_auth_refresh_suppressed_until is None  # noqa: SLF001
+    assert metrics["hems_auth_circuit_active"] is True
+    assert metrics["hems_auth_backoff_remaining_s"] is not None
+    assert metrics["hems_auth_failure_count"] == 1
+    assert metrics["hems_auth_last_endpoint"] == "hems_devices"
+    assert metrics["hems_auth_last_reason"] == "unauthorized"
+    assert "hems_auth" in metrics["degraded_services"]
+    first_issue = mock_issue_registry.created[-1]
+    assert first_issue[1] == "hems_auth_degraded"
+    assert first_issue[2]["translation_placeholders"]["failure_count"] == "1"
+
+    assert coord._note_hems_auth_failure(  # noqa: SLF001
+        coord_mod.Unauthorized(),
+        endpoint="hems_devices",
+    )
+    second_issue = mock_issue_registry.created[-1]
+    assert second_issue[1] == "hems_auth_degraded"
+    assert second_issue[2]["translation_placeholders"]["failure_count"] == "2"
+
+    coord._hems_auth_backoff_until = time.monotonic() - 1  # noqa: SLF001
+    assert coord._hems_auth_circuit_active() is False  # noqa: SLF001
+    assert coord._hems_auth_backoff_until is None  # noqa: SLF001
+    assert coord._hems_auth_last_reason == "unauthorized"  # noqa: SLF001
+    assert coord._hems_auth_failure_count == 2  # noqa: SLF001
 
 
-def test_hems_auth_refresh_suppression_uses_recent_success(coordinator_factory):
+def test_hems_auth_circuit_restores_and_persists_config_entry_state(
+    coordinator_factory,
+    config_entry,
+):
+    future = datetime.now(timezone.utc) + timedelta(minutes=5)
+    config = {
+        coord_mod.CONF_SITE_ID: "9633674",
+        coord_mod.CONF_SERIALS: ["111122223333"],
+        coord_mod.CONF_EAUTH: "EAUTH",
+        coord_mod.CONF_COOKIE: "COOKIE",
+        coord_mod.CONF_SCAN_INTERVAL: 15,
+        coord_mod.CONF_SITE_ONLY: False,
+        coord_mod.CONF_HEMS_AUTH_BACKOFF_UNTIL: future.isoformat(),
+        coord_mod.CONF_HEMS_AUTH_FAILURE_COUNT: "bad",
+        coord_mod.CONF_HEMS_AUTH_LAST_STATUS: "bad",
+        coord_mod.CONF_HEMS_AUTH_LAST_ENDPOINT: " hems_devices ",
+        coord_mod.CONF_HEMS_AUTH_LAST_REASON: " unauthorized ",
+    }
+    coord = coordinator_factory(config=config)
+
+    assert coord._hems_auth_failure_count == 0  # noqa: SLF001
+    assert coord._hems_auth_last_status is None  # noqa: SLF001
+    assert coord._hems_auth_backoff_until is not None  # noqa: SLF001
+
+    coord.config_entry = config_entry
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(reload_suppression_count=0),
+    )
+
+    def _update_entry(entry, *, data=None, options=None):
+        assert entry is config_entry
+        object.__setattr__(entry, "data", MappingProxyType(dict(data or {})))
+        return True
+
+    coord.hass.config_entries.async_update_entry = _update_entry  # type: ignore[assignment]
+    coord._hems_auth_failure_count = 2  # noqa: SLF001
+    coord._hems_auth_last_failure_utc = future  # noqa: SLF001
+    coord._hems_auth_last_success_utc = future  # noqa: SLF001
+    coord._hems_auth_last_endpoint = "hems_devices"  # noqa: SLF001
+    coord._hems_auth_last_status = 401  # noqa: SLF001
+    coord._hems_auth_last_reason = "unauthorized"  # noqa: SLF001
+
+    coord._persist_hems_auth_circuit_state()  # noqa: SLF001
+
+    assert (
+        config_entry.data[coord_mod.CONF_HEMS_AUTH_BACKOFF_UNTIL] == future.isoformat()
+    )
+    assert config_entry.data[coord_mod.CONF_HEMS_AUTH_FAILURE_COUNT] == 2
+    assert config_entry.data[coord_mod.CONF_HEMS_AUTH_LAST_STATUS] == 401
+
+    coord._clear_hems_auth_circuit(persist=True)  # noqa: SLF001
+
+    assert coord_mod.CONF_HEMS_AUTH_BACKOFF_UNTIL not in config_entry.data
+    assert coord_mod.CONF_HEMS_AUTH_FAILURE_COUNT not in config_entry.data
+
+
+def test_internal_config_entry_update_guard_edges(coordinator_factory, config_entry):
     coord = coordinator_factory()
-    coord._auth_refresh_last_success_mono = time.monotonic() - 10  # noqa: SLF001
 
-    assert coord._hems_auth_refresh_suppressed_active() is True  # noqa: SLF001
+    assert (
+        EnphaseCoordinator.__new__(
+            EnphaseCoordinator
+        )._async_update_config_entry_data_internal({}, reason="missing_entry")
+        is False
+    )
+
+    coord.config_entry = config_entry
+    assert (
+        coord._async_update_config_entry_data_internal(
+            dict(config_entry.data),
+            reason="noop",
+        )
+        is False
+    )
+
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(reload_suppression_count=0),
+    )
+    coord.hass.config_entries.async_update_entry = MagicMock(
+        side_effect=RuntimeError("boom")
+    )
+    changed = dict(config_entry.data)
+    changed["new_internal_key"] = "value"
+
+    with pytest.raises(RuntimeError, match="boom"):
+        coord._async_update_config_entry_data_internal(
+            changed,
+            reason="raises",
+        )
+
+    assert config_entry.runtime_data.reload_suppression_count == 0
+
+
+def test_hems_auth_exception_and_manual_cooldown_edges(coordinator_factory):
+    coord = coordinator_factory()
+    login_wall = coord_mod.EnphaseLoginWallUnauthorized(
+        endpoint="/systems/123/hems",
+        request_label="GET /systems/[site]/hems",
+        status=200,
+    )
+    forbidden = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=403,
+        message="Forbidden",
+    )
+
+    assert coord._hems_auth_exception_details(login_wall) == (  # noqa: SLF001
+        200,
+        "login_wall",
+    )
+    assert coord._hems_auth_exception_details(forbidden) == (  # noqa: SLF001
+        403,
+        "forbidden",
+    )
+
+    coord._hems_auth_backoff_until = time.monotonic() + 60  # noqa: SLF001
+    assert coord._skip_hems_polling_due_to_auth_circuit(  # noqa: SLF001
+        endpoint="hems_devices"
+    )
+
+    coord._hems_auth_manual_clear_until = time.monotonic() - 1  # noqa: SLF001
+    assert coord._hems_auth_manual_clear_retry_after_seconds() is None  # noqa: SLF001
+    assert coord._hems_auth_manual_clear_until is None  # noqa: SLF001
+
+
+def test_hems_auth_success_clears_circuit(coordinator_factory):
+    coord = coordinator_factory()
+
+    coord._note_hems_auth_failure(
+        coord_mod.Unauthorized(), endpoint="hems_devices"
+    )  # noqa: SLF001
+    coord._note_hems_auth_success(endpoint="hems_devices")  # noqa: SLF001
+
     metrics = coord.collect_site_metrics()
-    assert metrics["auth_refresh_recent_success_active"] is True
-    assert metrics["hems_auth_refresh_suppressed_active"] is True
-    assert metrics["hems_auth_refresh_suppressed_remaining_s"] is None
+    assert metrics["hems_auth_circuit_active"] is False
+    assert metrics["hems_auth_failure_count"] == 0
+    assert metrics["hems_auth_last_reason"] is None
+    assert metrics["hems_auth_last_status"] is None
+    assert metrics["hems_auth_last_success_utc"] is not None
 
 
-def test_collect_site_metrics_handles_unavailable_auth_suppression_helpers(
+@pytest.mark.asyncio
+async def test_clear_hems_auth_backoff_clears_only_hems_state(coordinator_factory):
+    coord = coordinator_factory()
+    coord.async_request_refresh = AsyncMock()
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )  # noqa: SLF001
+    coord._auth_block_reason = "login_wall_after_refresh_reject"  # noqa: SLF001
+    coord._note_hems_auth_failure(
+        coord_mod.Unauthorized(), endpoint="hems_devices"
+    )  # noqa: SLF001
+
+    response = await coord.async_clear_hems_auth_backoff()
+
+    assert response["success"] is True
+    assert response["reason"] == "cleared"
+    assert response["hems_backoff_until"]
+    assert coord._hems_auth_circuit_active() is False  # noqa: SLF001
+    assert coord._hems_auth_failure_count == 1  # noqa: SLF001
+    assert coord._hems_auth_last_reason == "unauthorized"  # noqa: SLF001
+    assert coord._hems_auth_last_status == 401  # noqa: SLF001
+    assert coord._auth_blocked_until_utc is not None  # noqa: SLF001
+    coord.async_request_refresh.assert_awaited_once_with()
+
+    coord._hems_auth_backoff_ends_utc = datetime.now(
+        timezone.utc
+    ) + timedelta(  # noqa: SLF001
+        minutes=15
+    )
+    retry = await coord.async_clear_hems_auth_backoff()
+
+    assert retry["success"] is False
+    assert retry["reason"] == "manual_clear_cooldown_active"
+    assert retry["hems_backoff_until"]
+    assert retry["retry_after_seconds"] > 0
+
+
+def test_collect_site_metrics_handles_unavailable_auth_recent_success_helper(
     coordinator_factory,
 ):
     coord = coordinator_factory()
 
-    def _raise() -> bool:
-        raise RuntimeError("boom")
-
     coord._auth_refresh_recent_success_active = None  # type: ignore[method-assign]  # noqa: SLF001
-    coord._hems_auth_refresh_suppressed_active = _raise  # type: ignore[method-assign]  # noqa: SLF001
+    metrics = coord.collect_site_metrics()
+    assert metrics["auth_refresh_recent_success_active"] is False
+
+    coord._auth_refresh_recent_success_active = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
 
     metrics = coord.collect_site_metrics()
 
     assert metrics["auth_refresh_recent_success_active"] is False
-    assert metrics["hems_auth_refresh_suppressed_active"] is False
 
 
 @pytest.mark.asyncio

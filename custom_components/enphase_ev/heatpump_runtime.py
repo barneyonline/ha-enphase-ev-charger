@@ -286,26 +286,40 @@ class HeatpumpRuntime:
 
     @staticmethod
     async def _async_call_refreshable_fetcher(
-        fetcher, *, force: bool = False
+        fetcher,
+        *,
+        force: bool = False,
+        allow_reauth: bool | None = None,
     ) -> object:
-        if not force:
-            return await fetcher()
         try:
             signature = inspect.signature(fetcher)
         except (TypeError, ValueError):
             signature = None
+        kwargs: dict[str, object] = {}
         if signature is not None:
-            if "refresh_data" in signature.parameters or any(
+            supports_var_kwargs = any(
                 parameter.kind is inspect.Parameter.VAR_KEYWORD
                 for parameter in signature.parameters.values()
+            )
+            if force and (
+                "refresh_data" in signature.parameters or supports_var_kwargs
             ):
-                return await fetcher(refresh_data=True)
-            return await fetcher()
+                kwargs["refresh_data"] = True
+            if allow_reauth is not None and (
+                "allow_reauth" in signature.parameters or supports_var_kwargs
+            ):
+                kwargs["allow_reauth"] = allow_reauth
+        if kwargs:
+            return await fetcher(**kwargs)
         return await fetcher()
 
     async def _async_refresh_hems_support_preflight(
         self, *, force: bool = False
     ) -> None:
+        if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="hems_support_preflight"
+        ):
+            return
         if getattr(self.client, "hems_site_supported", None) is not None:
             return
 
@@ -321,8 +335,18 @@ class HeatpumpRuntime:
             return
 
         try:
-            payload = await self._async_call_refreshable_fetcher(fetcher, force=force)
+            payload = await self._async_call_refreshable_fetcher(
+                fetcher,
+                force=force,
+                allow_reauth=False,
+            )
         except Exception as err:  # noqa: BLE001
+            if self.coordinator._note_hems_auth_failure(
+                err,
+                endpoint="hems_support_preflight",
+            ):
+                self._hems_support_preflight_cache_until = None
+                return
             _LOGGER.debug(
                 "HEMS support preflight failed for site %s: %s",
                 redact_site_id(self.site_id),
@@ -409,22 +433,42 @@ class HeatpumpRuntime:
 
         show_livestream = getattr(self.client, "show_livestream", None)
         if callable(show_livestream):
-            try:
-                payload = await show_livestream()
-            except Exception as err:  # noqa: BLE001
+            if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+                endpoint="show_livestream"
+            ):
                 self._show_livestream_payload = None
-                self._heatpump_runtime_diagnostics_error = (
-                    redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
-                )
             else:
-                # Diagnostics may include account-scoped battery data from shared APIs.
-                redacted_payload = self._redact_battery_payload(payload)
-                if isinstance(redacted_payload, dict):
-                    self._show_livestream_payload = redacted_payload
-                elif redacted_payload is None:
+                try:
+                    payload = await self._async_call_refreshable_fetcher(
+                        show_livestream,
+                        allow_reauth=False,
+                    )
+                except Exception as err:  # noqa: BLE001
                     self._show_livestream_payload = None
+                    self._heatpump_runtime_diagnostics_error = (
+                        "HEMS auth backoff active"
+                        if self.coordinator._note_hems_auth_failure(
+                            err,
+                            endpoint="show_livestream",
+                        )
+                        else (
+                            redact_text(err, site_ids=(self.site_id,))
+                            or err.__class__.__name__
+                        )
+                    )
                 else:
-                    self._show_livestream_payload = {"value": redacted_payload}
+                    # Diagnostics may include account-scoped battery data from shared APIs.
+                    redacted_payload = self._redact_battery_payload(payload)
+                    if isinstance(redacted_payload, dict):
+                        self._show_livestream_payload = redacted_payload
+                    elif redacted_payload is None:
+                        self._show_livestream_payload = None
+                    else:
+                        self._show_livestream_payload = {"value": redacted_payload}
+        elif self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="show_livestream"
+        ):
+            self._show_livestream_payload = None
 
         heat_pump_events_fetcher = getattr(self.client, "heat_pump_events_json", None)
         iq_er_events_fetcher = getattr(self.client, "iq_er_events_json", None)
@@ -452,23 +496,36 @@ class HeatpumpRuntime:
                 payload_entry["events_namespace"] = namespace
 
                 if callable(events_fetcher):
-                    try:
-                        payload = await events_fetcher(uid)
-                    except Exception as err:  # noqa: BLE001
-                        payload_entry["error"] = (
-                            redact_text(err, site_ids=(self.site_id,))
-                            or err.__class__.__name__
-                        )
+                    endpoint = f"{namespace}_events"
+                    if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+                        endpoint=endpoint
+                    ):
+                        payload_entry["error"] = "HEMS auth backoff active"
                     else:
-                        # Event payloads can include opaque device links and
-                        # identifiers.
-                        redacted_payload = self._redact_battery_payload(payload)
-                        if redacted_payload is None:
-                            payload_entry["payload"] = None
-                        elif isinstance(redacted_payload, (dict, list)):
-                            payload_entry["payload"] = redacted_payload
+                        try:
+                            payload = await events_fetcher(uid)
+                        except Exception as err:  # noqa: BLE001
+                            if self.coordinator._note_hems_auth_failure(
+                                err,
+                                endpoint=endpoint,
+                            ):
+                                payload_entry["error"] = "HEMS auth backoff active"
+                            else:
+                                payload_entry["error"] = (
+                                    redact_text(err, site_ids=(self.site_id,))
+                                    or err.__class__.__name__
+                                )
                         else:
-                            payload_entry["payload"] = {"value": redacted_payload}
+                            self.coordinator._note_hems_auth_success(endpoint=endpoint)
+                            # Event payloads can include opaque device links and
+                            # identifiers.
+                            redacted_payload = self._redact_battery_payload(payload)
+                            if redacted_payload is None:
+                                payload_entry["payload"] = None
+                            elif isinstance(redacted_payload, (dict, list)):
+                                payload_entry["payload"] = redacted_payload
+                            else:
+                                payload_entry["payload"] = {"value": redacted_payload}
                 payloads.append(payload_entry)
             self._heatpump_events_payloads = payloads
 
@@ -527,6 +584,28 @@ class HeatpumpRuntime:
             return primary
         return None
 
+    def _mark_heatpump_runtime_state_auth_backoff(
+        self,
+        *,
+        now: float,
+        cache_until: bool = True,
+    ) -> None:
+        """Mark heat-pump runtime state stale while HEMS auth backoff is active."""
+
+        self._heatpump_mark_runtime_state_stale(
+            now=now,
+            error="HEMS auth backoff active",
+        )
+        backoff_until = getattr(self.coordinator, "_hems_auth_backoff_until", None)
+        self._heatpump_runtime_state_cache_until = (
+            (backoff_until or now + HEATPUMP_RUNTIME_STATE_CACHE_TTL)
+            if cache_until
+            else None
+        )
+        self._heatpump_runtime_state_backoff_until = (
+            backoff_until or now + HEATPUMP_RUNTIME_STATE_FAILURE_BACKOFF_S
+        )
+
     async def _async_refresh_heatpump_runtime_state(
         self, *, force: bool = False
     ) -> None:
@@ -563,7 +642,18 @@ class HeatpumpRuntime:
         ):
             return
 
+        if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="hems_heatpump_state"
+        ):
+            self._mark_heatpump_runtime_state_auth_backoff(now=now)
+            return
+
         await self._async_refresh_hems_support_preflight(force=force)
+        if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="hems_heatpump_state"
+        ):
+            self._mark_heatpump_runtime_state_auth_backoff(now=now)
+            return
         if getattr(self.client, "hems_site_supported", None) is False:
             # Enphase returns HEMS-only runtime data for supported sites only.
             self._heatpump_mark_runtime_state_stale(
@@ -598,6 +688,15 @@ class HeatpumpRuntime:
                 timezone=self._site_timezone_name(),
             )
         except Exception as err:  # noqa: BLE001
+            if self.coordinator._note_hems_auth_failure(
+                err,
+                endpoint="hems_heatpump_state",
+            ):
+                self._mark_heatpump_runtime_state_auth_backoff(
+                    now=now,
+                    cache_until=False,
+                )
+                return
             error = redact_text(err, site_ids=(self.site_id,)) or err.__class__.__name__
             self._heatpump_mark_runtime_state_stale(now=now, error=error)
             # Backoff preserves recent snapshots while the cloud endpoint is unhealthy.
@@ -632,6 +731,7 @@ class HeatpumpRuntime:
         self._heatpump_runtime_state_using_stale = False
         self._heatpump_runtime_state_last_success_mono = now
         self._heatpump_runtime_state_last_success_utc = dt_util.utcnow()
+        self.coordinator._note_hems_auth_success(endpoint="hems_heatpump_state")
 
     async def async_refresh_heatpump_runtime_state(
         self, *, force: bool = False
@@ -1390,6 +1490,25 @@ class HeatpumpRuntime:
         ):
             return
 
+        if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="hems_energy_consumption"
+        ):
+            self._heatpump_mark_daily_consumption_stale(
+                now=now,
+                error="HEMS auth backoff active",
+            )
+            self._heatpump_mark_daily_split_stale(
+                now=now,
+                error="HEMS auth backoff active",
+            )
+            backoff_until = getattr(self.coordinator, "_hems_auth_backoff_until", None)
+            self._heatpump_daily_consumption_backoff_until = (
+                backoff_until or now + HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S
+            )
+            self._heatpump_daily_consumption_cache_until = None
+            self._heatpump_daily_consumption_cache_key = marker
+            return
+
         split_fetcher = getattr(self.client, "hems_energy_consumption", None)
         site_today_fetcher = getattr(self.client, "pv_system_today", None)
         if not callable(site_today_fetcher):
@@ -1398,8 +1517,26 @@ class HeatpumpRuntime:
         split_payload: object = None
         split_error: str | None = None
         try:
-            site_today_payload = await site_today_fetcher()
+            site_today_payload = await self._async_call_refreshable_fetcher(
+                site_today_fetcher,
+                allow_reauth=False,
+            )
         except Exception as err:  # noqa: BLE001
+            if self.coordinator._note_hems_auth_failure(
+                err,
+                endpoint="pv_system_today",
+            ):
+                self._heatpump_mark_daily_consumption_stale(
+                    now=now,
+                    error="HEMS auth backoff active",
+                )
+                self._heatpump_daily_consumption_backoff_until = (
+                    getattr(self.coordinator, "_hems_auth_backoff_until", None)
+                    or now + HEATPUMP_DAILY_CONSUMPTION_FAILURE_BACKOFF_S
+                )
+                self._heatpump_daily_consumption_cache_until = None
+                self._heatpump_daily_consumption_cache_key = marker
+                return
             error = (
                 redact_text(
                     err,
@@ -1418,7 +1555,11 @@ class HeatpumpRuntime:
             self._heatpump_daily_consumption_cache_key = marker
             return
 
-        if callable(split_fetcher):
+        if callable(
+            split_fetcher
+        ) and not self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="hems_energy_consumption"
+        ):
             try:
                 split_payload = await split_fetcher(
                     start_at=start_at,
@@ -1427,16 +1568,28 @@ class HeatpumpRuntime:
                     step="P1D",
                 )
             except Exception as err:  # noqa: BLE001
-                split_error = (
-                    redact_text(
-                        err,
-                        site_ids=(self.site_id,),
-                        identifiers=self._heatpump_power_redaction_identifiers(
-                            self._heatpump_runtime_device_uid()
-                        ),
+                if self.coordinator._note_hems_auth_failure(
+                    err,
+                    endpoint="hems_energy_consumption",
+                ):
+                    split_error = "HEMS auth backoff active"
+                else:
+                    split_error = (
+                        redact_text(
+                            err,
+                            site_ids=(self.site_id,),
+                            identifiers=self._heatpump_power_redaction_identifiers(
+                                self._heatpump_runtime_device_uid()
+                            ),
+                        )
+                        or err.__class__.__name__
                     )
-                    or err.__class__.__name__
+            else:
+                self.coordinator._note_hems_auth_success(
+                    endpoint="hems_energy_consumption"
                 )
+        elif callable(split_fetcher):
+            split_error = "HEMS auth backoff active"
         else:
             split_error = "HEMS daily split endpoint unavailable"
 
@@ -1543,6 +1696,8 @@ class HeatpumpRuntime:
             and self._heatpump_daily_consumption_cache_key == marker
             and now < self._heatpump_daily_consumption_backoff_until
         ):
+            return False
+        if self.coordinator._hems_auth_circuit_active():
             return False
         fetcher = getattr(self.client, "pv_system_today", None)
         return callable(fetcher)
@@ -1988,6 +2143,35 @@ class HeatpumpRuntime:
             "selection_key": list(selection_key) if selection_key is not None else None,
         }
 
+    def _mark_heatpump_power_auth_backoff(
+        self,
+        *,
+        now: float,
+        force: bool,
+    ) -> None:
+        """Mark heat-pump power stale while HEMS auth backoff is active."""
+
+        error = "HEMS auth backoff active"
+        self._heatpump_mark_power_stale(now=now, error=error)
+        self._heatpump_power_snapshot = {
+            "site_date": self._site_local_current_date(),
+            "force": force,
+            "outcome": "hems_auth_backoff",
+            "using_stale": bool(getattr(self, "_heatpump_power_using_stale", False)),
+            "last_success_utc": (
+                self._heatpump_power_last_success_utc.isoformat()
+                if isinstance(self._heatpump_power_last_success_utc, datetime)
+                else None
+            ),
+            "last_error": error,
+        }
+        backoff_until = getattr(self.coordinator, "_hems_auth_backoff_until", None)
+        self._heatpump_power_backoff_until = (
+            backoff_until or now + HEATPUMP_POWER_STALE_AFTER_S
+        )
+        self._heatpump_power_cache_until = None
+        self._heatpump_power_selection_marker = None
+
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         now = time.monotonic()
         if not self.has_type("heatpump"):
@@ -2027,7 +2211,18 @@ class HeatpumpRuntime:
             if now < self._heatpump_power_backoff_until:
                 return
 
+        if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="hems_power"
+        ):
+            self._mark_heatpump_power_auth_backoff(now=now, force=force)
+            return
+
         await self._async_refresh_hems_support_preflight(force=force)
+        if self.coordinator._skip_hems_polling_due_to_auth_circuit(
+            endpoint="hems_power"
+        ):
+            self._mark_heatpump_power_auth_backoff(now=now, force=force)
+            return
         if getattr(self.client, "hems_site_supported", None) is False:
             error = "HEMS power endpoint unavailable for this site"
             self._heatpump_mark_power_stale(
@@ -2306,6 +2501,8 @@ class HeatpumpRuntime:
         if not force and self._heatpump_power_backoff_until is not None:
             if now < self._heatpump_power_backoff_until:
                 return False
+        if self.coordinator._hems_auth_circuit_active():
+            return False
         fetcher = getattr(self.client, "pv_system_today", None)
         return callable(fetcher)
 

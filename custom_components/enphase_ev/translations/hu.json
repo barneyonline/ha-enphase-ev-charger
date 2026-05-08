@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Az Enphase Energy akkumulátorprofil frissítése függőben",
       "description": "A(z) {site_id} hely akkumulátorprofil-módosítása több mint {pending_timeout_minutes} perce függőben van. Előfordulhat, hogy a felhő még feldolgozza a kérést."
+    },
+    "hems_auth_degraded": {
+      "title": "Az Enphase Energy HEMS ideiglenesen szünetel",
+      "description": "A Heat Pump/HEMS lekérdezés a(z) {site_id} helyen {backoff_until} időpontig szünetel {failure_count} hitelesítés jellegű hiba után ({reason}). A wallbox, akkumulátor, gateway és más adatok tovább működhetnek. Kapcsold ki a Heat Pump eszközcsoportot, vagy használd a Clear HEMS Auth Backoff műveletet az Enphase helyreállása után."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "HEMS auth backoff törlése",
+      "description": "Törli az ideiglenes HEMS/Heat Pump hitelesítési szünetet jelszavas bejelentkezés nélkül.",
+      "fields": {
+        "device_id": {
+          "name": "Hely eszközei",
+          "description": "Válassz Enphase helyeszközt, amelynél törölni kell a HEMS auth backoff állapotot."
+        },
+        "site_id": {
+          "name": "Helyazonosító",
+          "description": "Opcionális helyazonosító; eszköz kiválasztásakor automatikusan felismerhető."
         }
       }
     }

@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Aggiornamento del profilo batteria Enphase Energy in attesa",
       "description": "Una modifica del profilo batteria per il sito {site_id} è in attesa da oltre {pending_timeout_minutes} minuti. Il cloud potrebbe ancora elaborare la richiesta."
+    },
+    "hems_auth_degraded": {
+      "title": "HEMS Enphase Energy temporaneamente in pausa",
+      "description": "Il polling Heat Pump/HEMS del sito {site_id} è in pausa fino a {backoff_until} dopo {failure_count} errori simili ad autenticazione ({reason}). Wallbox, batteria, gateway e altri dati possono continuare. Disattiva il gruppo Heat Pump oppure usa Clear HEMS Auth Backoff dopo il ripristino di Enphase."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Dispositivo",
           "description": "Dispositivo Enphase opzionale per scegliere il sito degli aggiornamenti di fatturazione o struttura tariffaria."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Cancella backoff auth HEMS",
+      "description": "Cancella la pausa temporanea di autenticazione HEMS/Heat Pump senza login con password.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivi del sito",
+          "description": "Seleziona un dispositivo del sito Enphase per cui cancellare il HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "ID sito",
+          "description": "Identificatore sito opzionale; rilevato automaticamente quando si seleziona un dispositivo."
         }
       }
     }

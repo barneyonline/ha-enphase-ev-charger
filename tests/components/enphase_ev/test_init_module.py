@@ -174,6 +174,59 @@ def test_complete_startup_migrations_if_ready_ignores_failing_readiness_check(
     assert "startup_migration_version" not in config_entry.data
 
 
+@pytest.mark.parametrize("update_result", [False, RuntimeError("boom")])
+def test_complete_startup_migrations_clears_reload_suppression_when_update_not_applied(
+    hass: HomeAssistant,
+    config_entry,
+    monkeypatch,
+    update_result,
+) -> None:
+    site_id = config_entry.data[CONF_SITE_ID]
+    dev_reg = dr.async_get(hass)
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=SimpleNamespace())
+
+    class DummyCoordinator:
+        def startup_migrations_ready(self) -> bool:
+            return True
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entity_unique_ids",
+        MagicMock(),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_legacy_gateway_type_devices",
+        MagicMock(),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_orphaned_update_entities_to_type_devices",
+        MagicMock(),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._remove_evse_type_device_and_entities",
+        MagicMock(),
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev._migrate_cloud_entities_to_cloud_device",
+        MagicMock(),
+    )
+    update_entry = MagicMock()
+    if isinstance(update_result, BaseException):
+        update_entry.side_effect = update_result
+        monkeypatch.setattr(hass.config_entries, "async_update_entry", update_entry)
+        with pytest.raises(RuntimeError, match="boom"):
+            _complete_startup_migrations_if_ready(
+                hass, config_entry, DummyCoordinator(), dev_reg, site_id
+            )
+    else:
+        update_entry.return_value = update_result
+        monkeypatch.setattr(hass.config_entries, "async_update_entry", update_entry)
+        _complete_startup_migrations_if_ready(
+            hass, config_entry, DummyCoordinator(), dev_reg, site_id
+        )
+
+    assert config_entry.runtime_data.reload_suppression_count == 0
+
+
 def test_iter_device_registry_entries_handles_edge_paths() -> None:
     assert _iter_device_registry_entries(SimpleNamespace()) == []
 

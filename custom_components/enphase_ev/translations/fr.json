@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Mise à jour du profil de batterie Enphase Energy en attente",
       "description": "Une modification du profil de batterie pour le site {site_id} est en attente depuis plus de {pending_timeout_minutes} minutes. Le cloud traite peut-être encore la demande."
+    },
+    "hems_auth_degraded": {
+      "title": "HEMS Enphase Energy temporairement suspendu",
+      "description": "L’interrogation Heat Pump/HEMS du site {site_id} est suspendue jusqu’à {backoff_until} après {failure_count} échecs de type authentification ({reason}). La wallbox, la batterie, la passerelle et les autres données peuvent continuer. Désactivez le groupe Heat Pump ou utilisez Clear HEMS Auth Backoff après le rétablissement d’Enphase."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Appareil",
           "description": "Appareil Enphase facultatif pour choisir le site des mises à jour de facturation ou de structure tarifaire."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Effacer le backoff auth HEMS",
+      "description": "Efface la pause temporaire d’authentification HEMS/Heat Pump sans connexion par mot de passe.",
+      "fields": {
+        "device_id": {
+          "name": "Appareils du site",
+          "description": "Sélectionnez un appareil du site Enphase dont le HEMS auth backoff doit être effacé."
+        },
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site facultatif, détecté automatiquement lorsqu’un appareil est sélectionné."
         }
       }
     }

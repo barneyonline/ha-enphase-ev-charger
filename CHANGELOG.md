@@ -8,13 +8,16 @@ All notable changes to this project will be documented in this file.
 - None
 
 ### ✨ New features
-- None
+- Added a `clear_hems_auth_backoff` service to clear the Heat Pump/HEMS-only auth backoff without performing password login.
 
 ### 🐛 Bug fixes
 - Attached the site service-status diagnostic sensor to the Enphase Cloud device instead of creating a separate Enphase Site device.
+- Isolated Heat Pump/HEMS auth failures behind a HEMS-only circuit breaker so they no longer trigger global stored-password refresh attempts or stop wallbox/battery polling. (#528)
 
 ### 🔧 Improvements
 - Added state-aware icons for the site service-status diagnostic sensor.
+- Added HEMS auth backoff diagnostics and a repair issue that explains how to pause or retry Heat Pump/HEMS polling. (#528)
+- Replaced the one-shot internal reload skip with counted reload suppression so token/cooldown persistence cannot recreate the coordinator during auth recovery.
 
 ### 🔄 Other changes
 - Bumped the integration manifest version to `3.0.6`.

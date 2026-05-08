@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Aktualisierung des Enphase Energy-Batterieprofils ausstehend",
       "description": "Eine Änderung des Batterieprofils für Standort {site_id} ist seit mehr als {pending_timeout_minutes} Minuten ausstehend. Die Cloud verarbeitet die Anfrage möglicherweise noch."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS vorübergehend pausiert",
+      "description": "Heat Pump/HEMS-Abfragen für Standort {site_id} sind bis {backoff_until} nach {failure_count} auth-ähnlichen Fehlern pausiert ({reason}). Wallbox, Batterie, Gateway und andere Daten können weiterlaufen. Deaktiviere die Heat Pump-Gerätegruppe oder nutze Clear HEMS Auth Backoff, nachdem Enphase wieder erreichbar ist."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Gerät",
           "description": "Optionales Enphase-Gerät zur Auswahl des Standorts für Abrechnungs- oder Tarifstruktur-Updates."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "HEMS-Auth-Backoff löschen",
+      "description": "Löscht die temporäre HEMS/Heat Pump-Auth-Pause ohne Passwort-Login.",
+      "fields": {
+        "device_id": {
+          "name": "Standortgeräte",
+          "description": "Wähle ein Enphase-Standortgerät, dessen HEMS-Auth-Backoff gelöscht werden soll."
+        },
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionale Standortkennung; wird automatisch erkannt, wenn ein Standortgerät gewählt ist."
         }
       }
     }

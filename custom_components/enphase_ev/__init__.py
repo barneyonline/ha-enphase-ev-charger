@@ -176,11 +176,13 @@ async def _async_update_listener(
     hass: HomeAssistant, entry: EnphaseConfigEntry
 ) -> None:
     runtime_data = getattr(entry, "runtime_data", None)
-    if isinstance(runtime_data, EnphaseRuntimeData) and runtime_data.skip_reload_once:
-        # Reauth and reconfigure update the entry data themselves, so skip the
-        # reload Home Assistant would normally trigger from the options listener.
-        runtime_data.skip_reload_once = False
-        return
+    if isinstance(runtime_data, EnphaseRuntimeData):
+        suppression_count = int(getattr(runtime_data, "reload_suppression_count", 0))
+        if suppression_count > 0:
+            # Coordinator-owned config-entry data updates persist tokens/cooldowns
+            # and must not recreate the coordinator/client.
+            runtime_data.reload_suppression_count = suppression_count - 1
+            return
     if getattr(entry, "disabled_by", None) is not None:
         return
     loaded_state = getattr(ConfigEntryState, "LOADED", None)
@@ -1116,11 +1118,25 @@ def _complete_startup_migrations_if_ready(
     _remove_evse_type_device_and_entities(hass, entry, dev_reg, site_id)
     _migrate_cloud_entities_to_cloud_device(hass, entry, coord, dev_reg, site_id)
     runtime_data = getattr(entry, "runtime_data", None)
+    suppress_reload = isinstance(runtime_data, EnphaseRuntimeData)
     if isinstance(runtime_data, EnphaseRuntimeData):
-        runtime_data.skip_reload_once = True
+        runtime_data.reload_suppression_count += 1
     migrated_data = dict(entry.data)
     migrated_data[_STARTUP_MIGRATION_VERSION_KEY] = _STARTUP_MIGRATION_VERSION
-    hass.config_entries.async_update_entry(entry, data=migrated_data)
+    try:
+        changed = hass.config_entries.async_update_entry(entry, data=migrated_data)
+    except Exception:
+        if suppress_reload:
+            runtime_data.reload_suppression_count = max(
+                0,
+                runtime_data.reload_suppression_count - 1,
+            )
+        raise
+    if suppress_reload and not changed:
+        runtime_data.reload_suppression_count = max(
+            0,
+            runtime_data.reload_suppression_count - 1,
+        )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> bool:

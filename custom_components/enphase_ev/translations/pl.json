@@ -2206,6 +2206,10 @@
     "battery_profile_pending": {
       "title": "Oczekująca aktualizacja profilu baterii Enphase Energy",
       "description": "Zmiana profilu baterii dla lokalizacji {site_id} oczekuje od ponad {pending_timeout_minutes} minut. Chmura może nadal przetwarzać żądanie."
+    },
+    "hems_auth_degraded": {
+      "title": "HEMS Enphase Energy tymczasowo wstrzymany",
+      "description": "Odpytywanie Heat Pump/HEMS dla lokalizacji {site_id} jest wstrzymane do {backoff_until} po {failure_count} błędach podobnych do uwierzytelniania ({reason}). Wallbox, bateria, brama i inne dane mogą działać dalej. Wyłącz grupę Heat Pump albo użyj Clear HEMS Auth Backoff po przywróceniu Enphase."
     }
   },
   "system_health": {
@@ -2710,6 +2714,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Wyczyść HEMS auth backoff",
+      "description": "Czyści tymczasową pauzę uwierzytelniania HEMS/Heat Pump bez logowania hasłem.",
+      "fields": {
+        "device_id": {
+          "name": "Urządzenia lokalizacji",
+          "description": "Wybierz urządzenie lokalizacji Enphase, dla którego wyczyścić HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "ID lokalizacji",
+          "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia."
         }
       }
     }
