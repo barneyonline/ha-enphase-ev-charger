@@ -154,28 +154,6 @@ def test_cloud_device_info_handles_bad_site_id_str():
     assert info["identifiers"] == {("enphase_ev", "type:unknown:cloud")}
 
 
-def test_site_device_info_uses_site_identifier():
-    from custom_components.enphase_ev.device_info_helpers import _site_device_info
-
-    info = _site_device_info("12345")
-    assert info["identifiers"] == {("enphase_ev", "site:12345")}
-    assert info["name"] == "Enphase Site 12345"
-    assert info["model"] == "Site"
-
-
-def test_site_device_info_handles_blank_and_bad_site_id():
-    from custom_components.enphase_ev.device_info_helpers import _site_device_info
-
-    class BadStr:
-        def __str__(self) -> str:
-            raise ValueError("boom")
-
-    assert _site_device_info("   ")["identifiers"] == {("enphase_ev", "site:unknown")}
-    assert _site_device_info(BadStr())["identifiers"] == {
-        ("enphase_ev", "site:unknown")
-    }
-
-
 def test_device_info_helpers_imports_without_home_assistant(monkeypatch):
     import builtins
     import importlib
@@ -195,8 +173,6 @@ def test_device_info_helpers_imports_without_home_assistant(monkeypatch):
     info = helpers._cloud_device_info("12345")
     assert info["identifiers"] == {("enphase_ev", "type:12345:cloud")}
     assert info["name"] == "Enphase Cloud"
-    site_info = helpers._site_device_info("12345")
-    assert site_info["identifiers"] == {("enphase_ev", "site:12345")}
 
 
 def test_evse_display_name_normalization_and_model_deduping() -> None:

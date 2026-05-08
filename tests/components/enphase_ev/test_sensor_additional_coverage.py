@@ -5297,12 +5297,11 @@ def test_cloud_sensor_device_info_falls_back_to_default_cloud_device(
     backoff = EnphaseSiteBackoffEndsSensor(coord)
 
     expected_identifiers = {("enphase_ev", f"type:{coord.site_id}:cloud")}
-    expected_site_identifiers = {("enphase_ev", f"site:{coord.site_id}")}
     assert site_energy.device_info["identifiers"] == expected_identifiers
     assert current_power.device_info["identifiers"] == expected_identifiers
     assert latency.device_info["identifiers"] == expected_identifiers
     assert last_error.device_info["identifiers"] == expected_identifiers
-    assert service_status.device_info["identifiers"] == expected_site_identifiers
+    assert service_status.device_info["identifiers"] == expected_identifiers
     assert backoff.device_info["identifiers"] == expected_identifiers
 
 
@@ -5422,6 +5421,7 @@ def test_site_service_status_sensor_reports_degraded_services(
     sensor = EnphaseSiteServiceStatusSensor(coord)
 
     assert sensor.native_value == "degraded"
+    assert sensor.icon == "mdi:cloud-alert"
     assert sensor.entity_category is EntityCategory.DIAGNOSTIC
     attrs = sensor.extra_state_attributes
     assert attrs["degraded_services"] == ["battery_status", "site_energy"]
@@ -5441,6 +5441,7 @@ def test_site_service_status_sensor_reports_unknown_for_invalid_metrics(
     sensor = EnphaseSiteServiceStatusSensor(coord)
 
     assert sensor.native_value == "unknown"
+    assert sensor.icon == "mdi:cloud-question"
     assert sensor.extra_state_attributes["degraded_services"] == []
     assert sensor.extra_state_attributes["metrics_available"] is False
 
@@ -5458,6 +5459,7 @@ def test_site_service_status_sensor_reports_ok_without_degraded_services(
     sensor = EnphaseSiteServiceStatusSensor(coord)
 
     assert sensor.native_value == "ok"
+    assert sensor.icon == "mdi:cloud-check"
     assert sensor.extra_state_attributes["degraded_services"] == []
 
 

@@ -53,7 +53,6 @@ from .const import (
 from .coordinator import EnphaseCoordinator
 from .device_types import is_dry_contact_type_key, member_is_retired
 from .device_info_helpers import _cloud_device_info
-from .device_info_helpers import _site_device_info
 from .energy import SiteEnergyFlow
 from .entity import (
     EnphaseBaseEntity,
@@ -6777,6 +6776,14 @@ class EnphaseSiteServiceStatusSensor(_SiteBaseEntity):
         return "ok"
 
     @property
+    def icon(self):
+        if self.native_value == "degraded":
+            return "mdi:cloud-alert"
+        if self.native_value == "unknown":
+            return "mdi:cloud-question"
+        return "mdi:cloud-check"
+
+    @property
     def extra_state_attributes(self):
         metrics = self._metrics_snapshot
         metrics_available = metrics is not None
@@ -6798,7 +6805,10 @@ class EnphaseSiteServiceStatusSensor(_SiteBaseEntity):
 
     @property
     def device_info(self):
-        return _site_device_info(self._coord.site_id)
+        info = _type_device_info(self._coord, "cloud")
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
 
 
 class EnphaseSiteBackoffEndsSensor(_SiteBaseEntity):
