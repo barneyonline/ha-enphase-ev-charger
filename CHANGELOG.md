@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## v3.0.6 - 2026-05-08
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Attached the site service-status diagnostic sensor to the Enphase Cloud device instead of creating a separate Enphase Site device.
+
+### 🔧 Improvements
+- Added state-aware icons for the site service-status diagnostic sensor.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `3.0.6`.
+
 ## v3.0.5 - 2026-05-08
 
 ### 🚧 Breaking changes

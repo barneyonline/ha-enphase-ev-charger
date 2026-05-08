@@ -145,24 +145,3 @@ def _cloud_device_info(site_id: object):
     except Exception:
         return payload
     return DeviceInfo(**payload)
-
-
-def _site_device_info(site_id: object):
-    """Return DeviceInfo for site-level diagnostic entities."""
-    try:
-        site_text = str(site_id).strip()
-    except Exception:
-        site_text = ""
-    if not site_text:
-        site_text = "unknown"
-    payload = {
-        "identifiers": {(DOMAIN, f"site:{site_text}")},
-        "manufacturer": "Enphase",
-        "name": f"Enphase Site {site_text}",
-        "model": "Site",
-    }
-    try:
-        from homeassistant.helpers.entity import DeviceInfo
-    except Exception:
-        return payload
-    return DeviceInfo(**payload)
