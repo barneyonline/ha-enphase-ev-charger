@@ -2729,30 +2729,6 @@
           "name": "ID del sitio",
           "description": "Identificador opcional del sitio; se detecta automáticamente al seleccionar un dispositivo."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Correcto",
-            "description": "Si se borró la espera de autenticación HEMS."
-          },
-          "site_id": {
-            "name": "ID del sitio",
-            "description": "Identificador opcional del sitio; se detecta automáticamente al seleccionar un dispositivo."
-          },
-          "reason": {
-            "name": "Motivo",
-            "description": "Motivo o estado de la solicitud de borrado."
-          },
-          "retry_after_seconds": {
-            "name": "Reintentar tras segundos",
-            "description": "Segundos que se deben esperar antes de intentarlo de nuevo."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS en espera hasta",
-            "description": "Hora anterior de finalización de la pausa HEMS, si había una activa."
-          }
-        }
       }
     }
   }

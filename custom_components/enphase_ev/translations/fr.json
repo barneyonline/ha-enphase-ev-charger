@@ -2729,30 +2729,6 @@
           "name": "ID du site",
           "description": "Identifiant de site facultatif, détecté automatiquement lorsqu’un appareil est sélectionné."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Réussite",
-            "description": "Indique si le backoff d’authentification HEMS a été effacé."
-          },
-          "site_id": {
-            "name": "ID du site",
-            "description": "Identifiant de site facultatif, détecté automatiquement lorsqu’un appareil est sélectionné."
-          },
-          "reason": {
-            "name": "Raison",
-            "description": "Raison ou état de la demande d’effacement."
-          },
-          "retry_after_seconds": {
-            "name": "Réessayer après secondes",
-            "description": "Nombre de secondes à attendre avant de réessayer."
-          },
-          "hems_backoff_until": {
-            "name": "Backoff HEMS jusqu’à",
-            "description": "Ancienne heure de fin de la pause HEMS, si elle était active."
-          }
-        }
       }
     }
   }

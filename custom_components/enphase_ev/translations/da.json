@@ -2729,30 +2729,6 @@
           "name": "Site-id",
           "description": "Valgfrit site-id; registreres automatisk når en site-enhed vælges."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Succes",
-            "description": "Om HEMS auth backoff blev ryddet."
-          },
-          "site_id": {
-            "name": "Site-id",
-            "description": "Valgfrit site-id; registreres automatisk når en site-enhed vælges."
-          },
-          "reason": {
-            "name": "Årsag",
-            "description": "Årsag eller status for rydningsanmodningen."
-          },
-          "retry_after_seconds": {
-            "name": "Prøv igen om sekunder",
-            "description": "Sekunder der skal ventes før handlingen prøves igen."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff indtil",
-            "description": "Tidligere udløbstid for HEMS-pausen, hvis en var aktiv."
-          }
-        }
       }
     }
   }

@@ -2729,30 +2729,6 @@
           "name": "Saidi ID",
           "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt seadme valimisel."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Õnnestus",
-            "description": "Kas HEMS auth backoff tühjendati."
-          },
-          "site_id": {
-            "name": "Saidi ID",
-            "description": "Valikuline saidi identifikaator; tuvastatakse automaatselt seadme valimisel."
-          },
-          "reason": {
-            "name": "Põhjus",
-            "description": "Tühjendustaotluse põhjus või olek."
-          },
-          "retry_after_seconds": {
-            "name": "Proovi uuesti sekundite pärast",
-            "description": "Sekundid, mida oodata enne uuesti proovimist."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff kuni",
-            "description": "Eelmine HEMS-pausi lõppemise aeg, kui paus oli aktiivne."
-          }
-        }
       }
     }
   }

@@ -2729,30 +2729,6 @@
           "name": "ID sito",
           "description": "Identificatore sito opzionale; rilevato automaticamente quando si seleziona un dispositivo."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Riuscito",
-            "description": "Indica se il backoff di autenticazione HEMS è stato cancellato."
-          },
-          "site_id": {
-            "name": "ID sito",
-            "description": "Identificatore sito opzionale; rilevato automaticamente quando si seleziona un dispositivo."
-          },
-          "reason": {
-            "name": "Motivo",
-            "description": "Motivo o stato della richiesta di cancellazione."
-          },
-          "retry_after_seconds": {
-            "name": "Riprova dopo secondi",
-            "description": "Secondi da attendere prima di riprovare."
-          },
-          "hems_backoff_until": {
-            "name": "Backoff HEMS fino a",
-            "description": "Ora precedente di fine pausa HEMS, se era attiva."
-          }
-        }
       }
     }
   }

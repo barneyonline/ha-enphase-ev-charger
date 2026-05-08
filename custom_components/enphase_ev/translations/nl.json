@@ -2729,30 +2729,6 @@
           "name": "Site-ID",
           "description": "Optionele site-id; automatisch gedetecteerd wanneer een apparaat is geselecteerd."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Geslaagd",
-            "description": "Of de HEMS-authenticatiebackoff is gewist."
-          },
-          "site_id": {
-            "name": "Site-ID",
-            "description": "Optionele site-id; automatisch gedetecteerd wanneer een apparaat is geselecteerd."
-          },
-          "reason": {
-            "name": "Reden",
-            "description": "Reden of status van het wisverzoek."
-          },
-          "retry_after_seconds": {
-            "name": "Opnieuw proberen na seconden",
-            "description": "Aantal seconden wachten voordat opnieuw wordt geprobeerd."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS-backoff tot",
-            "description": "Vorige eindtijd van de HEMS-pauze, als die actief was."
-          }
-        }
       }
     }
   }

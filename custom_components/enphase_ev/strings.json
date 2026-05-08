@@ -2729,30 +2729,6 @@
           "name": "Site ID",
           "description": "Optional site identifier; detected automatically when a site device is selected."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Success",
-            "description": "Whether the HEMS auth backoff was cleared."
-          },
-          "site_id": {
-            "name": "Site ID",
-            "description": "The Enphase site that was targeted."
-          },
-          "reason": {
-            "name": "Reason",
-            "description": "Result reason for the clear request."
-          },
-          "retry_after_seconds": {
-            "name": "Retry after seconds",
-            "description": "Seconds to wait before trying this action again."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff until",
-            "description": "Previous HEMS backoff expiry time, when one was active."
-          }
-        }
       }
     }
   }

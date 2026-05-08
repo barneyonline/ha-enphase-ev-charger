@@ -2729,30 +2729,6 @@
           "name": "Svetainės ID",
           "description": "Pasirenkamas svetainės identifikatorius; aptinkamas automatiškai pasirinkus įrenginį."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Sėkminga",
-            "description": "Ar HEMS auth backoff buvo išvalytas."
-          },
-          "site_id": {
-            "name": "Svetainės ID",
-            "description": "Pasirenkamas svetainės identifikatorius; aptinkamas automatiškai pasirinkus įrenginį."
-          },
-          "reason": {
-            "name": "Priežastis",
-            "description": "Išvalymo užklausos priežastis arba būsena."
-          },
-          "retry_after_seconds": {
-            "name": "Bandyti dar kartą po sekundžių",
-            "description": "Sekundės, kurias reikia palaukti prieš bandant dar kartą."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff iki",
-            "description": "Ankstesnis HEMS pauzės pabaigos laikas, jei pauzė buvo aktyvi."
-          }
-        }
       }
     }
   }

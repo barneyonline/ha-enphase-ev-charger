@@ -2729,30 +2729,6 @@
           "name": "Helyazonosító",
           "description": "Opcionális helyazonosító; eszköz kiválasztásakor automatikusan felismerhető."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Sikeres",
-            "description": "A HEMS auth backoff törölve lett-e."
-          },
-          "site_id": {
-            "name": "Helyazonosító",
-            "description": "Opcionális helyazonosító; eszköz kiválasztásakor automatikusan felismerhető."
-          },
-          "reason": {
-            "name": "Ok",
-            "description": "A törlési kérés oka vagy állapota."
-          },
-          "retry_after_seconds": {
-            "name": "Újrapróbálkozás ennyi másodperc után",
-            "description": "Ennyi másodpercet kell várni az újrapróbálkozás előtt."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff eddig",
-            "description": "A HEMS szünet korábbi lejárati ideje, ha aktív volt."
-          }
-        }
       }
     }
   }

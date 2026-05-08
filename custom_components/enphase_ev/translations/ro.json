@@ -2729,30 +2729,6 @@
           "name": "ID site",
           "description": "Identificator opțional de site; detectat automat când este selectat un dispozitiv."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Succes",
-            "description": "Dacă HEMS auth backoff a fost șters."
-          },
-          "site_id": {
-            "name": "ID site",
-            "description": "Identificator opțional de site; detectat automat când este selectat un dispozitiv."
-          },
-          "reason": {
-            "name": "Motiv",
-            "description": "Motivul sau starea cererii de ștergere."
-          },
-          "retry_after_seconds": {
-            "name": "Reîncercare după secunde",
-            "description": "Secunde de așteptat înainte de a încerca din nou."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff până la",
-            "description": "Ora anterioară de expirare a pauzei HEMS, dacă a fost activă."
-          }
-        }
       }
     }
   }

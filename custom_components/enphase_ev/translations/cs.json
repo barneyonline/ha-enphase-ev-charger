@@ -2729,30 +2729,6 @@
           "name": "ID lokality",
           "description": "Volitelný identifikátor lokality; zjistí se automaticky při výběru zařízení."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Úspěch",
-            "description": "Zda byl HEMS auth backoff vymazán."
-          },
-          "site_id": {
-            "name": "ID lokality",
-            "description": "Volitelný identifikátor lokality; zjistí se automaticky při výběru zařízení."
-          },
-          "reason": {
-            "name": "Důvod",
-            "description": "Důvod nebo stav požadavku na vymazání."
-          },
-          "retry_after_seconds": {
-            "name": "Opakovat za sekund",
-            "description": "Počet sekund, které je třeba počkat před dalším pokusem."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff do",
-            "description": "Předchozí čas vypršení HEMS pauzy, pokud byla aktivní."
-          }
-        }
       }
     }
   }

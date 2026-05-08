@@ -49,16 +49,6 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         "services.clear_hems_auth_backoff.fields.device_id.description",
         "services.clear_hems_auth_backoff.fields.site_id.name",
         "services.clear_hems_auth_backoff.fields.site_id.description",
-        "services.clear_hems_auth_backoff.response.fields.success.name",
-        "services.clear_hems_auth_backoff.response.fields.success.description",
-        "services.clear_hems_auth_backoff.response.fields.site_id.name",
-        "services.clear_hems_auth_backoff.response.fields.site_id.description",
-        "services.clear_hems_auth_backoff.response.fields.reason.name",
-        "services.clear_hems_auth_backoff.response.fields.reason.description",
-        "services.clear_hems_auth_backoff.response.fields.retry_after_seconds.name",
-        "services.clear_hems_auth_backoff.response.fields.retry_after_seconds.description",
-        "services.clear_hems_auth_backoff.response.fields.hems_backoff_until.name",
-        "services.clear_hems_auth_backoff.response.fields.hems_backoff_until.description",
     ]
     strings_data = json.loads((root / "strings.json").read_text(encoding="utf-8"))
     for path in paths:
@@ -82,6 +72,18 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         raise AssertionError(
             "strings.json should not define unsupported response fields under try_reauth_now"
         )
+    try:
+        _at_path(
+            strings_data,
+            "services.clear_hems_auth_backoff.response.fields.success.name",
+        )
+    except KeyError:
+        pass
+    else:
+        raise AssertionError(
+            "strings.json should not define unsupported response fields under "
+            "clear_hems_auth_backoff"
+        )
     for locale in translations_dir.glob("*.json"):
         name = locale.name
         data = json.loads(locale.read_text(encoding="utf-8"))
@@ -92,6 +94,18 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
                 assert value != _at_path(
                     en_data, path
                 ), f"{name} should localize {path} (still matches English)"
+        try:
+            _at_path(
+                data,
+                "services.clear_hems_auth_backoff.response.fields.success.name",
+            )
+        except KeyError:
+            pass
+        else:
+            raise AssertionError(
+                f"{name} should not define unsupported response fields under "
+                "clear_hems_auth_backoff"
+            )
         issue = _at_path(data, "issues.auth_blocked.description")
         assert "{site_id}" in issue, f"{name} missing {{site_id}} placeholder"
         assert (

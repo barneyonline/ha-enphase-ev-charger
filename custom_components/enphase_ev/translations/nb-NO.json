@@ -2729,30 +2729,6 @@
           "name": "Steds-ID",
           "description": "Valgfri stedsidentifikator; oppdages automatisk når en enhet velges."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Vellykket",
-            "description": "Om HEMS auth backoff ble tømt."
-          },
-          "site_id": {
-            "name": "Steds-ID",
-            "description": "Valgfri stedsidentifikator; oppdages automatisk når en enhet velges."
-          },
-          "reason": {
-            "name": "Årsak",
-            "description": "Årsak eller status for tømmeforespørselen."
-          },
-          "retry_after_seconds": {
-            "name": "Prøv igjen etter sekunder",
-            "description": "Sekunder å vente før handlingen prøves igjen."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff til",
-            "description": "Tidligere utløpstid for HEMS-pausen, hvis en var aktiv."
-          }
-        }
       }
     }
   }

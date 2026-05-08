@@ -2729,30 +2729,6 @@
           "name": "ID do site",
           "description": "Identificador opcional do site; detectado automaticamente ao selecionar um dispositivo."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Sucesso",
-            "description": "Se o backoff de autenticação HEMS foi limpo."
-          },
-          "site_id": {
-            "name": "ID do site",
-            "description": "Identificador opcional do site; detectado automaticamente ao selecionar um dispositivo."
-          },
-          "reason": {
-            "name": "Motivo",
-            "description": "Motivo ou status da solicitação de limpeza."
-          },
-          "retry_after_seconds": {
-            "name": "Tentar novamente após segundos",
-            "description": "Segundos a aguardar antes de tentar novamente."
-          },
-          "hems_backoff_until": {
-            "name": "Backoff HEMS até",
-            "description": "Horário anterior de término da pausa HEMS, se estava ativa."
-          }
-        }
       }
     }
   }

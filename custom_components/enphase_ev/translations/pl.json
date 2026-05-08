@@ -2729,30 +2729,6 @@
           "name": "ID lokalizacji",
           "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Powodzenie",
-            "description": "Czy HEMS auth backoff został wyczyszczony."
-          },
-          "site_id": {
-            "name": "ID lokalizacji",
-            "description": "Opcjonalny identyfikator lokalizacji; wykrywany automatycznie po wybraniu urządzenia."
-          },
-          "reason": {
-            "name": "Powód",
-            "description": "Powód lub stan żądania wyczyszczenia."
-          },
-          "retry_after_seconds": {
-            "name": "Ponów po sekundach",
-            "description": "Liczba sekund oczekiwania przed ponowną próbą."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff do",
-            "description": "Poprzedni czas zakończenia pauzy HEMS, jeśli była aktywna."
-          }
-        }
       }
     }
   }

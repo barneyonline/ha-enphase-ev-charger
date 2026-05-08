@@ -2729,30 +2729,6 @@
           "name": "Plats-ID",
           "description": "Valfri platsidentifierare; identifieras automatiskt när en enhet väljs."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Lyckades",
-            "description": "Om HEMS auth backoff rensades."
-          },
-          "site_id": {
-            "name": "Plats-ID",
-            "description": "Valfri platsidentifierare; identifieras automatiskt när en enhet väljs."
-          },
-          "reason": {
-            "name": "Orsak",
-            "description": "Orsak eller status för rensningsbegäran."
-          },
-          "retry_after_seconds": {
-            "name": "Försök igen efter sekunder",
-            "description": "Sekunder att vänta innan åtgärden provas igen."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff till",
-            "description": "Tidigare sluttid för HEMS-pausen, om den var aktiv."
-          }
-        }
       }
     }
   }

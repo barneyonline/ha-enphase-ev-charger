@@ -2729,30 +2729,6 @@
           "name": "Vietnes ID",
           "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, izvēloties ierīci."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Veiksmīgi",
-            "description": "Vai HEMS auth backoff tika notīrīts."
-          },
-          "site_id": {
-            "name": "Vietnes ID",
-            "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, izvēloties ierīci."
-          },
-          "reason": {
-            "name": "Iemesls",
-            "description": "Notīrīšanas pieprasījuma iemesls vai statuss."
-          },
-          "retry_after_seconds": {
-            "name": "Mēģināt vēlreiz pēc sekundēm",
-            "description": "Sekundes, kas jāgaida pirms atkārtota mēģinājuma."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff līdz",
-            "description": "Iepriekšējais HEMS pauzes beigu laiks, ja tā bija aktīva."
-          }
-        }
       }
     }
   }

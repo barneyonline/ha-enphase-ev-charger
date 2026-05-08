@@ -2729,30 +2729,6 @@
           "name": "Kohteen ID",
           "description": "Valinnainen kohteen tunniste; tunnistetaan automaattisesti, kun laite valitaan."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Onnistui",
-            "description": "Tyhjennettiinkö HEMS auth backoff."
-          },
-          "site_id": {
-            "name": "Kohteen ID",
-            "description": "Valinnainen kohteen tunniste; tunnistetaan automaattisesti, kun laite valitaan."
-          },
-          "reason": {
-            "name": "Syy",
-            "description": "Tyhjennyspyynnön syy tai tila."
-          },
-          "retry_after_seconds": {
-            "name": "Yritä uudelleen sekuntien kuluttua",
-            "description": "Sekunnit, jotka pitää odottaa ennen uutta yritystä."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS backoff päättyy",
-            "description": "HEMS-tauon aiempi päättymisaika, jos tauko oli aktiivinen."
-          }
-        }
       }
     }
   }

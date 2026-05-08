@@ -2729,30 +2729,6 @@
           "name": "Standort-ID",
           "description": "Optionale Standortkennung; wird automatisch erkannt, wenn ein Standortgerät gewählt ist."
         }
-      },
-      "response": {
-        "fields": {
-          "success": {
-            "name": "Erfolg",
-            "description": "Ob der HEMS-Auth-Backoff gelöscht wurde."
-          },
-          "site_id": {
-            "name": "Standort-ID",
-            "description": "Optionale Standortkennung; wird automatisch erkannt, wenn ein Standortgerät gewählt ist."
-          },
-          "reason": {
-            "name": "Grund",
-            "description": "Grund oder Status der Löschanforderung."
-          },
-          "retry_after_seconds": {
-            "name": "Wiederholen nach Sekunden",
-            "description": "Sekunden, die vor einem erneuten Versuch gewartet werden sollen."
-          },
-          "hems_backoff_until": {
-            "name": "HEMS-Backoff bis",
-            "description": "Vorheriger Ablaufzeitpunkt der HEMS-Pause, falls eine aktiv war."
-          }
-        }
       }
     }
   }
