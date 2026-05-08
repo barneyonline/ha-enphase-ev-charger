@@ -1,11 +1,11 @@
 # Service Status History
 
-- Current status: **Fully Operational**
-- Last updated: `2026-05-07 23:52 UTC`
-- Failed checks in latest run: `1`
-- Latest failed checks: battery_config
+- Current status: **Degraded**
+- Last updated: `2026-05-08 02:12 UTC`
+- Failed checks in latest run: `10`
+- Latest failed checks: discovery, evse_scheduler, site_energy, site_live, battery_config, inventory, system_dashboard_tree, system_dashboard_details, battery_runtime, microinverters
 - Retained hourly samples: `461`
-- Incident windows in last 30 days: `8`
+- Incident windows in last 30 days: `9`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
 
@@ -16,8 +16,8 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-04-07T23:52:09, 0ms
-    Window end :vert, window-end, 2026-05-07T23:52:09, 0ms
+    Window start :vert, window-start, 2026-04-08T02:12:39, 0ms
+    Window end :vert, window-end, 2026-05-08T02:12:39, 0ms
     section Down
     Down 1 (2026-04-14 0901 UTC) :crit, down-1, 2026-04-14T09:01:13, 60m
     Down 2 (2026-04-18 2234 UTC) :crit, down-2, 2026-04-18T22:34:13, 60m
@@ -28,6 +28,7 @@ gantt
     Degraded 4 (2026-05-07 1541 UTC) :active, degraded-4, 2026-05-07T15:41:58, 60m
     Degraded 5 (2026-05-07 1746 UTC) :active, degraded-5, 2026-05-07T17:46:51, 60m
     Degraded 6 (2026-05-07 1942 UTC) :active, degraded-6, 2026-05-07T19:42:10, 249m
+    Degraded 7 (2026-05-08 0212 UTC) :active, degraded-7, 2026-05-08T02:12:39, 60m
 ```
 
 ## Incident Summary
@@ -42,6 +43,7 @@ gantt
 | Degraded | 2026-05-07 15:41 UTC | Unknown after last seen 2026-05-07 15:41 UTC | Observed 0m | battery_config, evse_scheduler, site_live |
 | Degraded | 2026-05-07 17:46 UTC | Unknown after last seen 2026-05-07 17:46 UTC | Observed 0m | battery_config, evse_scheduler |
 | Degraded | 2026-05-07 19:42 UTC | 2026-05-07 23:52 UTC | 4h 9m | battery_config, evse_scheduler |
+| Degraded | 2026-05-08 02:12 UTC | Ongoing (last seen 2026-05-08 02:12 UTC) | Observed at latest check | battery_config, battery_runtime, discovery, evse_scheduler, inventory, microinverters, site_energy, site_live, system_dashboard_details, system_dashboard_tree |
 
 ## Raw Artifacts
 
