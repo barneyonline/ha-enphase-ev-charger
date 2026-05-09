@@ -2105,7 +2105,7 @@ async def test_handle_client_unauthorized_failure(monkeypatch, hass):
 async def test_handle_client_unauthorized_reports_auth_block_when_active(
     monkeypatch, hass
 ):
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
     from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     coord = _make_coordinator(hass, monkeypatch)
@@ -2128,7 +2128,7 @@ async def test_handle_client_unauthorized_reports_auth_block_when_active(
         raising=False,
     )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+    with pytest.raises(UpdateFailed, match="blocked"):
         await coord._handle_client_unauthorized()
 
     assert [issue_id for issue_id, _payload in created] == ["auth_blocked"]
@@ -2138,7 +2138,7 @@ async def test_handle_client_unauthorized_reports_auth_block_when_active(
 async def test_handle_client_unauthorized_reports_too_many_sessions_issue(
     monkeypatch, hass
 ):
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
     from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     coord = _make_coordinator(hass, monkeypatch)
@@ -2163,7 +2163,7 @@ async def test_handle_client_unauthorized_reports_too_many_sessions_issue(
         raising=False,
     )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+    with pytest.raises(UpdateFailed, match="blocked"):
         await coord._handle_client_unauthorized()
 
     assert [issue_id for issue_id, _payload in created] == ["too_many_active_sessions"]

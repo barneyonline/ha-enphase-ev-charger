@@ -21,6 +21,7 @@ from custom_components.enphase_ev.const import (
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
     CONF_SITE_ID,
+    CONF_SITE_ONLY,
     CONF_SESSION_ID,
     AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD,
     DEFAULT_SLOW_POLL_INTERVAL,
@@ -2048,7 +2049,7 @@ async def test_activate_auth_block_from_login_wall_reuses_existing_block(hass):
 async def test_async_update_data_fails_fast_while_auth_blocked(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
 
     entry = _make_entry(hass)
     monkeypatch.setattr(
@@ -2064,10 +2065,47 @@ async def test_async_update_data_fails_fast_while_auth_blocked(monkeypatch, hass
     coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
     coord._auth_block_reason = "login_wall_after_refresh_reject"
 
-    with pytest.raises(ConfigEntryAuthFailed, match="temporarily blocked"):
+    with pytest.raises(UpdateFailed, match="temporarily blocked") as exc_info:
         await coord._async_update_data()
 
+    assert 3590 <= exc_info.value.retry_after <= 3600
     coord.client.status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_fails_fast_while_site_only_auth_blocked(
+    monkeypatch, hass
+):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(
+        hass,
+        {
+            CONF_SERIALS: [],
+            CONF_SITE_ONLY: True,
+            CONF_AUTH_BLOCKED_UNTIL: (
+                datetime.now(timezone.utc) + timedelta(hours=1)
+            ).isoformat(),
+            CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
+        },
+    )
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+    coord.energy._async_refresh_site_energy = AsyncMock()  # noqa: SLF001
+
+    with pytest.raises(UpdateFailed, match="temporarily blocked") as exc_info:
+        await coord._async_update_data()
+
+    assert 3590 <= exc_info.value.retry_after <= 3600
+    coord.energy._async_refresh_site_energy.assert_not_awaited()  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -2077,7 +2115,7 @@ async def test_async_update_data_login_wall_during_refresh_cooldown_blocks(
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
 
     entry = _make_entry(hass)
     monkeypatch.setattr(
@@ -2103,11 +2141,12 @@ async def test_async_update_data_login_wall_during_refresh_cooldown_blocks(
         )
     )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="temporarily blocked"):
+    with pytest.raises(UpdateFailed, match="temporarily blocked") as exc_info:
         await coord._async_update_data()
 
     assert coord._auth_block_reason == "login_wall_after_refresh_reject"
     assert coord._auth_blocked_until_utc is not None
+    assert 86390 <= exc_info.value.retry_after <= 86400
 
 
 @pytest.mark.asyncio
@@ -2205,6 +2244,15 @@ def test_blocked_auth_failure_message_handles_missing_timestamp():
     coord._auth_blocked_until_utc = None
 
     assert coord._blocked_auth_failure_message().endswith("retry later.")
+
+
+def test_auth_block_retry_after_returns_none_when_expired():
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    assert coord._auth_block_retry_after_s() is None
 
 
 def test_persist_tokens_updates_entry(hass, monkeypatch):

@@ -998,14 +998,16 @@ def test_coordinator_lazily_creates_refresh_runner() -> None:
 
 
 @pytest.mark.asyncio
-async def test_refresh_runner_login_wall_raises_auth_failed_with_block_message(
+async def test_refresh_runner_login_wall_raises_update_failed_with_retry_after(
     coordinator_factory,
 ) -> None:
     from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+    from homeassistant.helpers.update_coordinator import UpdateFailed
 
     coord = coordinator_factory()
     coord._activate_auth_block_from_login_wall = MagicMock(return_value=True)  # type: ignore[method-assign]  # noqa: SLF001
     coord._blocked_auth_failure_message = MagicMock(return_value="blocked")  # type: ignore[method-assign]  # noqa: SLF001
+    coord._auth_block_retry_after_s = MagicMock(return_value=42)  # type: ignore[method-assign]  # noqa: SLF001
 
     async def _raise() -> None:
         raise EnphaseLoginWallUnauthorized(
@@ -1016,8 +1018,10 @@ async def test_refresh_runner_login_wall_raises_auth_failed_with_block_message(
             body_preview_redacted="<!DOCTYPE html>",
         )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+    with pytest.raises(UpdateFailed, match="blocked") as exc_info:
         await coord.refresh_runner.async_run_refresh_call("k", "label", _raise)
+
+    assert exc_info.value.retry_after == 42
 
 
 @pytest.mark.asyncio
