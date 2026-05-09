@@ -1192,6 +1192,8 @@ class CoordinatorDiagnostics:
             support_state = getattr(state, "support_state", "unknown")
             out[family] = {
                 "family": family,
+                "request_count": int(getattr(state, "request_count", 0) or 0),
+                "last_request_utc": _iso(getattr(state, "last_request_utc", None)),
                 "consecutive_failures": int(
                     getattr(state, "consecutive_failures", 0) or 0
                 ),

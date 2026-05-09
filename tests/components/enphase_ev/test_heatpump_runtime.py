@@ -2480,6 +2480,9 @@ async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
         force=True
     )  # noqa: SLF001
     assert coord.heatpump_runtime_state == {}
+    assert coord._heatpump_runtime_state_cache_until == (  # noqa: SLF001
+        mono_now + heatpump_runtime_mod.HEATPUMP_RUNTIME_STATE_CACHE_TTL
+    )
     assert (
         coord.heatpump_runtime_state_last_error
         == "HEMS runtime endpoint unavailable for this site"

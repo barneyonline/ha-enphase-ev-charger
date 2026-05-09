@@ -62,6 +62,8 @@ class BatteryControlCapability:
 
 @dataclass(slots=True)
 class EndpointFamilyHealth:
+    request_count: int = 0
+    last_request_utc: datetime | None = None
     consecutive_failures: int = 0
     last_success_utc: datetime | None = None
     last_success_mono: float | None = None
