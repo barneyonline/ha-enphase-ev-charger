@@ -56,10 +56,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _LOGGER = logging.getLogger(__name__)
 
-DEVICES_INVENTORY_CACHE_TTL = 300.0
+DEVICES_INVENTORY_CACHE_TTL = 600.0
 HEMS_INVENTORY_ENDPOINT_FAMILY = "hems_inventory"
 HEMS_DEVICES_STALE_AFTER_S = 90.0
-HEMS_DEVICES_CACHE_TTL = 15.0
+HEMS_DEVICES_CACHE_TTL = 60.0
 # System-dashboard detail calls are fan-out requests against the same cloud service.
 SYSTEM_DASHBOARD_DETAIL_CONCURRENCY = 3
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (

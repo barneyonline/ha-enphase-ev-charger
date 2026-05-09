@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 ### 🔧 Improvements
 - Added state-aware icons for the site service-status diagnostic sensor.
 - Added HEMS auth backoff diagnostics and a repair issue that explains how to pause or retry Heat Pump/HEMS polling. (#528)
+- Reduced baseline Enphase cloud request volume by lengthening low-volatility HEMS inventory, heat-pump state, Storm Alert, device inventory, and inverter production refresh windows. (#667)
 - Replaced the one-shot internal reload skip with counted reload suppression so token/cooldown persistence cannot recreate the coordinator during auth recovery.
 
 ### 🔄 Other changes

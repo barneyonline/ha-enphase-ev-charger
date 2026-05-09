@@ -10,6 +10,8 @@ import pytest
 
 from custom_components.enphase_ev import api, inventory_runtime as inventory_runtime_mod
 from custom_components.enphase_ev.inventory_runtime import (
+    DEVICES_INVENTORY_CACHE_TTL,
+    HEMS_DEVICES_CACHE_TTL,
     HEMS_DEVICES_STALE_AFTER_S,
     HEMS_INVENTORY_ENDPOINT_FAMILY,
     InventoryRuntime,
@@ -132,7 +134,9 @@ def test_inventory_runtime_hems_refresh_floor_falls_back_on_bad_runtime_value(
     coord.heatpump_runtime.hems_refresh_floor_s = lambda: "bad"  # type: ignore[method-assign]  # noqa: SLF001
 
     assert runtime._hems_refresh_floor_s() == 30.0  # noqa: SLF001
-    assert runtime._hems_devices_cache_ttl_s() == 30.0  # noqa: SLF001
+    assert HEMS_DEVICES_CACHE_TTL == 60.0
+    assert runtime._hems_devices_cache_ttl_s() == 60.0  # noqa: SLF001
+    assert DEVICES_INVENTORY_CACHE_TTL == 600.0
 
 
 def test_inventory_runtime_summary_and_inverter_helper_paths(
@@ -2229,11 +2233,11 @@ async def test_inventory_runtime_refresh_hems_devices_uses_fast_poll_cache_floor
     coord.client.hems_devices.assert_awaited_once_with(refresh_data=False)
     assert runtime._hems_devices_cache_until is not None  # noqa: SLF001
     assert runtime._hems_devices_last_success_mono is not None  # noqa: SLF001
-    assert runtime._hems_devices_cache_ttl_s() == pytest.approx(30.0)  # noqa: SLF001
+    assert runtime._hems_devices_cache_ttl_s() == pytest.approx(60.0)  # noqa: SLF001
     assert (
         runtime._hems_devices_cache_until
         - runtime._hems_devices_last_success_mono  # noqa: SLF001
-    ) == pytest.approx(30.0)
+    ) == pytest.approx(60.0)
 
 
 @pytest.mark.asyncio
@@ -2633,7 +2637,7 @@ async def test_inventory_runtime_refresh_inverters_refetches_production_after_tt
     monkeypatch.setattr(
         time,
         "monotonic",
-        lambda: (production_health.last_success_mono or 0.0) + 301.0,
+        lambda: (production_health.last_success_mono or 0.0) + 601.0,
     )
 
     await runtime._async_refresh_inverters()  # noqa: SLF001

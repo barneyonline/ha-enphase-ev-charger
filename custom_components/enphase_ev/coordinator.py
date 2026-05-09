@@ -186,11 +186,6 @@ if TYPE_CHECKING:
     from .runtime_data import EnphaseConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-DEVICES_INVENTORY_CACHE_TTL = 300.0
-HEMS_DEVICES_STALE_AFTER_S = 90.0
-# HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
-# Keep these caches short so we do not hold stale or empty telemetry for minutes.
-HEMS_DEVICES_CACHE_TTL = 15.0
 # Session history can arrive after real-time charging state changes. These
 # windows keep recent context available without letting old sessions override
 # live charger telemetry.
@@ -198,22 +193,6 @@ SESSION_HISTORY_ACTIVE_SOFT_TTL_S = 120.0
 SESSION_HISTORY_RECENT_STOP_SOFT_TTL_S = 300.0
 SESSION_HISTORY_IDLE_HARD_TTL_GRACE_S = 300.0
 SESSION_HISTORY_RECENT_STOP_WINDOW_S = 600.0
-SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
-    "envoys",
-    "meters",
-    "enpowers",
-    "encharges",
-    "modems",
-    "inverters",
-)
-SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
-    "envoys": "envoy",
-    "meters": "envoy",
-    "enpowers": "envoy",
-    "encharges": "encharge",
-    "inverters": "microinverter",
-    "modems": "modem",
-}
 BATTERY_GRID_MODE_PERMISSIONS = {
     "importexport": (True, True),
     "importonly": (True, False),
@@ -984,7 +963,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 support_state_on_success=True,
             ),
             "storm_alert": EndpointFamilyPolicy(
-                success_ttl_s=60.0,
+                success_ttl_s=300.0,
                 failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
                 max_backoff_s=3600.0,
                 support_state_on_success=True,
@@ -1042,7 +1021,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 support_state_on_success=True,
             ),
             "inverter_production": EndpointFamilyPolicy(
-                success_ttl_s=300.0,
+                success_ttl_s=600.0,
                 stale_after_s=1800.0,
                 failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
                 max_backoff_s=3600.0,
@@ -1247,6 +1226,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         now_mono = time.monotonic()
         now_utc = dt_util.utcnow()
         ttl = policy.success_ttl_s if success_ttl_s is None else success_ttl_s
+        health.request_count += 1
+        health.last_request_utc = now_utc
         health.consecutive_failures = 0
         health.last_status = None
         health.last_error = None
@@ -1283,6 +1264,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         now_utc = dt_util.utcnow()
         now_mono = time.monotonic()
         status = self._endpoint_family_status_from_error(err)
+        health.request_count += 1
+        health.last_request_utc = now_utc
         health.consecutive_failures += 1
         health.last_failure_utc = now_utc
         health.last_status = status

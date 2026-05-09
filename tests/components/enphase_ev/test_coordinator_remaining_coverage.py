@@ -78,6 +78,13 @@ def test_endpoint_family_failure_classification_and_core_backoff(
     coord = coordinator_factory()
     monkeypatch.setattr(coord_mod.random, "uniform", lambda _a, _b: 1.0)
 
+    assert (
+        coord._endpoint_family_policy("storm_alert").success_ttl_s == 300.0
+    )  # noqa: SLF001
+    assert (
+        coord._endpoint_family_policy("inverter_production").success_ttl_s == 600.0
+    )  # noqa: SLF001
+
     err_404 = aiohttp.ClientResponseError(
         _request_info(),
         (),
@@ -231,6 +238,8 @@ def test_endpoint_family_suppression_recovery_and_metrics(
     family = metrics["endpoint_family_health"]["grid_control_check"]
     assert family["family"] == "grid_control_check"
     assert family["consecutive_failures"] == 3
+    assert family["request_count"] == 3
+    assert family["last_request_utc"] is not None
     assert family["last_status"] == 406
     assert family["suppressed"] is True
     assert family["next_retry_utc"] is not None
@@ -239,8 +248,10 @@ def test_endpoint_family_suppression_recovery_and_metrics(
     coord._note_endpoint_family_success("grid_control_check")  # noqa: SLF001
     recovered = coord._endpoint_family_state("grid_control_check")  # noqa: SLF001
     assert recovered.consecutive_failures == 0
+    assert recovered.request_count == 4
     assert recovered.support_state == "supported"
     assert recovered.last_success_utc is not None
+    assert recovered.last_request_utc == recovered.last_success_utc
     assert recovered.cooldown_active is False
 
     recovered.next_retry_mono = coord_mod.time.monotonic() - 1
@@ -363,6 +374,8 @@ def test_endpoint_family_misc_branches_and_diagnostics(
     coord._note_endpoint_family_success("battery_status")  # noqa: SLF001
     battery_health = coord._endpoint_family_state("battery_status")  # noqa: SLF001
     assert battery_health.next_retry_utc is None
+    assert battery_health.request_count == 1
+    assert battery_health.last_request_utc is not None
     coord._note_endpoint_family_success(
         "inverter_production", success_ttl_s=0.0
     )  # noqa: SLF001
@@ -381,6 +394,7 @@ def test_endpoint_family_misc_branches_and_diagnostics(
     coord._note_endpoint_family_failure("grid_control_check", err)  # noqa: SLF001
     grid_health = coord._endpoint_family_state("grid_control_check")  # noqa: SLF001
     assert grid_health.next_retry_utc is None
+    assert grid_health.request_count == 1
 
     class BadDate:
         def isoformat(self) -> str:
@@ -390,10 +404,13 @@ def test_endpoint_family_misc_branches_and_diagnostics(
             return "bad-date"
 
     battery_health.last_success_utc = BadDate()  # type: ignore[assignment]
+    battery_health.last_request_utc = BadDate()  # type: ignore[assignment]
     coord._endpoint_family_health[123] = grid_health  # type: ignore[index]  # noqa: SLF001
     coord._endpoint_family_health["none"] = None  # type: ignore[index]  # noqa: SLF001
     diagnostics = coord.diagnostics.endpoint_family_health_diagnostics()
     assert diagnostics["battery_status"]["last_success_utc"] == "bad-date"
+    assert diagnostics["battery_status"]["last_request_utc"] == "bad-date"
+    assert diagnostics["battery_status"]["request_count"] == 1
     assert "none" not in diagnostics
     assert 123 not in diagnostics
 
