@@ -26,7 +26,6 @@ on:
   push:
     branches:
       - main
-      - "release/**"
     paths:
       - "custom_components/enphase_ev/**/*.py"
       - "custom_components/enphase_ev/**/*.yaml"
