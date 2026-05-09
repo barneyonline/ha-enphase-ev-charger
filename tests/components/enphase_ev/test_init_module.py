@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, call
 
@@ -9,8 +10,9 @@ import voluptuous as vol
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 import custom_components.enphase_ev as enphase_init
 from custom_components.enphase_ev import (
@@ -44,9 +46,13 @@ from custom_components.enphase_ev import (
     async_unload_entry,
 )
 from custom_components.enphase_ev.const import (
+    CONF_AUTH_BLOCK_REASON,
+    CONF_AUTH_BLOCKED_UNTIL,
     CONF_INCLUDE_INVERTERS,
+    CONF_SERIALS,
     CONF_SELECTED_TYPE_KEYS,
     CONF_SITE_ID,
+    CONF_SITE_ONLY,
     ISSUE_AUTH_BLOCKED,
     ISSUE_TOO_MANY_ACTIVE_SESSIONS,
 )
@@ -506,6 +512,48 @@ async def test_async_setup_entry_updates_existing_device(
     )
     assert ev_type_device is None
     assert updated.via_device_id is None
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_auth_block_is_setup_not_ready_without_reauth(
+    hass: HomeAssistant, config_entry, monkeypatch
+) -> None:
+    """Startup auth blocks should retry setup instead of starting HA reauth."""
+
+    blocked_until = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    hass.config_entries.async_update_entry(
+        config_entry,
+        data={
+            **config_entry.data,
+            CONF_SERIALS: [],
+            CONF_SITE_ONLY: True,
+            CONF_AUTH_BLOCKED_UNTIL: blocked_until,
+            CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
+        },
+    )
+    object.__setattr__(
+        config_entry, "state", config_entries.ConfigEntryState.SETUP_IN_PROGRESS
+    )
+    start_reauth = Mock()
+    monkeypatch.setattr(config_entry, "async_start_reauth", start_reauth)
+    status = AsyncMock()
+    site_energy = AsyncMock()
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.coordinator.EnphaseEVClient.status",
+        status,
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.energy.EnergyManager._async_refresh_site_energy",
+        site_energy,
+    )
+
+    with pytest.raises(ConfigEntryNotReady) as exc_info:
+        await async_setup_entry(hass, config_entry)
+
+    assert isinstance(exc_info.value.__cause__, UpdateFailed)
+    start_reauth.assert_not_called()
+    status.assert_not_awaited()
+    site_energy.assert_not_awaited()
 
 
 @pytest.mark.asyncio

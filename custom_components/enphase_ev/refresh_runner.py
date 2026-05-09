@@ -86,9 +86,7 @@ class RefreshRunner:
             raise
         except EnphaseLoginWallUnauthorized as err:
             if self._coordinator._activate_auth_block_from_login_wall(err):
-                raise ConfigEntryAuthFailed(
-                    self._coordinator._blocked_auth_failure_message()
-                ) from err
+                raise self._coordinator._auth_block_update_failed() from err
             raise ConfigEntryAuthFailed from err
         except ConfigEntryAuthFailed:
             raise

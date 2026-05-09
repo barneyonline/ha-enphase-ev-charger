@@ -2996,17 +2996,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         fallback_data = context.fallback_data
         first_refresh = context.first_refresh
 
-        if self.site_only or not self.serials:
-            return await self._async_run_site_only_refresh_pipeline(context)
-
-        # Handle backoff window
-        if self._backoff_until and time.monotonic() < self._backoff_until:
-            retry_after = max(0.0, self._backoff_until - time.monotonic())
-            raise UpdateFailed(
-                "In backoff due to rate limiting or server errors",
-                retry_after=retry_after,
-            )
-
         if self._auth_block_active():
             self._last_error = "auth_blocked"
             self.last_failure_utc = dt_util.utcnow()
@@ -3019,7 +3008,18 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._http_errors = 0
             self._payload_errors = 0
             self.diagnostics.create_auth_block_issue()
-            raise ConfigEntryAuthFailed(self.last_failure_description)
+            raise self._auth_block_update_failed()
+
+        if self.site_only or not self.serials:
+            return await self._async_run_site_only_refresh_pipeline(context)
+
+        # Handle backoff window
+        if self._backoff_until and time.monotonic() < self._backoff_until:
+            retry_after = max(0.0, self._backoff_until - time.monotonic())
+            raise UpdateFailed(
+                "In backoff due to rate limiting or server errors",
+                retry_after=retry_after,
+            )
 
         if first_refresh:
             self._start_first_refresh_followups(context)
@@ -3045,9 +3045,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise
         except Unauthorized as err:
             if self._activate_auth_block_from_login_wall(err):
-                raise ConfigEntryAuthFailed(
-                    self._blocked_auth_failure_message()
-                ) from err
+                raise self._auth_block_update_failed() from err
             raise ConfigEntryAuthFailed from err
         except OptionalEndpointUnavailable as err:
             reason = (str(err) or "EVSE status endpoint unavailable").strip()
@@ -5073,6 +5071,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
         return "Enphase authentication is temporarily blocked; retry later."
 
+    def _auth_block_retry_after_s(self) -> int | None:
+        """Return remaining auth-block seconds for coordinator retry scheduling."""
+
+        blocked_until = getattr(self, "_auth_blocked_until_utc", None)
+        if not isinstance(blocked_until, datetime):
+            return None
+        remaining = (blocked_until - dt_util.utcnow()).total_seconds()
+        if remaining <= 0:
+            return None
+        return max(1, int(remaining + 0.999))
+
+    def _auth_block_update_failed(self) -> UpdateFailed:
+        """Return a recoverable update failure while Enphase auth is blocked."""
+
+        return UpdateFailed(
+            self._blocked_auth_failure_message(),
+            retry_after=self._auth_block_retry_after_s(),
+        )
+
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials.
 
@@ -5123,7 +5140,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         if self._auth_block_active():
             self.diagnostics.create_auth_block_issue()
-            raise ConfigEntryAuthFailed(self._blocked_auth_failure_message())
+            raise self._auth_block_update_failed()
 
         if self._unauth_errors >= 2:
             self.diagnostics.create_reauth_issue()
