@@ -478,7 +478,8 @@
           "forget_password": "Unusta salvestatud parool",
           "type_heatpump": "Soojuspump",
           "type_ac_battery": "AC-aku",
-          "battery_schedules_enabled": "Luba aku ajastaja"
+          "battery_schedules_enabled": "Luba aku ajastaja",
+          "degraded_service_repair_issues": "Luba halvenenud teenuste parandused"
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
@@ -496,7 +497,8 @@
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata.",
           "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid.",
           "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval.",
-          "battery_schedules_enabled": "Halda IQ aku ajakavasid"
+          "battery_schedules_enabled": "Halda IQ aku ajakavasid",
+          "degraded_service_repair_issues": "Loob Repairsi probleemid, kui valikulised Enphase teenused on halvenenud."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Unusta salvestatud parool",
           "type_heatpump": "Soojuspump",
           "type_ac_battery": "AC-aku",
-          "battery_schedules_enabled": "Luba aku ajastaja"
+          "battery_schedules_enabled": "Luba aku ajastaja",
+          "degraded_service_repair_issues": "Luba halvenenud teenuste parandused"
         },
         "data_description": {
           "type_envoy": "Sisaldab lüüsi ühenduvuse ja arvestite diagnostikat.",
@@ -536,7 +539,8 @@
           "forget_password": "Eemaldab salvestatud parooli. Automaatset värskendamist enam ei üritata.",
           "type_heatpump": "Sisaldab soojuspumba oleku-, diagnostika- ja tarbimisandureid.",
           "type_ac_battery": "Sisaldab AC-aku andureid ja unerežiimi juhtnuppe, kui need on saadaval.",
-          "battery_schedules_enabled": "Halda IQ aku ajakavasid"
+          "battery_schedules_enabled": "Halda IQ aku ajakavasid",
+          "degraded_service_repair_issues": "Loob Repairsi probleemid, kui valikulised Enphase teenused on halvenenud."
         }
       },
       "migrate_envoy_source": {

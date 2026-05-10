@@ -478,7 +478,8 @@
           "forget_password": "Gespeichertes Passwort löschen",
           "type_heatpump": "Wärmepumpe",
           "type_ac_battery": "AC-Batterie",
-          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner"
+          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner",
+          "degraded_service_repair_issues": "Reparaturen für beeinträchtigte Dienste aktivieren"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -496,7 +497,8 @@
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
           "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
           "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar.",
-          "battery_schedules_enabled": "IQ-Batteriepläne verwalten"
+          "battery_schedules_enabled": "IQ-Batteriepläne verwalten",
+          "degraded_service_repair_issues": "Erstellt Repairs-Probleme, wenn optionale Enphase-Dienste beeinträchtigt sind."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Gespeichertes Passwort löschen",
           "type_heatpump": "Wärmepumpe",
           "type_ac_battery": "AC-Batterie",
-          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner"
+          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner",
+          "degraded_service_repair_issues": "Reparaturen für beeinträchtigte Dienste aktivieren"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -536,7 +539,8 @@
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
           "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
           "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar.",
-          "battery_schedules_enabled": "IQ-Batteriepläne verwalten"
+          "battery_schedules_enabled": "IQ-Batteriepläne verwalten",
+          "degraded_service_repair_issues": "Erstellt Repairs-Probleme, wenn optionale Enphase-Dienste beeinträchtigt sind."
         }
       },
       "migrate_envoy_source": {

@@ -478,7 +478,8 @@
           "forget_password": "Olvidar contraseña almacenada",
           "type_heatpump": "Bomba de calor",
           "type_ac_battery": "Batería CA",
-          "battery_schedules_enabled": "Activar programador de batería"
+          "battery_schedules_enabled": "Activar programador de batería",
+          "degraded_service_repair_issues": "Activar reparaciones por servicios degradados"
         },
         "data_description": {
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
@@ -496,7 +497,8 @@
           "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática.",
           "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor.",
           "type_ac_battery": "Incluye sensores de batería CA y controles del modo de reposo cuando están disponibles.",
-          "battery_schedules_enabled": "Gestionar horarios de batería IQ"
+          "battery_schedules_enabled": "Gestionar horarios de batería IQ",
+          "degraded_service_repair_issues": "Crea problemas de Repairs cuando los servicios opcionales de Enphase están degradados."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Olvidar contraseña almacenada",
           "type_heatpump": "Bomba de calor",
           "type_ac_battery": "Batería CA",
-          "battery_schedules_enabled": "Activar programador de batería"
+          "battery_schedules_enabled": "Activar programador de batería",
+          "degraded_service_repair_issues": "Activar reparaciones por servicios degradados"
         },
         "data_description": {
           "type_envoy": "Incluye conectividad de la puerta de enlace y diagnósticos de medidores.",
@@ -536,7 +539,8 @@
           "forget_password": "Elimina la contraseña almacenada. Ya no se intentará la actualización automática.",
           "type_heatpump": "Incluye sensores de estado, diagnóstico y consumo de la bomba de calor.",
           "type_ac_battery": "Incluye sensores de batería CA y controles del modo de reposo cuando están disponibles.",
-          "battery_schedules_enabled": "Gestionar horarios de batería IQ"
+          "battery_schedules_enabled": "Gestionar horarios de batería IQ",
+          "degraded_service_repair_issues": "Crea problemas de Repairs cuando los servicios opcionales de Enphase están degradados."
         }
       },
       "migrate_envoy_source": {

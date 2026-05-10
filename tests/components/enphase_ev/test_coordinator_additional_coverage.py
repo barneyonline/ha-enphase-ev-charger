@@ -21,6 +21,7 @@ from yarl import URL
 import builtins
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from http import HTTPStatus
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
 from custom_components.enphase_ev import coordinator as coord_mod
@@ -45,11 +46,13 @@ from custom_components.enphase_ev.const import (
     ISSUE_DNS_RESOLUTION,
     ISSUE_NETWORK_UNREACHABLE,
     ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+    ISSUE_HEMS_AUTH_DEGRADED,
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
     MIN_FAST_POLL_INTERVAL,
     MIN_SLOW_POLL_INTERVAL,
+    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     PHASE_SWITCH_CONFIG_SETTING,
@@ -754,6 +757,140 @@ def test_auth_settings_issue_tracking(coordinator_factory, mock_issue_registry) 
         issue[1] == ISSUE_AUTH_SETTINGS_UNAVAILABLE
         for issue in mock_issue_registry.deleted
     )
+
+
+def test_degraded_service_repair_issues_can_be_disabled(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False}
+    )
+    coord = EnphaseCoordinator(hass, config_entry.data, config_entry)
+
+    degraded_issue_ids = {
+        ISSUE_SCHEDULER_UNAVAILABLE,
+        ISSUE_SESSION_HISTORY_UNAVAILABLE,
+        ISSUE_SITE_ENERGY_UNAVAILABLE,
+        ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+        ISSUE_HEMS_AUTH_DEGRADED,
+    }
+    assert degraded_issue_ids <= {
+        issue_id for _domain, issue_id in mock_issue_registry.deleted
+    }
+    mock_issue_registry.created.clear()
+    mock_issue_registry.deleted.clear()
+
+    coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    coord.session_history = SimpleNamespace(service_available=False)
+    coord._sync_session_history_issue()  # noqa: SLF001
+    coord.energy = SimpleNamespace(service_available=False)
+    coord._sync_site_energy_issue()  # noqa: SLF001
+    coord._note_auth_settings_unavailable("auth settings down")  # noqa: SLF001
+    coord._note_hems_auth_failure(  # noqa: SLF001
+        Unauthorized(),
+        endpoint="hems_devices",
+    )
+
+    assert mock_issue_registry.created == []
+    assert degraded_issue_ids <= {
+        issue_id for _domain, issue_id in mock_issue_registry.deleted
+    }
+    assert coord.scheduler_available is False
+    assert coord._session_history_issue_reported is False  # noqa: SLF001
+    assert coord._site_energy_issue_reported is False  # noqa: SLF001
+    assert coord._auth_settings_issue_reported is False  # noqa: SLF001
+    assert coord._hems_auth_issue_reported is False  # noqa: SLF001
+
+
+def test_degraded_service_repair_issue_toggle_is_entry_scoped(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: True}
+    )
+    enabled_coord = EnphaseCoordinator(hass, config_entry.data, config_entry)
+    enabled_coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    enabled_issue_id = enabled_coord.diagnostics._repair_issue_id(  # noqa: SLF001
+        ISSUE_SCHEDULER_UNAVAILABLE
+    )
+    assert any(
+        issue[1] == enabled_issue_id
+        and issue[2]["translation_key"] == ISSUE_SCHEDULER_UNAVAILABLE
+        for issue in mock_issue_registry.created
+    )
+
+    disabled_entry = MockConfigEntry(
+        domain=coord_mod.DOMAIN,
+        entry_id="disabled-entry",
+        data={
+            **config_entry.data,
+            coord_mod.CONF_SITE_ID: "9633675",
+        },
+        options={OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False},
+        title="Disabled repairs",
+        unique_id="9633675",
+    )
+    disabled_entry.add_to_hass(hass)
+    disabled_coord = EnphaseCoordinator(hass, disabled_entry.data, disabled_entry)
+    disabled_coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    disabled_issue_id = disabled_coord.diagnostics._repair_issue_id(  # noqa: SLF001
+        ISSUE_SCHEDULER_UNAVAILABLE
+    )
+
+    assert (coord_mod.DOMAIN, disabled_issue_id) in mock_issue_registry.deleted
+    assert (coord_mod.DOMAIN, enabled_issue_id) not in mock_issue_registry.deleted
+    assert not any(
+        issue[1] == disabled_issue_id for issue in mock_issue_registry.created
+    )
+
+
+def test_degraded_service_repair_issue_create_clears_legacy_static_issue(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: True}
+    )
+    coord = EnphaseCoordinator(hass, config_entry.data, config_entry)
+    mock_issue_registry.deleted.clear()
+
+    coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    scoped_issue_id = coord.diagnostics._repair_issue_id(  # noqa: SLF001
+        ISSUE_SCHEDULER_UNAVAILABLE
+    )
+
+    assert scoped_issue_id != ISSUE_SCHEDULER_UNAVAILABLE
+    assert any(issue[1] == scoped_issue_id for issue in mock_issue_registry.created)
+    assert (
+        coord_mod.DOMAIN,
+        ISSUE_SCHEDULER_UNAVAILABLE,
+    ) in mock_issue_registry.deleted
+
+
+def test_degraded_service_repair_issue_init_clears_stale_legacy_static_issues(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: True}
+    )
+
+    EnphaseCoordinator(hass, config_entry.data, config_entry)
+
+    assert mock_issue_registry.created == []
+    assert {
+        ISSUE_SCHEDULER_UNAVAILABLE,
+        ISSUE_SESSION_HISTORY_UNAVAILABLE,
+        ISSUE_SITE_ENERGY_UNAVAILABLE,
+        ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+        ISSUE_HEMS_AUTH_DEGRADED,
+    } <= {issue_id for _domain, issue_id in mock_issue_registry.deleted}
 
 
 def test_sync_session_history_issue_creates_and_clears(

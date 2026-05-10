@@ -478,7 +478,8 @@
           "forget_password": "Esquecer senha armazenada",
           "type_heatpump": "Bomba de calor",
           "type_ac_battery": "Bateria CA",
-          "battery_schedules_enabled": "Ativar agendador da bateria"
+          "battery_schedules_enabled": "Ativar agendador da bateria",
+          "degraded_service_repair_issues": "Ativar reparos de serviços degradados"
         },
         "data_description": {
           "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
@@ -496,7 +497,8 @@
           "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada.",
           "type_heatpump": "Inclui sensores de status, diagnóstico e consumo da bomba de calor.",
           "type_ac_battery": "Inclui sensores da bateria CA e controles do modo de suspensão quando disponíveis.",
-          "battery_schedules_enabled": "Gerenciar agendamentos de bateria IQ"
+          "battery_schedules_enabled": "Gerenciar agendamentos de bateria IQ",
+          "degraded_service_repair_issues": "Cria problemas em Repairs quando serviços opcionais da Enphase estão degradados."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Esquecer senha armazenada",
           "type_heatpump": "Bomba de calor",
           "type_ac_battery": "Bateria CA",
-          "battery_schedules_enabled": "Ativar agendador da bateria"
+          "battery_schedules_enabled": "Ativar agendador da bateria",
+          "degraded_service_repair_issues": "Ativar reparos de serviços degradados"
         },
         "data_description": {
           "type_envoy": "Inclui conectividade do gateway e diagnósticos dos medidores.",
@@ -536,7 +539,8 @@
           "forget_password": "Remove a senha armazenada. A atualização automática não será mais tentada.",
           "type_heatpump": "Inclui sensores de status, diagnóstico e consumo da bomba de calor.",
           "type_ac_battery": "Inclui sensores da bateria CA e controles do modo de suspensão quando disponíveis.",
-          "battery_schedules_enabled": "Gerenciar agendamentos de bateria IQ"
+          "battery_schedules_enabled": "Gerenciar agendamentos de bateria IQ",
+          "degraded_service_repair_issues": "Cria problemas em Repairs quando serviços opcionais da Enphase estão degradados."
         }
       },
       "migrate_envoy_source": {

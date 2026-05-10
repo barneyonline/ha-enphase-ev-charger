@@ -478,7 +478,8 @@
           "forget_password": "Pamiršti išsaugotą slaptažodį",
           "type_heatpump": "Šilumos siurblys",
           "type_ac_battery": "AC baterija",
-          "battery_schedules_enabled": "Įjungti baterijos planuoklį"
+          "battery_schedules_enabled": "Įjungti baterijos planuoklį",
+          "degraded_service_repair_issues": "Įgalinti suprastėjusių paslaugų taisymus"
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
@@ -496,7 +497,8 @@
           "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
           "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius.",
           "type_ac_battery": "Apima AC baterijos jutiklius ir miego režimo valdiklius, kai jie prieinami.",
-          "battery_schedules_enabled": "Tvarkyti IQ baterijos tvarkaraščius"
+          "battery_schedules_enabled": "Tvarkyti IQ baterijos tvarkaraščius",
+          "degraded_service_repair_issues": "Sukuria Repairs problemas, kai pasirenkamos Enphase paslaugos veikia suprastėjusiai."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Pamiršti išsaugotą slaptažodį",
           "type_heatpump": "Šilumos siurblys",
           "type_ac_battery": "AC baterija",
-          "battery_schedules_enabled": "Įjungti baterijos planuoklį"
+          "battery_schedules_enabled": "Įjungti baterijos planuoklį",
+          "degraded_service_repair_issues": "Įgalinti suprastėjusių paslaugų taisymus"
         },
         "data_description": {
           "type_envoy": "Apima šliuzo ryšio ir skaitiklių diagnostiką.",
@@ -536,7 +539,8 @@
           "forget_password": "Pašalina išsaugotą slaptažodį. Automatinis atnaujinimas daugiau nebus bandomas.",
           "type_heatpump": "Apima šilumos siurblio būsenos, diagnostikos ir vartojimo jutiklius.",
           "type_ac_battery": "Apima AC baterijos jutiklius ir miego režimo valdiklius, kai jie prieinami.",
-          "battery_schedules_enabled": "Tvarkyti IQ baterijos tvarkaraščius"
+          "battery_schedules_enabled": "Tvarkyti IQ baterijos tvarkaraščius",
+          "degraded_service_repair_issues": "Sukuria Repairs problemas, kai pasirenkamos Enphase paslaugos veikia suprastėjusiai."
         }
       },
       "migrate_envoy_source": {

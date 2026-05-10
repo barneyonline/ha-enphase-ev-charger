@@ -478,7 +478,8 @@
           "forget_password": "Mentett jelszó elfelejtése",
           "type_heatpump": "Hőszivattyú",
           "type_ac_battery": "AC akkumulátor",
-          "battery_schedules_enabled": "Az akkumulátor ütemező engedélyezése"
+          "battery_schedules_enabled": "Az akkumulátor ütemező engedélyezése",
+          "degraded_service_repair_issues": "Csökkent működésű szolgáltatások javításainak engedélyezése"
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
@@ -496,7 +497,8 @@
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve.",
           "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza.",
           "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők.",
-          "battery_schedules_enabled": "Kezelje az IQ akkumulátor-ütemezéseket"
+          "battery_schedules_enabled": "Kezelje az IQ akkumulátor-ütemezéseket",
+          "degraded_service_repair_issues": "Repairs-problémákat hoz létre, amikor az opcionális Enphase-szolgáltatások csökkent működésűek."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Mentett jelszó elfelejtése",
           "type_heatpump": "Hőszivattyú",
           "type_ac_battery": "AC akkumulátor",
-          "battery_schedules_enabled": "Az akkumulátor ütemező engedélyezése"
+          "battery_schedules_enabled": "Az akkumulátor ütemező engedélyezése",
+          "degraded_service_repair_issues": "Csökkent működésű szolgáltatások javításainak engedélyezése"
         },
         "data_description": {
           "type_envoy": "Tartalmazza az átjáró-kapcsolat és a mérők diagnosztikáját.",
@@ -536,7 +539,8 @@
           "forget_password": "Eltávolítja a mentett jelszót. Automatikus frissítés többé nem lesz megkísérelve.",
           "type_heatpump": "A hőszivattyú állapot-, diagnosztikai és fogyasztási érzékelőit tartalmazza.",
           "type_ac_battery": "AC akkumulátor érzékelőket és alvó mód vezérlőket tartalmaz, ha elérhetők.",
-          "battery_schedules_enabled": "Kezelje az IQ akkumulátor-ütemezéseket"
+          "battery_schedules_enabled": "Kezelje az IQ akkumulátor-ütemezéseket",
+          "degraded_service_repair_issues": "Repairs-problémákat hoz létre, amikor az opcionális Enphase-szolgáltatások csökkent működésűek."
         }
       },
       "migrate_envoy_source": {

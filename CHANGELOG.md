@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 ### ✨ New features
 - Added a `clear_hems_auth_backoff` service to clear the Heat Pump/HEMS-only auth backoff without performing password login.
+- Added an options-flow toggle for degraded service repair issues so users can keep the diagnostic sensor state without creating Repairs notifications for optional Enphase service degradation.
 
 ### 🐛 Bug fixes
 - Isolated Heat Pump/HEMS auth failures behind a HEMS-only circuit breaker so they no longer trigger global stored-password refresh attempts or stop wallbox/battery polling. (#528)
