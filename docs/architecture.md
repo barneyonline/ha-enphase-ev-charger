@@ -95,6 +95,8 @@ Entity platforms under `sensor.py`, `binary_sensor.py`, `button.py`, `number.py`
 
 `diagnostics.py` builds Home Assistant config-entry and device diagnostics. `coordinator_diagnostics.py` builds coordinator health snapshots and manages repair issues. `log_redaction.py` and `runtime_helpers.redact_battery_payload` are the shared redaction helpers.
 
+Optional Enphase service degradation still updates diagnostics and service-status entities when degraded service repair issues are disabled in the integration options; only the Home Assistant Repairs notifications are suppressed and cleared.
+
 Diagnostics may include raw or near-raw Enphase payloads after redaction. Any new diagnostics payload should be reviewed for:
 
 - Tokens, cookies, credentials, emails, user IDs, and auth headers.

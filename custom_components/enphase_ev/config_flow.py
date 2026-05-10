@@ -61,6 +61,7 @@ from .const import (
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_BATTERY_SCHEDULES_ENABLED,
     DEFAULT_API_TIMEOUT,
+    DEFAULT_DEGRADED_SERVICE_REPAIR_ISSUES,
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SCHEDULE_SYNC_ENABLED,
@@ -75,6 +76,7 @@ from .const import (
     MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
+    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
@@ -1392,6 +1394,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
                     default=self._entry.options.get(
                         OPT_BATTERY_SCHEDULES_ENABLED,
                         DEFAULT_BATTERY_SCHEDULES_ENABLED,
+                    ),
+                ): bool,
+                vol.Optional(
+                    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
+                    default=self._entry.options.get(
+                        OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
+                        DEFAULT_DEGRADED_SERVICE_REPAIR_ISSUES,
                     ),
                 ): bool,
                 vol.Optional("reauth", default=False): bool,

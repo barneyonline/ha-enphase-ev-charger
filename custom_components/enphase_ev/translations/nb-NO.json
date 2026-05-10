@@ -478,7 +478,8 @@
           "forget_password": "Glem lagret passord",
           "type_heatpump": "Varmepumpe",
           "type_ac_battery": "AC-batteri",
-          "battery_schedules_enabled": "Aktiver batteriplanlegger"
+          "battery_schedules_enabled": "Aktiver batteriplanlegger",
+          "degraded_service_repair_issues": "Aktiver reparasjoner for degraderte tjenester"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
@@ -496,7 +497,8 @@
           "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger forsøkes.",
           "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostikk og forbruk.",
           "type_ac_battery": "Inkluderer AC-batterisensorer og kontroller for hvilemodus når de er tilgjengelige.",
-          "battery_schedules_enabled": "Administrer IQ-batteriplaner"
+          "battery_schedules_enabled": "Administrer IQ-batteriplaner",
+          "degraded_service_repair_issues": "Oppretter Repairs-problemer når valgfrie Enphase-tjenester er degraderte."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Glem lagret passord",
           "type_heatpump": "Varmepumpe",
           "type_ac_battery": "AC-batteri",
-          "battery_schedules_enabled": "Aktiver batteriplanlegger"
+          "battery_schedules_enabled": "Aktiver batteriplanlegger",
+          "degraded_service_repair_issues": "Aktiver reparasjoner for degraderte tjenester"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-tilkobling og målerdiagnostikk.",
@@ -536,7 +539,8 @@
           "forget_password": "Fjerner det lagrede passordet. Automatisk oppdatering vil ikke lenger forsøkes.",
           "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostikk og forbruk.",
           "type_ac_battery": "Inkluderer AC-batterisensorer og kontroller for hvilemodus når de er tilgjengelige.",
-          "battery_schedules_enabled": "Administrer IQ-batteriplaner"
+          "battery_schedules_enabled": "Administrer IQ-batteriplaner",
+          "degraded_service_repair_issues": "Oppretter Repairs-problemer når valgfrie Enphase-tjenester er degraderte."
         }
       },
       "migrate_envoy_source": {

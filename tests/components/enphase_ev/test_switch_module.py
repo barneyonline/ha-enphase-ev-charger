@@ -1627,7 +1627,8 @@ async def test_app_auth_switch_handles_auth_settings_unavailable(
         await sw.async_turn_on()
 
     assert any(
-        issue[1] == "auth_settings_unavailable" for issue in mock_issue_registry.created
+        issue[2]["translation_key"] == "auth_settings_unavailable"
+        for issue in mock_issue_registry.created
     )
 
 

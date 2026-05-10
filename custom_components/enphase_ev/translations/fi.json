@@ -478,7 +478,8 @@
           "forget_password": "Unohda tallennettu salasana",
           "type_heatpump": "Lämpöpumppu",
           "type_ac_battery": "AC-akku",
-          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön"
+          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön",
+          "degraded_service_repair_issues": "Ota heikentyneiden palvelujen korjaukset käyttöön"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -496,7 +497,8 @@
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
           "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
           "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla.",
-          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja"
+          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja",
+          "degraded_service_repair_issues": "Luo Repairs-ongelmia, kun valinnaiset Enphase-palvelut ovat heikentyneet."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Unohda tallennettu salasana",
           "type_heatpump": "Lämpöpumppu",
           "type_ac_battery": "AC-akku",
-          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön"
+          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön",
+          "degraded_service_repair_issues": "Ota heikentyneiden palvelujen korjaukset käyttöön"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -536,7 +539,8 @@
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
           "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
           "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla.",
-          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja"
+          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja",
+          "degraded_service_repair_issues": "Luo Repairs-ongelmia, kun valinnaiset Enphase-palvelut ovat heikentyneet."
         }
       },
       "migrate_envoy_source": {

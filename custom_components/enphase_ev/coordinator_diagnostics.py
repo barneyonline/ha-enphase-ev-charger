@@ -11,6 +11,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     BATTERY_PROFILE_PENDING_TIMEOUT_S,
+    DEFAULT_DEGRADED_SERVICE_REPAIR_ISSUES,
     DOMAIN,
     ISSUE_BATTERY_PROFILE_PENDING,
     ISSUE_CLOUD_ERRORS,
@@ -25,6 +26,7 @@ from .const import (
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
+    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
 )
 from .coordinator_refresh_metrics import refresh_performance_summary
 from .log_redaction import redact_text
@@ -34,15 +36,61 @@ if TYPE_CHECKING:  # pragma: no cover
     from .coordinator import EnphaseCoordinator
 
 
+_DEGRADED_SERVICE_REPAIR_ISSUES: tuple[tuple[str, str], ...] = (
+    ("_scheduler_issue_reported", ISSUE_SCHEDULER_UNAVAILABLE),
+    ("_session_history_issue_reported", ISSUE_SESSION_HISTORY_UNAVAILABLE),
+    ("_site_energy_issue_reported", ISSUE_SITE_ENERGY_UNAVAILABLE),
+    ("_auth_settings_issue_reported", ISSUE_AUTH_SETTINGS_UNAVAILABLE),
+    ("_hems_auth_issue_reported", ISSUE_HEMS_AUTH_DEGRADED),
+)
+_DEGRADED_SERVICE_REPAIR_ISSUE_IDS = frozenset(
+    issue_id for _flag_attr, issue_id in _DEGRADED_SERVICE_REPAIR_ISSUES
+)
+
+
 class CoordinatorDiagnostics:
     """Diagnostics, payload health, and repair-issue helpers for the coordinator."""
 
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
+        if self._entry_issue_suffix() is not None:
+            self.clear_legacy_degraded_service_repair_issues()
+        if not self.degraded_service_repair_issues_enabled:
+            self.clear_degraded_service_repair_issues()
 
     def _delete_issue(self, issue_id: str) -> None:
         coord = self.coordinator
         ir.async_delete_issue(coord.hass, DOMAIN, issue_id)
+
+    def _entry_issue_suffix(self) -> str | None:
+        config_entry = getattr(self.coordinator, "config_entry", None)
+        entry_id = getattr(config_entry, "entry_id", None)
+        if not entry_id:
+            return None
+        suffix = "".join(
+            char.lower() if char.isalnum() else "_" for char in str(entry_id).strip()
+        ).strip("_")
+        return suffix or None
+
+    def _repair_issue_id(self, issue_id: str) -> str:
+        if issue_id not in _DEGRADED_SERVICE_REPAIR_ISSUE_IDS:
+            return issue_id
+        suffix = self._entry_issue_suffix()
+        if suffix is None:
+            return issue_id
+        return f"{issue_id}_{suffix}"
+
+    def _delete_reported_issue(self, issue_id: str) -> None:
+        registry_issue_id = self._repair_issue_id(issue_id)
+        self._delete_issue(registry_issue_id)
+        if registry_issue_id != issue_id:
+            self._delete_issue(issue_id)
+
+    def clear_legacy_degraded_service_repair_issues(self) -> None:
+        """Clear pre-scoped degraded-service repair issues after upgrade."""
+
+        for issue_id in _DEGRADED_SERVICE_REPAIR_ISSUE_IDS:
+            self._delete_issue(issue_id)
 
     def _create_site_metrics_issue(
         self,
@@ -52,6 +100,7 @@ class CoordinatorDiagnostics:
         placeholders: dict[str, str] | None = None,
     ) -> None:
         coord = self.coordinator
+        registry_issue_id = self._repair_issue_id(issue_id)
         metrics, base_placeholders = self.issue_context()
         # Repair issues store the current diagnostic snapshot so users can share
         # actionable context without enabling debug logging first.
@@ -61,20 +110,54 @@ class CoordinatorDiagnostics:
         ir.async_create_issue(
             coord.hass,
             DOMAIN,
-            issue_id,
+            registry_issue_id,
             is_fixable=False,
             severity=severity,
             translation_key=issue_id,
             translation_placeholders=issue_placeholders,
             data={"site_metrics": metrics},
         )
+        if registry_issue_id != issue_id:
+            self._delete_issue(issue_id)
 
     def _clear_reported_issue(self, flag_attr: str, issue_id: str) -> None:
         coord = self.coordinator
         if not getattr(coord, flag_attr, False):
             return
-        self._delete_issue(issue_id)
+        self._delete_reported_issue(issue_id)
         setattr(coord, flag_attr, False)
+
+    @property
+    def degraded_service_repair_issues_enabled(self) -> bool:
+        """Return whether optional degraded-service repair issues should be raised."""
+
+        config_entry = getattr(self.coordinator, "config_entry", None)
+        options = getattr(config_entry, "options", {}) if config_entry else {}
+        if not isinstance(options, dict):
+            options = dict(options or {})
+        return bool(
+            options.get(
+                OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
+                DEFAULT_DEGRADED_SERVICE_REPAIR_ISSUES,
+            )
+        )
+
+    def clear_degraded_service_repair_issues(self) -> None:
+        """Clear optional degraded-service repair issues regardless of local flags."""
+
+        coord = self.coordinator
+        for flag_attr, issue_id in _DEGRADED_SERVICE_REPAIR_ISSUES:
+            self._delete_reported_issue(issue_id)
+            setattr(coord, flag_attr, False)
+
+    def _degraded_service_issue_suppressed(self, flag_attr: str, issue_id: str) -> bool:
+        if issue_id not in _DEGRADED_SERVICE_REPAIR_ISSUE_IDS:
+            return False
+        if self.degraded_service_repair_issues_enabled:
+            return False
+        self._delete_reported_issue(issue_id)
+        setattr(self.coordinator, flag_attr, False)
+        return True
 
     def _report_flagged_issue(
         self,
@@ -85,6 +168,8 @@ class CoordinatorDiagnostics:
         placeholders: dict[str, str] | None = None,
     ) -> None:
         coord = self.coordinator
+        if self._degraded_service_issue_suppressed(flag_attr, issue_id):
+            return
         if getattr(coord, flag_attr, False):
             return
         self._create_site_metrics_issue(
@@ -1332,6 +1417,11 @@ class CoordinatorDiagnostics:
 
     def create_hems_auth_degraded_issue(self) -> None:
         coord = self.coordinator
+        if self._degraded_service_issue_suppressed(
+            "_hems_auth_issue_reported",
+            ISSUE_HEMS_AUTH_DEGRADED,
+        ):
+            return
         placeholders: dict[str, str] = {}
         backoff_until = coord._format_auth_blocked_until(
             getattr(coord, "_hems_auth_backoff_ends_utc", None)

@@ -478,7 +478,8 @@
           "forget_password": "Aizmirst saglabāto paroli",
           "type_heatpump": "Siltumsūknis",
           "type_ac_battery": "AC baterija",
-          "battery_schedules_enabled": "Iespējot akumulatora plānotāju"
+          "battery_schedules_enabled": "Iespējot akumulatora plānotāju",
+          "degraded_service_repair_issues": "Iespējot degradētu pakalpojumu labojumus"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -496,7 +497,8 @@
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
           "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
           "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas.",
-          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus"
+          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus",
+          "degraded_service_repair_issues": "Izveido Repairs problēmas, kad izvēles Enphase pakalpojumi darbojas pasliktināti."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Aizmirst saglabāto paroli",
           "type_heatpump": "Siltumsūknis",
           "type_ac_battery": "AC baterija",
-          "battery_schedules_enabled": "Iespējot akumulatora plānotāju"
+          "battery_schedules_enabled": "Iespējot akumulatora plānotāju",
+          "degraded_service_repair_issues": "Iespējot degradētu pakalpojumu labojumus"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -536,7 +539,8 @@
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
           "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
           "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas.",
-          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus"
+          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus",
+          "degraded_service_repair_issues": "Izveido Repairs problēmas, kad izvēles Enphase pakalpojumi darbojas pasliktināti."
         }
       },
       "migrate_envoy_source": {

@@ -69,6 +69,7 @@ from custom_components.enphase_ev.const import (
     MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
+    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
@@ -2750,6 +2751,7 @@ async def test_options_flow_show_form_with_defaults(hass) -> None:
     validated = result["data_schema"]({})
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is True
     assert validated[OPT_BATTERY_SCHEDULES_ENABLED] is True
+    assert validated[OPT_DEGRADED_SERVICE_REPAIR_ISSUES] is True
 
 
 @pytest.mark.asyncio
@@ -2769,6 +2771,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
             OPT_SESSION_HISTORY_INTERVAL: 30,
             OPT_SCHEDULE_SYNC_ENABLED: False,
             OPT_BATTERY_SCHEDULES_ENABLED: True,
+            OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False,
             CONF_SITE_ONLY: True,
         },
     )
@@ -2793,6 +2796,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_SESSION_HISTORY_INTERVAL] == 30
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is False
     assert validated[OPT_BATTERY_SCHEDULES_ENABLED] is True
+    assert validated[OPT_DEGRADED_SERVICE_REPAIR_ISSUES] is False
     assert CONF_SCAN_INTERVAL not in validated
     assert CONF_SITE_ONLY not in validated
 
@@ -2900,6 +2904,7 @@ async def test_options_flow_normalizes_poll_intervals_on_save(hass) -> None:
             OPT_SESSION_HISTORY_INTERVAL: 10,
             OPT_SCHEDULE_SYNC_ENABLED: False,
             OPT_BATTERY_SCHEDULES_ENABLED: False,
+            OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False,
             "reauth": False,
             "forget_password": False,
         }
@@ -2909,6 +2914,7 @@ async def test_options_flow_normalizes_poll_intervals_on_save(hass) -> None:
     assert result["data"][OPT_API_TIMEOUT] == 15
     assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
     assert result["data"][OPT_SLOW_POLL_INTERVAL] == 45
+    assert result["data"][OPT_DEGRADED_SERVICE_REPAIR_ISSUES] is False
 
 
 @pytest.mark.asyncio

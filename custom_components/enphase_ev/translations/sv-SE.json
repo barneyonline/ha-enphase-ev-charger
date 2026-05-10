@@ -478,7 +478,8 @@
           "forget_password": "Glöm lagrat lösenord",
           "type_heatpump": "Värmepump",
           "type_ac_battery": "AC-batteri",
-          "battery_schedules_enabled": "Aktivera batterischemaläggare"
+          "battery_schedules_enabled": "Aktivera batterischemaläggare",
+          "degraded_service_repair_issues": "Aktivera reparationer för degraderade tjänster"
         },
         "data_description": {
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
@@ -496,7 +497,8 @@
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
           "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning.",
           "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga.",
-          "battery_schedules_enabled": "Hantera IQ-batterischeman"
+          "battery_schedules_enabled": "Hantera IQ-batterischeman",
+          "degraded_service_repair_issues": "Skapar Repairs-problem när valfria Enphase-tjänster är degraderade."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Glöm lagrat lösenord",
           "type_heatpump": "Värmepump",
           "type_ac_battery": "AC-batteri",
-          "battery_schedules_enabled": "Aktivera batterischemaläggare"
+          "battery_schedules_enabled": "Aktivera batterischemaläggare",
+          "degraded_service_repair_issues": "Aktivera reparationer för degraderade tjänster"
         },
         "data_description": {
           "type_envoy": "Inkluderar gateway-anslutning och mätardiagnostik.",
@@ -536,7 +539,8 @@
           "forget_password": "Tar bort det lagrade lösenordet. Automatisk uppdatering försöks inte längre.",
           "type_heatpump": "Inkluderar sensorer för värmepumpens status, diagnostik och förbrukning.",
           "type_ac_battery": "Inkluderar AC-batterisensorer och vilolägeskontroller när de är tillgängliga.",
-          "battery_schedules_enabled": "Hantera IQ-batterischeman"
+          "battery_schedules_enabled": "Hantera IQ-batterischeman",
+          "degraded_service_repair_issues": "Skapar Repairs-problem när valfria Enphase-tjänster är degraderade."
         }
       },
       "migrate_envoy_source": {
