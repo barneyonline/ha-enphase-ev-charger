@@ -9,6 +9,7 @@ import pytest
 from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev import sensor as sensor_mod
+from custom_components.enphase_ev import tariff as tariff_mod
 from custom_components.enphase_ev.api import OptionalEndpointUnavailable
 from custom_components.enphase_ev.const import DOMAIN
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
@@ -2507,7 +2508,9 @@ def test_rate_value_sensor_uses_home_assistant_currency_for_unit(
     assert sensor.extra_state_attributes["formatted_rate"] == "$0.31"
 
 
-def test_tariff_sensor_falls_back_to_cloud_device(coordinator_factory) -> None:
+def test_tariff_sensor_falls_back_to_cloud_device(
+    coordinator_factory, monkeypatch
+) -> None:
     coord = coordinator_factory()
     coord.inventory_view.type_device_info = MagicMock(return_value=None)
     coord.tariff_billing = parse_tariff_billing(
@@ -2516,6 +2519,11 @@ def test_tariff_sensor_falls_back_to_cloud_device(coordinator_factory) -> None:
             "billingFrequency": "DAY",
             "billingIntervalValue": 30,
         }
+    )
+    monkeypatch.setattr(
+        tariff_mod.dt_util,
+        "now",
+        lambda: datetime(2026, 4, 2, tzinfo=timezone.utc),
     )
 
     sensor = EnphaseTariffBillingSensor(coord)

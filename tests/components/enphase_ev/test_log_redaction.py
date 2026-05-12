@@ -44,7 +44,7 @@ def test_redact_text_scrubs_common_sensitive_values() -> None:
 
 def test_redact_text_scrubs_site_ids_from_enphase_url_paths() -> None:
     text = (
-        "GET /systems/9990001/hems_power_timeseries "
+        "GET /systems/9990001/devices?status=active "
         "GET /service/system_dashboard/api_internal/dashboard/sites/9990001/devices-tree "
         "GET /app-api/9990001/devices.json "
         "GET /service/evse_controller/api/v2/9990001/ev_chargers/summary "
@@ -64,7 +64,7 @@ def test_redact_text_scrubs_site_ids_from_enphase_url_paths() -> None:
     redacted = redact_text(text, max_length=2000)
 
     assert "9990001" not in redacted
-    assert "/systems/[site]/hems_power_timeseries" in redacted
+    assert "/systems/[site]/devices?status=active" in redacted
     assert "/sites/[site]/devices-tree" in redacted
     assert "/app-api/[site]/devices.json" in redacted
     assert "/evse_controller/api/v2/[site]/ev_chargers/summary" in redacted

@@ -222,7 +222,7 @@ def test_coordinator_public_runtime_properties_delegate(coordinator_factory) -> 
         heatpump_power_sample_utc=sample_utc,
         heatpump_power_start_utc=start_utc,
         heatpump_power_device_uid="HP-1",
-        heatpump_power_source="hems_power_timeseries:HP-1",
+        heatpump_power_source="hems_energy_consumption_delta:HP-1",
         heatpump_power_last_error="power boom",
         heatpump_runtime_diagnostics=lambda: {
             "power_snapshot": {"outcome": "selected_sample"}
@@ -241,7 +241,7 @@ def test_coordinator_public_runtime_properties_delegate(coordinator_factory) -> 
     assert coord.heatpump_power_sample_utc == sample_utc
     assert coord.heatpump_power_start_utc == start_utc
     assert coord.heatpump_power_device_uid == "HP-1"
-    assert coord.heatpump_power_source == "hems_power_timeseries:HP-1"
+    assert coord.heatpump_power_source == "hems_energy_consumption_delta:HP-1"
     assert coord.heatpump_power_last_error == "power boom"
     assert coord.heatpump_runtime_diagnostics()["power_snapshot"]["outcome"] == (
         "selected_sample"

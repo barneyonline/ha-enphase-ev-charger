@@ -544,7 +544,6 @@ class DummyCoordinator(SimpleNamespace):
         self._heatpump_power_snapshot = {
             "site_date": "2026-03-01",
             "force": True,
-            "compare_all": True,
             "previous_device_ref": "H...1",
             "candidates": [
                 {

@@ -303,6 +303,79 @@ def test_heatpump_power_summary_smooths_idle_zero_from_history(
     assert summary["smoothed"] is True
 
 
+def test_heatpump_power_summary_smooths_idle_high_delta_from_history(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 105.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 15, tzinfo=timezone.utc),
+        },
+    ]
+    runtime._heatpump_daily_consumption_previous = (  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:25:00Z",
+        )
+    )
+
+    summary = runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=110.0,
+            timestamp="2026-04-02T00:30:00Z",
+        ),
+        runtime_snapshot={"heatpump_status": "IDLE"},
+    )
+
+    assert summary is not None
+    assert summary["raw_value_w"] == pytest.approx(60.0)
+    assert summary["raw_validation"] == "idle_high_delta_pending_smoothing"
+    assert summary["accepted_value_w"] == pytest.approx(20.0)
+    assert summary["power_window_seconds"] == pytest.approx(1800.0)
+    assert summary["power_validation"] == "smoothed_idle_delta"
+    assert summary["smoothed"] is True
+    assert summary["rejected"] is False
+
+
+def test_heatpump_power_summary_rejects_unsmoothed_idle_high_delta(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_daily_consumption_previous = (  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=100.0,
+            timestamp="2026-04-02T00:25:00Z",
+        )
+    )
+
+    summary = runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:30:00Z",
+        ),
+        runtime_snapshot={"heatpump_status": "IDLE"},
+    )
+
+    assert summary is not None
+    assert summary["raw_value_w"] == pytest.approx(60.0)
+    assert summary["raw_validation"] == "idle_high_delta_pending_smoothing"
+    assert summary["accepted_value_w"] is None
+    assert summary["power_validation"] == "rejected_idle_high_delta"
+    assert summary["smoothed"] is False
+    assert summary["rejected"] is True
+
+
 def test_heatpump_power_summary_does_not_smooth_non_idle_zero(
     coordinator_factory,
 ) -> None:
@@ -423,7 +496,7 @@ async def test_refresh_heatpump_power_smooths_idle_zero_from_recorded_history(
         force=True
     )
     assert coord.heatpump_power_w == pytest.approx(20.0)
-    assert coord.heatpump_power_smoothed is False
+    assert coord.heatpump_power_smoothed is True
 
     await coord.heatpump_runtime._async_refresh_heatpump_power(  # noqa: SLF001
         force=True
@@ -517,6 +590,71 @@ def test_heatpump_power_history_helpers_cover_guard_paths(
     ]
 
 
+@pytest.mark.asyncio
+async def test_refresh_heatpump_power_records_rejected_idle_high_delta_history(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_payload = {"curr_date_site": "2026-04-02"}  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "statusText": "Normal",
+                    }
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.hems_heatpump_state = AsyncMock(
+        return_value={"device_uid": "HP-1", "heatpump_status": "IDLE"}
+    )
+    coord.client.hems_energy_consumption = AsyncMock(
+        return_value={
+            "type": "hems-device-details",
+            "timestamp": "2026-04-02T00:05:00Z",
+            "data": {
+                "heat-pump": [
+                    {
+                        "device_uid": "HP-1",
+                        "device_name": "Waermepumpe",
+                        "consumption": [{"details": [105.0]}],
+                    }
+                ]
+            },
+        }
+    )
+    _seed_previous_heatpump_daily_snapshot(
+        coord,
+        energy_wh=100.0,
+        timestamp="2026-04-02T00:00:00Z",
+        day_key="2026-04-02",
+        timezone_name="UTC",
+    )
+
+    await coord.heatpump_runtime._async_refresh_heatpump_power(  # noqa: SLF001
+        force=True
+    )
+
+    assert coord.heatpump_power_w is None
+    assert coord.heatpump_power_last_error == "rejected_idle_high_delta"
+    assert coord.heatpump_runtime._heatpump_power_sample_history == [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 105.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 5, tzinfo=timezone.utc),
+        }
+    ]
+
+
 def test_heatpump_idle_smoothing_rejects_invalid_history(
     coordinator_factory,
 ) -> None:
@@ -525,6 +663,26 @@ def test_heatpump_idle_smoothing_rejects_invalid_history(
     snapshot = _heatpump_daily_snapshot(
         energy_wh=105.0,
         timestamp="2026-04-02T00:20:00Z",
+    )
+    assert (
+        runtime._heatpump_idle_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_value_w=None,
+            raw_validation="accepted_idle_zero",
+        )
+        is None
+    )
+    assert (
+        runtime._heatpump_idle_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_value_w=25.0,
+            raw_validation="accepted_idle_delta",
+        )
+        is None
     )
     runtime._heatpump_power_sample_history = [  # noqa: SLF001
         {"sample_utc": "bad-time"},
@@ -837,7 +995,6 @@ async def test_heatpump_runtime_power_logs_fetch_plan_and_selection_summary(
     power_snapshot = coord.heatpump_runtime.heatpump_runtime_diagnostics()[
         "power_snapshot"
     ]
-    assert power_snapshot["compare_all"] is False
     assert power_snapshot["previous_device_ref"] is None
     assert power_snapshot["outcome"] == "selected_sample"
     assert (
@@ -1001,16 +1158,11 @@ async def test_heatpump_runtime_public_api_access(coordinator_factory) -> None:
     runtime._build_heatpump_daily_consumption_snapshot.return_value = {
         "daily_energy_wh": 123.0
     }
-    runtime._heatpump_power_candidate_device_uids.return_value = ["HP-1", None]
     runtime._heatpump_member_for_uid.return_value = {"device_uid": "HP-1"}
     runtime._heatpump_member_primary_id.return_value = "PRIMARY-1"
     runtime._heatpump_member_parent_id.return_value = "PARENT-1"
     runtime._heatpump_member_alias_map.return_value = {"HP-1": "HP-1"}
-    runtime._heatpump_power_inventory_marker.return_value = ()
-    runtime._heatpump_power_fetch_plan.return_value = (["HP-1"], False, ())
     runtime._heatpump_power_candidate_is_recommended.return_value = True
-    runtime._heatpump_power_candidate_type_rank.return_value = 3
-    runtime._heatpump_power_selection_key.return_value = (1, 1, 1, 3, 500.0, 1, 0)
     runtime.async_refresh_hems_support_preflight = AsyncMock()
     runtime.async_ensure_heatpump_runtime_diagnostics = AsyncMock()
     runtime.async_refresh_heatpump_runtime_state = AsyncMock()
@@ -1050,10 +1202,6 @@ async def test_heatpump_runtime_public_api_access(coordinator_factory) -> None:
     ) == {  # noqa: SLF001
         "daily_energy_wh": 123.0
     }
-    assert runtime._heatpump_power_candidate_device_uids() == [
-        "HP-1",
-        None,
-    ]  # noqa: SLF001
     assert runtime._heatpump_member_for_uid("HP-1") == {
         "device_uid": "HP-1"
     }  # noqa: SLF001
@@ -1065,24 +1213,9 @@ async def test_heatpump_runtime_public_api_access(coordinator_factory) -> None:
         runtime._heatpump_member_parent_id({"parent": "PARENT-1"}) == "PARENT-1"
     )  # noqa: SLF001
     assert runtime._heatpump_member_alias_map() == {"HP-1": "HP-1"}  # noqa: SLF001
-    assert runtime._heatpump_power_inventory_marker() == ()  # noqa: SLF001
-    assert runtime._heatpump_power_fetch_plan() == (["HP-1"], False, ())  # noqa: SLF001
     assert (
         runtime._heatpump_power_candidate_is_recommended("HP-1") is True
     )  # noqa: SLF001
-    assert (
-        runtime._heatpump_power_candidate_type_rank(  # noqa: SLF001
-            {},
-            "HP-1",
-            is_recommended=True,
-        )
-        == 3
-    )
-    assert runtime._heatpump_power_selection_key(  # noqa: SLF001
-        {},
-        requested_uid="HP-1",
-        sample=(0, 500.0),
-    ) == (1, 1, 1, 3, 500.0, 1, 0)
 
     await runtime.async_refresh_hems_support_preflight(force=True)
     await runtime.async_ensure_heatpump_runtime_diagnostics(force=True)
@@ -1118,22 +1251,9 @@ async def test_heatpump_runtime_public_api_access(coordinator_factory) -> None:
         {"data": {}},
         _site_today_payload(123.0),
     )
-    runtime._heatpump_power_candidate_device_uids.assert_called_once_with()
     runtime._heatpump_member_for_uid.assert_called_once_with("HP-1")
     runtime._heatpump_member_alias_map.assert_called_once_with()
-    runtime._heatpump_power_inventory_marker.assert_called_once_with()
-    runtime._heatpump_power_fetch_plan.assert_called_once_with()
     runtime._heatpump_power_candidate_is_recommended.assert_called_once_with("HP-1")
-    runtime._heatpump_power_candidate_type_rank.assert_called_once_with(
-        {},
-        "HP-1",
-        is_recommended=True,
-    )
-    runtime._heatpump_power_selection_key.assert_called_once_with(
-        {},
-        requested_uid="HP-1",
-        sample=(0, 500.0),
-    )
     runtime.async_refresh_hems_support_preflight.assert_awaited_once_with(force=True)
     runtime.async_ensure_heatpump_runtime_diagnostics.assert_awaited_once_with(
         force=True
@@ -1212,8 +1332,6 @@ def test_heatpump_runtime_helper_edge_branches(coordinator_factory) -> None:
     assert runtime._heatpump_member_for_uid("missing") is None  # noqa: SLF001
     assert runtime._heatpump_member_aliases(None) == []  # noqa: SLF001
     assert runtime._heatpump_member_alias_map()["HP-ALIAS"] == "HP-1"  # noqa: SLF001
-    marker = runtime._heatpump_power_inventory_marker()  # noqa: SLF001
-    assert marker[0][0] == "GW-1"
     assert (
         runtime._heatpump_power_candidate_is_recommended(None) is False
     )  # noqa: SLF001
@@ -1236,252 +1354,6 @@ def test_heatpump_runtime_helper_edge_branches(coordinator_factory) -> None:
 
     runtime._type_device_buckets = {"heatpump": {"devices": [{}]}}  # noqa: SLF001
     assert runtime._heatpump_primary_device_uid() is None  # noqa: SLF001
-    assert runtime._heatpump_power_inventory_marker()[0][0] == "idx:0"  # noqa: SLF001
-
-
-def test_heatpump_runtime_power_helper_edge_branches(monkeypatch) -> None:
-    class BadStart:
-        def __add__(self, _other):
-            raise OverflowError("boom")
-
-    assert (
-        HeatpumpRuntime._infer_heatpump_interval_minutes(
-            None, 1, datetime.now(timezone.utc)
-        )
-        is None
-    )
-    assert (
-        HeatpumpRuntime._infer_heatpump_interval_minutes(
-            BadStart(), 1, datetime.now(timezone.utc)
-        )
-        is None
-    )
-    assert HeatpumpRuntime._heatpump_latest_power_sample("bad") is None
-    assert (
-        HeatpumpRuntime._heatpump_latest_power_sample({"heat_pump_consumption": "bad"})
-        is None
-    )
-
-    naive_now = datetime(2026, 3, 27, 12, 0)
-    monkeypatch.setattr(heatpump_runtime_mod.dt_util, "utcnow", lambda: naive_now)
-
-    future_payload = {
-        "start_date": "3026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [1.0],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(future_payload) is None
-
-    payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [None, "bad", float("inf"), 0.5, 10.0],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(payload) == (4, 10.0)
-
-    open_only_payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [None, None, 2.0],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(open_only_payload) == (2, 2.0)
-
-    invalid_payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [None, "bad", float("nan")],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(invalid_payload) is None
-
-    monkeypatch.setattr(
-        heatpump_runtime_mod.dt_util,
-        "utcnow",
-        lambda: datetime(2026, 3, 27, 2, 30),
-    )
-    provisional_payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [50.0, 2.0, 0.1],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(provisional_payload) == (
-        1,
-        2.0,
-    )
-
-    completed_zero_payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [50.0, 0.0, 1.0],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(completed_zero_payload) == (
-        2,
-        1.0,
-    )
-
-    open_missing_payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [50.0, 2.0, None],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(open_missing_payload) == (
-        1,
-        2.0,
-    )
-
-    completed_missing_payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [None, None, 3.0],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(completed_missing_payload) == (
-        2,
-        3.0,
-    )
-
-    open_selected_payload = {
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 60,
-        "heat_pump_consumption": [50.0, 2.0, 5.0],
-    }
-    assert HeatpumpRuntime._heatpump_latest_power_sample(open_selected_payload) == (
-        2,
-        5.0,
-    )
-
-    assert (
-        HeatpumpRuntime._infer_heatpump_interval_minutes(
-            datetime(2026, 3, 27, tzinfo=timezone.utc),
-            1,
-            datetime(2026, 3, 28, tzinfo=timezone.utc),
-        )
-        == 60
-    )
-
-
-def test_heatpump_runtime_power_helper_additional_coverage(
-    coordinator_factory, monkeypatch
-) -> None:
-    coord = coordinator_factory(serials=[])
-    runtime = coord.heatpump_runtime
-    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
-        {
-            "heatpump": {
-                "type_key": "heatpump",
-                "count": 4,
-                "devices": [
-                    {
-                        "device_type": "HEAT_PUMP",
-                        "device_uid": "HP-1",
-                        "pairing-status": "PAIRED",
-                        "device-state": "ACTIVE",
-                        "statusText": "Normal",
-                    },
-                    {"device_type": "ENERGY_METER", "device_uid": "MTR-1"},
-                    {"device_type": "SG_READY_GATEWAY", "device_uid": "SG-1"},
-                    {"device_type": "OTHER", "device_uid": "OT-1"},
-                ],
-            }
-        },
-        ["heatpump"],
-    )
-
-    monkeypatch.setattr(
-        heatpump_runtime_mod.dt_util,
-        "utcnow",
-        lambda: datetime(2026, 3, 27, 2, 5, tzinfo=timezone.utc),
-    )
-    assert HeatpumpRuntime._heatpump_latest_power_sample(
-        {
-            "start_date": "2026-03-27T00:00:00Z",
-            "heat_pump_consumption": [1.0, 2.0],
-        }
-    ) == (1, 2.0)
-
-    assert (
-        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
-            {},
-            "MTR-1",
-            is_recommended=False,
-        )
-        == 0
-    )
-    assert (
-        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
-            {},
-            "MTR-1",
-            is_recommended=True,
-        )
-        == 3
-    )
-    assert (
-        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
-            {},
-            "HP-1",
-            is_recommended=True,
-        )
-        == 2
-    )
-    assert (
-        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
-            {},
-            "SG-1",
-            is_recommended=True,
-        )
-        == 1
-    )
-    assert (
-        coord._heatpump_power_candidate_type_rank(  # noqa: SLF001
-            {},
-            "OT-1",
-            is_recommended=True,
-        )
-        == 0
-    )
-
-    assert coord._heatpump_power_selection_key(  # noqa: SLF001
-        {"device_uid": "HP-1"},
-        requested_uid="REQ-1",
-        sample=None,
-    ) == (0, 0, 0, 0, float("-inf"), 1, -1)
-    assert coord._heatpump_power_selection_key(  # noqa: SLF001
-        {"uid": "MTR-1"},
-        requested_uid=None,
-        sample=(2, 0.0),
-    ) == (1, 0, 0, 0, 0.0, 1, 2)
-
-    summary = runtime._heatpump_power_debug_payload_summary(  # noqa: SLF001
-        {
-            "device_uid": "HP-1",
-            "heat_pump_consumption": [None, "bad", 1.0, 2.0, float("inf")],
-            "start_date": "2026-03-27T00:00:00Z",
-            "interval_minutes": "15",
-        },
-        requested_uid="REQ-1",
-        sample=(3, 2.0),
-        selection_key=(1, 1, 1, 2, 2.0, 1, 3),
-    )
-    assert summary == {
-        "requested_device_ref": "R...1",
-        "payload_device_ref": "H...1",
-        "resolved_device_ref": "H...1",
-        "member_device_type": "HEAT_PUMP",
-        "pairing_status": "PAIRED",
-        "device_state": "ACTIVE",
-        "status": "Normal",
-        "recommended": False,
-        "bucket_count": 5,
-        "non_null_bucket_count": 3,
-        "sample_tail": [
-            {"index": 4, "value_w": float("inf")},
-            {"index": 3, "value_w": 2.0},
-            {"index": 2, "value_w": 1.0},
-        ],
-        "latest_sample_index": 3,
-        "latest_sample_w": 2.0,
-        "start_date": "2026-03-27T00:00:00Z",
-        "interval_minutes": 15.0,
-        "selection_key": [1, 1, 1, 2, 2.0, 1, 3],
-    }
 
 
 @pytest.mark.asyncio
@@ -1871,25 +1743,23 @@ async def test_refresh_heatpump_power_validates_energy_consumption_payload(
             force=True
         )  # noqa: SLF001
 
-    assert coord.heatpump_power_w == pytest.approx(0.0)
-    assert coord.heatpump_power_device_uid == "HP-1"
-    assert coord.heatpump_power_source == "hems_energy_consumption_delta:HP-1"
-    assert coord.heatpump_power_sample_utc == datetime(
-        2026, 4, 1, 22, 31, 12, 407610, tzinfo=timezone.utc
-    )
-    assert coord.heatpump_power_start_utc == datetime(
-        2026, 4, 1, 22, 26, 12, 407610, tzinfo=timezone.utc
-    )
+    assert coord.heatpump_power_w is None
+    assert coord.heatpump_power_device_uid is None
+    assert coord.heatpump_power_source is None
+    assert coord.heatpump_power_sample_utc is None
+    assert coord.heatpump_power_start_utc is None
     power_snapshot = coord.heatpump_runtime.heatpump_runtime_diagnostics()[
         "power_snapshot"
     ]
-    assert power_snapshot["outcome"] == "selected_sample"
-    assert power_snapshot["selected_source"] == "hems_energy_consumption_delta:H...1"
-    assert power_snapshot["selected_payload"]["accepted_value_w"] == pytest.approx(0.0)
-    assert (
-        power_snapshot["selected_payload"]["validation"] == "coerced_idle_high_to_zero"
+    assert power_snapshot["outcome"] == "rejected_value"
+    assert power_snapshot["selected_payload"] is None
+    assert power_snapshot["attempts"][0]["accepted_value_w"] is None
+    assert power_snapshot["attempts"][0]["raw_value_w"] == pytest.approx(110.0)
+    assert power_snapshot["attempts"][0]["raw_validation"] == (
+        "idle_high_delta_pending_smoothing"
     )
-    assert "Heat pump power selected payload for site" in caplog.text
+    assert power_snapshot["attempts"][0]["validation"] == "rejected_idle_high_delta"
+    assert "Heat pump power rejected daily-consumption payload for site" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -3053,15 +2923,9 @@ def test_heatpump_runtime_inventory_merge_and_helper_paths(
     )  # noqa: SLF001
 
 
-def test_heatpump_runtime_power_helper_paths(coordinator_factory, monkeypatch) -> None:
+def test_heatpump_runtime_power_helper_paths(coordinator_factory) -> None:
     coord = coordinator_factory(serials=[])
     runtime = coord.heatpump_runtime
-    fixed_now = datetime(2026, 2, 27, 0, 7, tzinfo=timezone.utc)
-
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.heatpump_runtime.dt_util.utcnow",
-        lambda: fixed_now,
-    )
 
     assert runtime._heatpump_primary_member() is None  # noqa: SLF001
     assert runtime._heatpump_primary_device_uid() is None  # noqa: SLF001
@@ -3090,34 +2954,9 @@ def test_heatpump_runtime_power_helper_paths(coordinator_factory, monkeypatch) -
     )
 
     assert runtime._heatpump_primary_device_uid() == "HP-CTRL"  # noqa: SLF001
-    assert runtime._heatpump_power_candidate_device_uids() == [  # noqa: SLF001
-        "HP-CTRL",
-        "HP-METER",
-        None,
-    ]
     assert (
         runtime._heatpump_power_candidate_is_recommended("HP-METER") is True
     )  # noqa: SLF001
-    assert runtime._heatpump_power_fetch_plan()[0] == [  # noqa: SLF001
-        "HP-CTRL",
-        "HP-METER",
-        None,
-    ]
-    assert runtime._heatpump_latest_power_sample(  # noqa: SLF001
-        {
-            "heat_pump_consumption": [560.0, 0.0, 0.0],
-            "start_date": "2026-02-27T00:00:00Z",
-            "interval_minutes": 5,
-        }
-    ) == (0, 560.0)
-    assert (
-        runtime._infer_heatpump_interval_minutes(  # noqa: SLF001
-            datetime(2026, 2, 27, 0, 0, tzinfo=timezone.utc),
-            2,
-            datetime(2026, 2, 27, 0, 10, tzinfo=timezone.utc),
-        )
-        == 5
-    )
 
 
 @pytest.mark.asyncio
@@ -3185,9 +3024,6 @@ async def test_heatpump_runtime_power_and_diagnostics_paths(
     assert coord.heatpump_power_device_uid == "HP-CTRL"
 
     runtime._heatpump_power_cache_until = None  # noqa: SLF001
-    runtime._heatpump_power_selection_marker = (
-        runtime._heatpump_power_inventory_marker()
-    )  # noqa: SLF001
     runtime._heatpump_power_device_uid = "HP-CTRL"  # noqa: SLF001
     coord.client.hems_energy_consumption = AsyncMock(
         return_value={
@@ -3410,71 +3246,6 @@ def test_heatpump_runtime_misc_helper_guards_and_properties(
         runtime._heatpump_runtime_mode({"heatpump_status": ""}) is None
     )  # noqa: SLF001
 
-    runtime._type_device_buckets = {  # noqa: SLF001
-        "heatpump": {
-            "devices": [
-                {"device_type": "HEAT_PUMP", "device_uid": "HP-1"},
-                {"device_type": "HEAT_PUMP", "device_uid": "HP-2"},
-                {"device_type": "HEAT_PUMP"},
-            ],
-            "count": 3,
-        }
-    }
-    runtime._heatpump_power_device_uid = "HP-1"  # noqa: SLF001
-    runtime._heatpump_power_selection_marker = (
-        runtime._heatpump_power_inventory_marker()
-    )  # noqa: SLF001
-    ordered, compare_all, marker = runtime._heatpump_power_fetch_plan()  # noqa: SLF001
-    assert compare_all is False
-    assert ordered[0] == "HP-1"
-    assert ordered.count("HP-1") == 1
-    assert ordered[-1] is None
-    assert marker == runtime._heatpump_power_inventory_marker()  # noqa: SLF001
-
-    assert runtime._heatpump_power_candidate_device_uids() == [
-        "HP-1",
-        "HP-2",
-        None,
-    ]  # noqa: SLF001
-
-    assert runtime._heatpump_sample_utc_for_index({}, -1) is None  # noqa: SLF001
-    assert runtime._heatpump_sample_utc_for_index("bad", 0) is None  # noqa: SLF001
-    assert (
-        runtime._heatpump_sample_utc_for_index({"start_date": "bad"}, 0) is None
-    )  # noqa: SLF001
-    assert (  # noqa: SLF001
-        runtime._heatpump_sample_utc_for_index(
-            {
-                "start_date": "2026-01-01T00:00:00Z",
-                "heat_pump_consumption": [1],
-                "interval_minutes": 0,
-            },
-            0,
-        )
-        is None
-    )
-
-    class _BadTimedelta:
-        def __rmul__(self, other):
-            raise TypeError("bad minutes")
-
-    original_timedelta = heatpump_runtime_mod.timedelta
-    heatpump_runtime_mod.timedelta = _BadTimedelta()  # type: ignore[assignment]
-    try:
-        assert (  # noqa: SLF001
-            runtime._heatpump_sample_utc_for_index(
-                {
-                    "start_date": "2026-01-01T00:00:00Z",
-                    "heat_pump_consumption": [1],
-                    "interval_minutes": 5,
-                },
-                1,
-            )
-            is None
-        )
-    finally:
-        heatpump_runtime_mod.timedelta = original_timedelta  # type: ignore[assignment]
-
     class _BadFloat:
         def __float__(self):
             raise TypeError("bad float")
@@ -3503,7 +3274,7 @@ def test_heatpump_runtime_misc_helper_guards_and_properties(
 
 @pytest.mark.asyncio
 async def test_heatpump_runtime_remaining_coverage_branches(
-    coordinator_factory, monkeypatch
+    coordinator_factory,
 ) -> None:
     coord = coordinator_factory(serials=[])
     runtime = coord.heatpump_runtime
@@ -3535,17 +3306,6 @@ async def test_heatpump_runtime_remaining_coverage_branches(
         coord.heatpump_runtime.heatpump_daily_split_last_error
         == "No usable HEMS daily split payload"
     )
-
-    monkeypatch.setattr(
-        heatpump_runtime_mod.dt_util,
-        "utcnow",
-        lambda: datetime(2026, 1, 1, 0, 10, 0),
-    )
-    sample_utc = runtime._heatpump_sample_utc_for_index(  # noqa: SLF001
-        {"start_date": "2026-01-01T00:00:00Z", "heat_pump_consumption": [1, 2]},
-        1,
-    )
-    assert sample_utc == datetime(2026, 1, 1, 0, 5, tzinfo=timezone.utc)
 
     coord._heatpump_power_w = float("nan")  # noqa: SLF001
     coord._heatpump_power_start_utc = "bad"  # noqa: SLF001

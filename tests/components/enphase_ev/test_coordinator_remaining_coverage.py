@@ -376,20 +376,11 @@ async def test_coordinator_runtime_delegate_helpers_cover_direct_runtime_calls(
     coord.heatpump_runtime._build_heatpump_daily_consumption_snapshot = MagicMock(
         return_value={"daily_energy_wh": 123.0}
     )
-    coord.heatpump_runtime._heatpump_power_candidate_device_uids = MagicMock(
-        return_value=["HP-PRIMARY", None]
-    )
     coord.heatpump_runtime._heatpump_member_for_uid = MagicMock(
         return_value={"device_uid": "HP-PRIMARY"}
     )
     coord.heatpump_runtime._heatpump_member_alias_map = MagicMock(
         return_value={"HP-PRIMARY": "HP-PRIMARY"}
-    )
-    coord.heatpump_runtime._heatpump_power_inventory_marker = MagicMock(
-        return_value=(("idx:0", "HP-PRIMARY", "HEAT_PUMP", "ACTIVE"),)
-    )
-    coord.heatpump_runtime._heatpump_power_fetch_plan = MagicMock(
-        return_value=(["HP-PRIMARY"], False, ())
     )
     coord.heatpump_runtime._heatpump_power_candidate_is_recommended = MagicMock(
         return_value=True
@@ -416,24 +407,12 @@ async def test_coordinator_runtime_delegate_helpers_cover_direct_runtime_calls(
         {"a": 1},
         {"stats": [{"heatpump": [123.0]}]},
     ) == {"daily_energy_wh": 123.0}
-    assert coord._heatpump_power_candidate_device_uids() == [  # noqa: SLF001
-        "HP-PRIMARY",
-        None,
-    ]
     assert coord._heatpump_member_for_uid("HP-PRIMARY") == {  # noqa: SLF001
         "device_uid": "HP-PRIMARY"
     }
     assert coord._heatpump_member_alias_map() == {  # noqa: SLF001
         "HP-PRIMARY": "HP-PRIMARY"
     }
-    assert coord._heatpump_power_inventory_marker() == (  # noqa: SLF001
-        ("idx:0", "HP-PRIMARY", "HEAT_PUMP", "ACTIVE"),
-    )
-    assert coord._heatpump_power_fetch_plan() == (
-        ["HP-PRIMARY"],
-        False,
-        (),
-    )  # noqa: SLF001
     assert (
         coord._heatpump_power_candidate_is_recommended("HP-PRIMARY") is True
     )  # noqa: SLF001
