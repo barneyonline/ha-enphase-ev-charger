@@ -265,9 +265,6 @@ class HeatpumpState:
     _heatpump_power_last_success_mono: float | None = None
     _heatpump_power_last_success_utc: datetime | None = None
     _heatpump_power_using_stale: bool = False
-    _heatpump_power_selection_marker: tuple[tuple[str, str, str, str], ...] | None = (
-        None
-    )
     _heatpump_power_snapshot: PayloadMap | None = None
 
 

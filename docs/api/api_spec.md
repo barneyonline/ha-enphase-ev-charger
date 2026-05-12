@@ -149,7 +149,7 @@ Status labels:
 | HEMS heat-pump runtime state | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/heatpump/<device_uid>/state?timezone=<iana_tz>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | Runtime |
 | HEMS daily device energy consumption | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/energy-consumption?from=<iso8601>&to=<iso8601>&timezone=<iana_tz>&step=<period>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `requestId`, `username` when available | Runtime |
 | HEMS supported device models | `GET` | `https://hems-integration.enphaseenergy.com/api/v1/hems/list-supported-models?deviceType=<device_type>` | HEMS read headers: bearer-preferred auth, cookies/base headers, `e-auth-token`, `requestId`, `username` when available | Browser capture only |
-| HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | Client helper only |
+| HEMS power timeseries | `GET` | `/systems/<site_id>/hems_power_timeseries[?device-uid=<device_uid>]` | `e-auth-token` + cookies | Observed only; not used |
 | HEMS lifetime consumption | `GET` | `/systems/<site_id>/hems_consumption_lifetime` | `e-auth-token` + cookies | Runtime |
 | HEMS live stream toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/status` | Enlighten session cookies | Browser capture only |
 | HEMS live vitals toggle | `PUT` | `https://hems-integration.enphaseenergy.com/api/v1/hems/<site_id>/live-stream/vitals` | Enlighten session cookies | Browser capture only |
@@ -4196,6 +4196,11 @@ Headers:
 ```
 Returns heat-pump consumption series as fixed-interval power buckets.
 
+Runtime status: not implemented. This endpoint was observed during API research but
+proved unreliable for heat-pump power in Home Assistant, so the integration does not
+call it and does not expose helper code for it. Current heat-pump power sensors derive
+watts from deltas in HEMS daily split energy (`/energy-consumption`) instead.
+
 Example response shape (anonymized):
 ```json
 {
@@ -4207,7 +4212,8 @@ Observed structure:
 - `heat_pump_consumption` is a numeric array (captured samples length `672`).
 - `start_date` is an epoch-seconds anchor for the first bucket.
 - The variant with `device-uid` returned the same key shape as the unfiltered call.
-- The endpoint remains implemented for diagnostics/research, but current heat-pump power sensors derive watts from deltas in HEMS daily split energy (`/energy-consumption`) rather than from this timeseries payload.
+- Do not use this endpoint for runtime heat-pump power unless new evidence shows the
+  bucket series is reliable across sites and timezones.
 
 ### 2.19 HEMS Lifetime Consumption (Heat Pump / EV / Water Heater)
 ```

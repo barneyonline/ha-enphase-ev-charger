@@ -2220,25 +2220,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             site_today_payload,
         )
 
-    def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
-        return self.heatpump_runtime._heatpump_power_candidate_device_uids()
-
-    @staticmethod
-    def _heatpump_latest_power_sample(  # pragma: no cover - compatibility shim
-        payload: object,
-    ) -> tuple[int, float] | None:
-        return HeatpumpRuntime._heatpump_latest_power_sample(payload)
-
-    @staticmethod
-    def _infer_heatpump_interval_minutes(  # pragma: no cover - compatibility shim
-        start_utc: datetime | None,
-        bucket_count: int,
-        now_utc: datetime,
-    ) -> int | None:
-        return HeatpumpRuntime._infer_heatpump_interval_minutes(
-            start_utc, bucket_count, now_utc
-        )
-
     def _heatpump_member_for_uid(self, uid: object) -> dict[str, object] | None:
         return self.heatpump_runtime._heatpump_member_for_uid(uid)
 
@@ -2261,42 +2242,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _heatpump_member_alias_map(self) -> dict[str, str]:
         return self.heatpump_runtime._heatpump_member_alias_map()
 
-    def _heatpump_power_inventory_marker(self) -> tuple[tuple[str, str, str, str], ...]:
-        return self.heatpump_runtime._heatpump_power_inventory_marker()
-
-    def _heatpump_power_fetch_plan(
-        self,
-    ) -> tuple[list[str | None], bool, tuple[tuple[str, str, str, str], ...]]:
-        return self.heatpump_runtime._heatpump_power_fetch_plan()
-
     def _heatpump_power_candidate_is_recommended(self, uid: str | None) -> bool:
         return self.heatpump_runtime._heatpump_power_candidate_is_recommended(uid)
-
-    def _heatpump_power_candidate_type_rank(
-        self,
-        payload: dict[str, object],
-        requested_uid: str | None,
-        *,
-        is_recommended: bool,
-    ) -> int:
-        return self.heatpump_runtime._heatpump_power_candidate_type_rank(
-            payload,
-            requested_uid,
-            is_recommended=is_recommended,
-        )
-
-    def _heatpump_power_selection_key(
-        self,
-        payload: dict[str, object],
-        *,
-        requested_uid: str | None,
-        sample: tuple[int, float] | None,
-    ) -> tuple[int, int, int, int, float, int, int]:
-        return self.heatpump_runtime._heatpump_power_selection_key(
-            payload,
-            requested_uid=requested_uid,
-            sample=sample,
-        )
 
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         await self.heatpump_runtime.async_refresh_heatpump_power(force=force)

@@ -51,8 +51,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _LOGGER = logging.getLogger(__name__)
 
-# The power endpoints report cumulative buckets, so derived watts need a delta window.
+# Heat-pump power is derived from cumulative energy, so watts need a delta window.
 _HEATPUMP_IDLE_POWER_MAX_W = 20.0
+_HEATPUMP_IDLE_HIGH_DELTA_PENDING = "idle_high_delta_pending_smoothing"
 _HEATPUMP_POWER_DEFAULT_WINDOW_S = 300.0
 _HEATPUMP_POWER_MIN_DELTA_WH = 0.5
 _HEATPUMP_IDLE_SMOOTHING_MIN_WINDOW_S = 15 * 60.0
@@ -1169,11 +1170,18 @@ class HeatpumpRuntime:
         raw_value_w: float | None,
         raw_validation: str,
     ) -> dict[str, object] | None:
-        if raw_value_w is None or raw_value_w > 0:
+        if raw_value_w is None:
+            return None
+        if (
+            raw_value_w > _HEATPUMP_IDLE_POWER_MAX_W
+            and raw_validation != _HEATPUMP_IDLE_HIGH_DELTA_PENDING
+        ):
             return None
         if raw_validation not in {
             "accepted_idle_zero",
             "accepted_idle_repeated_sample",
+            "accepted_idle_delta",
+            _HEATPUMP_IDLE_HIGH_DELTA_PENDING,
         }:
             return None
         device_uid = coerce_optional_text(snapshot.get("split_device_uid"))
@@ -1287,6 +1295,7 @@ class HeatpumpRuntime:
         validation = "accepted_delta"
         window_s = None
         series_start_utc = None
+        idle_high_delta_pending = False
 
         if current_energy_wh is None or current_sample_utc is None:
             if is_idle:
@@ -1337,8 +1346,9 @@ class HeatpumpRuntime:
                     )
                     candidate_value = (delta_wh * 3600.0) / effective_window_s
                     if is_idle and candidate_value > _HEATPUMP_IDLE_POWER_MAX_W:
-                        accepted_value = 0.0
-                        validation = "coerced_idle_high_to_zero"
+                        accepted_value = candidate_value
+                        validation = _HEATPUMP_IDLE_HIGH_DELTA_PENDING
+                        idle_high_delta_pending = True
                     else:
                         accepted_value = candidate_value
                         if is_idle:
@@ -1376,6 +1386,11 @@ class HeatpumpRuntime:
                 display_validation = str(smoothed_summary["validation"])
                 validation = display_validation
                 smoothed = True
+            elif idle_high_delta_pending:
+                accepted_value = None
+                rejected = True
+                validation = "rejected_idle_high_delta"
+                display_validation = validation
 
         summary: dict[str, object] = {
             "requested_device_ref": (
@@ -1702,154 +1717,6 @@ class HeatpumpRuntime:
         fetcher = getattr(self.client, "pv_system_today", None)
         return callable(fetcher)
 
-    def _heatpump_power_candidate_device_uids(self) -> list[str | None]:
-        candidates: list[str | None] = []
-        seen: set[str] = set()
-
-        def _add(uid: str | None) -> None:
-            if uid is None:
-                return
-            if uid in seen:
-                return
-            seen.add(uid)
-            candidates.append(uid)
-
-        _add(self._heatpump_primary_device_uid())
-        for member in self._type_bucket_members("heatpump"):
-            _add(type_member_text(member, "device_uid"))
-        candidates.append(None)
-        return candidates
-
-    @staticmethod
-    def _heatpump_latest_power_sample(payload: object) -> tuple[int, float] | None:
-        if not isinstance(payload, dict):
-            return None
-        values = payload.get("heat_pump_consumption")
-        if not isinstance(values, list):
-            return None
-        latest_index = len(values) - 1
-        latest_completed_index: int | None = None
-        start_utc = parse_inverter_last_report(payload.get("start_date"))
-        now_utc = dt_util.utcnow()
-        if now_utc.tzinfo is None:
-            now_utc = now_utc.replace(tzinfo=_tz.utc)
-        interval_minutes = coerce_optional_float(payload.get("interval_minutes"))
-        if interval_minutes is None:
-            interval_minutes = HeatpumpRuntime._infer_heatpump_interval_minutes(
-                start_utc,
-                len(values),
-                now_utc,
-            )
-        if (
-            start_utc is not None
-            and interval_minutes is not None
-            and interval_minutes > 0
-        ):
-            elapsed_seconds = (now_utc - start_utc).total_seconds()
-            if elapsed_seconds < 0:
-                return None
-            interval_seconds = float(interval_minutes * 60)
-            current_index = int(elapsed_seconds // interval_seconds)
-            latest_index = min(latest_index, current_index)
-            latest_completed_index = min(latest_index, current_index - 1)
-
-        def _sample_in_range(
-            start_index: int,
-            end_index: int,
-        ) -> tuple[int, float] | None:
-            for index in range(start_index, end_index - 1, -1):
-                raw_value = values[index]
-                if raw_value is None:
-                    continue
-                try:
-                    value = float(raw_value)
-                except Exception:
-                    continue
-                if value != value or value in (float("inf"), float("-inf")):
-                    continue
-                return index, value
-            return None
-
-        def _is_provisional_open_bucket(
-            open_value: float,
-            completed_value: float,
-        ) -> bool:
-            if open_value <= 0:
-                return True
-            if completed_value <= 0:
-                return False
-            return open_value <= 10.0 and open_value <= (completed_value * 0.1)
-
-        if latest_completed_index is not None and latest_index > latest_completed_index:
-            open_sample = _sample_in_range(latest_index, latest_completed_index + 1)
-            completed_sample = _sample_in_range(latest_completed_index, 0)
-            if open_sample is None:
-                return completed_sample
-            if completed_sample is None:
-                return open_sample
-            # The newest bucket is often provisional until Enphase closes the interval.
-            if _is_provisional_open_bucket(open_sample[1], completed_sample[1]):
-                return completed_sample
-            return open_sample
-
-        return _sample_in_range(latest_index, 0)
-
-    @staticmethod
-    def _infer_heatpump_interval_minutes(
-        start_utc: datetime | None,
-        bucket_count: int,
-        now_utc: datetime,
-    ) -> int | None:
-        if start_utc is None or bucket_count <= 0:
-            return None
-        candidate_intervals = (5, 10, 15, 30, 60)
-        viable: list[tuple[float, int]] = []
-        fallback: list[tuple[float, int]] = []
-        for interval_minutes in candidate_intervals:
-            try:
-                end_utc = start_utc + timedelta(minutes=interval_minutes * bucket_count)
-            except Exception:
-                continue
-            future_window_s = (end_utc - now_utc).total_seconds()
-            if future_window_s >= 0:
-                viable.append((future_window_s, interval_minutes))
-            fallback.append((abs(future_window_s), interval_minutes))
-        if viable:
-            return min(viable)[1]
-        if fallback:
-            return min(fallback)[1]
-        return None
-
-    @classmethod
-    def _heatpump_sample_utc_for_index(
-        cls, payload: object, sample_index: int
-    ) -> datetime | None:
-        if not isinstance(sample_index, int) or sample_index < 0:
-            return None
-        if not isinstance(payload, dict):
-            return None
-        start_utc = parse_inverter_last_report(payload.get("start_date"))
-        if start_utc is None:
-            return None
-        values = payload.get("heat_pump_consumption")
-        bucket_count = len(values) if isinstance(values, list) else 0
-        now_utc = dt_util.utcnow()
-        if now_utc.tzinfo is None:
-            now_utc = now_utc.replace(tzinfo=_tz.utc)
-        interval_minutes = coerce_optional_float(payload.get("interval_minutes"))
-        if interval_minutes is None:
-            interval_minutes = cls._infer_heatpump_interval_minutes(
-                start_utc,
-                bucket_count,
-                now_utc,
-            )
-        if interval_minutes is None or interval_minutes <= 0:
-            return None
-        try:
-            return start_utc + timedelta(minutes=interval_minutes * sample_index)
-        except Exception:
-            return None
-
     def _heatpump_member_for_uid(self, uid: object) -> dict[str, object] | None:
         uid_text = coerce_optional_text(uid)
         if not uid_text:
@@ -1916,57 +1783,6 @@ class HeatpumpRuntime:
                 alias_map[alias] = primary
         return alias_map
 
-    def _heatpump_power_inventory_marker(self) -> tuple[tuple[str, str, str, str], ...]:
-        alias_map = self._heatpump_member_alias_map()
-        marker_rows: list[tuple[str, str, str, str]] = []
-        for index, member in enumerate(self._type_bucket_members("heatpump")):
-            primary_id = self._heatpump_member_primary_id(member)
-            if not primary_id:
-                primary_id = f"idx:{index}"
-            parent_id = self._heatpump_member_parent_id(member)
-            if parent_id:
-                parent_id = alias_map.get(parent_id, parent_id)
-            status_text = heatpump_status_text(member)
-            marker_rows.append(
-                (
-                    primary_id,
-                    parent_id or "",
-                    heatpump_member_device_type(member) or "",
-                    status_text.casefold() if isinstance(status_text, str) else "",
-                )
-            )
-        marker_rows.sort()
-        return tuple(marker_rows)
-
-    def _heatpump_power_fetch_plan(
-        self,
-    ) -> tuple[list[str | None], bool, tuple[tuple[str, str, str, str], ...]]:
-        marker = self._heatpump_power_inventory_marker()
-        candidates = self._heatpump_power_candidate_device_uids()
-        compare_all = (
-            self._heatpump_power_selection_marker != marker
-            or self._heatpump_power_device_uid not in candidates
-        )
-
-        ordered: list[str | None] = []
-        seen: set[str | None] = set()
-
-        def _add(uid: str | None) -> None:
-            if uid in seen:
-                return
-            seen.add(uid)
-            ordered.append(uid)
-
-        if compare_all:
-            for candidate in candidates:
-                _add(candidate)
-            return ordered, True, marker
-
-        _add(self._heatpump_power_device_uid)
-        for candidate in candidates:
-            _add(candidate)
-        return ordered, False, marker
-
     def _heatpump_power_candidate_is_recommended(self, uid: str | None) -> bool:
         members = self._type_bucket_members("heatpump")
         if not members:
@@ -2010,57 +1826,6 @@ class HeatpumpRuntime:
             return True
         return False
 
-    def _heatpump_power_candidate_type_rank(
-        self,
-        payload: dict[str, object],
-        requested_uid: str | None,
-        *,
-        is_recommended: bool,
-    ) -> int:
-        if not is_recommended:
-            return 0
-        member = self._heatpump_member_for_uid(
-            type_member_text(payload, "device_uid", "uid") or requested_uid
-        )
-        device_type = heatpump_member_device_type(member)
-        if device_type == "ENERGY_METER":
-            return 3
-        if device_type == "HEAT_PUMP":
-            return 2
-        if device_type == "SG_READY_GATEWAY":
-            return 1
-        return 0
-
-    def _heatpump_power_selection_key(
-        self,
-        payload: dict[str, object],
-        *,
-        requested_uid: str | None,
-        sample: tuple[int, float] | None,
-    ) -> tuple[int, int, int, int, float, int, int]:
-        payload_uid = type_member_text(payload, "device_uid", "uid")
-        resolved_uid = payload_uid or requested_uid
-        has_positive_sample = 1 if sample is not None and float(sample[1]) > 0 else 0
-        is_recommended = (
-            1 if self._heatpump_power_candidate_is_recommended(resolved_uid) else 0
-        )
-        type_rank = self._heatpump_power_candidate_type_rank(
-            payload,
-            requested_uid,
-            is_recommended=bool(is_recommended),
-        )
-        sample_value = sample[1] if sample is not None else float("-inf")
-        sample_index = sample[0] if sample is not None else -1
-        return (
-            1 if sample is not None else 0,
-            has_positive_sample,
-            is_recommended,
-            type_rank,
-            sample_value,
-            1 if resolved_uid else 0,
-            sample_index,
-        )
-
     def _heatpump_power_debug_candidate_summary(
         self, uid: str | None
     ) -> dict[str, object]:
@@ -2080,67 +1845,6 @@ class HeatpumpRuntime:
             "device_state": heatpump_device_state(member),
             "status": heatpump_status_text(member),
             "recommended": self._heatpump_power_candidate_is_recommended(uid),
-        }
-
-    def _heatpump_power_debug_payload_summary(
-        self,
-        payload: dict[str, object],
-        *,
-        requested_uid: str | None,
-        sample: tuple[int, float] | None,
-        selection_key: tuple[int, int, int, int, float, int, int] | None,
-    ) -> dict[str, object]:
-        payload_uid = type_member_text(payload, "device_uid", "uid")
-        resolved_uid = payload_uid or requested_uid
-        member = self._heatpump_member_for_uid(resolved_uid) if resolved_uid else None
-        values = payload.get("heat_pump_consumption")
-        bucket_count = 0
-        non_null_bucket_count = 0
-        sample_tail: list[dict[str, object]] = []
-        if isinstance(values, list):
-            bucket_count = len(values)
-            for index in range(len(values) - 1, -1, -1):
-                numeric = coerce_optional_float(values[index])
-                if numeric is None:
-                    continue
-                non_null_bucket_count += 1
-                if len(sample_tail) < 3:
-                    sample_tail.append(
-                        {
-                            "index": index,
-                            "value_w": round(numeric, 3),
-                        }
-                    )
-        interval_minutes = coerce_optional_float(payload.get("interval_minutes"))
-        return {
-            "requested_device_ref": (
-                self._debug_truncate_identifier(requested_uid)
-                if requested_uid
-                else None
-            ),
-            "payload_device_ref": (
-                self._debug_truncate_identifier(payload_uid) if payload_uid else None
-            ),
-            "resolved_device_ref": (
-                self._debug_truncate_identifier(resolved_uid) if resolved_uid else None
-            ),
-            "member_device_type": heatpump_member_device_type(member),
-            "pairing_status": heatpump_pairing_status(member),
-            "device_state": heatpump_device_state(member),
-            "status": heatpump_status_text(member),
-            "recommended": self._heatpump_power_candidate_is_recommended(resolved_uid),
-            "bucket_count": bucket_count,
-            "non_null_bucket_count": non_null_bucket_count,
-            "sample_tail": sample_tail,
-            "latest_sample_index": sample[0] if sample is not None else None,
-            "latest_sample_w": (
-                round(float(sample[1]), 3) if sample is not None else None
-            ),
-            "start_date": coerce_optional_text(payload.get("start_date")),
-            "interval_minutes": (
-                round(interval_minutes, 3) if interval_minutes is not None else None
-            ),
-            "selection_key": list(selection_key) if selection_key is not None else None,
         }
 
     def _mark_heatpump_power_auth_backoff(
@@ -2170,7 +1874,6 @@ class HeatpumpRuntime:
             backoff_until or now + HEATPUMP_POWER_STALE_AFTER_S
         )
         self._heatpump_power_cache_until = None
-        self._heatpump_power_selection_marker = None
 
     async def _async_refresh_heatpump_power(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -2202,7 +1905,6 @@ class HeatpumpRuntime:
             self._heatpump_power_smoothed = False
             self._heatpump_power_sample_history = []
             self._heatpump_power_using_stale = False
-            self._heatpump_power_selection_marker = None
             return
         if not force and self._heatpump_power_cache_until is not None:
             if now < self._heatpump_power_cache_until:
@@ -2247,16 +1949,13 @@ class HeatpumpRuntime:
                 now + HEATPUMP_DAILY_CONSUMPTION_CACHE_TTL
             )
             self._heatpump_power_backoff_until = None
-            self._heatpump_power_selection_marker = None
             return
 
         site_date = self._site_local_current_date()
-        marker = self._heatpump_power_inventory_marker()
         previous_device_uid = self._heatpump_power_device_uid
         power_snapshot: dict[str, object] = {
             "site_date": site_date,
             "force": force,
-            "compare_all": False,
             "previous_device_ref": self._debug_truncate_identifier(previous_device_uid),
             "candidates": [
                 self._heatpump_power_debug_candidate_summary(
@@ -2377,6 +2076,10 @@ class HeatpumpRuntime:
             )
             power_snapshot["last_error"] = error
             power_snapshot["outcome"] = "rejected_value"
+            if error == "rejected_idle_high_delta":
+                self._record_heatpump_power_history_sample(
+                    getattr(self, "_heatpump_daily_consumption", None)
+                )
             self._heatpump_mark_power_stale(
                 now=now,
                 error=error,
@@ -2442,7 +2145,6 @@ class HeatpumpRuntime:
             self, "_heatpump_daily_split_last_success_utc", dt_util.utcnow()
         )
         self._heatpump_mark_known_present()
-        self._heatpump_power_selection_marker = marker if device_uid else None
         self._record_heatpump_power_history_sample(snapshot)
         power_snapshot["selected_payload"] = dict(power_summary)
         power_snapshot["selected_source"] = (
@@ -2493,7 +2195,6 @@ class HeatpumpRuntime:
                 "_heatpump_power_last_success_mono",
                 "_heatpump_power_last_success_utc",
                 "_heatpump_power_using_stale",
-                "_heatpump_power_selection_marker",
             )
         if not force and self._heatpump_power_cache_until is not None:
             if now < self._heatpump_power_cache_until:
