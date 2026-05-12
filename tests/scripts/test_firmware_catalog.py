@@ -186,9 +186,31 @@ def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
         summary="New",
         countries_text="USA",
     )
+    card_recent_global = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.2.4398)",
+        version="8.2.4398",
+        release_date="2025-10-20",
+        media_id="global-8-2",
+        langcode="und",
+        summary="Countries: Worldwide",
+        countries_text="Worldwide",
+    )
+    card_stale_global = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (7.0.86)",
+        version="7.0.86",
+        release_date="2021-12-21",
+        media_id="global-7-0",
+        langcode="und",
+        summary="Countries: Worldwide",
+        countries_text="Worldwide",
+    )
 
     latest = firmware_catalog_module.pick_latest_release([card_old, card_new])
     assert latest == card_new
+    assert firmware_catalog_module._version_family("8.2.4401") == (8, 2)
+    assert firmware_catalog_module._version_family("7") == (7,)
+    assert firmware_catalog_module._version_family("release") is None
+    assert firmware_catalog_module._version_family(None) is None
     assert (
         firmware_catalog_module.pick_latest_release_for_country(
             [card_old, card_new], "US", alias_map={"usa": "US"}
@@ -210,6 +232,43 @@ def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
     assert firmware_catalog_module.release_applies_to_country(
         card_new, "US", alias_map={"usa": "US"}
     )
+    assert (
+        firmware_catalog_module.pick_latest_release_for_country(
+            [card_stale_global, card_new],
+            "AU",
+            alias_map={"usa": "US"},
+            latest_known=card_new,
+        )
+        is None
+    )
+    assert (
+        firmware_catalog_module.pick_latest_release_for_country(
+            [card_recent_global, card_new],
+            "AU",
+            alias_map={"usa": "US"},
+            latest_known=card_new,
+        )
+        == card_recent_global
+    )
+    assert (
+        firmware_catalog_module.pick_latest_global_release(
+            [card_stale_global, card_new],
+            alias_map={"usa": "US"},
+            latest_known=card_new,
+        )
+        is None
+    )
+    assert (
+        firmware_catalog_module.pick_latest_global_release(
+            [card_recent_global, card_new],
+            alias_map={"usa": "US"},
+            latest_known=card_new,
+        )
+        == card_recent_global
+    )
+    assert not firmware_catalog_module._is_stale_global_fallback(
+        card_old, card_new, alias_map={"usa": "US"}
+    )
 
     urls = firmware_catalog_module.build_release_urls_by_locale(
         locales=["en", "fr-fr", "en-au"],
@@ -229,6 +288,18 @@ def test_pick_latest_release_and_urls(firmware_catalog_module) -> None:
     assert "f%5B1%5D=product_media_name%3A5002" in urls["en-au"]
     assert "search_api_language=en-au" in urls["en-au"]
     assert "field_alternative_language=en-au" in urls["en-au"]
+    urls_without_product_filter = firmware_catalog_module.build_release_urls_by_locale(
+        locales=["en-au"],
+        apps_url=(
+            "https://enphase.com/en-au/installers/resources/documentation/"
+            "communication"
+        ),
+        product_type="216",
+        topic_id=217,
+        product_media_name_id=None,
+    )
+    assert "f%5B0%5D=document%3A217" in urls_without_product_filter["en-au"]
+    assert "f%5B1%5D" not in urls_without_product_filter["en-au"]
 
 
 def test_catalogs_equal_ignoring_generated_at(firmware_catalog_module) -> None:
@@ -787,8 +858,9 @@ def test_build_catalog_success_and_error_paths(
             {"Release notes": 217} if alias == "document" else {}
         ),
     )
-    with pytest.raises(RuntimeError, match="IQ Gateway software"):
-        firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime_payload = json.loads(runtime_path.read_text(encoding="utf-8"))
+    assert runtime_payload["devices"]["envoy"]["product_media_name_id"] is None
 
 
 def test_build_catalog_skips_later_missing_product_id(
@@ -912,6 +984,246 @@ def test_build_catalog_skips_later_missing_product_id(
     }
 
 
+def test_build_catalog_crawls_gateway_without_product_media_filter(
+    firmware_catalog_module,
+    fixture_dir: Path,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root_html = (fixture_dir / "enphase_root.html").read_text(encoding="utf-8")
+    apps_html = (fixture_dir / "enphase_apps_facets.html").read_text(encoding="utf-8")
+    gateway_card = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.3.5232)",
+        version="8.3.5232",
+        release_date="2026-04-28",
+        media_id="24523",
+        langcode="und",
+        summary="Countries: Australia",
+        countries_text="Australia",
+    )
+    global_gateway_card = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.3.5427)",
+        version="8.3.5427",
+        release_date="2026-04-30",
+        media_id="24527",
+        langcode="und",
+        summary="Global Gateway release",
+        countries_text=None,
+    )
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-05-01T00:00:00Z"
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "REGION_SITE_ROUTE_ROWS",
+        [
+            {
+                "label": "United States",
+                "country_code": "US",
+                "locale": "en",
+                "site_url": "https://enphase.com/",
+            },
+            {
+                "label": "Australia",
+                "country_code": "AU",
+                "locale": "en-au",
+                "site_url": "https://enphase.com/en-au/",
+                "query_locale": "en-au",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_text",
+        lambda url, timeout=30: (
+            root_html
+            if url.endswith("/installers/resources/documentation")
+            else apps_html
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda _html, alias: {"Release notes": 217} if alias == "document" else {},
+    )
+    crawl_calls: list[dict[str, object]] = []
+
+    def _fake_crawl_release_cards(**kwargs):
+        crawl_calls.append(dict(kwargs))
+        if kwargs["search_locale"] == "en":
+            return [global_gateway_card], [
+                (
+                    "https://enphase.com/installers/resources/documentation/"
+                    "communication?search_api_language=en&f%5B0%5D=document%3A217"
+                )
+            ]
+        if kwargs["search_locale"] == "en-au":
+            return [gateway_card], [
+                (
+                    "https://enphase.com/en-au/installers/resources/documentation/"
+                    "communication?search_api_language=en-au&f%5B0%5D=document%3A217"
+                )
+            ]
+        return [], [f"https://example.test/empty/{kwargs['search_locale']}"]
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: None,
+    )
+
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime = json.loads(
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    product_sources = json.loads(
+        (
+            tmp_path / "sources" / "enphase_doc_center" / "product_media_name_ids.json"
+        ).read_text(encoding="utf-8")
+    )
+    envoy = runtime["devices"]["envoy"]
+
+    assert {call["product_media_name_id"] for call in crawl_calls} == {None}
+    assert envoy["product_media_name_id"] is None
+    assert envoy["latest_global"]["version"] == "8.3.5427"
+    assert envoy["latest_by_country"]["AU"]["version"] == "8.3.5232"
+    au_url = envoy["latest_by_locale"]["en-au"]["urls_by_locale"]["en-au"]
+    assert envoy["latest_by_locale"]["en-au"]["version"] == "8.3.5232"
+    assert "f%5B0%5D=document%3A217" in au_url
+    assert "f%5B1%5D" not in au_url
+    assert "en-au/installers" in au_url
+    assert product_sources["targets"]["envoy"] == {
+        "label": "IQ Gateway software",
+        "product_media_name_id": None,
+    }
+
+
+def test_build_catalog_uses_newest_release_when_families_differ(
+    firmware_catalog_module,
+    fixture_dir: Path,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root_html = (fixture_dir / "enphase_root.html").read_text(encoding="utf-8")
+    apps_html = (fixture_dir / "enphase_apps_facets.html").read_text(encoding="utf-8")
+    global_card = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (9.0.100)",
+        version="9.0.100",
+        release_date="2026-04-30",
+        media_id="global-9",
+        langcode="und",
+        summary="Countries: Australia",
+        countries_text="Australia",
+    )
+    global_nz_card = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (9.0.200)",
+        version="9.0.200",
+        release_date="2026-04-30",
+        media_id="global-nz-9",
+        langcode="und",
+        summary="Countries: New Zealand",
+        countries_text="New Zealand",
+    )
+    older_regional_card = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.3.5232)",
+        version="8.3.5232",
+        release_date="2026-04-28",
+        media_id="au-8",
+        langcode="und",
+        summary="Countries: Australia",
+        countries_text="Australia",
+    )
+    newer_regional_card = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (10.0.1)",
+        version="10.0.1",
+        release_date="2026-05-01",
+        media_id="nz-10",
+        langcode="und",
+        summary="Countries: New Zealand",
+        countries_text="New Zealand",
+    )
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-05-01T00:00:00Z"
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "REGION_SITE_ROUTE_ROWS",
+        [
+            {
+                "label": "United States",
+                "country_code": "US",
+                "locale": "en",
+                "site_url": "https://enphase.com/",
+            },
+            {
+                "label": "Australia",
+                "country_code": "AU",
+                "locale": "en-au",
+                "site_url": "https://enphase.com/en-au/",
+                "query_locale": "en-au",
+            },
+            {
+                "label": "New Zealand",
+                "country_code": "NZ",
+                "locale": "en-nz",
+                "site_url": "https://enphase.com/en-nz/",
+                "query_locale": "en-nz",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_text",
+        lambda url, timeout=30: (
+            root_html
+            if url.endswith("/installers/resources/documentation")
+            else apps_html
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda _html, alias: {"Release notes": 217} if alias == "document" else {},
+    )
+
+    def _fake_crawl_release_cards(**kwargs):
+        cards_by_locale = {
+            "en": [global_card, global_nz_card],
+            "en-au": [older_regional_card],
+            "en-nz": [newer_regional_card],
+        }
+        return cards_by_locale.get(kwargs["search_locale"], []), [
+            f"https://example.test/{kwargs['search_locale']}"
+        ]
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: None,
+    )
+
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime = json.loads(
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    envoy = runtime["devices"]["envoy"]
+
+    assert envoy["latest_by_country"]["AU"]["version"] == "9.0.100"
+    assert envoy["latest_by_country"]["NZ"]["version"] == "10.0.1"
+
+
 def test_build_catalog_required_product_is_explicit(
     firmware_catalog_module,
     fixture_dir: Path,
@@ -933,6 +1245,7 @@ def test_build_catalog_required_product_is_explicit(
             "envoy": {
                 "label": "IQ Gateway software",
                 "docs_path": firmware_catalog_module.COMMUNICATION_CATEGORY_PATH,
+                "product_media_name_required": True,
                 "required": True,
             },
         },
@@ -1403,6 +1716,106 @@ def test_build_catalog_filters_country_scoped_releases(
     assert envoy["latest_by_country"]["PH"]["version"] == "8.2.4401"
     assert envoy["latest_by_locale"]["en-ph"]["version"] == "8.2.4401"
     assert envoy["latest_by_locale"]["en-ph"]["media_id"] == "zz-us-scoped-envoy"
+
+
+def test_build_catalog_suppresses_stale_worldwide_fallback(
+    firmware_catalog_module,
+    fixture_dir: Path,
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    root_html = (fixture_dir / "enphase_root.html").read_text(encoding="utf-8")
+    apps_html = (fixture_dir / "enphase_apps_facets.html").read_text(encoding="utf-8")
+
+    def _fake_fetch_text(url: str, *, timeout: int = 30) -> str:  # noqa: ARG001
+        if url.endswith("/installers/resources/documentation"):
+            return root_html
+        return apps_html
+
+    scoped_envoy = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (8.2.4401)",
+        version="8.2.4401",
+        release_date="2025-11-20",
+        media_id="us-scoped-envoy",
+        langcode="und",
+        summary="Countries: United States",
+        countries_text="United States",
+    )
+    stale_worldwide_envoy = firmware_catalog_module.ReleaseCard(
+        title="IQ Gateway software release notes (7.0.86)",
+        version="7.0.86",
+        release_date="2021-12-21",
+        media_id="stale-worldwide-envoy",
+        langcode="und",
+        summary="Countries: Worldwide",
+        countries_text="Worldwide",
+    )
+
+    def _fake_crawl_release_cards(**kwargs):
+        if kwargs["product_media_name_id"] == 5002:
+            return [scoped_envoy, stale_worldwide_envoy], [
+                f"https://example.test/envoy/{kwargs['search_locale']}"
+            ]
+        return [], [f"https://example.test/empty/{kwargs['search_locale']}"]
+
+    monkeypatch.setattr(
+        firmware_catalog_module, "_now_utc_iso", lambda: "2026-03-01T00:00:00Z"
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "REGION_SITE_ROUTE_ROWS",
+        [
+            {
+                "label": "United States",
+                "country_code": "US",
+                "locale": "en",
+                "site_url": "https://enphase.com/",
+            },
+            {
+                "label": "Australia",
+                "country_code": "AU",
+                "locale": "en-au",
+                "site_url": "https://enphase.com/en-au/",
+                "query_locale": "en-au",
+            },
+        ],
+    )
+    monkeypatch.setattr(firmware_catalog_module, "fetch_text", _fake_fetch_text)
+    original_parse_facet_values = firmware_catalog_module.parse_facet_values
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "parse_facet_values",
+        lambda html, alias: (
+            {
+                **original_parse_facet_values(html, alias),
+                "IQ EV Charger software": 6001,
+            }
+            if alias == "product_media_name"
+            else original_parse_facet_values(html, alias)
+        ),
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module, "crawl_release_cards", _fake_crawl_release_cards
+    )
+    monkeypatch.setattr(
+        firmware_catalog_module,
+        "fetch_previous_runtime_catalog",
+        lambda timeout=30: None,
+    )
+
+    firmware_catalog_module.build_catalog(tmp_path, timeout=5, max_pages=1)
+    runtime_payload = json.loads(
+        (tmp_path / "catalog" / "v1" / "runtime_catalog.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    envoy = runtime_payload["devices"]["envoy"]
+
+    assert envoy["latest_global"] is None
+    assert envoy["latest_by_country"]["US"]["version"] == "8.2.4401"
+    assert envoy["latest_by_locale"]["en"]["version"] == "8.2.4401"
+    assert "AU" not in envoy["latest_by_country"]
+    assert "en-au" not in envoy["latest_by_locale"]
 
 
 def test_route_helper_edge_branches(firmware_catalog_module) -> None:

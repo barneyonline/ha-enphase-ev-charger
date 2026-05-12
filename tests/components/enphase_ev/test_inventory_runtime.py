@@ -8,11 +8,30 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.enphase_ev import inventory_runtime as inventory_runtime_mod
+from custom_components.enphase_ev import api, inventory_runtime as inventory_runtime_mod
 from custom_components.enphase_ev.inventory_runtime import (
+    DEVICES_INVENTORY_CACHE_TTL,
+    HEMS_DEVICES_CACHE_TTL,
     HEMS_DEVICES_STALE_AFTER_S,
+    HEMS_INVENTORY_ENDPOINT_FAMILY,
     InventoryRuntime,
 )
+
+
+def _clear_hems_inventory_endpoint_family(coord) -> None:
+    health = coord._endpoint_family_state(
+        HEMS_INVENTORY_ENDPOINT_FAMILY
+    )  # noqa: SLF001
+    health.consecutive_failures = 0
+    health.last_success_utc = None
+    health.last_success_mono = None
+    health.last_failure_utc = None
+    health.last_status = None
+    health.next_retry_mono = None
+    health.next_retry_utc = None
+    health.cooldown_active = False
+    health.support_state = "unknown"
+    health.last_error = None
 
 
 def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
@@ -58,6 +77,8 @@ def test_inventory_runtime_helper_paths(coordinator_factory) -> None:
     }
     assert runtime._debug_topology_summary(snapshot) == {  # noqa: SLF001
         "inventory_ready": False,
+        "devices_inventory_ready": True,
+        "hems_inventory_ready": False,
         "charger_count": 0,
         "battery_count": 0,
         "ac_battery_count": 0,
@@ -113,7 +134,9 @@ def test_inventory_runtime_hems_refresh_floor_falls_back_on_bad_runtime_value(
     coord.heatpump_runtime.hems_refresh_floor_s = lambda: "bad"  # type: ignore[method-assign]  # noqa: SLF001
 
     assert runtime._hems_refresh_floor_s() == 30.0  # noqa: SLF001
-    assert runtime._hems_devices_cache_ttl_s() == 30.0  # noqa: SLF001
+    assert HEMS_DEVICES_CACHE_TTL == 60.0
+    assert runtime._hems_devices_cache_ttl_s() == 60.0  # noqa: SLF001
+    assert DEVICES_INVENTORY_CACHE_TTL == 600.0
 
 
 def test_inventory_runtime_summary_and_inverter_helper_paths(
@@ -885,6 +908,7 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
     await runtime._async_refresh_hems_devices()
     assert runtime._hems_devices_payload is None  # noqa: SLF001
 
+    _clear_hems_inventory_endpoint_family(coord)
     monkeypatch.setattr(
         inventory_runtime_mod, "redact_battery_payload", lambda payload: payload
     )
@@ -903,11 +927,13 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
     await runtime._async_refresh_hems_devices()
     assert runtime._hems_devices_using_stale is True  # noqa: SLF001
 
+    _clear_hems_inventory_endpoint_family(coord)
     runtime._hems_devices_cache_until = None  # noqa: SLF001
     coord.client.hems_devices = AsyncMock(side_effect=RuntimeError("boom"))
     await runtime._async_refresh_hems_devices(force=True)
     assert runtime._hems_devices_using_stale is True  # noqa: SLF001
 
+    _clear_hems_inventory_endpoint_family(coord)
     runtime._hems_devices_cache_until = None  # noqa: SLF001
     runtime._hems_devices_last_success_mono = (
         time.monotonic() - HEMS_DEVICES_STALE_AFTER_S - 1
@@ -917,6 +943,59 @@ async def test_inventory_runtime_devices_and_hems_refresh_cache_paths(
     await runtime._async_refresh_hems_devices()
     assert runtime._hems_devices_payload is None  # noqa: SLF001
     assert runtime._hems_devices_using_stale is False  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_hems_failure_enters_endpoint_family_cooldown(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    coord.client._hems_site_supported = True  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(return_value=None)
+
+    await runtime._async_refresh_hems_devices()
+
+    health = coord._endpoint_family_state(
+        HEMS_INVENTORY_ENDPOINT_FAMILY
+    )  # noqa: SLF001
+    assert health.cooldown_active is True
+    assert health.next_retry_mono is not None
+    assert runtime.hems_devices_refresh_due(force=True) is False
+
+
+def test_inventory_runtime_hems_refresh_due_uses_cache(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_cache_until = time.monotonic() + 60  # noqa: SLF001
+
+    assert runtime.hems_devices_refresh_due() is False
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_hems_cooldown_reuses_stale_payload(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    now = time.monotonic()
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+    runtime._hems_devices_last_success_mono = now  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("unused"))
+    health = coord._endpoint_family_state(
+        HEMS_INVENTORY_ENDPOINT_FAMILY
+    )  # noqa: SLF001
+    health.cooldown_active = True
+    health.next_retry_mono = now + 300
+    health.last_success_mono = now
+
+    await runtime._async_refresh_hems_devices(force=True)
+
+    coord.client.hems_devices.assert_not_awaited()
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -1444,6 +1523,68 @@ async def test_inventory_runtime_refresh_hems_devices_uses_heatpump_runtime_pref
     runtime._merge_heatpump_type_bucket.assert_called_once_with()  # noqa: SLF001
     assert runtime._hems_inventory_ready is True  # noqa: SLF001
     assert runtime._hems_devices_payload is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_hems_devices_stops_after_preflight_auth_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+
+    async def _open_auth_circuit(*, force: bool = False) -> None:
+        assert force is True
+        coord._note_hems_auth_failure(  # noqa: SLF001
+            api.Unauthorized(),
+            endpoint="hems_support_preflight",
+        )
+
+    coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        side_effect=_open_auth_circuit
+    )
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("unused"))
+
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    coord.client.hems_devices.assert_not_awaited()
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_skips_hems_devices_during_auth_circuit(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+    coord._hems_auth_backoff_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=AssertionError("unused"))
+
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    coord.client.hems_devices.assert_not_awaited()
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
+    assert runtime.hems_devices_refresh_due(force=True) is False
+
+
+@pytest.mark.asyncio
+async def test_inventory_runtime_hems_devices_auth_failure_uses_circuit(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.inventory_runtime
+    runtime._hems_devices_payload = {"existing": True}  # noqa: SLF001
+    coord.client.hems_devices = AsyncMock(side_effect=api.Unauthorized())
+
+    await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
+
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
+    assert runtime._hems_devices_using_stale is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -1978,6 +2119,8 @@ async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_
     assert runtime._hems_devices_payload == {"existing": True}  # noqa: SLF001
     assert runtime._hems_devices_using_stale is True  # noqa: SLF001
 
+    _clear_hems_inventory_endpoint_family(coord)
+
     async def unsupported_preflight(*, force: bool = False) -> None:
         coord.client._hems_site_supported = False  # noqa: SLF001
 
@@ -1989,6 +2132,8 @@ async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_
     await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
     assert runtime._hems_devices_payload is None  # noqa: SLF001
     assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+    _clear_hems_inventory_endpoint_family(coord)
 
     async def supported_preflight(*, force: bool = False) -> None:
         coord.client._hems_site_supported = True  # noqa: SLF001
@@ -2006,6 +2151,8 @@ async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_
     assert runtime._hems_devices_payload is None  # noqa: SLF001
     assert runtime._hems_inventory_ready is False  # noqa: SLF001
 
+    _clear_hems_inventory_endpoint_family(coord)
+
     async def unsupported_invalid_payload(*, force: bool = False) -> None:
         coord.client._hems_site_supported = False  # noqa: SLF001
 
@@ -2017,6 +2164,8 @@ async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_
     await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
     assert runtime._hems_devices_payload is None  # noqa: SLF001
     assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+    _clear_hems_inventory_endpoint_family(coord)
 
     coord.heatpump_runtime.async_refresh_hems_support_preflight = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
         side_effect=supported_preflight
@@ -2030,6 +2179,8 @@ async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_
     coord.client.hems_devices = AsyncMock(return_value={"result": {"devices": []}})
     await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
     assert runtime._hems_devices_payload == {"value": "wrapped"}  # noqa: SLF001
+
+    _clear_hems_inventory_endpoint_family(coord)
 
     async def unsupported_during_fetch(*, force: bool = False) -> None:
         coord.client._hems_site_supported = True  # noqa: SLF001
@@ -2046,6 +2197,8 @@ async def test_inventory_runtime_refresh_hems_devices_unsupported_and_redaction_
     await runtime._async_refresh_hems_devices(force=True)  # noqa: SLF001
     assert runtime._hems_devices_payload is None  # noqa: SLF001
     assert runtime._hems_inventory_ready is True  # noqa: SLF001
+
+    _clear_hems_inventory_endpoint_family(coord)
 
     async def fetch_invalid_marks_unsupported(*, refresh_data: bool = False):
         coord.client._hems_site_supported = False  # noqa: SLF001
@@ -2080,11 +2233,11 @@ async def test_inventory_runtime_refresh_hems_devices_uses_fast_poll_cache_floor
     coord.client.hems_devices.assert_awaited_once_with(refresh_data=False)
     assert runtime._hems_devices_cache_until is not None  # noqa: SLF001
     assert runtime._hems_devices_last_success_mono is not None  # noqa: SLF001
-    assert runtime._hems_devices_cache_ttl_s() == pytest.approx(30.0)  # noqa: SLF001
+    assert runtime._hems_devices_cache_ttl_s() == pytest.approx(60.0)  # noqa: SLF001
     assert (
         runtime._hems_devices_cache_until
         - runtime._hems_devices_last_success_mono  # noqa: SLF001
-    ) == pytest.approx(30.0)
+    ) == pytest.approx(60.0)
 
 
 @pytest.mark.asyncio
@@ -2484,7 +2637,7 @@ async def test_inventory_runtime_refresh_inverters_refetches_production_after_tt
     monkeypatch.setattr(
         time,
         "monotonic",
-        lambda: (production_health.last_success_mono or 0.0) + 301.0,
+        lambda: (production_health.last_success_mono or 0.0) + 601.0,
     )
 
     await runtime._async_refresh_inverters()  # noqa: SLF001

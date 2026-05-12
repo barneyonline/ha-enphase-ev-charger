@@ -32,6 +32,8 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
     translations_dir = root / "translations"
     paths = [
         "issues.auth_blocked.description",
+        "issues.hems_auth_degraded.title",
+        "issues.hems_auth_degraded.description",
         "issues.too_many_active_sessions.title",
         "issues.too_many_active_sessions.description",
         "config.error.too_many_active_sessions",
@@ -41,6 +43,12 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         "services.try_reauth_now.fields.device_id.description",
         "services.try_reauth_now.fields.site_id.name",
         "services.try_reauth_now.fields.site_id.description",
+        "services.clear_hems_auth_backoff.name",
+        "services.clear_hems_auth_backoff.description",
+        "services.clear_hems_auth_backoff.fields.device_id.name",
+        "services.clear_hems_auth_backoff.fields.device_id.description",
+        "services.clear_hems_auth_backoff.fields.site_id.name",
+        "services.clear_hems_auth_backoff.fields.site_id.description",
     ]
     strings_data = json.loads((root / "strings.json").read_text(encoding="utf-8"))
     for path in paths:
@@ -64,6 +72,18 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         raise AssertionError(
             "strings.json should not define unsupported response fields under try_reauth_now"
         )
+    try:
+        _at_path(
+            strings_data,
+            "services.clear_hems_auth_backoff.response.fields.success.name",
+        )
+    except KeyError:
+        pass
+    else:
+        raise AssertionError(
+            "strings.json should not define unsupported response fields under "
+            "clear_hems_auth_backoff"
+        )
     for locale in translations_dir.glob("*.json"):
         name = locale.name
         data = json.loads(locale.read_text(encoding="utf-8"))
@@ -74,6 +94,18 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
                 assert value != _at_path(
                     en_data, path
                 ), f"{name} should localize {path} (still matches English)"
+        try:
+            _at_path(
+                data,
+                "services.clear_hems_auth_backoff.response.fields.success.name",
+            )
+        except KeyError:
+            pass
+        else:
+            raise AssertionError(
+                f"{name} should not define unsupported response fields under "
+                "clear_hems_auth_backoff"
+            )
         issue = _at_path(data, "issues.auth_blocked.description")
         assert "{site_id}" in issue, f"{name} missing {{site_id}} placeholder"
         assert (
@@ -84,6 +116,11 @@ def test_try_reauth_now_strings_exist_for_all_locales() -> None:
         assert (
             "{blocked_until}" in sessions_issue
         ), f"{name} missing {{blocked_until}} placeholder"
+        hems_issue = _at_path(data, "issues.hems_auth_degraded.description")
+        for placeholder in ("site_id", "backoff_until", "failure_count", "reason"):
+            assert (
+                "{" + placeholder + "}" in hems_issue
+            ), f"{name} missing {{{placeholder}}} placeholder"
 
 
 def test_cloud_error_code_states_exist_for_all_locales() -> None:
@@ -140,6 +177,49 @@ def test_cloud_error_code_states_exist_for_all_locales() -> None:
             assert _at_path(data, "issues.rate_limited.title") != _at_path(
                 en_data, "issues.rate_limited.title"
             ), f"{name} should localize issues.rate_limited.title"
+
+
+def test_site_service_status_states_exist_for_all_locales() -> None:
+    """Ensure the site service-status diagnostic sensor can be translated."""
+
+    from custom_components.enphase_ev.sensor import SITE_SERVICE_STATUS_STATES
+
+    root = (
+        pathlib.Path(__file__).resolve().parents[3] / "custom_components" / "enphase_ev"
+    )
+    translations_dir = root / "translations"
+    paths = [
+        "entity.sensor.site_service_status.name",
+        "entity.sensor.site_service_status.state.ok",
+        "entity.sensor.site_service_status.state.degraded",
+        "entity.sensor.site_service_status.state.unknown",
+        "entity.sensor.site_service_status.state_attributes.degraded_services.name",
+        "entity.sensor.site_service_status.state_attributes.degraded_endpoint_families.name",
+        "entity.sensor.site_service_status.state_attributes.degraded_service_count.name",
+        "entity.sensor.site_service_status.state_attributes.degraded_endpoint_family_count.name",
+        "entity.sensor.site_service_status.state_attributes.metrics_available.name",
+    ]
+    strings_data = json.loads((root / "strings.json").read_text(encoding="utf-8"))
+    en_data = json.loads((translations_dir / "en.json").read_text(encoding="utf-8"))
+    assert set(strings_data["entity"]["sensor"]["site_service_status"]["state"]) == set(
+        SITE_SERVICE_STATUS_STATES
+    )
+    for path in paths:
+        value = _at_path(strings_data, path)
+        assert value.strip(), f"strings.json missing value for {path}"
+    for locale in translations_dir.glob("*.json"):
+        name = locale.name
+        data = json.loads(locale.read_text(encoding="utf-8"))
+        assert set(data["entity"]["sensor"]["site_service_status"]["state"]) == set(
+            SITE_SERVICE_STATUS_STATES
+        ), f"{name} site service-status states differ from sensor options"
+        for path in paths:
+            value = _at_path(data, path)
+            assert value.strip(), f"{name} missing value for {path}"
+            if name != "en.json" and not name.startswith("en-"):
+                assert value != _at_path(
+                    en_data, path
+                ), f"{name} should localize {path} (still matches English)"
 
 
 def _at_path(data: dict, path: str) -> str:

@@ -21,6 +21,7 @@ from custom_components.enphase_ev.const import (
     CONF_SCAN_INTERVAL,
     CONF_SERIALS,
     CONF_SITE_ID,
+    CONF_SITE_ONLY,
     CONF_SESSION_ID,
     AUTH_REFRESH_REJECTED_SUSPEND_THRESHOLD,
     DEFAULT_SLOW_POLL_INTERVAL,
@@ -446,6 +447,31 @@ def test_persist_auth_refresh_suspension_state_stores_field(hass, monkeypatch):
     )
 
 
+def test_persist_auth_refresh_suspension_state_marks_internal_update(hass, monkeypatch):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(hass)
+    object.__setattr__(
+        entry, "runtime_data", SimpleNamespace(reload_suppression_count=0)
+    )
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord.config_entry = entry
+    coord._auth_refresh_suspended_until_utc = datetime(
+        2026, 5, 1, 12, 0, tzinfo=timezone.utc
+    )
+
+    def _update_entry(entry_obj, data=None, **kwargs):
+        assert entry_obj is entry
+        return True
+
+    monkeypatch.setattr(hass.config_entries, "async_update_entry", _update_entry)
+
+    coord._persist_auth_refresh_suspension_state()
+
+    assert entry.runtime_data.reload_suppression_count == 1
+
+
 def test_clear_auth_refresh_rejection_state_resets_counter_and_cooldown(hass):
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
 
@@ -471,8 +497,17 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
     from custom_components.enphase_ev.coordinator import RefreshPipelineContext
 
     coord = coordinator_factory()
-    coord.refresh_runner.async_run_refresh_call = AsyncMock(
-        return_value=("tariff_s", 0.123)
+
+    async def _run_first_refresh_calls(phase_timings, *, calls, **_kwargs) -> None:
+        durations = {
+            "battery_site_settings_s": 0.234,
+            "storm_guard_s": 0.345,
+        }
+        for timing_key, *_rest in calls:
+            phase_timings[timing_key] = durations[timing_key]
+
+    coord.refresh_runner.async_run_refresh_calls = AsyncMock(
+        side_effect=_run_first_refresh_calls
     )
     coord._auth_refresh_rejected_count = 2
     coord._auth_refresh_rejected_until = time.monotonic() + 60
@@ -490,8 +525,14 @@ async def test_post_status_first_refresh_clears_auth_refresh_rejection(
 
     await coord._async_run_post_status_refresh_pipeline(context)
 
-    coord.refresh_runner.async_run_refresh_call.assert_awaited_once()
-    assert context.phase_timings["tariff_s"] == 0.123
+    coord.refresh_runner.async_run_refresh_calls.assert_awaited_once()
+    calls = coord.refresh_runner.async_run_refresh_calls.await_args.kwargs["calls"]
+    assert [call[0] for call in calls] == [
+        "battery_site_settings_s",
+        "storm_guard_s",
+    ]
+    assert context.phase_timings["battery_site_settings_s"] == 0.234
+    assert context.phase_timings["storm_guard_s"] == 0.345
     assert coord._auth_refresh_rejected_count == 0
     assert coord._auth_refresh_rejected_until is None
     assert coord._auth_refresh_rejected_ends_utc is None
@@ -505,15 +546,16 @@ async def test_post_status_preserves_new_auth_refresh_rejection(
 
     coord = coordinator_factory()
 
-    async def _reject_during_followup(*_args, **_kwargs) -> None:
+    async def _reject_during_followup(phase_timings, *, calls, **_kwargs) -> None:
         coord._auth_refresh_rejected_count = 1
         coord._auth_refresh_rejected_until = time.monotonic() + 60
         coord._auth_refresh_rejected_ends_utc = datetime.now(timezone.utc) + timedelta(
             seconds=60
         )
-        return ("tariff_s", 0.123)
+        for timing_key, *_rest in calls:
+            phase_timings[timing_key] = 0.123
 
-    coord.refresh_runner.async_run_refresh_call = AsyncMock(
+    coord.refresh_runner.async_run_refresh_calls = AsyncMock(
         side_effect=_reject_during_followup
     )
     coord._auth_refresh_rejected_count = 0
@@ -530,10 +572,39 @@ async def test_post_status_preserves_new_auth_refresh_rejection(
 
     await coord._async_run_post_status_refresh_pipeline(context)
 
-    coord.refresh_runner.async_run_refresh_call.assert_awaited_once()
+    coord.refresh_runner.async_run_refresh_calls.assert_awaited_once()
     assert coord._auth_refresh_rejected_count == 1
     assert coord._auth_refresh_rejected_until is not None
     assert coord._auth_refresh_rejected_ends_utc is not None
+
+
+@pytest.mark.parametrize(
+    ("selected", "site_only", "serials", "has_encharge", "expected"),
+    [
+        ({"iqevse"}, False, {"EV123"}, None, True),
+        ({"microinverter"}, False, {"EV123"}, None, False),
+        ({"envoy"}, True, set(), None, True),
+        ({"encharge"}, True, set(), None, False),
+        (None, False, {"EV123"}, False, False),
+    ],
+)
+def test_first_refresh_storm_guard_followups_are_gated(
+    coordinator_factory,
+    selected,
+    site_only,
+    serials,
+    has_encharge,
+    expected,
+) -> None:
+    coord = coordinator_factory()
+    coord._selected_type_keys = selected  # noqa: SLF001
+    coord.site_only = site_only
+    coord.serials = serials
+    coord._battery_has_encharge = has_encharge  # noqa: SLF001
+
+    assert (
+        coord._first_refresh_storm_guard_followups_needed() is expected
+    )  # noqa: SLF001
 
 
 def test_clear_auth_refresh_rejection_state_if_unchanged_preserves_suspension(
@@ -851,13 +922,14 @@ async def test_http_error_retry_after_date_triggers_rate_limit_issue(hass, monke
     coord.client = StubClient()
     coord._rate_limit_hits = 1  # ensure branch triggers issue creation
 
-    with pytest.raises(UpdateFailed):
+    with pytest.raises(UpdateFailed) as exc_info:
         await coord._async_update_data()
 
     assert coord.last_failure_status == 429
     assert coord.last_failure_source == "http"
     assert issue_calls, "Expected rate limit issue creation"
     assert scheduled["delay"] > 0
+    assert exc_info.value.retry_after == pytest.approx(scheduled["delay"])
     assert coord._backoff_until == pytest.approx(time_keeper.value + scheduled["delay"])
 
 
@@ -1692,12 +1764,64 @@ async def test_manual_auth_refresh_reuses_recent_success(hass):
     coord._stored_password = "secret"
     coord._auth_refresh_last_success_mono = time.monotonic()
     coord._auth_refresh_manual_retry_until = None
+    coord._auth_blocked_until_utc = None
+    coord._auth_block_reason = None
+    coord._auth_refresh_suspended_until_utc = None
+    coord._hems_auth_backoff_until = None
+    coord._hems_auth_backoff_ends_utc = None
+    coord._hems_auth_failure_count = 0
+    coord._hems_auth_last_endpoint = None
+    coord._hems_auth_last_status = None
+    coord._hems_auth_last_reason = None
     coord.auth_refresh_runtime.async_run_auto_refresh = AsyncMock(return_value=True)
 
     result = await coord.async_try_reauth_now()
     assert result.success is True
     assert result.reason is None
     coord.auth_refresh_runtime.async_run_auto_refresh.assert_not_called()
+    assert coord._auth_blocked_until_utc is None
+    assert coord._auth_block_reason is None
+    assert coord._auth_refresh_suspended_until_utc is None
+    assert coord._hems_auth_backoff_until is None
+    assert coord._hems_auth_last_endpoint is None
+    assert coord._hems_auth_last_status is None
+    assert coord._hems_auth_last_reason is None
+    assert coord._hems_auth_failure_count == 0
+
+
+@pytest.mark.asyncio
+async def test_manual_auth_refresh_does_not_reuse_recent_success_during_active_block(
+    hass,
+):
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord.hass = hass
+    coord._email = "user@example.com"
+    coord._remember_password = True
+    coord._stored_password = "secret"
+    coord._refresh_lock = asyncio.Lock()
+    coord._auth_refresh_task = None
+    coord._auth_refresh_last_success_mono = time.monotonic()
+    coord._auth_refresh_manual_retry_until = None
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
+    coord._auth_block_reason = "too_many_active_sessions"
+    coord._auth_refresh_suspended_until_utc = None
+    coord._hems_auth_backoff_until = time.monotonic() + 60
+    coord._hems_auth_backoff_ends_utc = datetime.now(timezone.utc) + timedelta(
+        minutes=15
+    )
+    coord._hems_auth_failure_count = 1
+    coord._hems_auth_last_endpoint = "hems_devices"
+    coord._hems_auth_last_status = 401
+    coord._hems_auth_last_reason = "unauthorized"
+    coord.auth_refresh_runtime.async_run_auto_refresh = AsyncMock(return_value=True)
+
+    result = await coord.async_try_reauth_now()
+
+    assert result.success is True
+    assert result.performed_refresh is True
+    coord.auth_refresh_runtime.async_run_auto_refresh.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio
@@ -1925,7 +2049,7 @@ async def test_activate_auth_block_from_login_wall_reuses_existing_block(hass):
 async def test_async_update_data_fails_fast_while_auth_blocked(monkeypatch, hass):
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
 
     entry = _make_entry(hass)
     monkeypatch.setattr(
@@ -1941,10 +2065,47 @@ async def test_async_update_data_fails_fast_while_auth_blocked(monkeypatch, hass
     coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(hours=1)
     coord._auth_block_reason = "login_wall_after_refresh_reject"
 
-    with pytest.raises(ConfigEntryAuthFailed, match="temporarily blocked"):
+    with pytest.raises(UpdateFailed, match="temporarily blocked") as exc_info:
         await coord._async_update_data()
 
+    assert 3590 <= exc_info.value.retry_after <= 3600
     coord.client.status.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_fails_fast_while_site_only_auth_blocked(
+    monkeypatch, hass
+):
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    entry = _make_entry(
+        hass,
+        {
+            CONF_SERIALS: [],
+            CONF_SITE_ONLY: True,
+            CONF_AUTH_BLOCKED_UNTIL: (
+                datetime.now(timezone.utc) + timedelta(hours=1)
+            ).isoformat(),
+            CONF_AUTH_BLOCK_REASON: "login_wall_after_refresh_reject",
+        },
+    )
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+    coord = EnphaseCoordinator(hass, entry.data, config_entry=entry)
+    coord.energy._async_refresh_site_energy = AsyncMock()  # noqa: SLF001
+
+    with pytest.raises(UpdateFailed, match="temporarily blocked") as exc_info:
+        await coord._async_update_data()
+
+    assert 3590 <= exc_info.value.retry_after <= 3600
+    coord.energy._async_refresh_site_energy.assert_not_awaited()  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -1954,7 +2115,7 @@ async def test_async_update_data_login_wall_during_refresh_cooldown_blocks(
     from custom_components.enphase_ev import coordinator as coord_mod
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
     from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
 
     entry = _make_entry(hass)
     monkeypatch.setattr(
@@ -1980,11 +2141,12 @@ async def test_async_update_data_login_wall_during_refresh_cooldown_blocks(
         )
     )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="temporarily blocked"):
+    with pytest.raises(UpdateFailed, match="temporarily blocked") as exc_info:
         await coord._async_update_data()
 
     assert coord._auth_block_reason == "login_wall_after_refresh_reject"
     assert coord._auth_blocked_until_utc is not None
+    assert 86390 <= exc_info.value.retry_after <= 86400
 
 
 @pytest.mark.asyncio
@@ -2082,6 +2244,15 @@ def test_blocked_auth_failure_message_handles_missing_timestamp():
     coord._auth_blocked_until_utc = None
 
     assert coord._blocked_auth_failure_message().endswith("retry later.")
+
+
+def test_auth_block_retry_after_returns_none_when_expired():
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    coord = _attach_evse_runtime(EnphaseCoordinator.__new__(EnphaseCoordinator))
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    assert coord._auth_block_retry_after_s() is None
 
 
 def test_persist_tokens_updates_entry(hass, monkeypatch):

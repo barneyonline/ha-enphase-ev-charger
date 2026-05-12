@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - 'release/**'
     paths:
       - 'custom_components/**'
       - 'tests/components/enphase_ev/**'

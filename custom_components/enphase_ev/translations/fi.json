@@ -478,7 +478,8 @@
           "forget_password": "Unohda tallennettu salasana",
           "type_heatpump": "Lämpöpumppu",
           "type_ac_battery": "AC-akku",
-          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön"
+          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön",
+          "degraded_service_repair_issues": "Ota heikentyneiden palvelujen korjaukset käyttöön"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -496,7 +497,8 @@
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
           "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
           "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla.",
-          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja"
+          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja",
+          "degraded_service_repair_issues": "Luo Repairs-ongelmia, kun valinnaiset Enphase-palvelut ovat heikentyneet."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Unohda tallennettu salasana",
           "type_heatpump": "Lämpöpumppu",
           "type_ac_battery": "AC-akku",
-          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön"
+          "battery_schedules_enabled": "Ota akun aikataulutus käyttöön",
+          "degraded_service_repair_issues": "Ota heikentyneiden palvelujen korjaukset käyttöön"
         },
         "data_description": {
           "type_envoy": "Sisältää yhdyskäytävän yhteys- ja mittaridiagnostiikan.",
@@ -536,7 +539,8 @@
           "forget_password": "Poistaa tallennetun salasanan. Automaattista päivitystä ei enää yritetä.",
           "type_heatpump": "Sisältää lämpöpumpun tila-, diagnostiikka- ja kulutusanturit.",
           "type_ac_battery": "Sisältää AC-akun anturit ja lepotilan ohjaukset, kun ne ovat saatavilla.",
-          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja"
+          "battery_schedules_enabled": "Hallitse IQ-akun aikatauluja",
+          "degraded_service_repair_issues": "Luo Repairs-ongelmia, kun valinnaiset Enphase-palvelut ovat heikentyneet."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Virheellinen pilvivastaus",
           "dns_error": "DNS-virhe",
           "network_error": "Verkkovirhe"
+        }
+      },
+      "site_service_status": {
+        "name": "Palvelun tila",
+        "state": {
+          "ok": "Kunnossa",
+          "unknown": "Tuntematon",
+          "degraded": "Heikentynyt"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Heikentyneet palvelut"
+          },
+          "degraded_endpoint_families": {
+            "name": "Heikentyneet päätepisteryhmät"
+          },
+          "degraded_service_count": {
+            "name": "Heikentyneiden palvelujen määrä"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Heikentyneiden päätepisteryhmien määrä"
+          },
+          "metrics_available": {
+            "name": "Mittarit saatavilla"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Enphase Energy -akun profiilin päivitys odottaa",
       "description": "Sivuston {site_id} akun profiilin muutos on ollut odottamassa yli {pending_timeout_minutes} minuuttia. Pilvipalvelu saattaa edelleen käsitellä pyyntöä."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS on tilapäisesti keskeytetty",
+      "description": "Heat Pump/HEMS-kysely kohteelle {site_id} on keskeytetty aikaan {backoff_until} asti {failure_count} todennusluonteisen virheen jälkeen ({reason}). Wallbox, akku, yhdyskäytävä ja muut tiedot voivat jatkua. Poista Heat Pump -laiteryhmä käytöstä tai käytä Clear HEMS Auth Backoff, kun Enphase on palautunut."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Tyhjennä HEMS auth backoff",
+      "description": "Tyhjentää tilapäisen HEMS/Heat Pump -todennustauon ilman salasankirjautumista.",
+      "fields": {
+        "device_id": {
+          "name": "Kohteen laitteet",
+          "description": "Valitse Enphase-kohteen laite, jonka HEMS auth backoff tyhjennetään."
+        },
+        "site_id": {
+          "name": "Kohteen ID",
+          "description": "Valinnainen kohteen tunniste; tunnistetaan automaattisesti, kun laite valitaan."
         }
       }
     }

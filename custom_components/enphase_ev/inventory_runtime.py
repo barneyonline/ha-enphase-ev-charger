@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from homeassistant.core import callback
 from homeassistant.util import dt as dt_util
 
+from .api import OptionalEndpointUnavailable
 from .const import DEFAULT_FAST_POLL_INTERVAL, DOMAIN
 from .device_types import (
     member_is_retired as device_member_is_retired,
@@ -55,9 +56,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _LOGGER = logging.getLogger(__name__)
 
-DEVICES_INVENTORY_CACHE_TTL = 300.0
+DEVICES_INVENTORY_CACHE_TTL = 600.0
+HEMS_INVENTORY_ENDPOINT_FAMILY = "hems_inventory"
 HEMS_DEVICES_STALE_AFTER_S = 90.0
-HEMS_DEVICES_CACHE_TTL = 15.0
+HEMS_DEVICES_CACHE_TTL = 60.0
 # System-dashboard detail calls are fan-out requests against the same cloud service.
 SYSTEM_DASHBOARD_DETAIL_CONCURRENCY = 3
 SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
@@ -349,6 +351,10 @@ class InventoryRuntime:
     ) -> dict[str, object]:
         return {
             "inventory_ready": bool(snapshot.inventory_ready),
+            "devices_inventory_ready": bool(
+                getattr(self, "_devices_inventory_ready", False)
+            ),
+            "hems_inventory_ready": bool(getattr(self, "_hems_inventory_ready", False)),
             "charger_count": len(snapshot.charger_serials),
             "battery_count": len(snapshot.battery_serials),
             "ac_battery_count": len(snapshot.ac_battery_serials),
@@ -381,7 +387,7 @@ class InventoryRuntime:
     def gateway_inventory_summary(self) -> dict[str, object]:
         source = self._gateway_inventory_summary_marker()
         summary = getattr(self, "_gateway_inventory_summary_cache", {}) or {}
-        if not summary or source != self._gateway_inventory_summary_source:
+        if source != self._gateway_inventory_summary_source:
             summary = self._build_gateway_inventory_summary()
             self._gateway_inventory_summary_cache = summary
             self._gateway_inventory_summary_source = source
@@ -390,7 +396,7 @@ class InventoryRuntime:
     def microinverter_inventory_summary(self) -> dict[str, object]:
         source = self._microinverter_inventory_summary_marker()
         summary = getattr(self, "_microinverter_inventory_summary_cache", {}) or {}
-        if not summary or source != self._microinverter_inventory_summary_source:
+        if source != self._microinverter_inventory_summary_source:
             summary = self._build_microinverter_inventory_summary()
             self._microinverter_inventory_summary_cache = summary
             self._microinverter_inventory_summary_source = source
@@ -399,7 +405,7 @@ class InventoryRuntime:
     def heatpump_inventory_summary(self) -> dict[str, object]:
         source = self._heatpump_inventory_summary_marker()
         summary = getattr(self, "_heatpump_inventory_summary_cache", {}) or {}
-        if not summary or source != self._heatpump_inventory_summary_source:
+        if source != self._heatpump_inventory_summary_source:
             summary = self._build_heatpump_inventory_summary()
             self._heatpump_inventory_summary_cache = summary
             self._heatpump_inventory_summary_source = source
@@ -424,7 +430,7 @@ class InventoryRuntime:
     def gateway_iq_energy_router_summary_records(self) -> list[dict[str, object]]:
         source = self._gateway_iq_energy_router_records_marker()
         records = getattr(self, "_gateway_iq_energy_router_records_cache", [])
-        if not records or source != self._gateway_iq_energy_router_records_source:
+        if source != self._gateway_iq_energy_router_records_source:
             records = self._gateway_iq_energy_router_summary_records(
                 self.gateway_iq_energy_router_records()
             )
@@ -1699,31 +1705,46 @@ class InventoryRuntime:
         micro_source = self._microinverter_inventory_summary_marker()
         heatpump_source = self._heatpump_inventory_summary_marker()
         router_source = self._gateway_iq_energy_router_records_marker()
-        gateway_summary = self._build_gateway_inventory_summary()
-        micro_summary = self._build_microinverter_inventory_summary()
-        heatpump_summary = self._build_heatpump_inventory_summary()
-        heatpump_type_summaries = self._build_heatpump_type_summaries()
-        router_records = self._gateway_iq_energy_router_summary_records(
-            self.gateway_iq_energy_router_records()
-        )
-        router_by_key = {
-            record["key"]: record
-            for record in router_records
-            if isinstance(record, dict) and isinstance(record.get("key"), str)
-        }
-        self._update_shared_state(
-            _gateway_inventory_summary_cache=gateway_summary,
-            _gateway_inventory_summary_source=gateway_source,
-            _microinverter_inventory_summary_cache=micro_summary,
-            _microinverter_inventory_summary_source=micro_source,
-            _heatpump_inventory_summary_cache=heatpump_summary,
-            _heatpump_inventory_summary_source=heatpump_source,
-            _heatpump_type_summaries_cache=heatpump_type_summaries,
-            _heatpump_type_summaries_source=heatpump_source,
-            _gateway_iq_energy_router_records_cache=router_records,
-            _gateway_iq_energy_router_records_source=router_source,
-            _gateway_iq_energy_router_records_by_key_cache=router_by_key,
-        )
+        updates: dict[str, object] = {}
+
+        if gateway_source != self._gateway_inventory_summary_source:
+            updates["_gateway_inventory_summary_cache"] = (
+                self._build_gateway_inventory_summary()
+            )
+            updates["_gateway_inventory_summary_source"] = gateway_source
+
+        if micro_source != self._microinverter_inventory_summary_source:
+            updates["_microinverter_inventory_summary_cache"] = (
+                self._build_microinverter_inventory_summary()
+            )
+            updates["_microinverter_inventory_summary_source"] = micro_source
+
+        if heatpump_source != self._heatpump_inventory_summary_source:
+            updates["_heatpump_inventory_summary_cache"] = (
+                self._build_heatpump_inventory_summary()
+            )
+            updates["_heatpump_inventory_summary_source"] = heatpump_source
+
+        if heatpump_source != self._heatpump_type_summaries_source:
+            updates["_heatpump_type_summaries_cache"] = (
+                self._build_heatpump_type_summaries()
+            )
+            updates["_heatpump_type_summaries_source"] = heatpump_source
+
+        if router_source != self._gateway_iq_energy_router_records_source:
+            router_records = self._gateway_iq_energy_router_summary_records(
+                self.gateway_iq_energy_router_records()
+            )
+            updates["_gateway_iq_energy_router_records_cache"] = router_records
+            updates["_gateway_iq_energy_router_records_source"] = router_source
+            updates["_gateway_iq_energy_router_records_by_key_cache"] = {
+                record["key"]: record
+                for record in router_records
+                if isinstance(record, dict) and isinstance(record.get("key"), str)
+            }
+
+        if updates:
+            self._update_shared_state(**updates)
 
     async def _async_refresh_devices_inventory(self, *, force: bool = False) -> None:
         coord = self.coordinator
@@ -1813,14 +1834,50 @@ class InventoryRuntime:
         return callable(fetcher)
 
     async def _async_refresh_hems_devices(self, *, force: bool = False) -> None:
+        coord = self.coordinator
         now = time.monotonic()
         cache_ttl = self._hems_devices_cache_ttl_s()
+        family = HEMS_INVENTORY_ENDPOINT_FAMILY
+        previous_payload = getattr(self, "_hems_devices_payload", None)
+        if coord._skip_hems_polling_due_to_auth_circuit(endpoint="hems_devices"):
+            self._mark_hems_devices_auth_backoff(
+                now=now,
+                cache_ttl=cache_ttl,
+                previous_payload=previous_payload,
+            )
+            return
+        health = coord._endpoint_family_state(family)
+        if health.cooldown_active and coord._endpoint_family_wait_active(family):
+            if previous_payload is not None and coord._endpoint_family_can_use_stale(
+                family
+            ):
+                self._update_shared_state(
+                    _hems_devices_payload=previous_payload,
+                    _hems_devices_using_stale=True,
+                    _hems_inventory_ready=True,
+                    _hems_devices_cache_until=(
+                        coord._endpoint_family_next_retry_mono(family)
+                        or now + cache_ttl
+                    ),
+                )
+                self._merge_heatpump_type_bucket()
+                self._debug_log_summary_if_changed(
+                    "hems_inventory",
+                    "HEMS discovery summary",
+                    self._debug_hems_inventory_summary(),
+                )
+            return
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return
-        await self.coordinator.heatpump_runtime.async_refresh_hems_support_preflight(
-            force=force
-        )
+        await coord.heatpump_runtime.async_refresh_hems_support_preflight(force=force)
+        if coord._skip_hems_polling_due_to_auth_circuit(endpoint="hems_devices"):
+            self._mark_hems_devices_auth_backoff(
+                now=now,
+                cache_ttl=cache_ttl,
+                previous_payload=previous_payload,
+            )
+            return
         if getattr(self.client, "hems_site_supported", None) is False:
             self._update_shared_state(
                 _hems_devices_payload=None,
@@ -1838,7 +1895,6 @@ class InventoryRuntime:
         fetcher = getattr(self.client, "hems_devices", None)
         if not callable(fetcher):
             return
-        previous_payload = getattr(self, "_hems_devices_payload", None)
 
         stale_allowed = False
         if previous_payload is not None:
@@ -1849,6 +1905,15 @@ class InventoryRuntime:
         try:
             payload = await fetcher(refresh_data=force)
         except Exception as err:  # noqa: BLE001
+            if coord._note_hems_auth_failure(err, endpoint="hems_devices"):
+                self._mark_hems_devices_auth_backoff(
+                    now=now,
+                    cache_ttl=cache_ttl,
+                    previous_payload=previous_payload,
+                )
+                return
+            if getattr(self.client, "hems_site_supported", None) is not False:
+                coord._note_endpoint_family_failure(family, err)
             _LOGGER.debug(
                 "HEMS device inventory fetch failed: %s",
                 redact_text(err, site_ids=(self.site_id,)),
@@ -1902,6 +1967,10 @@ class InventoryRuntime:
                 )
                 return
             if stale_allowed:
+                coord._note_endpoint_family_failure(
+                    family,
+                    OptionalEndpointUnavailable("HEMS device inventory unavailable"),
+                )
                 self._update_shared_state(
                     _hems_devices_payload=previous_payload,
                     _hems_devices_using_stale=True,
@@ -1917,6 +1986,10 @@ class InventoryRuntime:
                     self._debug_hems_inventory_summary(),
                 )
                 return
+            coord._note_endpoint_family_failure(
+                family,
+                OptionalEndpointUnavailable("HEMS device inventory unavailable"),
+            )
             self._update_shared_state(
                 _hems_devices_payload=None,
                 _hems_devices_using_stale=False,
@@ -1946,6 +2019,33 @@ class InventoryRuntime:
         )
         self._merge_heatpump_type_bucket()
         self._set_shared_state_attr("_hems_devices_cache_until", now + cache_ttl)
+        coord._note_hems_auth_success(endpoint="hems_devices")
+        coord._note_endpoint_family_success(family)
+        self._debug_log_summary_if_changed(
+            "hems_inventory",
+            "HEMS discovery summary",
+            self._debug_hems_inventory_summary(),
+        )
+
+    def _mark_hems_devices_auth_backoff(
+        self,
+        *,
+        now: float,
+        cache_ttl: float,
+        previous_payload: object,
+    ) -> None:
+        """Keep HEMS inventory stale while the coordinator auth circuit is open."""
+
+        coord = self.coordinator
+        self._update_shared_state(
+            _hems_devices_payload=previous_payload,
+            _hems_devices_using_stale=previous_payload is not None,
+            _hems_inventory_ready=True,
+            _hems_devices_cache_until=(
+                getattr(coord, "_hems_auth_backoff_until", None) or now + cache_ttl
+            ),
+        )
+        self._merge_heatpump_type_bucket()
         self._debug_log_summary_if_changed(
             "hems_inventory",
             "HEMS discovery summary",
@@ -1953,7 +2053,15 @@ class InventoryRuntime:
         )
 
     def hems_devices_refresh_due(self, *, force: bool = False) -> bool:
+        coord = self.coordinator
         now = time.monotonic()
+        health = coord._endpoint_family_state(HEMS_INVENTORY_ENDPOINT_FAMILY)
+        if health.cooldown_active and coord._endpoint_family_wait_active(
+            HEMS_INVENTORY_ENDPOINT_FAMILY
+        ):
+            return False
+        if coord._hems_auth_circuit_active():
+            return False
         if not force and self._hems_devices_cache_until:
             if now < self._hems_devices_cache_until:
                 return False

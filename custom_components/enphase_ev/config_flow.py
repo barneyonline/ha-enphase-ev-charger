@@ -41,6 +41,13 @@ from .const import (
     CONF_COOKIE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_HEMS_AUTH_BACKOFF_UNTIL,
+    CONF_HEMS_AUTH_FAILURE_COUNT,
+    CONF_HEMS_AUTH_LAST_ENDPOINT,
+    CONF_HEMS_AUTH_LAST_FAILURE_UTC,
+    CONF_HEMS_AUTH_LAST_REASON,
+    CONF_HEMS_AUTH_LAST_STATUS,
+    CONF_HEMS_AUTH_LAST_SUCCESS_UTC,
     CONF_HEATPUMP_DISCOVERY_HANDLED,
     CONF_INCLUDE_INVERTERS,
     CONF_REMEMBER_PASSWORD,
@@ -54,6 +61,7 @@ from .const import (
     CONF_TOKEN_EXPIRES_AT,
     DEFAULT_BATTERY_SCHEDULES_ENABLED,
     DEFAULT_API_TIMEOUT,
+    DEFAULT_DEGRADED_SERVICE_REPAIR_ISSUES,
     DEFAULT_FAST_POLL_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SCHEDULE_SYNC_ENABLED,
@@ -68,6 +76,7 @@ from .const import (
     MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
+    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
@@ -163,6 +172,8 @@ def _coerce_int_value(value: object) -> int | None:
         return int(value)
     if isinstance(value, int):
         return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
     if isinstance(value, str):
         try:
             return int(value)
@@ -668,6 +679,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         data.pop(CONF_AUTH_REFRESH_SUSPENDED_UNTIL, None)
         data.pop(CONF_AUTH_BLOCKED_UNTIL, None)
         data.pop(CONF_AUTH_BLOCK_REASON, None)
+        data.pop(CONF_HEMS_AUTH_BACKOFF_UNTIL, None)
+        data.pop(CONF_HEMS_AUTH_FAILURE_COUNT, None)
+        data.pop(CONF_HEMS_AUTH_LAST_FAILURE_UTC, None)
+        data.pop(CONF_HEMS_AUTH_LAST_SUCCESS_UTC, None)
+        data.pop(CONF_HEMS_AUTH_LAST_ENDPOINT, None)
+        data.pop(CONF_HEMS_AUTH_LAST_STATUS, None)
+        data.pop(CONF_HEMS_AUTH_LAST_REASON, None)
 
         await self.async_set_unique_id(self._selected_site_id)
 
@@ -723,6 +741,13 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
             merged.pop(CONF_AUTH_REFRESH_SUSPENDED_UNTIL, None)
             merged.pop(CONF_AUTH_BLOCKED_UNTIL, None)
             merged.pop(CONF_AUTH_BLOCK_REASON, None)
+            merged.pop(CONF_HEMS_AUTH_BACKOFF_UNTIL, None)
+            merged.pop(CONF_HEMS_AUTH_FAILURE_COUNT, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_FAILURE_UTC, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_SUCCESS_UTC, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_ENDPOINT, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_STATUS, None)
+            merged.pop(CONF_HEMS_AUTH_LAST_REASON, None)
             if not self._remember_password:
                 merged.pop(CONF_PASSWORD, None)
                 return self.async_update_reload_and_abort(
@@ -744,6 +769,12 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
 
     async def _ensure_chargers(self) -> None:
         if self._chargers_loaded:
+            return
+        if self._inventory_iqevse_serials:
+            self._chargers = [
+                (serial, None) for serial in self._inventory_iqevse_serials
+            ]
+            self._chargers_loaded = True
             return
         if not self._auth_tokens or not self._selected_site_id:
             self._chargers_loaded = True
@@ -845,13 +876,10 @@ class EnphaseEVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ig
         ]
 
     async def _ensure_device_selection_data(self) -> None:
-        tasks = []
-        if not self._chargers_loaded:
-            tasks.append(self._ensure_chargers())
         if not self._type_keys_loaded:
-            tasks.append(self._ensure_available_type_keys())
-        if tasks:
-            await asyncio.gather(*tasks)
+            await self._ensure_available_type_keys()
+        if not self._chargers_loaded:
+            await self._ensure_chargers()
 
     def _reset_discovery_cache(self) -> None:
         self._chargers = []
@@ -1326,9 +1354,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
                     default=self._entry.options.get(
                         OPT_API_TIMEOUT, DEFAULT_API_TIMEOUT
                     ),
-                ): vol.All(
-                    vol.Coerce(int),
-                    vol.Range(min=MIN_API_TIMEOUT, max=MAX_API_TIMEOUT),
+                ): selector(
+                    {
+                        "number": {
+                            "min": MIN_API_TIMEOUT,
+                            "max": MAX_API_TIMEOUT,
+                            "step": 1,
+                            "mode": "box",
+                            "unit_of_measurement": "s",
+                        }
+                    }
                 ),
                 vol.Optional(
                     OPT_NOMINAL_VOLTAGE,
@@ -1359,6 +1394,13 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
                     default=self._entry.options.get(
                         OPT_BATTERY_SCHEDULES_ENABLED,
                         DEFAULT_BATTERY_SCHEDULES_ENABLED,
+                    ),
+                ): bool,
+                vol.Optional(
+                    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
+                    default=self._entry.options.get(
+                        OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
+                        DEFAULT_DEGRADED_SERVICE_REPAIR_ISSUES,
                     ),
                 ): bool,
                 vol.Optional("reauth", default=False): bool,
@@ -1498,22 +1540,30 @@ class OptionsFlowHandler(config_entries.OptionsFlow):  # type: ignore[misc]
         )
         session = async_get_clientsession(self.hass)
 
-        chargers = await async_fetch_chargers(session, site_id, tokens)
         discovered: list[str] = []
+        try:
+            payload = await async_fetch_devices_inventory(session, site_id, tokens)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug(
+                "Failed to fetch device inventory during IQ EVSE serial discovery "
+                "for site %s: %s",
+                redact_site_id(site_id),
+                redact_text(err, site_ids=(site_id,)),
+            )
+        else:
+            discovered = self._normalize_serials(
+                active_type_serials_from_inventory(payload, type_key="iqevse")
+            )
+        if discovered:
+            return discovered
+
+        chargers = await async_fetch_chargers(session, site_id, tokens)
         for charger in chargers:
             if charger.serial:
                 serial = str(charger.serial).strip()
                 if serial and serial not in discovered:
                     discovered.append(serial)
-        if discovered:
-            return discovered
-
-        payload = await async_fetch_devices_inventory(session, site_id, tokens)
-        if payload is None:
-            return []
-        return self._normalize_serials(
-            active_type_serials_from_inventory(payload, type_key="iqevse")
-        )
+        return discovered
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

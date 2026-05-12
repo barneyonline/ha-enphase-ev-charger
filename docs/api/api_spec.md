@@ -118,6 +118,7 @@ Status labels:
 | Legacy site tariff flags | `GET` | `/app-api/<site_id>/tariff.json?country=<country>` | authenticated session cookies + `e-auth-token` | Browser capture only |
 | Site billing-cycle details | `GET/POST` | `/service/tariff/tariff-ms/systems/<site_id>/billing-details[?date=<YYYY-MM-DD>]` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | Runtime |
 | Site tariff configuration | `GET/PUT` | `/service/tariff/tariff-ms/systems/<site_id>/tariff?include-site-details=true` and `/service/tariff/tariff-ms/systems/<site_id>/tariff?user-id=<user_id>` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`, `X-Requested-With`; writes add `Origin`, `Content-Type`, and `x-xsrf-token` | Runtime |
+| Dated site tariff rates | `GET` | `/service/tariff/tariff-ms/systems/<site_id>/tariffs?rateType=<BUYBACK>&date=<YYYY-MM-DD>&includeUtility=` | tariff web headers: authenticated cookies, `e-auth-token`, `Username`, `Requestid`, `X-Requested-With` | Runtime |
 | Tariff settings MQTT authorizer | `GET` | `/pv/aws_sigv4/tariff_settings_response_stream?serial_number=<gateway_sn>` | authenticated Enlighten session cookies + `e-auth-token` + `x-xsrf-token` | Browser capture only |
 | EVSE tariff-change notification | `PUT` | `/service/evse_scheduler/api/v1/siteConfig/<site_id>/tariff_change` | tariff web write headers + JSON `null` body | Runtime (best-effort) |
 | System dashboard summary | `GET` | `/service/system_dashboard/api_internal/cs/sites/<site_id>/summary` | session cookies + optional `Authorization: Bearer <token>` (current implementation adds bearer when available) | Runtime |
@@ -2619,6 +2620,67 @@ Example response (anonymized; representative values only):
   "dtCustomChargeEnabled": true
 }
 ```
+
+#### Dated Tariff Rates Read
+```
+GET /service/tariff/tariff-ms/systems/<site_id>/tariffs?rateType=BUYBACK&date=<YYYY-MM-DD>&includeUtility=
+```
+
+Returns date-specific tariff rate windows for sites where the main tariff configuration can include an empty `buyback.seasons[]` branch.
+The active runtime uses this endpoint as a read-only fallback for current export price sensors; these rates are not exposed as editable tariff number entities.
+
+Observed query parameters:
+- `rateType`: observed as `BUYBACK` for export compensation rates.
+- `date`: local date whose rates should be returned, formatted as `YYYY-MM-DD`.
+- `includeUtility`: observed with an empty value.
+
+Observed response shape:
+```json
+{
+  "type": "tariff-rates",
+  "timestamp": "2026-05-01T16:25:02.851080797Z",
+  "data": {
+    "tariff-version-id": "0123456789abcdef01234567",
+    "tariff-type": "static",
+    "currency": "$",
+    "timezone": "US/Pacific",
+    "siteDetails": {
+      "currency": "$",
+      "timezone": "US/Pacific",
+      "importPlanType": "NEM3",
+      "exportPlanType": "NEM3",
+      "exportApplicabilityYear": 2026,
+      "interconnectionApplicationDate": "2024-01-15T00:00:00Z",
+      "installDate": "2024-01-15",
+      "lastExportDate": "2033-09-11T07:00:00Z"
+    },
+    "buyback": [
+      {
+        "start": 0,
+        "end": 59,
+        "rate": 0.0789
+      },
+      {
+        "start": 60,
+        "end": 119,
+        "rate": 0.0733
+      },
+      {
+        "start": 1380,
+        "end": 1439,
+        "rate": 0.0764
+      }
+    ]
+  }
+}
+```
+
+Observed notes:
+- `data.buyback[]` contains rate windows for the requested date. `start` and `end` are minute offsets from local midnight; observed rows used inclusive end minutes, for example `0..59` for 00:00-01:00 and `1380..1439` for 23:00-00:00.
+- `data.timezone` and `data.siteDetails.timezone` identify the site timezone for interpreting those minute offsets.
+- The endpoint can provide export rates even when `GET /tariff?include-site-details=true` returns `buyback.seasons: []`.
+- The runtime currently uses this endpoint only for read-only `Current Export Rate` selection when the main tariff payload has no usable export rate specs.
+- This endpoint is not expected to be available for every account or region. The runtime tracks it as its own optional endpoint family (`tariff_dated_rates`) so unsupported or degraded responses back off independently from the main tariff configuration endpoint.
 
 #### Tariff Update
 ```
@@ -5313,6 +5375,7 @@ Notes:
 - Observed `chargeFromGrid` values so far: `true`, `false`.
 - The schedule checkbox ("Also up to 100% during this schedule") is represented by `chargeFromGridScheduleEnabled`; `chargeBeginTime`/`chargeEndTime` are minutes after midnight (local). Observed values so far: `chargeFromGridScheduleEnabled=true`, `chargeBeginTime=120`, `chargeEndTime=300`.
 - When the schedule is enabled, the status payload reports `chargeFromGridScheduleEnabled: true` and `cfgControl.forceScheduleOpted: true`.
+- Live local verification for issue `#634` on 2026-05-02 showed the final-CFG-delete path needs a follow-up `PUT /batterySettings/<site_id>` disable write even when no replacement CFG window remains. The backend accepted a payload with `chargeFromGridScheduleEnabled:false`, the current `chargeFromGrid` value, `acceptedItcDisclaimer`, and `cfgControl.forceScheduleOpted:false` while omitting `chargeBeginTime` and `chargeEndTime`; the follow-up read returned zero CFG schedules with `chargeFromGridScheduleEnabled:false`.
 - First-party browser captures documented for this repository used `acceptedItcDisclaimer: true`, while subsequent reads returned a timestamp string; the backend normalizes the acknowledgement state internally.
 - The current integration uses both shapes: direct charge-from-grid enablement sends boolean `true` after calling `acceptDisclaimer`, while CFG schedule/settings payloads send the stored timestamp or a current UTC timestamp.
 - `veryLowSoc` drives the "Battery shutdown level" slider, clamped between `veryLowSocMin` and `veryLowSocMax`. Observed values so far: `veryLowSoc=5` and `15`, `veryLowSocMin=5` and `10`, `veryLowSocMax=25`.
@@ -5599,6 +5662,7 @@ Observed behavior:
 - A `/delete` alias also exists. This path is useful as a compatibility note, but it was not present in the newer browser traces captured for this repository.
 - The current client implements the legacy `/delete` alias and sends it through the same compatibility write planner used by schedule create/update, including the raw-cookie browser request on affected sites.
 - The current integration treats the `/delete` alias response as opaque JSON and confirms the deletion via the follow-up `GET /schedules` refresh.
+- For CFG specifically, deleting the final saved schedule does not by itself prove the schedule-family toggle is off. Live local verification for issue `#634` confirmed clients should send the paired `PUT /batterySettings/<site_id>` disable write and should allow that settings payload to omit `chargeBeginTime` / `chargeEndTime` when no CFG schedule window remains.
 
 ### 5.9 Battery Schedule Validation
 ```
@@ -5754,6 +5818,7 @@ Observed behavior:
 - Ordinary time/limit edits on the affected site preserved `isEnabled: false` when updating the existing real disabled CFG/DTG/RBD schedules without sending `isEnabled`.
 - Temporary disabled schedules created with `isEnabled: false` were still echoed back from later update/readback calls as `isEnabled: true` even when the follow-up `PUT` omitted `isEnabled`.
 - Explicit CFG schedule-entry toggle writes that included `isEnabled: true` or `isEnabled: false` still read back as `false` for the existing real schedule on the affected site, indicating that effective CFG enablement is controlled by `batterySettings.chargeFromGridScheduleEnabled`, not reliably by the `/schedules` entry flag.
+- Live local verification for issue `#634` also reproduced a disabled CFG recreate quirk: creating a replacement CFG schedule with `isEnabled:false` could echo the new entry as `isEnabled:true` while `batterySettings.chargeFromGridScheduleEnabled` stayed `false`. An explicit schedule update with `isEnabled:false` plus the BatterySettings disable write restored both the entry flag and the effective settings flag.
 - Captured DTG/RBD enablement toggles were also observed as partial `PUT /batterySettings/<site_id>` payloads (`dtgControl.enabled` / `rbdControl.enabled`), so clients should not assume all schedule-family toggles go through `PUT /battery/sites/<site_id>/schedules/<schedule_id>`.
 - The current DTG runtime now follows that split explicitly:
   - toggle enable/disable uses `PUT /batterySettings/<site_id>`
@@ -6039,7 +6104,7 @@ There is no single universal header set; the implementation varies headers by en
 | `charging` | Active charging session |
 | `faulted` | Fault present |
 | `offGrid` | Charger grid-mode label from `/ev_chargers/status`; observed value so far: `ON_GRID` |
-| `mode` | Charger operating-mode integer from `/ev_chargers/status`; observed value so far: `1` |
+| `mode` | Charger operating-mode integer from `/ev_chargers/status`; observed values so far: `0` for manual charging and `1` for green charging |
 | `commissioned` | Status payload commissioning flag; observed value so far: `1` |
 | `smartEV.hasToken` | Smart-EV token availability flag; observed value so far: `false` |
 | `smartEV.hasEVDetails` | Smart-EV vehicle-details availability flag; observed value so far: `false` |

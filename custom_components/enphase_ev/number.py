@@ -291,7 +291,10 @@ class BatteryReserveNumber(CoordinatorEntity, NumberEntity):
         return float(self._coord.battery_reserve_max)
 
     async def async_set_native_value(self, value: float) -> None:
-        await self._coord.async_set_battery_reserve(int(value))
+        reserve = int(value)
+        if self._coord.battery_selected_backup_percentage == reserve:
+            return
+        await self._coord.async_set_battery_reserve(reserve)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -440,7 +443,10 @@ class BatteryShutdownLevelNumber(CoordinatorEntity, NumberEntity):
         return float(self._coord.battery_shutdown_level_max)
 
     async def async_set_native_value(self, value: float) -> None:
-        await self._coord.async_set_battery_shutdown_level(int(value))
+        level = int(value)
+        if self._coord.battery_shutdown_level == level:
+            return
+        await self._coord.async_set_battery_shutdown_level(level)
 
     @property
     def device_info(self) -> DeviceInfo:

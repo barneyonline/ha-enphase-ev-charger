@@ -135,7 +135,7 @@ jobs:
         run: |
           python scripts/importtime_profile.py --strict-integration-warnings --output importtime-enphase-ev.log
       - name: Upload import-time profile
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: importtime-enphase-ev-python314
           path: importtime-enphase-ev.log

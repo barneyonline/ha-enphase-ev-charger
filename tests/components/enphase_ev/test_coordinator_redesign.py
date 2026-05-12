@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from builtins import ExceptionGroup
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -316,7 +317,7 @@ class _RefreshOwner:
             refresh_due=lambda: True,
         )
         self.tariff_runtime = SimpleNamespace(
-            async_refresh=lambda: self._record("tariff"),
+            async_refresh=lambda **_kwargs: self._record("tariff"),
             refresh_due=lambda: True,
         )
         self.heatpump_runtime = SimpleNamespace(
@@ -477,6 +478,7 @@ def test_refresh_plans_bind_dynamic_followup_and_warmup_calls() -> None:
         None,
         "energy",
     ]
+    assert "tariff_s" in [call[0] for call in bound_warmup.stages[1].parallel_calls]
     assert bound_warmup.stages[2].ordered_calls[0][2]() == "heatpump-runtime"
     assert bound_warmup.stages[3].parallel_calls[0][2]() == "warmup-site-energy"
     assert bound_warmup.stages[3].parallel_calls[1][2]() == "warmup-evse-timeseries"
@@ -822,6 +824,156 @@ async def test_coordinator_run_refresh_calls_drains_siblings_before_batch_end(
 
 
 @pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_cancelled_child_drains_siblings(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    started = asyncio.Event()
+    drained = False
+    end_saw_drained = False
+
+    async def _slow() -> None:
+        nonlocal drained
+        started.set()
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            drained = True
+            raise
+
+    async def _cancel() -> None:
+        await started.wait()
+        raise asyncio.CancelledError
+
+    def _end_topology_batch() -> None:
+        nonlocal end_saw_drained
+        end_saw_drained = drained
+
+    coord._begin_topology_refresh_batch = MagicMock()  # type: ignore[method-assign]  # noqa: SLF001
+    coord._end_topology_refresh_batch = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        side_effect=_end_topology_batch
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("slow_s", "slow", _slow, None),
+                ("cancel_s", "cancel", _cancel, None),
+            ),
+            defer_topology=True,
+        )
+
+    coord._begin_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    coord._end_topology_refresh_batch.assert_called_once_with()  # noqa: SLF001
+    assert drained is True
+    assert end_saw_drained is True
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_prefers_failure_over_child_cancel(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    started = 0
+    ready = asyncio.Event()
+
+    async def _wait_until_ready() -> None:
+        nonlocal started
+        started += 1
+        if started == 2:
+            ready.set()
+        await ready.wait()
+
+    async def _cancel() -> None:
+        await _wait_until_ready()
+        raise asyncio.CancelledError
+
+    async def _fail() -> None:
+        await _wait_until_ready()
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("cancel_s", "cancel", _cancel, None),
+                ("fail_s", "fail", _fail, None),
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_filters_child_cancel_from_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    started = 0
+    ready = asyncio.Event()
+
+    async def _wait_until_ready() -> None:
+        nonlocal started
+        started += 1
+        if started == 3:
+            ready.set()
+        await ready.wait()
+
+    async def _cancel() -> None:
+        await _wait_until_ready()
+        raise asyncio.CancelledError
+
+    async def _fail_runtime() -> None:
+        await _wait_until_ready()
+        raise RuntimeError("boom")
+
+    async def _fail_value() -> None:
+        await _wait_until_ready()
+        raise ValueError("bad")
+
+    with pytest.raises(ExceptionGroup) as exc_info:
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("cancel_s", "cancel", _cancel, None),
+                ("runtime_s", "runtime", _fail_runtime, None),
+                ("value_s", "value", _fail_value, None),
+            ),
+        )
+
+    assert {type(err) for err in exc_info.value.exceptions} == {
+        RuntimeError,
+        ValueError,
+    }
+
+
+@pytest.mark.asyncio
+async def test_coordinator_run_refresh_calls_preserves_multiple_failures(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+
+    async def _fail_runtime() -> None:
+        raise RuntimeError("boom")
+
+    async def _fail_value() -> None:
+        raise ValueError("bad")
+
+    with pytest.raises(ExceptionGroup) as exc_info:
+        await coord.refresh_runner.async_run_refresh_calls(
+            {},
+            calls=(
+                ("runtime_s", "runtime", _fail_runtime, None),
+                ("value_s", "value", _fail_value, None),
+            ),
+        )
+
+    assert {type(err) for err in exc_info.value.exceptions} == {
+        RuntimeError,
+        ValueError,
+    }
+
+
+@pytest.mark.asyncio
 async def test_refresh_runner_staged_calls_track_empty_stage_timing(
     coordinator_factory,
 ) -> None:
@@ -846,14 +998,16 @@ def test_coordinator_lazily_creates_refresh_runner() -> None:
 
 
 @pytest.mark.asyncio
-async def test_refresh_runner_login_wall_raises_auth_failed_with_block_message(
+async def test_refresh_runner_login_wall_raises_update_failed_with_retry_after(
     coordinator_factory,
 ) -> None:
     from custom_components.enphase_ev.api import EnphaseLoginWallUnauthorized
+    from homeassistant.helpers.update_coordinator import UpdateFailed
 
     coord = coordinator_factory()
     coord._activate_auth_block_from_login_wall = MagicMock(return_value=True)  # type: ignore[method-assign]  # noqa: SLF001
     coord._blocked_auth_failure_message = MagicMock(return_value="blocked")  # type: ignore[method-assign]  # noqa: SLF001
+    coord._auth_block_retry_after_s = MagicMock(return_value=42)  # type: ignore[method-assign]  # noqa: SLF001
 
     async def _raise() -> None:
         raise EnphaseLoginWallUnauthorized(
@@ -864,8 +1018,10 @@ async def test_refresh_runner_login_wall_raises_auth_failed_with_block_message(
             body_preview_redacted="<!DOCTYPE html>",
         )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+    with pytest.raises(UpdateFailed, match="blocked") as exc_info:
         await coord.refresh_runner.async_run_refresh_call("k", "label", _raise)
+
+    assert exc_info.value.retry_after == 42
 
 
 @pytest.mark.asyncio

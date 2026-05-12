@@ -1602,6 +1602,64 @@ async def test_site_only_clears_issues_and_counters(
 
 
 @pytest.mark.asyncio
+async def test_site_only_first_refresh_cancels_startup_followups_when_energy_fails(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.site_only = True
+    coord.serials = set()
+    coord._serial_order = []  # noqa: SLF001
+    coord._has_successful_refresh = False  # noqa: SLF001
+    followup_cancelled = asyncio.Event()
+
+    async def _fail_site_energy() -> None:
+        await asyncio.sleep(0)
+        raise RuntimeError("site energy failed")
+
+    async def _run_first_refresh_followups(_phase_timings) -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            followup_cancelled.set()
+            raise
+
+    coord._async_run_first_refresh_followups = _run_first_refresh_followups  # type: ignore[method-assign]  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(  # noqa: SLF001
+        side_effect=_fail_site_energy
+    )
+
+    with pytest.raises(RuntimeError, match="site energy failed"):
+        await coord._async_update_data()  # noqa: SLF001
+
+    assert followup_cancelled.is_set()
+
+
+@pytest.mark.asyncio
+async def test_start_first_refresh_followups_keeps_existing_task(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.coordinator import RefreshPipelineContext
+
+    coord = coordinator_factory()
+    existing_task = asyncio.create_task(asyncio.sleep(0))
+    context = RefreshPipelineContext(
+        started_mono=time.monotonic(),
+        refresh_started_utc=datetime.now(timezone.utc),
+        phase_timings={},
+        fallback_data={},
+        first_refresh=True,
+        first_refresh_followups_task=existing_task,
+    )
+    coord._async_run_first_refresh_followups = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+
+    coord._start_first_refresh_followups(context)  # noqa: SLF001
+
+    assert context.first_refresh_followups_task is existing_task
+    coord._async_run_first_refresh_followups.assert_not_called()
+    await existing_task
+
+
+@pytest.mark.asyncio
 async def test_backoff_on_429(hass, monkeypatch):
     from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -2047,7 +2105,7 @@ async def test_handle_client_unauthorized_failure(monkeypatch, hass):
 async def test_handle_client_unauthorized_reports_auth_block_when_active(
     monkeypatch, hass
 ):
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
     from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     coord = _make_coordinator(hass, monkeypatch)
@@ -2070,7 +2128,7 @@ async def test_handle_client_unauthorized_reports_auth_block_when_active(
         raising=False,
     )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+    with pytest.raises(UpdateFailed, match="blocked"):
         await coord._handle_client_unauthorized()
 
     assert [issue_id for issue_id, _payload in created] == ["auth_blocked"]
@@ -2080,7 +2138,7 @@ async def test_handle_client_unauthorized_reports_auth_block_when_active(
 async def test_handle_client_unauthorized_reports_too_many_sessions_issue(
     monkeypatch, hass
 ):
-    from homeassistant.exceptions import ConfigEntryAuthFailed
+    from homeassistant.helpers.update_coordinator import UpdateFailed
     from custom_components.enphase_ev import coordinator_diagnostics as diag_mod
 
     coord = _make_coordinator(hass, monkeypatch)
@@ -2105,7 +2163,7 @@ async def test_handle_client_unauthorized_reports_too_many_sessions_issue(
         raising=False,
     )
 
-    with pytest.raises(ConfigEntryAuthFailed, match="blocked"):
+    with pytest.raises(UpdateFailed, match="blocked"):
         await coord._handle_client_unauthorized()
 
     assert [issue_id for issue_id, _payload in created] == ["too_many_active_sessions"]
@@ -3338,7 +3396,7 @@ async def test_first_refresh_soft_fails_optional_evse_status_endpoint(
 
 
 @pytest.mark.asyncio
-async def test_first_refresh_defers_warmup_only_calls(
+async def test_first_refresh_runs_storm_guard_startup_calls_and_defers_warmup_only_calls(
     hass, monkeypatch, config_entry
 ) -> None:
     from custom_components.enphase_ev.coordinator import EnphaseCoordinator
@@ -3431,13 +3489,141 @@ async def test_first_refresh_defers_warmup_only_calls(
 
     await coord.async_refresh()
 
-    for mock in deferred_methods.values():
+    deferred_methods["_async_refresh_battery_site_settings"].assert_awaited_once()
+    deferred_methods["_async_refresh_storm_guard_profile"].assert_awaited_once()
+    for name, mock in deferred_methods.items():
+        if name in {
+            "_async_refresh_battery_site_settings",
+            "_async_refresh_storm_guard_profile",
+        }:
+            continue
         mock.assert_not_awaited()
     coord.energy._async_refresh_site_energy.assert_not_awaited()
     coord.evse_timeseries.async_refresh.assert_not_awaited()
     assert "status_s" in coord.bootstrap_phase_timings
     assert "summary_s" in coord.bootstrap_phase_timings
     assert "site_energy_s" not in coord.bootstrap_phase_timings
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_overlaps_startup_followups_with_status(
+    hass, monkeypatch
+) -> None:
+    coord = _make_coordinator(hass, monkeypatch)
+    status_started = asyncio.Event()
+    followup_started = asyncio.Event()
+
+    async def _status():
+        status_started.set()
+        await followup_started.wait()
+        return {
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                    "charging": False,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+
+    async def _run_first_refresh_calls(phase_timings, *, calls, **_kwargs) -> None:
+        followup_started.set()
+        await status_started.wait()
+        for timing_key, *_rest in calls:
+            phase_timings[timing_key] = 0.001
+
+    coord.client.status = AsyncMock(side_effect=_status)
+    coord.client.summary_v2 = AsyncMock(
+        return_value=[{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+    )
+    coord.refresh_runner.async_run_refresh_calls = AsyncMock(
+        side_effect=_run_first_refresh_calls
+    )
+
+    await asyncio.wait_for(coord.async_refresh(), timeout=1)
+
+    assert followup_started.is_set()
+    assert coord.refresh_runner.async_run_refresh_calls.await_count == 1
+    assert "status_s" in coord.bootstrap_phase_timings
+    assert "battery_site_settings_s" in coord.bootstrap_phase_timings
+    assert "tariff_s" not in coord.bootstrap_phase_timings
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_populates_storm_guard_state_before_entities(
+    hass, monkeypatch, config_entry
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.switch import StormGuardSwitch
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 15,
+        CONF_SITE_ONLY: False,
+    }
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+
+    class DummyClient:
+        async def status(self):
+            return {
+                "evChargerData": [
+                    {
+                        "sn": RANDOM_SERIAL,
+                        "name": "Garage EV",
+                        "connectors": [{}],
+                        "session_d": {},
+                        "sch_d": {},
+                        "charging": False,
+                    }
+                ],
+                "ts": 1_700_000_000,
+            }
+
+        async def summary_v2(self):
+            return [{"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"}]
+
+        async def battery_site_settings(self):
+            return {
+                "data": {
+                    "showStormGuard": True,
+                    "hasEncharge": True,
+                    "userDetails": {"isOwner": True, "isInstaller": False},
+                }
+            }
+
+        async def storm_guard_profile(self, **_kwargs):
+            return {
+                "data": {
+                    "stormGuardState": "enabled",
+                    "evseStormEnabled": True,
+                }
+            }
+
+    coord = EnphaseCoordinator(hass, cfg, config_entry=config_entry)
+    coord.client = DummyClient()
+    coord.tariff_runtime.async_refresh = AsyncMock()
+
+    await coord.async_refresh()
+
+    assert coord.data[RANDOM_SERIAL]["storm_guard_state"] == "enabled"
+    assert coord.data[RANDOM_SERIAL]["storm_evse_enabled"] is True
+    assert StormGuardSwitch(coord).available is True
 
 
 def test_snapshot_helpers_and_discovery_capture_edge_paths(hass, monkeypatch) -> None:
@@ -3651,6 +3837,19 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
         async_save=AsyncMock(side_effect=RuntimeError("boom"))
     )
     await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_awaited_once_with(  # type: ignore[attr-defined]
+        {"serial_order": []}
+    )
+
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
+        async_save=AsyncMock()
+    )
+    await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_awaited_once_with(  # type: ignore[attr-defined]
+        {"serial_order": []}
+    )
+    await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_awaited_once()
 
     create_calls: list[object] = []
 
@@ -3670,8 +3869,15 @@ async def test_discovery_snapshot_restore_save_and_metrics_edge_paths(
 
     monkeypatch.setattr(snapshot_mod, "async_call_later", _capture_call_later)
     coord._discovery_snapshot_save_cancel = lambda: None  # type: ignore[assignment]  # noqa: SLF001
+    coord.discovery_snapshot.capture = Mock(return_value={"serial_order": []})  # type: ignore[assignment]
     coord.discovery_snapshot.schedule_save()
     assert scheduled == []
+    assert coord._discovery_snapshot_pending is False  # noqa: SLF001
+
+    coord.discovery_snapshot.capture = Mock(return_value={"serial_order": ["NEW"]})  # type: ignore[assignment]
+    coord.discovery_snapshot.schedule_save()
+    assert scheduled == []
+    assert coord._discovery_snapshot_pending is True  # noqa: SLF001
 
     coord._discovery_snapshot_save_cancel = None  # noqa: SLF001
     coord.discovery_snapshot.schedule_save()
@@ -3765,6 +3971,23 @@ async def test_startup_warmup_runner_and_task_edge_paths(
     assert "heatpump_runtime_s" in coord._warmup_phase_timings  # noqa: SLF001
     assert "heatpump_daily_s" in coord._warmup_phase_timings  # noqa: SLF001
     coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory(data={})
+    coord.data = {}
+    coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
+    coord.async_set_updated_data = Mock()  # type: ignore[assignment]
+    coord.tariff_runtime.async_refresh = AsyncMock()  # type: ignore[method-assign]
+    coord.tariff_last_refresh_utc = datetime.now(timezone.utc)
+
+    await coord.refresh_runner.async_startup_warmup_runner()
+
+    coord.async_set_updated_data.assert_called_once_with({})  # type: ignore[attr-defined]
+    coord.discovery_snapshot.schedule_save.assert_called_once()  # type: ignore[attr-defined]
+
+    coord = coordinator_factory(data={})
+    coord.data = {}
+    coord.energy.site_energy = {"production": []}
+    assert coord.refresh_runner._warmup_site_state_available() is True  # noqa: SLF001
 
     coord = coordinator_factory()
     coord.discovery_snapshot.schedule_save = Mock()  # type: ignore[assignment]
@@ -4046,6 +4269,12 @@ async def test_restore_discovery_state_applies_snapshot_topology(
     assert coord.discovery_snapshot.site_energy_channel_known("water_heater") is True
     router_records = coord.inventory_view.gateway_iq_energy_router_records()
     assert router_records[0]["device-uid"] == "ROUTER-1"
+
+    coord.discovery_snapshot._store = SimpleNamespace(  # type: ignore[assignment]  # noqa: SLF001
+        async_save=AsyncMock()
+    )
+    await coord.discovery_snapshot.async_save()
+    coord.discovery_snapshot._store.async_save.assert_not_awaited()  # type: ignore[attr-defined]
 
 
 def test_restored_site_energy_and_router_hints_expire_after_authoritative_refresh(

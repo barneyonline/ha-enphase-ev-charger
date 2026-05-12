@@ -38,11 +38,36 @@ _SKIPPABLE_REFRESH_ERRORS = (
 )
 
 
+class _RefreshCallCancelled(Exception):
+    """Signal a child refresh cancellation that should cancel sibling tasks."""
+
+
 class RefreshRunner:
     """Execute refresh plans and startup warmup on behalf of the coordinator."""
 
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self._coordinator = coordinator
+
+    def _warmup_site_state_available(self) -> bool:
+        coordinator = self._coordinator
+        energy = getattr(coordinator, "energy", None)
+        site_energy = (
+            getattr(energy, "site_energy", None)
+            if energy is not None
+            else getattr(coordinator, "site_energy", None)
+        )
+        if isinstance(site_energy, dict) and site_energy:
+            return True
+        return any(
+            getattr(coordinator, attr, None) is not None
+            for attr in (
+                "tariff_billing",
+                "tariff_import_rate",
+                "tariff_export_rate",
+                "tariff_last_refresh_utc",
+                "tariff_rates_last_refresh_utc",
+            )
+        )
 
     async def async_run_refresh_call(
         self,
@@ -61,9 +86,7 @@ class RefreshRunner:
             raise
         except EnphaseLoginWallUnauthorized as err:
             if self._coordinator._activate_auth_block_from_login_wall(err):
-                raise ConfigEntryAuthFailed(
-                    self._coordinator._blocked_auth_failure_message()
-                ) from err
+                raise self._coordinator._auth_block_update_failed() from err
             raise ConfigEntryAuthFailed from err
         except ConfigEntryAuthFailed:
             raise
@@ -89,6 +112,27 @@ class RefreshRunner:
             raise
         return timing_key, round(time.monotonic() - started, 3)
 
+    async def _async_run_refresh_call_for_group(
+        self,
+        timing_key: str,
+        log_label: str,
+        callback_factory: Callable[[], object],
+        *,
+        endpoint_family: str | None = None,
+    ) -> tuple[str, float | None]:
+        try:
+            return await self.async_run_refresh_call(
+                timing_key,
+                log_label,
+                callback_factory,
+                endpoint_family=endpoint_family,
+            )
+        except asyncio.CancelledError as err:
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise
+            raise _RefreshCallCancelled from err
+
     async def async_run_refresh_calls(
         self,
         phase_timings: dict[str, float],
@@ -101,32 +145,43 @@ class RefreshRunner:
             self._coordinator._begin_topology_refresh_batch()
 
         group_started = time.monotonic()
-        tasks: list[asyncio.Task[tuple[str, float | None]]] = []
         try:
-            tasks = [
-                asyncio.create_task(
-                    self.async_run_refresh_call(
+            async with asyncio.TaskGroup() as task_group:
+                tasks = [
+                    task_group.create_task(
+                        self._async_run_refresh_call_for_group(
+                            timing_key,
+                            log_label,
+                            callback_factory,
+                            endpoint_family=endpoint_family,
+                        ),
+                        name=f"{DOMAIN}_refresh_{timing_key}",
+                    )
+                    for (
                         timing_key,
                         log_label,
                         callback_factory,
-                        endpoint_family=endpoint_family,
-                    ),
-                    name=f"{DOMAIN}_refresh_{timing_key}",
-                )
-                for timing_key, log_label, callback_factory, endpoint_family in calls
-            ]
-            results = await asyncio.gather(*tasks)
-        except (asyncio.CancelledError, Exception):
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
+                        endpoint_family,
+                    ) in calls
+                ]
+        except* Exception as err_group:
+            exceptions = tuple(
+                err
+                for err in err_group.exceptions
+                if not isinstance(err, _RefreshCallCancelled)
+            )
+            if len(exceptions) == 1:
+                raise exceptions[0] from None
+            if not exceptions:
+                raise asyncio.CancelledError from None
+            if len(exceptions) != len(err_group.exceptions):
+                raise err_group.derive(exceptions) from None
             raise
         finally:
             if defer_topology:
                 self._coordinator._end_topology_refresh_batch()
 
+        results = [task.result() for task in tasks]
         for timing_key, duration in results:
             if duration is not None:
                 phase_timings[timing_key] = duration
@@ -229,7 +284,7 @@ class RefreshRunner:
                 warmup_timings,
                 plan=warmup_plan(warmup_data),
             )
-            if warmup_data:
+            if warmup_data or self._warmup_site_state_available():
                 coordinator.async_set_updated_data(warmup_data)
         except asyncio.CancelledError:
             raise

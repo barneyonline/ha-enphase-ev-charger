@@ -62,6 +62,8 @@ class BatteryControlCapability:
 
 @dataclass(slots=True)
 class EndpointFamilyHealth:
+    request_count: int = 0
+    last_request_utc: datetime | None = None
     consecutive_failures: int = 0
     last_success_utc: datetime | None = None
     last_success_mono: float | None = None
@@ -128,6 +130,19 @@ class RefreshHealthState:
     _auth_refresh_rejected_ends_utc: datetime | None = None
     _auth_refresh_manual_retry_until: float | None = None
     _auth_refresh_last_success_mono: float | None = None
+    _auth_refresh_last_attempt_utc: datetime | None = None
+    _auth_refresh_last_success_utc: datetime | None = None
+    _auth_refresh_last_failure_reason: str | None = None
+    _hems_auth_backoff_until: float | None = None
+    _hems_auth_backoff_ends_utc: datetime | None = None
+    _hems_auth_failure_count: int = 0
+    _hems_auth_last_failure_utc: datetime | None = None
+    _hems_auth_last_success_utc: datetime | None = None
+    _hems_auth_last_endpoint: str | None = None
+    _hems_auth_last_status: int | None = None
+    _hems_auth_last_reason: str | None = None
+    _hems_auth_issue_reported: bool = False
+    _hems_auth_manual_clear_until: float | None = None
     _auth_refresh_suspended_until_utc: datetime | None = None
     _auth_blocked_until_utc: datetime | None = None
     _auth_block_reason: str | None = None

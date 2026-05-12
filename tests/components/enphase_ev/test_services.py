@@ -71,6 +71,14 @@ def _fake_service_coordinator(*, site_id: str, serials: set[str]):
                 success=True, reason=None, retry_after_seconds=None
             )
         ),
+        async_clear_hems_auth_backoff=AsyncMock(
+            return_value={
+                "site_id": site_id,
+                "success": True,
+                "reason": "cleared",
+                "hems_backoff_until": "2026-05-08T00:00:00+00:00",
+            }
+        ),
         schedule_sync=SimpleNamespace(async_refresh=AsyncMock(return_value=None)),
         _email="user@example.com",
         _remember_password=True,
@@ -569,6 +577,38 @@ async def test_try_reauth_now_uses_stored_credentials_for_selected_site(
 
 
 @pytest.mark.asyncio
+async def test_try_reauth_now_reused_success_does_not_force_refresh(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Manual reauth should not refresh all data when auth was only reused."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    coord.async_try_reauth_now.return_value = SimpleNamespace(
+        success=True,
+        reason=None,
+        retry_after_seconds=None,
+        performed_refresh=False,
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    result = await handlers[(DOMAIN, "try_reauth_now")](
+        SimpleNamespace(data={"site_id": "evse-site"})
+    )
+
+    assert result == {"site_id": "evse-site", "success": True, "reason": None}
+    coord.async_try_reauth_now.assert_awaited_once_with()
+    coord.async_request_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_try_reauth_now_reports_missing_stored_credentials(
     hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -640,6 +680,37 @@ async def test_try_reauth_now_reports_manual_retry_cooldown(
     coord.async_start_streaming.assert_not_awaited()
     coord.async_stop_streaming.assert_not_awaited()
     coord.schedule_sync.async_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_clear_hems_auth_backoff_targets_selected_site(
+    hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HEMS backoff clear should call the coordinator safe retry control."""
+
+    handlers = _register_service_handlers(hass, monkeypatch)
+    coord = _fake_service_coordinator(site_id="evse-site", serials={"EVSE123"})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_SITE_ID: "evse-site", CONF_SITE_ONLY: False},
+        title="EVSE Site",
+        unique_id="evse-site",
+    )
+    entry.add_to_hass(hass)
+    entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    result = await handlers[(DOMAIN, "clear_hems_auth_backoff")](
+        SimpleNamespace(data={"site_id": "evse-site"})
+    )
+
+    assert result == {
+        "site_id": "evse-site",
+        "success": True,
+        "reason": "cleared",
+        "hems_backoff_until": "2026-05-08T00:00:00+00:00",
+    }
+    coord.async_clear_hems_auth_backoff.assert_awaited_once_with()
+    coord.async_try_reauth_now.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -21,6 +21,7 @@ from yarl import URL
 import builtins
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from http import HTTPStatus
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_ev import auth_refresh_runtime as arr_mod
 from custom_components.enphase_ev import coordinator as coord_mod
@@ -45,11 +46,13 @@ from custom_components.enphase_ev.const import (
     ISSUE_DNS_RESOLUTION,
     ISSUE_NETWORK_UNREACHABLE,
     ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+    ISSUE_HEMS_AUTH_DEGRADED,
     ISSUE_SCHEDULER_UNAVAILABLE,
     ISSUE_SESSION_HISTORY_UNAVAILABLE,
     ISSUE_SITE_ENERGY_UNAVAILABLE,
     MIN_FAST_POLL_INTERVAL,
     MIN_SLOW_POLL_INTERVAL,
+    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     PHASE_SWITCH_CONFIG_SETTING,
@@ -754,6 +757,140 @@ def test_auth_settings_issue_tracking(coordinator_factory, mock_issue_registry) 
         issue[1] == ISSUE_AUTH_SETTINGS_UNAVAILABLE
         for issue in mock_issue_registry.deleted
     )
+
+
+def test_degraded_service_repair_issues_can_be_disabled(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False}
+    )
+    coord = EnphaseCoordinator(hass, config_entry.data, config_entry)
+
+    degraded_issue_ids = {
+        ISSUE_SCHEDULER_UNAVAILABLE,
+        ISSUE_SESSION_HISTORY_UNAVAILABLE,
+        ISSUE_SITE_ENERGY_UNAVAILABLE,
+        ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+        ISSUE_HEMS_AUTH_DEGRADED,
+    }
+    assert degraded_issue_ids <= {
+        issue_id for _domain, issue_id in mock_issue_registry.deleted
+    }
+    mock_issue_registry.created.clear()
+    mock_issue_registry.deleted.clear()
+
+    coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    coord.session_history = SimpleNamespace(service_available=False)
+    coord._sync_session_history_issue()  # noqa: SLF001
+    coord.energy = SimpleNamespace(service_available=False)
+    coord._sync_site_energy_issue()  # noqa: SLF001
+    coord._note_auth_settings_unavailable("auth settings down")  # noqa: SLF001
+    coord._note_hems_auth_failure(  # noqa: SLF001
+        Unauthorized(),
+        endpoint="hems_devices",
+    )
+
+    assert mock_issue_registry.created == []
+    assert degraded_issue_ids <= {
+        issue_id for _domain, issue_id in mock_issue_registry.deleted
+    }
+    assert coord.scheduler_available is False
+    assert coord._session_history_issue_reported is False  # noqa: SLF001
+    assert coord._site_energy_issue_reported is False  # noqa: SLF001
+    assert coord._auth_settings_issue_reported is False  # noqa: SLF001
+    assert coord._hems_auth_issue_reported is False  # noqa: SLF001
+
+
+def test_degraded_service_repair_issue_toggle_is_entry_scoped(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: True}
+    )
+    enabled_coord = EnphaseCoordinator(hass, config_entry.data, config_entry)
+    enabled_coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    enabled_issue_id = enabled_coord.diagnostics._repair_issue_id(  # noqa: SLF001
+        ISSUE_SCHEDULER_UNAVAILABLE
+    )
+    assert any(
+        issue[1] == enabled_issue_id
+        and issue[2]["translation_key"] == ISSUE_SCHEDULER_UNAVAILABLE
+        for issue in mock_issue_registry.created
+    )
+
+    disabled_entry = MockConfigEntry(
+        domain=coord_mod.DOMAIN,
+        entry_id="disabled-entry",
+        data={
+            **config_entry.data,
+            coord_mod.CONF_SITE_ID: "9633675",
+        },
+        options={OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False},
+        title="Disabled repairs",
+        unique_id="9633675",
+    )
+    disabled_entry.add_to_hass(hass)
+    disabled_coord = EnphaseCoordinator(hass, disabled_entry.data, disabled_entry)
+    disabled_coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    disabled_issue_id = disabled_coord.diagnostics._repair_issue_id(  # noqa: SLF001
+        ISSUE_SCHEDULER_UNAVAILABLE
+    )
+
+    assert (coord_mod.DOMAIN, disabled_issue_id) in mock_issue_registry.deleted
+    assert (coord_mod.DOMAIN, enabled_issue_id) not in mock_issue_registry.deleted
+    assert not any(
+        issue[1] == disabled_issue_id for issue in mock_issue_registry.created
+    )
+
+
+def test_degraded_service_repair_issue_create_clears_legacy_static_issue(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: True}
+    )
+    coord = EnphaseCoordinator(hass, config_entry.data, config_entry)
+    mock_issue_registry.deleted.clear()
+
+    coord._note_scheduler_unavailable("scheduler down")  # noqa: SLF001
+    scoped_issue_id = coord.diagnostics._repair_issue_id(  # noqa: SLF001
+        ISSUE_SCHEDULER_UNAVAILABLE
+    )
+
+    assert scoped_issue_id != ISSUE_SCHEDULER_UNAVAILABLE
+    assert any(issue[1] == scoped_issue_id for issue in mock_issue_registry.created)
+    assert (
+        coord_mod.DOMAIN,
+        ISSUE_SCHEDULER_UNAVAILABLE,
+    ) in mock_issue_registry.deleted
+
+
+def test_degraded_service_repair_issue_init_clears_stale_legacy_static_issues(
+    hass,
+    config_entry,
+    mock_issue_registry,
+) -> None:
+    config_entry.__dict__["options"] = MappingProxyType(
+        {OPT_DEGRADED_SERVICE_REPAIR_ISSUES: True}
+    )
+
+    EnphaseCoordinator(hass, config_entry.data, config_entry)
+
+    assert mock_issue_registry.created == []
+    assert {
+        ISSUE_SCHEDULER_UNAVAILABLE,
+        ISSUE_SESSION_HISTORY_UNAVAILABLE,
+        ISSUE_SITE_ENERGY_UNAVAILABLE,
+        ISSUE_AUTH_SETTINGS_UNAVAILABLE,
+        ISSUE_HEMS_AUTH_DEGRADED,
+    } <= {issue_id for _domain, issue_id in mock_issue_registry.deleted}
 
 
 def test_sync_session_history_issue_creates_and_clears(
@@ -1582,6 +1719,8 @@ def test_collect_site_metrics_serializes_dates(coordinator_factory):
         "last_error": "boom",
         "last_status": "500",
         "backoff_ends": "backoff",
+        "failure_count": "0",
+        "hems_failure_count": "0",
     }
 
 
@@ -2049,6 +2188,90 @@ async def test_async_update_data_uses_cached_charge_preference_when_status_only_
 
     assert result["EV1"]["charge_mode_pref"] == "GREEN_CHARGING"
     assert result["EV1"]["charge_mode"] == "GREEN_CHARGING"
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_uses_status_mode_for_effective_charge_mode(
+    coordinator_factory,
+):
+    coord = coordinator_factory(
+        serials=["EV1"],
+        data={
+            "EV1": {
+                "sn": "EV1",
+                "name": "Garage EV",
+                "charge_mode_pref": "GREEN_CHARGING",
+                "charge_mode": "GREEN_CHARGING",
+            }
+        },
+    )
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._scheduler_available = False  # noqa: SLF001
+    coord._scheduler_backoff_active = lambda: False  # type: ignore[assignment]  # noqa: SLF001
+    coord._charge_mode_cache["EV1"] = (
+        "GREEN_CHARGING",
+        coord_mod.time.monotonic(),
+    )
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": "EV1",
+                    "name": "Garage EV",
+                    "mode": 0,
+                    "connectors": [
+                        {
+                            "connectorStatusType": coord_mod.SUSPENDED_EVSE_STATUS,
+                            "connectorStatusReason": "INSUFFICIENT_SOLAR",
+                        }
+                    ],
+                    "sch_d": {"status": 1, "info": [{"type": "greencharging"}]},
+                    "session_d": {},
+                    "charging": False,
+                    "pluggedIn": True,
+                }
+            ],
+            "ts": 1_700_000_000,
+        }
+    )
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **kwargs: False,
+        async_fetch=AsyncMock(return_value=[]),
+        invalidate=lambda: None,
+    )
+    coord.evse_timeseries.async_refresh = AsyncMock(return_value=None)  # noqa: SLF001
+    coord.evse_timeseries.merge_charger_payloads = MagicMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord.energy._async_refresh_site_energy = AsyncMock(
+        return_value=None
+    )  # noqa: SLF001
+    coord._async_refresh_battery_site_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_status = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_backup_history = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_battery_schedules = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_guard_profile = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_storm_alert = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_grid_control_check = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_devices_inventory = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_dry_contact_settings = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_hems_devices = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_inverters = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_current_power_consumption = AsyncMock()  # noqa: SLF001
+    coord._async_refresh_heatpump_power = AsyncMock()  # noqa: SLF001
+    coord._async_resolve_green_battery_settings = AsyncMock(
+        return_value={}
+    )  # noqa: SLF001
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._get_charge_mode = AsyncMock(return_value=None)  # type: ignore[assignment]  # noqa: SLF001
+    coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+    result = await coord._async_update_data()  # noqa: SLF001
+
+    assert result["EV1"]["charge_mode_pref"] == "GREEN_CHARGING"
+    assert result["EV1"]["charge_mode"] == "MANUAL_CHARGING"
+    assert result["EV1"]["charge_mode_source"] == "explicit_status"
 
 
 @pytest.mark.asyncio
@@ -3526,12 +3749,21 @@ async def test_handle_client_unauthorized_paths(
 def test_persist_tokens_updates_entry(coordinator_factory, config_entry):
     coord = coordinator_factory()
     coord.config_entry = config_entry
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(reload_suppression_count=0),
+    )
 
     def _fake_update_entry(entry, *, data=None, options=None):
+        changed = False
         if data is not None:
+            changed = entry.data != data
             object.__setattr__(entry, "data", MappingProxyType(dict(data)))
         if options is not None:
+            changed = changed or entry.options != options
             object.__setattr__(entry, "options", MappingProxyType(dict(options)))
+        return changed
 
     coord.hass.config_entries.async_update_entry = _fake_update_entry  # type: ignore[assignment]
 
@@ -3541,6 +3773,268 @@ def test_persist_tokens_updates_entry(coordinator_factory, config_entry):
     coord._persist_tokens(tokens)
     assert config_entry.data[coord_mod.CONF_COOKIE] == "c"
     assert config_entry.data[coord_mod.CONF_ACCESS_TOKEN] == "t"
+    assert config_entry.runtime_data.reload_suppression_count == 1
+
+
+def test_persist_tokens_does_not_mark_reload_skip_for_noop_update(
+    coordinator_factory, config_entry
+):
+    coord = coordinator_factory()
+    coord.config_entry = config_entry
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(reload_suppression_count=0),
+    )
+
+    coord.hass.config_entries.async_update_entry = MagicMock(return_value=False)
+
+    tokens = coord_mod.AuthTokens(
+        cookie="c", session_id="s", access_token="t", token_expires_at=123
+    )
+    coord._persist_tokens(tokens)
+
+    assert config_entry.runtime_data.reload_suppression_count == 0
+
+
+def test_hems_auth_circuit_is_coordinator_backed(
+    coordinator_factory,
+    mock_issue_registry,
+):
+    coord = coordinator_factory()
+
+    assert coord._hems_auth_circuit_active() is False  # noqa: SLF001
+    assert coord._note_hems_auth_failure(  # noqa: SLF001
+        coord_mod.Unauthorized(),
+        endpoint="hems_devices",
+    )
+
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    metrics = coord.collect_site_metrics()
+    assert metrics["hems_auth_circuit_active"] is True
+    assert metrics["hems_auth_backoff_remaining_s"] is not None
+    assert metrics["hems_auth_failure_count"] == 1
+    assert metrics["hems_auth_last_endpoint"] == "hems_devices"
+    assert metrics["hems_auth_last_reason"] == "unauthorized"
+    assert "hems_auth" in metrics["degraded_services"]
+    first_issue = mock_issue_registry.created[-1]
+    assert first_issue[1] == "hems_auth_degraded"
+    assert first_issue[2]["translation_placeholders"]["failure_count"] == "1"
+
+    assert coord._note_hems_auth_failure(  # noqa: SLF001
+        coord_mod.Unauthorized(),
+        endpoint="hems_devices",
+    )
+    second_issue = mock_issue_registry.created[-1]
+    assert second_issue[1] == "hems_auth_degraded"
+    assert second_issue[2]["translation_placeholders"]["failure_count"] == "2"
+
+    coord._hems_auth_backoff_until = time.monotonic() - 1  # noqa: SLF001
+    assert coord._hems_auth_circuit_active() is False  # noqa: SLF001
+    assert coord._hems_auth_backoff_until is None  # noqa: SLF001
+    assert coord._hems_auth_last_reason == "unauthorized"  # noqa: SLF001
+    assert coord._hems_auth_failure_count == 2  # noqa: SLF001
+
+
+def test_hems_auth_circuit_restores_and_persists_config_entry_state(
+    coordinator_factory,
+    config_entry,
+):
+    future = datetime.now(timezone.utc) + timedelta(minutes=5)
+    config = {
+        coord_mod.CONF_SITE_ID: "9633674",
+        coord_mod.CONF_SERIALS: ["111122223333"],
+        coord_mod.CONF_EAUTH: "EAUTH",
+        coord_mod.CONF_COOKIE: "COOKIE",
+        coord_mod.CONF_SCAN_INTERVAL: 15,
+        coord_mod.CONF_SITE_ONLY: False,
+        coord_mod.CONF_HEMS_AUTH_BACKOFF_UNTIL: future.isoformat(),
+        coord_mod.CONF_HEMS_AUTH_FAILURE_COUNT: "bad",
+        coord_mod.CONF_HEMS_AUTH_LAST_STATUS: "bad",
+        coord_mod.CONF_HEMS_AUTH_LAST_ENDPOINT: " hems_devices ",
+        coord_mod.CONF_HEMS_AUTH_LAST_REASON: " unauthorized ",
+    }
+    coord = coordinator_factory(config=config)
+
+    assert coord._hems_auth_failure_count == 0  # noqa: SLF001
+    assert coord._hems_auth_last_status is None  # noqa: SLF001
+    assert coord._hems_auth_backoff_until is not None  # noqa: SLF001
+
+    coord.config_entry = config_entry
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(reload_suppression_count=0),
+    )
+
+    def _update_entry(entry, *, data=None, options=None):
+        assert entry is config_entry
+        object.__setattr__(entry, "data", MappingProxyType(dict(data or {})))
+        return True
+
+    coord.hass.config_entries.async_update_entry = _update_entry  # type: ignore[assignment]
+    coord._hems_auth_failure_count = 2  # noqa: SLF001
+    coord._hems_auth_last_failure_utc = future  # noqa: SLF001
+    coord._hems_auth_last_success_utc = future  # noqa: SLF001
+    coord._hems_auth_last_endpoint = "hems_devices"  # noqa: SLF001
+    coord._hems_auth_last_status = 401  # noqa: SLF001
+    coord._hems_auth_last_reason = "unauthorized"  # noqa: SLF001
+
+    coord._persist_hems_auth_circuit_state()  # noqa: SLF001
+
+    assert (
+        config_entry.data[coord_mod.CONF_HEMS_AUTH_BACKOFF_UNTIL] == future.isoformat()
+    )
+    assert config_entry.data[coord_mod.CONF_HEMS_AUTH_FAILURE_COUNT] == 2
+    assert config_entry.data[coord_mod.CONF_HEMS_AUTH_LAST_STATUS] == 401
+
+    coord._clear_hems_auth_circuit(persist=True)  # noqa: SLF001
+
+    assert coord_mod.CONF_HEMS_AUTH_BACKOFF_UNTIL not in config_entry.data
+    assert coord_mod.CONF_HEMS_AUTH_FAILURE_COUNT not in config_entry.data
+
+
+def test_internal_config_entry_update_guard_edges(coordinator_factory, config_entry):
+    coord = coordinator_factory()
+
+    assert (
+        EnphaseCoordinator.__new__(
+            EnphaseCoordinator
+        )._async_update_config_entry_data_internal({}, reason="missing_entry")
+        is False
+    )
+
+    coord.config_entry = config_entry
+    assert (
+        coord._async_update_config_entry_data_internal(
+            dict(config_entry.data),
+            reason="noop",
+        )
+        is False
+    )
+
+    object.__setattr__(
+        config_entry,
+        "runtime_data",
+        SimpleNamespace(reload_suppression_count=0),
+    )
+    coord.hass.config_entries.async_update_entry = MagicMock(
+        side_effect=RuntimeError("boom")
+    )
+    changed = dict(config_entry.data)
+    changed["new_internal_key"] = "value"
+
+    with pytest.raises(RuntimeError, match="boom"):
+        coord._async_update_config_entry_data_internal(
+            changed,
+            reason="raises",
+        )
+
+    assert config_entry.runtime_data.reload_suppression_count == 0
+
+
+def test_hems_auth_exception_and_manual_cooldown_edges(coordinator_factory):
+    coord = coordinator_factory()
+    login_wall = coord_mod.EnphaseLoginWallUnauthorized(
+        endpoint="/systems/123/hems",
+        request_label="GET /systems/[site]/hems",
+        status=200,
+    )
+    forbidden = aiohttp.ClientResponseError(
+        _request_info(),
+        (),
+        status=403,
+        message="Forbidden",
+    )
+
+    assert coord._hems_auth_exception_details(login_wall) == (  # noqa: SLF001
+        200,
+        "login_wall",
+    )
+    assert coord._hems_auth_exception_details(forbidden) == (  # noqa: SLF001
+        403,
+        "forbidden",
+    )
+
+    coord._hems_auth_backoff_until = time.monotonic() + 60  # noqa: SLF001
+    assert coord._skip_hems_polling_due_to_auth_circuit(  # noqa: SLF001
+        endpoint="hems_devices"
+    )
+
+    coord._hems_auth_manual_clear_until = time.monotonic() - 1  # noqa: SLF001
+    assert coord._hems_auth_manual_clear_retry_after_seconds() is None  # noqa: SLF001
+    assert coord._hems_auth_manual_clear_until is None  # noqa: SLF001
+
+
+def test_hems_auth_success_clears_circuit(coordinator_factory):
+    coord = coordinator_factory()
+
+    coord._note_hems_auth_failure(
+        coord_mod.Unauthorized(), endpoint="hems_devices"
+    )  # noqa: SLF001
+    coord._note_hems_auth_success(endpoint="hems_devices")  # noqa: SLF001
+
+    metrics = coord.collect_site_metrics()
+    assert metrics["hems_auth_circuit_active"] is False
+    assert metrics["hems_auth_failure_count"] == 0
+    assert metrics["hems_auth_last_reason"] is None
+    assert metrics["hems_auth_last_status"] is None
+    assert metrics["hems_auth_last_success_utc"] is not None
+
+
+@pytest.mark.asyncio
+async def test_clear_hems_auth_backoff_clears_only_hems_state(coordinator_factory):
+    coord = coordinator_factory()
+    coord.async_request_refresh = AsyncMock()
+    coord._auth_blocked_until_utc = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )  # noqa: SLF001
+    coord._auth_block_reason = "login_wall_after_refresh_reject"  # noqa: SLF001
+    coord._note_hems_auth_failure(
+        coord_mod.Unauthorized(), endpoint="hems_devices"
+    )  # noqa: SLF001
+
+    response = await coord.async_clear_hems_auth_backoff()
+
+    assert response["success"] is True
+    assert response["reason"] == "cleared"
+    assert response["hems_backoff_until"]
+    assert coord._hems_auth_circuit_active() is False  # noqa: SLF001
+    assert coord._hems_auth_failure_count == 1  # noqa: SLF001
+    assert coord._hems_auth_last_reason == "unauthorized"  # noqa: SLF001
+    assert coord._hems_auth_last_status == 401  # noqa: SLF001
+    assert coord._auth_blocked_until_utc is not None  # noqa: SLF001
+    coord.async_request_refresh.assert_awaited_once_with()
+
+    coord._hems_auth_backoff_ends_utc = datetime.now(
+        timezone.utc
+    ) + timedelta(  # noqa: SLF001
+        minutes=15
+    )
+    retry = await coord.async_clear_hems_auth_backoff()
+
+    assert retry["success"] is False
+    assert retry["reason"] == "manual_clear_cooldown_active"
+    assert retry["hems_backoff_until"]
+    assert retry["retry_after_seconds"] > 0
+
+
+def test_collect_site_metrics_handles_unavailable_auth_recent_success_helper(
+    coordinator_factory,
+):
+    coord = coordinator_factory()
+
+    coord._auth_refresh_recent_success_active = None  # type: ignore[method-assign]  # noqa: SLF001
+    metrics = coord.collect_site_metrics()
+    assert metrics["auth_refresh_recent_success_active"] is False
+
+    coord._auth_refresh_recent_success_active = MagicMock(  # type: ignore[method-assign]  # noqa: SLF001
+        side_effect=RuntimeError("boom")
+    )
+
+    metrics = coord.collect_site_metrics()
+
+    assert metrics["auth_refresh_recent_success_active"] is False
 
 
 @pytest.mark.asyncio

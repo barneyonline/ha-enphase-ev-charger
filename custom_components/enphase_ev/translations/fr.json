@@ -478,7 +478,8 @@
           "forget_password": "Oublier le mot de passe stocké",
           "type_heatpump": "Pompe à chaleur",
           "type_ac_battery": "Batterie AC",
-          "battery_schedules_enabled": "Activer le planificateur de batterie"
+          "battery_schedules_enabled": "Activer le planificateur de batterie",
+          "degraded_service_repair_issues": "Activer les réparations des services dégradés"
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
@@ -496,7 +497,8 @@
           "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
           "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur.",
           "type_ac_battery": "Inclut les capteurs de batterie AC et les commandes du mode veille lorsqu’ils sont disponibles.",
-          "battery_schedules_enabled": "Gérer les programmes de batterie IQ"
+          "battery_schedules_enabled": "Gérer les programmes de batterie IQ",
+          "degraded_service_repair_issues": "Crée des problèmes Repairs lorsque des services Enphase facultatifs sont dégradés."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Oublier le mot de passe stocké",
           "type_heatpump": "Pompe à chaleur",
           "type_ac_battery": "Batterie AC",
-          "battery_schedules_enabled": "Activer le planificateur de batterie"
+          "battery_schedules_enabled": "Activer le planificateur de batterie",
+          "degraded_service_repair_issues": "Activer les réparations des services dégradés"
         },
         "data_description": {
           "type_envoy": "Inclut la connectivité de la passerelle et les diagnostics de compteurs.",
@@ -536,7 +539,8 @@
           "forget_password": "Supprime le mot de passe stocké. Le rafraîchissement automatique ne sera plus tenté.",
           "type_heatpump": "Inclut des capteurs d'état, de diagnostic et de consommation de la pompe à chaleur.",
           "type_ac_battery": "Inclut les capteurs de batterie AC et les commandes du mode veille lorsqu’ils sont disponibles.",
-          "battery_schedules_enabled": "Gérer les programmes de batterie IQ"
+          "battery_schedules_enabled": "Gérer les programmes de batterie IQ",
+          "degraded_service_repair_issues": "Crée des problèmes Repairs lorsque des services Enphase facultatifs sont dégradés."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Réponse cloud non valide",
           "dns_error": "Erreur DNS",
           "network_error": "Erreur réseau"
+        }
+      },
+      "site_service_status": {
+        "name": "État du service",
+        "state": {
+          "ok": "Opérationnel",
+          "unknown": "Inconnu",
+          "degraded": "Dégradé"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Services dégradés"
+          },
+          "degraded_endpoint_families": {
+            "name": "Familles de points de terminaison dégradées"
+          },
+          "degraded_service_count": {
+            "name": "Nombre de services dégradés"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Nombre de familles de points de terminaison dégradées"
+          },
+          "metrics_available": {
+            "name": "Métriques disponibles"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Mise à jour du profil de batterie Enphase Energy en attente",
       "description": "Une modification du profil de batterie pour le site {site_id} est en attente depuis plus de {pending_timeout_minutes} minutes. Le cloud traite peut-être encore la demande."
+    },
+    "hems_auth_degraded": {
+      "title": "HEMS Enphase Energy temporairement suspendu",
+      "description": "L’interrogation Heat Pump/HEMS du site {site_id} est suspendue jusqu’à {backoff_until} après {failure_count} échecs de type authentification ({reason}). La wallbox, la batterie, la passerelle et les autres données peuvent continuer. Désactivez le groupe Heat Pump ou utilisez Clear HEMS Auth Backoff après le rétablissement d’Enphase."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Appareil",
           "description": "Appareil Enphase facultatif pour choisir le site des mises à jour de facturation ou de structure tarifaire."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Effacer le backoff auth HEMS",
+      "description": "Efface la pause temporaire d’authentification HEMS/Heat Pump sans connexion par mot de passe.",
+      "fields": {
+        "device_id": {
+          "name": "Appareils du site",
+          "description": "Sélectionnez un appareil du site Enphase dont le HEMS auth backoff doit être effacé."
+        },
+        "site_id": {
+          "name": "ID du site",
+          "description": "Identifiant de site facultatif, détecté automatiquement lorsqu’un appareil est sélectionné."
         }
       }
     }

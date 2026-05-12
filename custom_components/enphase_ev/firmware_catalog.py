@@ -204,13 +204,6 @@ def normalize_country(value: Any) -> str | None:
     return None
 
 
-def country_from_locale(value: Any) -> str | None:
-    locale = normalize_locale(value)
-    if "-" not in locale:
-        return None
-    return normalize_country(locale.rsplit("-", 1)[-1])
-
-
 def resolve_country_and_locale(coord, hass) -> tuple[str | None, str]:
     raw_battery_locale = getattr(coord, "battery_locale", None)
     raw_hass_locale = getattr(getattr(hass, "config", None), "language", None)
@@ -226,8 +219,6 @@ def resolve_country_and_locale(coord, hass) -> tuple[str | None, str]:
     country_candidates = [
         normalize_country(getattr(coord, "battery_country_code", None)),
         normalize_country(getattr(getattr(hass, "config", None), "country", None)),
-        country_from_locale(battery_locale),
-        country_from_locale(hass_locale),
     ]
     resolved_country = next((item for item in country_candidates if item), None)
     return resolved_country, resolved_locale
@@ -283,6 +274,7 @@ def select_catalog_entry(
     device_type: str,
     country: str | None,
     locale: str,
+    prefer_global: bool = False,
 ) -> CatalogSelection:
     normalized_locale = normalize_locale(locale)
     country_code = normalize_country(country)
@@ -300,46 +292,23 @@ def select_catalog_entry(
 
     entry = None
     source_scope = None
-    locale_scope_only = False
 
     by_locale = device_payload.get("latest_by_locale")
-    if isinstance(by_locale, dict) and by_locale:
-        candidate = by_locale.get(normalized_locale)
-        if isinstance(candidate, dict):
-            entry = candidate
-            source_scope = "locale"
-            locale_scope_only = True
-
-    if entry is None and country_code:
-        by_country = device_payload.get("latest_by_country")
-        if isinstance(by_country, dict):
-            candidate = by_country.get(country_code)
-            if isinstance(candidate, dict):
-                entry = candidate
-                source_scope = "country"
-
-    if entry is None and isinstance(by_locale, dict) and by_locale:
-        base_language = normalized_locale.split("-", 1)[0]
-        fallback = next(
-            (
-                key
-                for key, value in by_locale.items()
-                if isinstance(value, dict)
-                and str(key).split("-", 1)[0] == base_language
-            ),
-            None,
-        )
-        if fallback is not None:
-            maybe_entry = by_locale.get(fallback)
-            if isinstance(maybe_entry, dict):
-                entry = maybe_entry
-                source_scope = "locale"
-                normalized_locale = str(fallback)
-                locale_scope_only = True
+    if not prefer_global:
+        if country_code:
+            by_country = device_payload.get("latest_by_country")
+            if isinstance(by_country, dict):
+                candidate = by_country.get(country_code)
+                if isinstance(candidate, dict):
+                    entry = candidate
+                    source_scope = "country"
+                    locale_candidate = _exact_locale_entry(by_locale, normalized_locale)
+                    if _same_catalog_release(entry, locale_candidate):
+                        entry = _with_merged_locale_urls(entry, locale_candidate)
 
     if entry is None:
         latest_global = device_payload.get("latest_global")
-        if isinstance(latest_global, dict):
+        if _is_worldwide_catalog_entry(latest_global):
             entry = latest_global
             source_scope = "global"
 
@@ -369,10 +338,73 @@ def select_catalog_entry(
                 locale_used = "en"
             else:
                 locale_used = str(next(iter(urls_by_locale.keys())))
-    elif locale_scope_only:
-        locale_used = normalize_locale(locale)
 
     return CatalogSelection(entry, locale_used, country_code, source_scope)
+
+
+def _exact_locale_entry(
+    by_locale: object, normalized_locale: str
+) -> dict[str, Any] | None:
+    if not isinstance(by_locale, dict):
+        return None
+    candidate = by_locale.get(normalized_locale)
+    return candidate if isinstance(candidate, dict) else None
+
+
+def _same_catalog_release(
+    entry: dict[str, Any] | None, candidate: dict[str, Any] | None
+) -> bool:
+    if not isinstance(entry, dict) or not isinstance(candidate, dict):
+        return False
+    entry_media_id = _text_or_none(entry.get("media_id"))
+    candidate_media_id = _text_or_none(candidate.get("media_id"))
+    if entry_media_id and candidate_media_id:
+        return entry_media_id == candidate_media_id
+    entry_version = normalize_version_token(entry.get("version"))
+    candidate_version = normalize_version_token(candidate.get("version"))
+    return entry_version is not None and entry_version == candidate_version
+
+
+def _with_merged_locale_urls(
+    entry: dict[str, Any], locale_entry: dict[str, Any] | None
+) -> dict[str, Any]:
+    if not isinstance(locale_entry, dict):
+        return entry
+    urls = entry.get("urls_by_locale")
+    locale_urls = locale_entry.get("urls_by_locale")
+    if not isinstance(locale_urls, dict) or not locale_urls:
+        return entry
+    merged = dict(urls) if isinstance(urls, dict) else {}
+    merged.update(locale_urls)
+    cloned = dict(entry)
+    cloned["urls_by_locale"] = merged
+    return cloned
+
+
+def _is_worldwide_catalog_entry(entry: object) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    countries_text = _text_or_none(entry.get("countries_text"))
+    if countries_text is None:
+        return False
+    lowered = countries_text.lower()
+    if "except" in lowered:
+        return False
+    return (
+        "worldwide" in lowered
+        or "global" in lowered
+        or lowered.strip() == "all countries"
+    )
+
+
+def _text_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:  # noqa: BLE001
+        return None
+    return text or None
 
 
 def _repair_legacy_release_urls(

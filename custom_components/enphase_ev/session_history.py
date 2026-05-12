@@ -482,14 +482,23 @@ class SessionHistoryManager:
         current = self._data_supplier()
         if not isinstance(current, dict):
             return
-        merged = dict(current)
+        merged: dict[str, dict] | None = None
         for sn, sessions in updates.items():
             existing = current.get(sn)
             entry = dict(existing) if isinstance(existing, dict) else {}
+            sessions_kwh = self._sum_session_energy(sessions)
+            if (
+                entry.get("energy_today_sessions") == sessions
+                and entry.get("energy_today_sessions_kwh") == sessions_kwh
+            ):
+                continue
+            if merged is None:
+                merged = dict(current)
             entry["energy_today_sessions"] = sessions
-            entry["energy_today_sessions_kwh"] = self._sum_session_energy(sessions)
+            entry["energy_today_sessions_kwh"] = sessions_kwh
             merged[sn] = entry
-        self._publish_callback(merged)
+        if merged is not None:
+            self._publish_callback(merged)
 
     async def _async_refresh_filter_criteria(
         self,

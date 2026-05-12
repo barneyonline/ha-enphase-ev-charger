@@ -4,31 +4,213 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 🔄 Other changes
+- Added Home Assistant brand assets, including dark-theme icon and logo variants.
+
+## v3.0.8 - 2026-05-10
+
 ### 🚧 Breaking changes
 - None
 
 ### ✨ New features
-- Added site tariff sensors for next billing date and Energy-dashboard-ready current import/export prices, attached to the IQ Gateway device when available.
-- Added editable tariff rate number entities and an `update_tariff` service for updating billing-cycle details, guided tariff structures, and one or more Enphase import/export tariff rate values in one call.
-- Tariff sensors now refresh with normal sensor polling and keep their last known values while the Enphase tariff backend is degraded.
+- Added an options-flow toggle for degraded service repair issues so users can keep diagnostic sensor state without creating Repairs notifications for optional Enphase service degradation. (#674)
+
+### 🐛 Bug fixes
+- Treated temporary Enphase authentication blocks as retryable update failures with retry timing instead of reauth failures, allowing automatic polling to resume when the block expires. (#672)
+- Checked active authentication blocks before site-only refreshes so site-only entries also pause until the configured retry window expires. (#672)
+
+### 🔧 Improvements
+- Scoped optional degraded-service repair issue IDs per config entry and cleared legacy unscoped issues after upgrade to avoid collisions in multi-entry installs. (#674)
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `3.0.8`.
+
+## v3.0.7 - 2026-05-09
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a `clear_hems_auth_backoff` service to clear the Heat Pump/HEMS-only auth backoff without performing password login.
+
+### 🐛 Bug fixes
+- Isolated Heat Pump/HEMS auth failures behind a HEMS-only circuit breaker so they no longer trigger global stored-password refresh attempts or stop wallbox/battery polling. (#528)
+
+### 🔧 Improvements
+- Added HEMS auth backoff diagnostics and a repair issue that explains how to pause or retry Heat Pump/HEMS polling. (#528)
+- Reduced baseline Enphase cloud request volume by lengthening low-volatility HEMS inventory, heat-pump state, Storm Alert, device inventory, and inverter production refresh windows. (#667)
+- Replaced the one-shot internal reload skip with counted reload suppression so token/cooldown persistence cannot recreate the coordinator during auth recovery.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `3.0.7`.
+
+## v3.0.6 - 2026-05-08
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Attached the site service-status diagnostic sensor to the Enphase Cloud device instead of creating a separate Enphase Site device.
+
+### 🔧 Improvements
+- Added state-aware icons for the site service-status diagnostic sensor.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `3.0.6`.
+
+## v3.0.5 - 2026-05-08
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added a site-level diagnostic service-status sensor on the Enphase Site device that reports `OK`, `Degraded`, or `Unknown`, lists degraded Enphase service families, and exposes whether the service metrics snapshot is available.
+
+### 🐛 Bug fixes
+- Updated the GitHub service-status badge path to use a low-cache Shields endpoint backed by a purgeable jsDelivr URL so badge updates are not blocked by the raw GitHub SVG cache.
+- Classified broad multi-service Enphase outages as `Down` while keeping explicitly non-impacting checks from forcing outage status unless they are part of a broad-outage endpoint family.
+- Kept the site service-status sensor from reporting `OK` when metrics cannot be collected; it now reports `Unknown`.
+- Attached the site service-status sensor to the Enphase Site device instead of the Enphase Cloud service device.
+
+### 🔧 Improvements
+- Made Home Assistant diagnostics downloads snapshot-only so optional Enphase endpoint prefetches no longer make diagnostics collection wait on degraded services.
+- Included degraded endpoint families in site metrics and system health output.
+- Cached one site service-status metrics snapshot per coordinator update so the sensor state and attributes are derived from the same data.
+
+### 🔄 Other changes
+- Bumped the integration manifest version to `3.0.5`.
+
+## v3.0.4 - 2026-05-07
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Hardened HEMS authentication-refresh suppression so follow-up HEMS `401` responses after a successful stored-credential refresh do not trigger repeated password login attempts. (#659)
+
+### 🔧 Improvements
+- Added recent HEMS authentication refresh and suppression state to site diagnostics to make degraded Enphase HEMS responses easier to troubleshoot. (#659)
+- Preferred coordinator-backed heat-pump topology data when available, with local topology fallback only when coordinator buckets are unavailable. (#659)
+- Kept config-flow imports lightweight by lazy-loading service registration and recorder statistics helpers until setup, unload, or Envoy history migration needs them. (#660)
+
+### 🔄 Other changes
+- Bumped `actions/upload-artifact` from `6` to `7` in GitHub Actions. (#658)
+
+## v3.0.3 - 2026-05-03
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Kept cleared Envoy history migration mappings skipped on the final confirmation step instead of restoring suggested entities.
+- Persisted HEMS authentication refresh suppression across API client state resets and token persistence so repeated HEMS `401` responses do not restart stored-credential refresh attempts every few seconds.
+
+### 🔧 Improvements
+- Moved slower optional startup work out of the blocking first refresh path so Home Assistant can finish setting up the integration faster, with tariff and site-only state updates published after warmup.
+- Improved refresh performance by reducing repeated helper work, preserving retry timing, coordinating concurrent refresh and session-history work, and suppressing unchanged discovery snapshot writes.
+- Reduced discovery and write overhead by reusing charger serials from inventory when available, fetching tariff billing and configuration data concurrently, and trimming BatteryConfig payload copy churn.
+
+### 🔄 Other changes
+- Overhauled the wiki with clearer navigation, refreshed device and workflow pages, consistent tables and screenshot layouts, updated screenshots/banners, and improved technical/development references.
+
+## v3.0.2 - 2026-05-02
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Refreshed Storm Guard state during startup so restored coordinator data does not leave stale storm-protection values until the next scheduled refresh.
+- Suppressed transient Enphase scheduler `400` errors for IQ EV charger mode changes when read-back confirms the requested mode was applied.
+- Fixed regional firmware selection so country-scoped firmware catalog entries are matched without stale global fallback prompts.
+- Guarded HEMS authentication refresh loops so repeated recoverable failures do not trigger unnecessary retry churn or stale rejection handling.
+- Kept cleared Envoy history migration mappings skipped on the final confirmation step instead of restoring suggested entities.
+
+### 🔧 Improvements
+- Optimized performance cache refreshes by caching unchanged inventory summaries and suppressing no-op session-history publishes.
+
+### 🔄 Other changes
+- Updated repository workflow guidance for agents.
+
+## v3.0.1 - 2026-05-02
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- Added read-only current export rate support for Enphase sites whose NEM/export buyback rates are only exposed by the dated tariff-rates endpoint.
+
+### 🐛 Bug fixes
+- Mapped IQ EV charger status `mode` values into the effective charge mode so manual override states no longer appear as green charging.
+- Fixed last CFG schedule deletion so the integration sends the follow-up BatteryConfig disable write even when no replacement charge-from-grid schedule window remains.
+- Resolved current tariff price selection when Enphase time-of-use payloads include an all-day fallback period alongside timed peak periods.
+
+### 🔧 Improvements
+- Tracked dated tariff-rate availability separately so unsupported regional endpoints back off without degrading the main tariff refresh.
+
+## v3.0.0 - 2026-05-01
+
+### 🚧 Breaking changes
+- Raised the advertised minimum Home Assistant version from `2024.12.0` to `2026.3.0` and moved the development/test toolchain to Python `3.14`.
+
+### ✨ New features
+- Added read-only site tariff support, including next billing date sensors and Energy-dashboard-ready current import/export price sensors attached to the IQ Gateway device when available.
+- Added editable tariff rate number entities for Enphase import and export tariff rates.
+- Added the unified `update_tariff` service for updating billing-cycle details, individual tariff rate values, guided flat/TOU/tiered tariff structures, and full advanced tariff payloads in one call.
+- Added localized service metadata, validation errors, icons, diagnostics, and README coverage for the tariff sensor and tariff editing surfaces.
+- Added a manual `try_reauth_now` service that uses stored credentials to make one immediate reauthentication attempt when an Enphase auth block or expired session is recoverable.
 
 ### 🐛 Bug fixes
 - Detected Enphase "too many active sessions" authentication failures explicitly, paused automatic login retries, and surfaced localized config-flow and repair messages that tell users to clear other Enphase sessions.
 - Localized cloud diagnostic error states for rate limits, temporary authentication blocks, authentication failures, invalid payloads, service outages, DNS failures, and network errors; rate-limit repairs now include retry timing, de-duplicate repeated reports, and clear after a successful refresh.
-- Bounded the `Current Production Power` live-sample cache so stale values are not reused indefinitely when the latest-power endpoint stops returning valid samples.
-- Filtered advisory IQ Gateway firmware releases by country applicability so country-scoped Enphase release notes do not create invalid update prompts in unrelated regions.
+- Treated Enphase active-session-limit failures consistently across login, automatic auth refresh, config flow, diagnostics, repairs, and services.
+- Preserved stored-credential authentication rejection streaks when optional follow-up refresh work records a new rejection, so successful unrelated endpoint refreshes no longer clear HEMS or heat-pump auth rejection state before retry suspension can activate.
+- Bounded the `Current Production Power` live-sample cache so stale values are not reused indefinitely when the latest-power endpoint stops returning valid samples after Home Assistant restarts or endpoint degradation.
 - Smoothed idle heat-pump power over existing low-load energy samples so whole-Wh cloud readings no longer flicker between `0 W` and standby load, while exposing the raw short-window value in diagnostics.
+- Filtered advisory IQ Gateway firmware catalog entries by country applicability so country-scoped Enphase release notes do not create invalid update prompts in unrelated regions.
+- Crawled IQ Gateway communication release notes without the removed product-media facet so current regional Gateway firmware versions remain discoverable.
+- Suppressed stale worldwide IQ Gateway firmware catalog fallbacks when newer country-scoped release notes show the public catalog no longer has a current global baseline.
+- Improved firmware catalog routing and release metadata handling so advisory update entities keep the correct release URL, summary, latest-version state, skipped-version reconciliation, and previous-catalog fallback behavior.
 - Reduced unnecessary EV charger post-status follow-up lookups, kept idle session-history catch-up off the main refresh path when cached data is still usable, and aligned HEMS preflight/device refresh cadence with fast polling to lower steady-state cloud overhead.
 - Hardened setup, polling, and EV charger service inputs by bounding scan/runtime intervals, restricting OCPP trigger messages to supported values, requiring confirmation for advanced trigger messages, and keeping raw Enphase error bodies out of raised exceptions.
-- Reported the charger-specific minimum amp value during EV charger safe-limit charging instead of always showing 8A.
+- Rejected unresolved EV charger and site service targets with clear validation errors instead of allowing ambiguous calls to fall through to the wrong coordinator.
+- Reported the charger-specific minimum amp value during EV charger safe-limit charging instead of always showing `8 A`.
+- Mapped IQ EV charger status `mode` values into the effective charge mode so manual override states no longer appear as green charging.
+- Redacted Enphase site IDs from logs and diagnostics, expanding the existing redaction coverage across API, summary, session history, EVSE timeseries, coordinator diagnostics, and service messages.
+- Made same-value IQ Battery reserve and shutdown-level number writes no-ops so unchanged settings do not trip the BatteryConfig write debounce or send unnecessary cloud writes.
+- Fixed last CFG schedule deletion so the integration sends the follow-up BatteryConfig disable write even when no replacement charge-from-grid schedule window remains.
+- Made same-value EV charger charge mode selections no-ops so the scheduler is not called when Home Assistant selects the already-active mode, avoiding Enphase `400` responses on unchanged selections.
+- Kept tariff refresh data stale-but-available when Enphase tariff endpoints are degraded, and made empty/unconfigured tariff responses explicit in diagnostics instead of failing normal polling.
+- Resolved current tariff price selection when Enphase time-of-use payloads include an all-day fallback period alongside timed peak periods.
 
 ### 🔧 Improvements
-- Clarified the Enphase authentication-block repair message and added a manual stored-credential reauthentication service for trying one immediate unblock attempt.
+- Clarified Enphase authentication-block and active-session repair messages, including retry timing and guidance to clear other Enphase app/browser sessions.
 - Disabled less-common diagnostic and inventory entities by default to reduce recorder churn on larger sites while keeping them available for troubleshooting.
 - Parallelized setup discovery probes so slow optional inventory endpoints no longer block the device selection step serially.
+- Added refresh performance diagnostics and regression tests for cloud-call volume, refresh-stage timing, fast-poll behavior, and post-status endpoint fan-out.
+- Updated the refresh planner and runtime helpers to reduce redundant checks, run due EVSE enrichment work concurrently, and keep optional endpoint backoff/cooldown behavior visible in diagnostics.
+- Expanded the API reference for tariff payloads, EV charger live-stream MQTT findings, OCPP trigger messages, and the current runtime endpoint surface.
+- Added architecture and glossary documentation describing integration structure, runtime responsibilities, and Enphase terminology.
+- Removed redundant defensive code and duplicated helper branches after coverage was in place, reducing internal maintenance surface.
 
 ### 🔄 Other changes
-- Expanded Platinum quality-scale evidence and validation, including upstream brands validation, stricter runtime-data typing checks, and CI coverage enforcement.
+- Added Platinum quality-scale evidence validation, upstream brands validation, stricter runtime-data typing checks, import-time diagnostics, and CI coverage enforcement.
+- Added `.strict-typing`, `py.typed`, mypy coverage for runtime/config-flow typing contracts, and a minimum Home Assistant `2026.3.0` CI job.
+- Added the Docker `ha-dev` Python `3.14` environment and a pinned minimum-Home-Assistant dependency set for release validation.
+- Added `scripts/importtime_profile.py` and expanded quality-scale validator coverage.
+- Updated GitHub Actions to Python `3.14`, refreshed workflow trigger paths, and bumped `stefanbuck/github-issue-parser` from `3.2.3` to `3.2.5`.
+- Expanded test coverage across tariff parsing/writes, services, firmware catalog generation, diagnostics redaction, refresh performance, active-session handling, OCPP validation, Python `3.14` task naming, and minimum Home Assistant compatibility.
 
 ## v2.9.2 - 2026-04-25
 

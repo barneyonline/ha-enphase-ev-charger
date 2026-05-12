@@ -478,7 +478,8 @@
           "forget_password": "Zapomenout uložené heslo",
           "type_heatpump": "Tepelné čerpadlo",
           "type_ac_battery": "AC baterie",
-          "battery_schedules_enabled": "Povolit Plánovač baterie"
+          "battery_schedules_enabled": "Povolit Plánovač baterie",
+          "degraded_service_repair_issues": "Povolit opravy zhoršených služeb"
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
@@ -496,7 +497,8 @@
           "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
           "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla.",
           "type_ac_battery": "Zahrnuje senzory AC baterie a ovládání režimu spánku, pokud jsou k dispozici.",
-          "battery_schedules_enabled": "Správa rozvrhů baterií IQ"
+          "battery_schedules_enabled": "Správa rozvrhů baterií IQ",
+          "degraded_service_repair_issues": "Vytváří problémy v Repairs, když jsou volitelné služby Enphase zhoršené."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Zapomenout uložené heslo",
           "type_heatpump": "Tepelné čerpadlo",
           "type_ac_battery": "AC baterie",
-          "battery_schedules_enabled": "Povolit Plánovač baterie"
+          "battery_schedules_enabled": "Povolit Plánovač baterie",
+          "degraded_service_repair_issues": "Povolit opravy zhoršených služeb"
         },
         "data_description": {
           "type_envoy": "Zahrnuje diagnostiku konektivity brány a měřidel.",
@@ -536,7 +539,8 @@
           "forget_password": "Odstraní uložené heslo. Automatické obnovení již nebude prováděno.",
           "type_heatpump": "Zahrnuje senzory stavu, diagnostiky a spotřeby tepelného čerpadla.",
           "type_ac_battery": "Zahrnuje senzory AC baterie a ovládání režimu spánku, pokud jsou k dispozici.",
-          "battery_schedules_enabled": "Správa rozvrhů baterií IQ"
+          "battery_schedules_enabled": "Správa rozvrhů baterií IQ",
+          "degraded_service_repair_issues": "Vytváří problémy v Repairs, když jsou volitelné služby Enphase zhoršené."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Neplatná odpověď cloudu",
           "dns_error": "Chyba DNS",
           "network_error": "Chyba sítě"
+        }
+      },
+      "site_service_status": {
+        "name": "Stav služby",
+        "state": {
+          "ok": "V pořádku",
+          "unknown": "Neznámý",
+          "degraded": "Snížený výkon"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Služby se sníženým výkonem"
+          },
+          "degraded_endpoint_families": {
+            "name": "Skupiny koncových bodů se sníženým výkonem"
+          },
+          "degraded_service_count": {
+            "name": "Počet služeb se sníženým výkonem"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Počet skupin koncových bodů se sníženým výkonem"
+          },
+          "metrics_available": {
+            "name": "Metriky dostupné"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Probíhá aktualizace profilu baterie Enphase Energy",
       "description": "Změna profilu baterie pro lokalitu {site_id} čeká déle než {pending_timeout_minutes} minut. Cloud může požadavek stále zpracovávat."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS je dočasně pozastaveno",
+      "description": "Dotazování Heat Pump/HEMS pro lokalitu {site_id} je pozastaveno do {backoff_until} po {failure_count} chybách podobných ověření ({reason}). Wallbox, baterie, brána a ostatní data mohou pokračovat. Vypněte skupinu Heat Pump, nebo použijte Clear HEMS Auth Backoff po obnově Enphase."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Vymazat HEMS auth backoff",
+      "description": "Vymaže dočasnou pauzu ověření HEMS/Heat Pump bez přihlášení heslem.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení lokality",
+          "description": "Vyberte zařízení lokality Enphase, u kterého se má HEMS auth backoff vymazat."
+        },
+        "site_id": {
+          "name": "ID lokality",
+          "description": "Volitelný identifikátor lokality; zjistí se automaticky při výběru zařízení."
         }
       }
     }

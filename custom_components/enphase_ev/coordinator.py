@@ -56,6 +56,13 @@ from .const import (
     DEFAULT_NOMINAL_VOLTAGE,
     CONF_EAUTH,
     CONF_EMAIL,
+    CONF_HEMS_AUTH_BACKOFF_UNTIL,
+    CONF_HEMS_AUTH_FAILURE_COUNT,
+    CONF_HEMS_AUTH_LAST_ENDPOINT,
+    CONF_HEMS_AUTH_LAST_FAILURE_UTC,
+    CONF_HEMS_AUTH_LAST_REASON,
+    CONF_HEMS_AUTH_LAST_STATUS,
+    CONF_HEMS_AUTH_LAST_SUCCESS_UTC,
     CONF_INCLUDE_INVERTERS,
     CONF_PASSWORD,
     CONF_REMEMBER_PASSWORD,
@@ -80,6 +87,8 @@ from .const import (
     DRY_CONTACT_SETTINGS_STALE_AFTER_S,
     DOMAIN,
     GRID_CONTROL_CHECK_STALE_AFTER_S,
+    HEMS_AUTH_BACKOFF_STEPS_S,
+    HEMS_AUTH_MANUAL_CLEAR_COOLDOWN_S,
     OPT_API_TIMEOUT,
     OPT_FAST_POLL_INTERVAL,
     OPT_NOMINAL_VOLTAGE,
@@ -177,11 +186,6 @@ if TYPE_CHECKING:
     from .runtime_data import EnphaseConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
-DEVICES_INVENTORY_CACHE_TTL = 300.0
-HEMS_DEVICES_STALE_AFTER_S = 90.0
-# HEMS heat-pump status/power can lag the Enphase app by only a few seconds.
-# Keep these caches short so we do not hold stale or empty telemetry for minutes.
-HEMS_DEVICES_CACHE_TTL = 15.0
 # Session history can arrive after real-time charging state changes. These
 # windows keep recent context available without letting old sessions override
 # live charger telemetry.
@@ -189,22 +193,6 @@ SESSION_HISTORY_ACTIVE_SOFT_TTL_S = 120.0
 SESSION_HISTORY_RECENT_STOP_SOFT_TTL_S = 300.0
 SESSION_HISTORY_IDLE_HARD_TTL_GRACE_S = 300.0
 SESSION_HISTORY_RECENT_STOP_WINDOW_S = 600.0
-SYSTEM_DASHBOARD_DIAGNOSTIC_TYPES: tuple[str, ...] = (
-    "envoys",
-    "meters",
-    "enpowers",
-    "encharges",
-    "modems",
-    "inverters",
-)
-SYSTEM_DASHBOARD_TYPE_KEY_MAP: dict[str, str] = {
-    "envoys": "envoy",
-    "meters": "envoy",
-    "enpowers": "envoy",
-    "encharges": "encharge",
-    "inverters": "microinverter",
-    "modems": "modem",
-}
 BATTERY_GRID_MODE_PERMISSIONS = {
     "importexport": (True, True),
     "importonly": (True, False),
@@ -227,6 +215,246 @@ COORDINATOR_RUNTIME_CLASSES: dict[str, type] = {
     "evse_feature_flags_runtime": EvseFeatureFlagsRuntime,
     "tariff_runtime": TariffRuntime,
 }
+
+
+def _coerce_epoch_seconds(value: object) -> int | None:
+    try:
+        timestamp = int(value)
+    except Exception:
+        return None
+    if timestamp > 10**12:
+        timestamp = timestamp // 1000
+    return timestamp
+
+
+def _charger_sample_datetime(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=_tz.utc)
+        return value.astimezone(_tz.utc)
+    if isinstance(value, (int, float)):
+        try:
+            numeric = float(value)
+        except Exception:
+            return None
+        if numeric > 10**12:
+            numeric = numeric / 1000.0
+        if numeric <= 0:
+            return None
+        try:
+            return datetime.fromtimestamp(numeric, tz=_tz.utc)
+        except Exception:
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.isdigit():
+            return _charger_sample_datetime(int(text))
+        parsed = dt_util.parse_datetime(text)
+        if parsed is None:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=_tz.utc)
+        return parsed.astimezone(_tz.utc)
+    return None
+
+
+def _extract_error_description(raw: str | None) -> str | None:
+    """Best-effort extraction of a descriptive message from error payloads."""
+
+    if not raw:
+        return None
+    text = str(raw).strip()
+
+    def _search(obj):
+        if isinstance(obj, dict):
+            for key in (
+                "description",
+                "code_description",
+                "codeDescription",
+                "displayMessage",
+                "message",
+                "detail",
+                "error_description",
+                "errorDescription",
+                "errorMessage",
+            ):
+                val = obj.get(key)
+                if isinstance(val, str) and val.strip():
+                    return val.strip()
+            for key in ("error", "details", "data"):
+                nested = obj.get(key)
+                result = _search(nested)
+                if result:
+                    return result
+        elif isinstance(obj, list):
+            for item in obj:
+                result = _search(item)
+                if result:
+                    return result
+        elif isinstance(obj, str) and obj.strip():
+            return obj.strip()
+        return None
+
+    candidates = [text]
+    trimmed = text.strip("\"'")
+    if trimmed != text:
+        candidates.append(trimmed)
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except Exception:
+            continue
+        description = _search(parsed)
+        if description:
+            return description
+    return None
+
+
+def _coerce_boolish(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes", "y")
+    return False
+
+
+def _coerce_optional_boolish(value: object) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("true", "1", "yes", "y", "enabled", "enable", "on"):
+            return True
+        if normalized in (
+            "false",
+            "0",
+            "no",
+            "n",
+            "disabled",
+            "disable",
+            "off",
+        ):
+            return False
+    return None
+
+
+def _coerce_floatish(value: object, *, precision: int | None = None) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        parsed = float(value)
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = float(text)
+        except Exception:
+            return None
+    else:
+        return None
+    if precision is not None:
+        try:
+            return round(parsed, precision)
+        except Exception:
+            return parsed
+    return parsed
+
+
+def _coerce_intish(value: object) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            return int(value)
+        except Exception:
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return int(float(text))
+        except Exception:
+            return None
+    return None
+
+
+def _coerce_textish(value: object) -> str | None:
+    if value is None:
+        return None
+    try:
+        text = str(value).strip()
+    except Exception:
+        return None
+    return text or None
+
+
+def _coerce_int_list(value: object) -> list[int] | None:
+    if not isinstance(value, list):
+        return None
+    parsed: list[int] = []
+    for item in value:
+        coerced = _coerce_intish(item)
+        if coerced is not None:
+            parsed.append(coerced)
+    return parsed or None
+
+
+def _power_parse_timestamp(raw: object) -> float | None:
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        try:
+            value = float(raw)
+        except Exception:
+            return None
+        if value > 10**12:
+            value = value / 1000.0
+        if value <= 0:
+            return None
+        try:
+            datetime.fromtimestamp(value, tz=_tz.utc)
+        except Exception:
+            return None
+        return value
+    if isinstance(raw, str):
+        stripped = raw.strip()
+        if not stripped:
+            return None
+        normalized = stripped.replace("[UTC]", "").replace("Z", "+00:00")
+        try:
+            dt_obj = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+        if dt_obj.tzinfo is None:
+            dt_obj = dt_obj.replace(tzinfo=_tz.utc)
+        return dt_obj.astimezone(_tz.utc).timestamp()
+    return None
+
+
+def _power_as_float(raw: object) -> float | None:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _power_as_int(raw: object) -> int | None:
+    try:
+        return int(float(raw))
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(slots=True)
@@ -264,6 +492,7 @@ class RefreshPipelineContext:
     phase_timings: dict[str, float]
     fallback_data: dict[str, dict]
     first_refresh: bool
+    first_refresh_followups_task: asyncio.Task[None] | None = None
     auth_refresh_rejected_count_at_start: int = 0
     status_used_stale: bool = False
     fast_poll: bool = False
@@ -354,6 +583,31 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         auth_block_reason = (
             str(raw_auth_block_reason).strip() if raw_auth_block_reason else None
         )
+        hems_auth_backoff_until = self._coerce_utc_datetime(
+            config.get(CONF_HEMS_AUTH_BACKOFF_UNTIL)
+        )
+        hems_auth_last_failure_utc = self._coerce_utc_datetime(
+            config.get(CONF_HEMS_AUTH_LAST_FAILURE_UTC)
+        )
+        hems_auth_last_success_utc = self._coerce_utc_datetime(
+            config.get(CONF_HEMS_AUTH_LAST_SUCCESS_UTC)
+        )
+        raw_hems_auth_failure_count = config.get(CONF_HEMS_AUTH_FAILURE_COUNT, 0)
+        try:
+            hems_auth_failure_count = max(0, int(raw_hems_auth_failure_count or 0))
+        except (TypeError, ValueError):
+            hems_auth_failure_count = 0
+        raw_hems_auth_last_status = config.get(CONF_HEMS_AUTH_LAST_STATUS)
+        try:
+            hems_auth_last_status = (
+                int(raw_hems_auth_last_status)
+                if raw_hems_auth_last_status not in (None, "")
+                else None
+            )
+        except (TypeError, ValueError):
+            hems_auth_last_status = None
+        raw_hems_auth_last_endpoint = config.get(CONF_HEMS_AUTH_LAST_ENDPOINT)
+        raw_hems_auth_last_reason = config.get(CONF_HEMS_AUTH_LAST_REASON)
         timeout = DEFAULT_API_TIMEOUT
         if config_entry:
             timeout = helper_coerce_int(
@@ -412,6 +666,26 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_refresh_suspended_until_utc = auth_refresh_suspended_until
         self._auth_blocked_until_utc = auth_blocked_until
         self._auth_block_reason = auth_block_reason
+        self._hems_auth_failure_count = hems_auth_failure_count
+        self._hems_auth_last_failure_utc = hems_auth_last_failure_utc
+        self._hems_auth_last_success_utc = hems_auth_last_success_utc
+        self._hems_auth_last_endpoint = (
+            str(raw_hems_auth_last_endpoint).strip()
+            if raw_hems_auth_last_endpoint
+            else None
+        )
+        self._hems_auth_last_status = hems_auth_last_status
+        self._hems_auth_last_reason = (
+            str(raw_hems_auth_last_reason).strip()
+            if raw_hems_auth_last_reason
+            else None
+        )
+        self._hems_auth_backoff_ends_utc = hems_auth_backoff_until
+        self._hems_auth_backoff_until = None
+        if isinstance(hems_auth_backoff_until, datetime):
+            remaining = (hems_auth_backoff_until - dt_util.utcnow()).total_seconds()
+            if remaining > 0:
+                self._hems_auth_backoff_until = time.monotonic() + remaining
         # Nominal voltage for estimated power when API omits voltage; user-configurable
         self._nominal_v = resolve_nominal_voltage_for_hass(hass)
         if config_entry is not None:
@@ -453,6 +727,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             site_id=self.site_id,
             logger=_LOGGER,
             summary_invalidator=self.summary.invalidate,
+            hems_auth_skip=lambda endpoint: self._skip_hems_polling_due_to_auth_circuit(
+                endpoint=endpoint
+            ),
+            hems_auth_failure=lambda err, endpoint: self._note_hems_auth_failure(
+                err,
+                endpoint=endpoint,
+            ),
+            hems_auth_success=lambda endpoint: self._note_hems_auth_success(
+                endpoint=endpoint
+            ),
         )
         self.evse_timeseries = EVSETimeseriesManager(
             hass,
@@ -485,6 +769,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         super_kwargs = {
             "name": DOMAIN,
             "update_interval": timedelta(seconds=self._configured_slow_poll_interval),
+            "always_update": False,
         }
         if config_entry is not None:
             super_kwargs["config_entry"] = config_entry
@@ -544,6 +829,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 logger=_LOGGER,
                 summary_invalidator=getattr(
                     getattr(self, "summary", None), "invalidate", None
+                ),
+                hems_auth_skip=lambda endpoint: self._skip_hems_polling_due_to_auth_circuit(
+                    endpoint=endpoint
+                ),
+                hems_auth_failure=lambda err, endpoint: self._note_hems_auth_failure(
+                    err,
+                    endpoint=endpoint,
+                ),
+                hems_auth_success=lambda endpoint: self._note_hems_auth_success(
+                    endpoint=endpoint
                 ),
             )
             self.__dict__["energy"] = energy
@@ -668,7 +963,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 support_state_on_success=True,
             ),
             "storm_alert": EndpointFamilyPolicy(
-                success_ttl_s=60.0,
+                success_ttl_s=300.0,
                 failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
                 max_backoff_s=3600.0,
                 support_state_on_success=True,
@@ -682,10 +977,28 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 suppress_after_failures=3,
                 support_state_on_success=True,
             ),
+            "tariff_dated_rates": EndpointFamilyPolicy(
+                success_ttl_s=300.0,
+                stale_after_s=86400.0,
+                failure_backoff_schedule_s=(3600.0, 21600.0, 86400.0),
+                max_backoff_s=86400.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
             "inventory_topology": EndpointFamilyPolicy(
                 success_ttl_s=21600.0,
                 failure_backoff_schedule_s=(1800.0, 3600.0, 7200.0, 21600.0),
                 max_backoff_s=21600.0,
+                optional=True,
+                suppress_after_failures=3,
+                support_state_on_success=True,
+            ),
+            "hems_inventory": EndpointFamilyPolicy(
+                success_ttl_s=None,
+                stale_after_s=900.0,
+                failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
+                max_backoff_s=3600.0,
                 optional=True,
                 suppress_after_failures=3,
                 support_state_on_success=True,
@@ -708,7 +1021,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 support_state_on_success=True,
             ),
             "inverter_production": EndpointFamilyPolicy(
-                success_ttl_s=300.0,
+                success_ttl_s=600.0,
                 stale_after_s=1800.0,
                 failure_backoff_schedule_s=(300.0, 900.0, 1800.0, 3600.0),
                 max_backoff_s=3600.0,
@@ -913,6 +1226,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         now_mono = time.monotonic()
         now_utc = dt_util.utcnow()
         ttl = policy.success_ttl_s if success_ttl_s is None else success_ttl_s
+        health.request_count += 1
+        health.last_request_utc = now_utc
         health.consecutive_failures = 0
         health.last_status = None
         health.last_error = None
@@ -949,6 +1264,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         now_utc = dt_util.utcnow()
         now_mono = time.monotonic()
         status = self._endpoint_family_status_from_error(err)
+        health.request_count += 1
+        health.last_request_utc = now_utc
         health.consecutive_failures += 1
         health.last_failure_utc = now_utc
         health.last_status = status
@@ -1272,7 +1589,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def gateway_inventory_summary(self) -> dict[str, object]:
         source = self.inventory_runtime._gateway_inventory_summary_marker()
         summary = getattr(self, "_gateway_inventory_summary_cache", {}) or {}
-        if not summary or source != self._gateway_inventory_summary_source:
+        if source != self._gateway_inventory_summary_source:
             summary = self.inventory_runtime._build_gateway_inventory_summary()
             self._gateway_inventory_summary_cache = summary
             self._gateway_inventory_summary_source = source
@@ -1281,7 +1598,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def microinverter_inventory_summary(self) -> dict[str, object]:
         source = self.inventory_runtime._microinverter_inventory_summary_marker()
         summary = getattr(self, "_microinverter_inventory_summary_cache", {}) or {}
-        if not summary or source != self._microinverter_inventory_summary_source:
+        if source != self._microinverter_inventory_summary_source:
             summary = self.inventory_runtime._build_microinverter_inventory_summary()
             self._microinverter_inventory_summary_cache = summary
             self._microinverter_inventory_summary_source = source
@@ -1290,7 +1607,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def heatpump_inventory_summary(self) -> dict[str, object]:
         source = self.inventory_runtime._heatpump_inventory_summary_marker()
         summary = getattr(self, "_heatpump_inventory_summary_cache", {}) or {}
-        if not summary or source != self._heatpump_inventory_summary_source:
+        if source != self._heatpump_inventory_summary_source:
             summary = self.inventory_runtime._build_heatpump_inventory_summary()
             self._heatpump_inventory_summary_cache = summary
             self._heatpump_inventory_summary_source = source
@@ -2389,20 +2706,19 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._last_error = None
         self.backoff_ends_utc = None
         self._has_successful_refresh = True
+        if context.first_refresh:
+            self._start_first_refresh_followups(context)
         site_energy_start = time.monotonic()
-        await self.energy._async_refresh_site_energy()
+        try:
+            await self.energy._async_refresh_site_energy()
+        except Exception:
+            await self._async_cancel_first_refresh_followups(context)
+            raise
         self.discovery_snapshot.sync_site_energy_discovery_state()
         self._sync_site_energy_issue()
         phase_timings["site_energy_s"] = round(time.monotonic() - site_energy_start, 3)
         if context.first_refresh:
-            timing_key, duration = await self.refresh_runner.async_run_refresh_call(
-                "tariff_s",
-                "tariff",
-                lambda: self.tariff_runtime.async_refresh(force=True),
-                endpoint_family="tariff",
-            )
-            if duration is not None:
-                phase_timings[timing_key] = duration
+            await self._async_await_first_refresh_followups(context)
         else:
             followup_plan = build_site_only_followup_plan(
                 self,
@@ -2453,14 +2769,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         context: RefreshPipelineContext,
     ) -> None:
         if context.first_refresh:
-            timing_key, duration = await self.refresh_runner.async_run_refresh_call(
-                "tariff_s",
-                "tariff",
-                lambda: self.tariff_runtime.async_refresh(force=True),
-                endpoint_family="tariff",
-            )
-            if duration is not None:
-                context.phase_timings[timing_key] = duration
+            await self._async_await_first_refresh_followups(context)
         else:
             followup_plan = build_followup_plan(
                 self,
@@ -2472,6 +2781,87 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     plan=followup_plan,
                 )
         self._clear_auth_refresh_rejection_state_if_unchanged(context)
+
+    def _first_refresh_followup_calls(
+        self,
+    ) -> tuple[tuple[str, str, Callable[[], object], str | None], ...]:
+        calls = []
+        if self._first_refresh_storm_guard_followups_needed():
+            calls.extend(
+                (
+                    (
+                        "battery_site_settings_s",
+                        "battery site settings",
+                        lambda: self._async_refresh_battery_site_settings(),
+                        "battery_site_settings",
+                    ),
+                    (
+                        "storm_guard_s",
+                        "storm guard",
+                        lambda: self._async_refresh_storm_guard_profile(),
+                        "storm_guard",
+                    ),
+                )
+            )
+        return tuple(calls)
+
+    async def _async_run_first_refresh_followups(
+        self,
+        phase_timings: dict[str, float],
+    ) -> None:
+        calls = self._first_refresh_followup_calls()
+        if not calls:
+            return
+        await self.refresh_runner.async_run_refresh_calls(
+            phase_timings,
+            calls=calls,
+        )
+
+    def _start_first_refresh_followups(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        if context.first_refresh_followups_task is not None:
+            return
+        context.first_refresh_followups_task = asyncio.create_task(
+            self._async_run_first_refresh_followups(context.phase_timings),
+            name=f"{DOMAIN}_first_refresh_followups",
+        )
+
+    async def _async_await_first_refresh_followups(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        task = context.first_refresh_followups_task
+        if task is None:
+            await self._async_run_first_refresh_followups(context.phase_timings)
+            return
+        try:
+            await task
+        finally:
+            context.first_refresh_followups_task = None
+
+    async def _async_cancel_first_refresh_followups(
+        self,
+        context: RefreshPipelineContext,
+    ) -> None:
+        task = context.first_refresh_followups_task
+        if task is None:
+            return
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        context.first_refresh_followups_task = None
+
+    def _first_refresh_storm_guard_followups_needed(self) -> bool:
+        if getattr(self, "_battery_has_encharge", None) is False:
+            return False
+        selected = getattr(self, "_selected_type_keys", None)
+        if isinstance(selected, set) and selected:
+            if self.site_only or not self.serials:
+                return "envoy" in selected
+            return bool({"encharge", "envoy", "iqevse"} & selected)
+        return bool(self.site_id and (self.serials or self.site_only))
 
     async def _async_run_post_session_refresh_pipeline(
         self,
@@ -2553,111 +2943,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         fallback_data = context.fallback_data
         first_refresh = context.first_refresh
 
-        if self.site_only or not self.serials:
-            return await self._async_run_site_only_refresh_pipeline(context)
-
-        # Helper to normalize epoch-like inputs to seconds
-        def _sec(v):
-            try:
-                iv = int(v)
-                # Convert ms -> s if too large
-                if iv > 10**12:
-                    iv = iv // 1000
-                return iv
-            except Exception:
-                return None
-
-        def _charger_sample_datetime(value: object) -> datetime | None:
-            if value is None:
-                return None
-            if isinstance(value, datetime):
-                if value.tzinfo is None:
-                    return value.replace(tzinfo=_tz.utc)
-                return value.astimezone(_tz.utc)
-            if isinstance(value, (int, float)):
-                try:
-                    numeric = float(value)
-                except Exception:
-                    return None
-                if numeric > 10**12:
-                    numeric = numeric / 1000.0
-                if numeric <= 0:
-                    return None
-                try:
-                    return datetime.fromtimestamp(numeric, tz=_tz.utc)
-                except Exception:
-                    return None
-            if isinstance(value, str):
-                text = value.strip()
-                if not text:
-                    return None
-                if text.isdigit():
-                    return _charger_sample_datetime(int(text))
-                parsed = dt_util.parse_datetime(text)
-                if parsed is None:
-                    return None
-                if parsed.tzinfo is None:
-                    parsed = parsed.replace(tzinfo=_tz.utc)
-                return parsed.astimezone(_tz.utc)
-            return None
-
-        def _extract_description(raw: str | None) -> str | None:
-            """Best-effort extraction of a descriptive message from error payloads."""
-
-            if not raw:
-                return None
-            text = str(raw).strip()
-
-            def _search(obj):
-                if isinstance(obj, dict):
-                    for key in (
-                        "description",
-                        "code_description",
-                        "codeDescription",
-                        "displayMessage",
-                        "message",
-                        "detail",
-                        "error_description",
-                        "errorDescription",
-                        "errorMessage",
-                    ):
-                        val = obj.get(key)
-                        if isinstance(val, str) and val.strip():
-                            return val.strip()
-                    # Dive into common nested containers
-                    for key in ("error", "details", "data"):
-                        nested = obj.get(key)
-                        result = _search(nested)
-                        if result:
-                            return result
-                elif isinstance(obj, list):
-                    for item in obj:
-                        result = _search(item)
-                        if result:
-                            return result
-                elif isinstance(obj, str):
-                    if obj.strip():
-                        return obj.strip()
-                return None
-
-            candidates = [text]
-            trimmed = text.strip("\"'")
-            if trimmed != text:
-                candidates.append(trimmed)
-            for candidate in candidates:
-                try:
-                    parsed = json.loads(candidate)
-                except Exception:
-                    continue
-                description = _search(parsed)
-                if description:
-                    return description
-            return None
-
-        # Handle backoff window
-        if self._backoff_until and time.monotonic() < self._backoff_until:
-            raise UpdateFailed("In backoff due to rate limiting or server errors")
-
         if self._auth_block_active():
             self._last_error = "auth_blocked"
             self.last_failure_utc = dt_util.utcnow()
@@ -2670,8 +2955,22 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._http_errors = 0
             self._payload_errors = 0
             self.diagnostics.create_auth_block_issue()
-            raise ConfigEntryAuthFailed(self.last_failure_description)
+            raise self._auth_block_update_failed()
 
+        if self.site_only or not self.serials:
+            return await self._async_run_site_only_refresh_pipeline(context)
+
+        # Handle backoff window
+        if self._backoff_until and time.monotonic() < self._backoff_until:
+            retry_after = max(0.0, self._backoff_until - time.monotonic())
+            raise UpdateFailed(
+                "In backoff due to rate limiting or server errors",
+                retry_after=retry_after,
+            )
+
+        if first_refresh:
+            self._start_first_refresh_followups(context)
+        status_refresh_succeeded = False
         try:
             status_start = time.monotonic()
             data = await self.client.status()
@@ -2688,13 +2987,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.payload_failure_kind = None
             self._unauth_errors = 0
             self._clear_auth_repair_issues_on_success()
+            status_refresh_succeeded = True
         except ConfigEntryAuthFailed:
             raise
         except Unauthorized as err:
             if self._activate_auth_block_from_login_wall(err):
-                raise ConfigEntryAuthFailed(
-                    self._blocked_auth_failure_message()
-                ) from err
+                raise self._auth_block_update_failed() from err
             raise ConfigEntryAuthFailed from err
         except OptionalEndpointUnavailable as err:
             reason = (str(err) or "EVSE status endpoint unavailable").strip()
@@ -2736,6 +3034,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self._network_errors = 0
             self._http_errors = 0
             self._clear_auth_repair_issues_on_success()
+            status_refresh_succeeded = True
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
             signature = err.signature_dict()
@@ -2771,6 +3070,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._backoff_until = None
                 self._clear_backoff_timer()
                 self.diagnostics.clear_cloud_issue()
+                status_refresh_succeeded = True
             else:
                 self.payload_using_stale = False
                 self._note_payload_endpoint_failure(
@@ -2788,7 +3088,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._schedule_backoff_timer(backoff)
                 if self._payload_errors >= 2:
                     self.diagnostics.report_cloud_issue()
-                raise UpdateFailed(f"Invalid API payload: {reason}")
+                raise UpdateFailed(
+                    f"Invalid API payload: {reason}",
+                    retry_after=backoff,
+                )
         except aiohttp.ClientResponseError as err:
             url = None
             try:
@@ -2826,7 +3129,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 else:
                     self.diagnostics.clear_cloud_issue()
             raw_payload = redact_text(err.message, site_ids=(self.site_id,))
-            description = _extract_description(raw_payload)
+            description = _extract_error_description(raw_payload)
             reason = redact_text(err.message, site_ids=(self.site_id,))
             if not reason:
                 reason = err.__class__.__name__
@@ -2846,7 +3149,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_endpoint = str(url) if url is not None else None
             self.payload_using_stale = False
             self.payload_failure_kind = None
-            raise UpdateFailed(f"Cloud error {err.status}: {reason}")
+            raise UpdateFailed(
+                f"Cloud error {err.status}: {reason}",
+                retry_after=backoff,
+            )
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
             msg = redact_text(err, site_ids=(self.site_id,))
             if not msg:
@@ -2888,8 +3194,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_endpoint = None
             self.payload_using_stale = False
             self.payload_failure_kind = None
-            raise UpdateFailed(f"Error communicating with API: {msg}")
+            raise UpdateFailed(
+                f"Error communicating with API: {msg}",
+                retry_after=backoff,
+            )
         finally:
+            if not status_refresh_succeeded:
+                await self._async_cancel_first_refresh_followups(context)
             self.latency_ms = int((time.monotonic() - t0) * 1000)
 
         self._record_status_refresh_success(context)
@@ -2934,37 +3245,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             first_refresh=first_refresh,
         )
 
-        def _as_bool(v):
-            if isinstance(v, bool):
-                return v
-            if isinstance(v, (int, float)):
-                return v != 0
-            if isinstance(v, str):
-                return v.strip().lower() in ("true", "1", "yes", "y")
-            return False
-
-        def _as_optional_bool(v):
-            if v is None:
-                return None
-            if isinstance(v, bool):
-                return v
-            if isinstance(v, (int, float)):
-                return v != 0
-            if isinstance(v, str):
-                normalized = v.strip().lower()
-                if normalized in ("true", "1", "yes", "y", "enabled", "enable", "on"):
-                    return True
-                if normalized in (
-                    "false",
-                    "0",
-                    "no",
-                    "n",
-                    "disabled",
-                    "disable",
-                    "off",
-                ):
-                    return False
-            return None
+        _as_bool = _coerce_boolish
+        _as_optional_bool = _coerce_optional_boolish
+        _as_float = _coerce_floatish
+        _as_int = _coerce_intish
+        _as_text = _coerce_textish
+        _as_int_list = _coerce_int_list
+        _sec = _coerce_epoch_seconds
 
         def _support_value_and_source(
             runtime_value: bool | None,
@@ -2975,109 +3262,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             if feature_flag_value is not None:
                 return feature_flag_value, "feature_flag"
             return None, "unknown"
-
-        def _as_float(v, *, precision: int | None = None):
-            if v is None:
-                return None
-            if isinstance(v, (int, float)):
-                val = float(v)
-            elif isinstance(v, str):
-                s = v.strip()
-                if not s:
-                    return None
-                try:
-                    val = float(s)
-                except Exception:
-                    return None
-            else:
-                return None
-            if precision is not None:
-                try:
-                    return round(val, precision)
-                except Exception:
-                    return val
-            return val
-
-        def _as_int(v):
-            if isinstance(v, bool) or v is None:
-                return None
-            if isinstance(v, (int, float)):
-                try:
-                    return int(v)
-                except Exception:
-                    return None
-            if isinstance(v, str):
-                s = v.strip()
-                if not s:
-                    return None
-                try:
-                    return int(float(s))
-                except Exception:
-                    return None
-            return None
-
-        def _as_text(v):
-            if v is None:
-                return None
-            try:
-                text = str(v).strip()
-            except Exception:
-                return None
-            return text or None
-
-        def _as_int_list(v):
-            if not isinstance(v, list):
-                return None
-            out: list[int] = []
-            for item in v:
-                coerced = _as_int(item)
-                if coerced is None:
-                    continue
-                out.append(coerced)
-            return out or None
-
-        def _power_parse_timestamp(raw: object) -> float | None:
-            if raw is None:
-                return None
-            if isinstance(raw, (int, float)):
-                try:
-                    value = float(raw)
-                except Exception:
-                    return None
-                if value > 10**12:
-                    value = value / 1000.0
-                if value <= 0:
-                    return None
-                try:
-                    datetime.fromtimestamp(value, tz=_tz.utc)
-                except Exception:
-                    return None
-                return value
-            if isinstance(raw, str):
-                stripped = raw.strip()
-                if not stripped:
-                    return None
-                normalized = stripped.replace("[UTC]", "").replace("Z", "+00:00")
-                try:
-                    dt_obj = datetime.fromisoformat(normalized)
-                except ValueError:
-                    return None
-                if dt_obj.tzinfo is None:
-                    dt_obj = dt_obj.replace(tzinfo=_tz.utc)
-                return dt_obj.astimezone(_tz.utc).timestamp()
-            return None
-
-        def _power_as_float(raw: object) -> float | None:
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                return None
-
-        def _power_as_int(raw: object) -> int | None:
-            try:
-                return int(float(raw))
-            except (TypeError, ValueError):
-                return None
 
         def _power_topology(entry: dict[str, object]) -> str:
             phase_mode = entry.get("phase_mode")
@@ -3523,13 +3707,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                     charge_mode_pref_source = "battery_profile_fallback"
 
             charge_mode_source = None
-            charge_mode = self._normalize_effective_charge_mode(
-                obj.get("chargeMode")
-                or obj.get("chargingMode")
-                or (obj.get("sch_d") or {}).get("mode")
-            )
-            if charge_mode is not None:
-                charge_mode_source = "explicit_status"
+            charge_mode = None
+            for charge_mode_candidate in (
+                obj.get("mode"),
+                obj.get("chargeMode"),
+                obj.get("chargingMode"),
+                obj.get("charge_mode"),
+                (obj.get("sch_d") or {}).get("mode"),
+            ):
+                charge_mode = self._normalize_effective_charge_mode(
+                    charge_mode_candidate
+                )
+                if charge_mode is not None:
+                    charge_mode_source = "explicit_status"
+                    break
             if charge_mode is None:
                 if charge_mode_pref:
                     charge_mode = charge_mode_pref
@@ -4207,20 +4398,48 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         # by current chargers are retained for normal TTL behavior.
         self._prune_runtime_caches(active_serials=out.keys(), keep_day_keys=day_locals)
 
-        for (day_key, max_cache_age), serials in immediate_by_day.items():
+        async def _async_fetch_immediate_session_updates(
+            day_key: str,
+            max_cache_age: float | None,
+            serials: list[str],
+        ) -> dict[str, list[dict]]:
             if max_cache_age is None:
-                updates = await self._async_enrich_sessions(
+                return await self._async_enrich_sessions(
                     serials,
                     day_locals.get(day_key, day_local_default),
                     in_background=False,
                 )
-            else:
-                updates = await self._async_enrich_sessions(
-                    serials,
-                    day_locals.get(day_key, day_local_default),
-                    in_background=False,
-                    max_cache_age=max_cache_age,
-                )
+            return await self._async_enrich_sessions(
+                serials,
+                day_locals.get(day_key, day_local_default),
+                in_background=False,
+                max_cache_age=max_cache_age,
+            )
+
+        immediate_items = tuple(immediate_by_day.items())
+        if len(immediate_items) == 1:
+            (day_key, max_cache_age), serials = immediate_items[0]
+            immediate_updates = (
+                await _async_fetch_immediate_session_updates(
+                    day_key, max_cache_age, serials
+                ),
+            )
+        elif immediate_items:
+            tasks: list[asyncio.Task[dict[str, list[dict]]]] = []
+            async with asyncio.TaskGroup() as task_group:
+                for (day_key, max_cache_age), serials in immediate_items:
+                    task = task_group.create_task(
+                        _async_fetch_immediate_session_updates(
+                            day_key, max_cache_age, serials
+                        ),
+                        name=f"{DOMAIN}_session_history_{day_key}",
+                    )
+                    tasks.append(task)
+            immediate_updates = tuple(task.result() for task in tasks)
+        else:
+            immediate_updates = ()
+
+        for updates in immediate_updates:
             for sn, sessions in updates.items():
                 cur = out.get(sn)
                 if cur is None:
@@ -4272,7 +4491,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         """Check whether the status payload already exposes a charge mode."""
         if not isinstance(obj, dict):
             return False
-        for key in ("chargeMode", "chargingMode", "charge_mode"):
+        for key in ("mode", "chargeMode", "chargingMode", "charge_mode"):
             val = obj.get(key)
             if val is not None:
                 return True
@@ -4341,7 +4560,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             merged[CONF_AUTH_BLOCK_REASON] = self._auth_block_reason
         else:
             merged.pop(CONF_AUTH_BLOCK_REASON, None)
-        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="auth_block",
+        )
 
     def _persist_auth_refresh_suspension_state(self) -> None:
         """Persist stored-credential auto-refresh suspension metadata."""
@@ -4356,7 +4578,111 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             merged[CONF_AUTH_REFRESH_SUSPENDED_UNTIL] = (
                 self._auth_refresh_suspended_until_utc.isoformat()
             )
-        self.hass.config_entries.async_update_entry(config_entry, data=merged)
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="auth_refresh_suspension",
+        )
+
+    def _persist_hems_auth_circuit_state(self) -> None:
+        """Persist optional HEMS auth circuit metadata on the config entry."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return
+        merged = dict(config_entry.data)
+        updates = {
+            CONF_HEMS_AUTH_BACKOFF_UNTIL: (
+                self._hems_auth_backoff_ends_utc.isoformat()
+                if isinstance(self._hems_auth_backoff_ends_utc, datetime)
+                else None
+            ),
+            CONF_HEMS_AUTH_FAILURE_COUNT: (
+                self._hems_auth_failure_count
+                if int(getattr(self, "_hems_auth_failure_count", 0) or 0) > 0
+                else None
+            ),
+            CONF_HEMS_AUTH_LAST_FAILURE_UTC: (
+                self._hems_auth_last_failure_utc.isoformat()
+                if isinstance(self._hems_auth_last_failure_utc, datetime)
+                else None
+            ),
+            CONF_HEMS_AUTH_LAST_SUCCESS_UTC: (
+                self._hems_auth_last_success_utc.isoformat()
+                if isinstance(self._hems_auth_last_success_utc, datetime)
+                else None
+            ),
+            CONF_HEMS_AUTH_LAST_ENDPOINT: self._hems_auth_last_endpoint,
+            CONF_HEMS_AUTH_LAST_STATUS: self._hems_auth_last_status,
+            CONF_HEMS_AUTH_LAST_REASON: self._hems_auth_last_reason,
+        }
+        for key, value in updates.items():
+            if value in (None, ""):
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="hems_auth_circuit",
+        )
+
+    def _async_update_config_entry_data_internal(
+        self,
+        merged: dict[str, object],
+        *,
+        reason: str,
+    ) -> bool:
+        """Persist coordinator-owned config-entry data without reloading the entry."""
+
+        config_entry = getattr(self, "config_entry", None)
+        if not config_entry:
+            return False
+        old_data = dict(config_entry.data)
+        changed_keys = sorted(
+            key
+            for key in set(old_data) | set(merged)
+            if old_data.get(key) != merged.get(key)
+        )
+        if not changed_keys:
+            return False
+        self._mark_internal_config_entry_data_update()
+        try:
+            changed = self.hass.config_entries.async_update_entry(
+                config_entry, data=merged
+            )
+        except Exception:
+            self._unmark_internal_config_entry_data_update()
+            raise
+        if not changed:
+            self._unmark_internal_config_entry_data_update()
+            return False
+        _LOGGER.debug(
+            "Persisted internal Enphase config-entry state for site %s (%s): keys=%s",
+            redact_site_id(str(getattr(self, "site_id", ""))),
+            reason,
+            changed_keys,
+        )
+        return True
+
+    def _mark_internal_config_entry_data_update(self) -> None:
+        """Avoid reloading this entry for coordinator-owned data persistence."""
+
+        config_entry = getattr(self, "config_entry", None)
+        runtime_data = getattr(config_entry, "runtime_data", None)
+        if hasattr(runtime_data, "reload_suppression_count"):
+            runtime_data.reload_suppression_count = (
+                int(getattr(runtime_data, "reload_suppression_count", 0)) + 1
+            )
+
+    def _unmark_internal_config_entry_data_update(self) -> None:
+        """Undo a reload-suppression mark when Home Assistant made no data change."""
+
+        config_entry = getattr(self, "config_entry", None)
+        runtime_data = getattr(config_entry, "runtime_data", None)
+        if hasattr(runtime_data, "reload_suppression_count"):
+            runtime_data.reload_suppression_count = max(
+                0,
+                int(getattr(runtime_data, "reload_suppression_count", 0)) - 1,
+            )
 
     def _clear_auth_refresh_rejection_state(self) -> None:
         """Clear the short rejected-refresh streak and cooldown state."""
@@ -4483,6 +4809,203 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         )
         return True
 
+    def _hems_auth_backoff_remaining_s(self) -> int | None:
+        """Return remaining optional HEMS auth backoff seconds."""
+
+        backoff_until = getattr(self, "_hems_auth_backoff_until", None)
+        if not isinstance(backoff_until, (int, float)):
+            return None
+        remaining = float(backoff_until) - time.monotonic()
+        if remaining <= 0:
+            self._clear_hems_auth_circuit(persist=True, reset_failure_count=False)
+            return None
+        return max(1, int(remaining + 0.999))
+
+    def _hems_auth_circuit_active(self) -> bool:
+        """Return True while optional HEMS/Heat Pump polling is paused."""
+
+        return self._hems_auth_backoff_remaining_s() is not None
+
+    def _hems_auth_backoff_delay_s(self) -> float:
+        """Return the next HEMS auth backoff duration."""
+
+        count = max(1, int(getattr(self, "_hems_auth_failure_count", 0) or 0))
+        index = min(count - 1, len(HEMS_AUTH_BACKOFF_STEPS_S) - 1)
+        return float(HEMS_AUTH_BACKOFF_STEPS_S[index])
+
+    def _hems_auth_exception_details(
+        self, err: BaseException
+    ) -> tuple[int | None, str] | None:
+        """Return auth-like HEMS failure details for errors that should isolate HEMS."""
+
+        if isinstance(err, EnphaseLoginWallUnauthorized):
+            return getattr(err, "status", 200), "login_wall"
+        if isinstance(err, Unauthorized):
+            return getattr(err, "status", 401), "unauthorized"
+        if isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403):
+            return int(err.status), "forbidden" if err.status == 403 else "unauthorized"
+        return None
+
+    def _note_hems_auth_failure(
+        self,
+        err: BaseException,
+        *,
+        endpoint: str,
+    ) -> bool:
+        """Open the optional HEMS auth circuit for HEMS-only auth failures."""
+
+        details = self._hems_auth_exception_details(err)
+        if details is None:
+            return False
+        status, reason = details
+        self._hems_auth_failure_count = (
+            int(getattr(self, "_hems_auth_failure_count", 0) or 0) + 1
+        )
+        delay = self._hems_auth_backoff_delay_s()
+        now = dt_util.utcnow()
+        self._hems_auth_last_failure_utc = now
+        self._hems_auth_last_endpoint = redact_text(
+            endpoint,
+            site_ids=(self.site_id,),
+            max_length=256,
+        )
+        self._hems_auth_last_status = status
+        self._hems_auth_last_reason = reason
+        self._hems_auth_backoff_until = time.monotonic() + delay
+        self._hems_auth_backoff_ends_utc = now + timedelta(seconds=delay)
+        self._last_error = "hems_auth_degraded"
+        self._persist_hems_auth_circuit_state()
+        diagnostics = getattr(self, "diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.create_hems_auth_degraded_issue()
+        _LOGGER.warning(
+            "Pausing optional HEMS polling for site %s after HEMS auth failure: endpoint=%s status=%s reason=%s failure_count=%s retry_at=%s",
+            redact_site_id(self.site_id),
+            self._hems_auth_last_endpoint,
+            status,
+            reason,
+            self._hems_auth_failure_count,
+            self._format_auth_blocked_until(self._hems_auth_backoff_ends_utc)
+            or self._hems_auth_backoff_ends_utc,
+        )
+        return True
+
+    def _note_hems_auth_success(self, *, endpoint: str | None = None) -> None:
+        """Record successful optional HEMS polling and clear any HEMS auth circuit."""
+
+        had_circuit = bool(
+            getattr(self, "_hems_auth_backoff_until", None)
+            or getattr(self, "_hems_auth_last_reason", None)
+            or int(getattr(self, "_hems_auth_failure_count", 0) or 0)
+        )
+        self._clear_hems_auth_circuit(persist=False, reset_failure_count=True)
+        if endpoint:
+            self._hems_auth_last_endpoint = redact_text(
+                endpoint,
+                site_ids=(self.site_id,),
+                max_length=256,
+            )
+        self._hems_auth_last_success_utc = dt_util.utcnow()
+        if had_circuit:
+            _LOGGER.info(
+                "Optional HEMS polling recovered for site %s",
+                redact_site_id(self.site_id),
+            )
+            self._persist_hems_auth_circuit_state()
+
+    def _clear_hems_auth_circuit(
+        self,
+        *,
+        persist: bool = True,
+        reset_failure_count: bool = True,
+    ) -> None:
+        """Clear optional HEMS auth backoff state without touching global auth."""
+
+        had_state = bool(
+            getattr(self, "_hems_auth_backoff_until", None)
+            or getattr(self, "_hems_auth_backoff_ends_utc", None)
+            or getattr(self, "_hems_auth_last_reason", None)
+            or getattr(self, "_hems_auth_last_status", None) is not None
+            or getattr(self, "_hems_auth_last_failure_utc", None)
+            or int(getattr(self, "_hems_auth_failure_count", 0) or 0)
+        )
+        self._hems_auth_backoff_until = None
+        self._hems_auth_backoff_ends_utc = None
+        if reset_failure_count:
+            self._hems_auth_last_endpoint = None
+            self._hems_auth_last_status = None
+            self._hems_auth_last_reason = None
+            self._hems_auth_last_failure_utc = None
+            self._hems_auth_failure_count = 0
+        diagnostics = getattr(self, "diagnostics", None)
+        clear_issue = getattr(diagnostics, "clear_hems_auth_degraded_issue", None)
+        if callable(clear_issue):
+            clear_issue()
+        if persist and had_state:
+            self._persist_hems_auth_circuit_state()
+
+    def _skip_hems_polling_due_to_auth_circuit(self, *, endpoint: str) -> bool:
+        """Return True when a HEMS poll should fail fast due to active backoff."""
+
+        remaining = self._hems_auth_backoff_remaining_s()
+        if remaining is None:
+            return False
+        _LOGGER.debug(
+            "Skipping optional HEMS polling for site %s while auth circuit is active: endpoint=%s remaining_s=%s",
+            redact_site_id(self.site_id),
+            redact_text(endpoint, site_ids=(self.site_id,), max_length=256),
+            remaining,
+        )
+        return True
+
+    def _hems_auth_manual_clear_retry_after_seconds(self) -> int | None:
+        """Return remaining seconds for manual HEMS backoff clear throttling."""
+
+        cooldown_until = getattr(self, "_hems_auth_manual_clear_until", None)
+        if not isinstance(cooldown_until, (int, float)):
+            return None
+        remaining = float(cooldown_until) - time.monotonic()
+        if remaining > 0:
+            return max(1, int(remaining + 0.999))
+        self._hems_auth_manual_clear_until = None
+        return None
+
+    async def async_clear_hems_auth_backoff(self) -> dict[str, object]:
+        """Clear optional HEMS auth backoff without attempting password login."""
+
+        retry_after = self._hems_auth_manual_clear_retry_after_seconds()
+        if retry_after is not None:
+            response: dict[str, object] = {
+                "site_id": str(self.site_id),
+                "success": False,
+                "reason": "manual_clear_cooldown_active",
+                "retry_after_seconds": retry_after,
+            }
+            if isinstance(self._hems_auth_backoff_ends_utc, datetime):
+                response["hems_backoff_until"] = (
+                    self._hems_auth_backoff_ends_utc.isoformat()
+                )
+            return response
+        self._hems_auth_manual_clear_until = (
+            time.monotonic() + HEMS_AUTH_MANUAL_CLEAR_COOLDOWN_S
+        )
+        was_active = self._hems_auth_circuit_active()
+        backoff_until = (
+            self._hems_auth_backoff_ends_utc.isoformat()
+            if isinstance(self._hems_auth_backoff_ends_utc, datetime)
+            else None
+        )
+        self._clear_hems_auth_circuit(persist=True, reset_failure_count=False)
+        await self.async_request_refresh()
+        response = {
+            "site_id": str(self.site_id),
+            "success": True,
+            "reason": "cleared" if was_active else "not_active",
+        }
+        if backoff_until:
+            response["hems_backoff_until"] = backoff_until
+        return response
+
     def _blocked_auth_failure_message(self) -> str:
         """Return the user-facing auth-block failure message."""
 
@@ -4494,6 +5017,25 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 "reauthentication can clear the block earlier if Enphase accepts it."
             )
         return "Enphase authentication is temporarily blocked; retry later."
+
+    def _auth_block_retry_after_s(self) -> int | None:
+        """Return remaining auth-block seconds for coordinator retry scheduling."""
+
+        blocked_until = getattr(self, "_auth_blocked_until_utc", None)
+        if not isinstance(blocked_until, datetime):
+            return None
+        remaining = (blocked_until - dt_util.utcnow()).total_seconds()
+        if remaining <= 0:
+            return None
+        return max(1, int(remaining + 0.999))
+
+    def _auth_block_update_failed(self) -> UpdateFailed:
+        """Return a recoverable update failure while Enphase auth is blocked."""
+
+        return UpdateFailed(
+            self._blocked_auth_failure_message(),
+            retry_after=self._auth_block_retry_after_s(),
+        )
 
     async def _attempt_auto_refresh(self) -> bool:
         """Attempt to refresh authentication using stored credentials.
@@ -4545,7 +5087,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
         if self._auth_block_active():
             self.diagnostics.create_auth_block_issue()
-            raise ConfigEntryAuthFailed(self._blocked_auth_failure_message())
+            raise self._auth_block_update_failed()
 
         if self._unauth_errors >= 2:
             self.diagnostics.create_reauth_issue()
@@ -4614,6 +5156,12 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             CONF_AUTH_REFRESH_SUSPENDED_UNTIL: None,
             CONF_AUTH_BLOCKED_UNTIL: None,
             CONF_AUTH_BLOCK_REASON: None,
+            CONF_HEMS_AUTH_BACKOFF_UNTIL: None,
+            CONF_HEMS_AUTH_FAILURE_COUNT: None,
+            CONF_HEMS_AUTH_LAST_FAILURE_UTC: None,
+            CONF_HEMS_AUTH_LAST_ENDPOINT: None,
+            CONF_HEMS_AUTH_LAST_STATUS: None,
+            CONF_HEMS_AUTH_LAST_REASON: None,
         }
         for key, value in updates.items():
             if value is None:
@@ -4624,10 +5172,14 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._auth_refresh_suspended_until_utc = None
         self._auth_blocked_until_utc = None
         self._auth_block_reason = None
+        self._clear_hems_auth_circuit(persist=False, reset_failure_count=True)
         diagnostics = getattr(self, "diagnostics", None)
         if diagnostics is not None:
             diagnostics.clear_reauth_issue()
-        self.hass.config_entries.async_update_entry(self.config_entry, data=merged)
+        self._async_update_config_entry_data_internal(
+            merged,
+            reason="tokens",
+        )
 
     def kick_fast(self, seconds: int = 60) -> None:
         self.evse_runtime.kick_fast(seconds)

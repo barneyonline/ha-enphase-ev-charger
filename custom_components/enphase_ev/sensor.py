@@ -90,6 +90,7 @@ CLOUD_ERROR_CODE_STATES: tuple[str, ...] = (
     "dns_error",
     "network_error",
 )
+SITE_SERVICE_STATUS_STATES: tuple[str, ...] = ("ok", "degraded", "unknown")
 BATTERY_ENTITY_UNIQUE_SUFFIXES: tuple[str, ...] = (
     "_charge_level",
     "_status",
@@ -761,6 +762,10 @@ async def async_setup_entry(
         _async_remove_site_sensor_entity("grid_import_power")
         _async_remove_site_sensor_entity("grid_export_power")
         _add_site_entity("site_last_error_code", EnphaseSiteLastErrorCodeSensor(coord))
+        _add_site_entity(
+            "site_service_status",
+            EnphaseSiteServiceStatusSensor(coord),
+        )
         _add_site_entity("site_backoff_ends", EnphaseSiteBackoffEndsSensor(coord))
 
         if gateway_available:
@@ -6704,6 +6709,99 @@ class EnphaseSiteLastErrorCodeSensor(_SiteBaseEntity):
     @property
     def extra_state_attributes(self):
         return {}
+
+    @property
+    def device_info(self):
+        info = _type_device_info(self._coord, "cloud")
+        if info is not None:
+            return info
+        return _cloud_device_info(self._coord.site_id)
+
+
+class EnphaseSiteServiceStatusSensor(_SiteBaseEntity):
+    _attr_translation_key = "site_service_status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = list(SITE_SERVICE_STATUS_STATES)
+    _unrecorded_attributes = _SiteBaseEntity._unrecorded_attributes | frozenset(
+        {
+            "degraded_services",
+            "degraded_endpoint_families",
+        }
+    )
+
+    def __init__(self, coord: EnphaseCoordinator):
+        super().__init__(
+            coord,
+            "service_status",
+            "Service Status",
+            type_key=None,
+        )
+        self._metrics_snapshot: dict[str, object] | None = self._read_metrics()
+
+    def _read_metrics(self) -> dict[str, object] | None:
+        collect_site_metrics = getattr(self._coord, "collect_site_metrics", None)
+        if not callable(collect_site_metrics):
+            return None
+        try:
+            metrics = collect_site_metrics()
+        except Exception:  # noqa: BLE001
+            return None
+        return metrics if isinstance(metrics, dict) else None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._metrics_snapshot = self._read_metrics()
+        super()._handle_coordinator_update()
+
+    @staticmethod
+    def _string_list(value: object) -> list[str]:
+        if not isinstance(value, (list, tuple, set)):
+            return []
+        return sorted(
+            text for item in value if (text := _gateway_clean_text(item)) is not None
+        )
+
+    @property
+    def native_value(self):
+        metrics = self._metrics_snapshot
+        if metrics is None:
+            return "unknown"
+        degraded_services = self._string_list(metrics.get("degraded_services"))
+        degraded_endpoint_families = self._string_list(
+            metrics.get("degraded_endpoint_families")
+        )
+        if degraded_services or degraded_endpoint_families:
+            return "degraded"
+        return "ok"
+
+    @property
+    def icon(self):
+        if self.native_value == "degraded":
+            return "mdi:cloud-alert"
+        if self.native_value == "unknown":
+            return "mdi:cloud-question"
+        return "mdi:cloud-check"
+
+    @property
+    def extra_state_attributes(self):
+        metrics = self._metrics_snapshot
+        metrics_available = metrics is not None
+        if metrics is None:
+            metrics = {}
+        degraded_services = self._string_list(metrics.get("degraded_services"))
+        degraded_endpoint_families = self._string_list(
+            metrics.get("degraded_endpoint_families")
+        )
+        attrs: dict[str, object] = {
+            "degraded_services": degraded_services,
+            "degraded_endpoint_families": degraded_endpoint_families,
+            "degraded_service_count": len(degraded_services),
+            "degraded_endpoint_family_count": len(degraded_endpoint_families),
+            "metrics_available": metrics_available,
+        }
+        attrs.update(self._cloud_diag_attrs())
+        return attrs
 
     @property
     def device_info(self):

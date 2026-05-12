@@ -478,7 +478,8 @@
           "schedule_sync_enabled": "Enable EV Charger Scheduler",
           "battery_schedules_enabled": "Enable Battery Scheduler",
           "reauth": "Start reauthentication",
-          "forget_password": "Forget stored password"
+          "forget_password": "Forget stored password",
+          "degraded_service_repair_issues": "Enable degraded service repairs"
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
@@ -496,7 +497,8 @@
           "schedule_sync_enabled": "Manage IQ EV Charger Schedules",
           "battery_schedules_enabled": "Manage IQ Battery Schedules",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
-          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted.",
+          "degraded_service_repair_issues": "Raise Repairs issues when optional Enphase services are degraded."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "schedule_sync_enabled": "Enable EV Charger Scheduler",
           "battery_schedules_enabled": "Enable Battery Scheduler",
           "reauth": "Start reauthentication",
-          "forget_password": "Forget stored password"
+          "forget_password": "Forget stored password",
+          "degraded_service_repair_issues": "Enable degraded service repairs"
         },
         "data_description": {
           "type_envoy": "Includes gateway connectivity and meter diagnostics.",
@@ -536,7 +539,8 @@
           "schedule_sync_enabled": "Manage IQ EV Charger Schedules",
           "battery_schedules_enabled": "Manage IQ Battery Schedules",
           "reauth": "Launch the login flow to refresh credentials without removing the integration.",
-          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted."
+          "forget_password": "Removes the stored password. Automatic refresh will no longer be attempted.",
+          "degraded_service_repair_issues": "Raise Repairs issues when optional Enphase services are degraded."
         }
       },
       "migrate_envoy_source": {
@@ -861,6 +865,31 @@
           "invalid_payload": "Invalid cloud response",
           "dns_error": "DNS error",
           "network_error": "Network error"
+        }
+      },
+      "site_service_status": {
+        "name": "Service Status",
+        "state": {
+          "ok": "OK",
+          "degraded": "Degraded",
+          "unknown": "Unknown"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Degraded Services"
+          },
+          "degraded_endpoint_families": {
+            "name": "Degraded Endpoint Families"
+          },
+          "degraded_service_count": {
+            "name": "Degraded Service Count"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Degraded Endpoint Family Count"
+          },
+          "metrics_available": {
+            "name": "Metrics Available"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Enphase Energy battery profile update pending",
       "description": "A battery profile change for site {site_id} has been pending for more than {pending_timeout_minutes} minutes. The cloud may still be processing the request."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS temporarily paused",
+      "description": "Heat Pump/HEMS polling for site {site_id} is paused until {backoff_until} after {failure_count} auth-like failures ({reason}). Wallbox, battery, gateway, and other data can continue. Disable the Heat Pump device group to stop HEMS polling, or use Clear HEMS Auth Backoff after Enphase recovers."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Device",
           "description": "Optional Enphase device to choose the site for billing or structural tariff updates."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Clear HEMS Auth Backoff",
+      "description": "Clear the temporary HEMS/Heat Pump auth backoff without performing password login.",
+      "fields": {
+        "device_id": {
+          "name": "Site devices",
+          "description": "Select an Enphase site device whose HEMS auth backoff should be cleared."
+        },
+        "site_id": {
+          "name": "Site ID",
+          "description": "Optional site identifier; detected automatically when a site device is selected."
         }
       }
     }

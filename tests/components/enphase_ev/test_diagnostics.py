@@ -1182,7 +1182,7 @@ async def test_config_entry_diagnostics_handles_system_dashboard_capture_error(
 
 
 @pytest.mark.asyncio
-async def test_config_entry_diagnostics_fetches_system_dashboard_lazily(
+async def test_config_entry_diagnostics_uses_cached_system_dashboard_only(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
@@ -1191,12 +1191,12 @@ async def test_config_entry_diagnostics_fetches_system_dashboard_lazily(
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
-    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    coord.async_ensure_system_dashboard_diagnostics.assert_not_awaited()
     assert "system_dashboard" in diag["coordinator"]
 
 
 @pytest.mark.asyncio
-async def test_config_entry_diagnostics_ignores_dashboard_prefetch_failure(
+async def test_config_entry_diagnostics_does_not_prefetch_dashboard(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
@@ -1207,7 +1207,7 @@ async def test_config_entry_diagnostics_ignores_dashboard_prefetch_failure(
 
     diag = await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
 
-    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    coord.async_ensure_system_dashboard_diagnostics.assert_not_awaited()
     assert "system_dashboard" in diag["coordinator"]
 
 
@@ -1320,14 +1320,92 @@ async def test_device_diagnostics_returns_snapshot(hass, config_entry) -> None:
 
 
 @pytest.mark.asyncio
-async def test_device_diagnostics_handles_missing_serial(hass, config_entry) -> None:
-    """If a device has no serial identifier, report the error."""
+async def test_device_diagnostics_returns_site_snapshot(hass, config_entry) -> None:
+    """Site devices should return redacted site diagnostics instead of a serial error."""
     coord = DummyCoordinator()
     config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
     dev_reg = dr.async_get(hass)
     device = dev_reg.async_get_or_create(
         config_entry_id=config_entry.entry_id,
         identifiers={(DOMAIN, f"site:{RANDOM_SITE_ID}")},
+        manufacturer="Enphase",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+    assert result["device_kind"] == "site"
+    assert result["site_id"] == "**REDACTED**"
+    assert result["metrics_available"] is True
+    assert result["site_metrics"]["site_id"] == "**REDACTED**"
+    assert result["site_metrics"]["last_failure_endpoint"] == (
+        "/service/evse_controller/[site]/ev_chargers/status"
+    )
+    assert result["serials_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_returns_site_snapshot_without_runtime_data(
+    hass, config_entry, monkeypatch
+) -> None:
+    """Site device diagnostics should still be useful before runtime data is attached."""
+    monkeypatch.setattr(
+        diagnostics,
+        "get_runtime_data",
+        lambda _entry: (_ for _ in ()).throw(RuntimeError("missing runtime")),
+    )
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{RANDOM_SITE_ID}")},
+        manufacturer="Enphase",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+    assert result["device_kind"] == "site"
+    assert result["site_id"] == "**REDACTED**"
+    assert result["metrics_available"] is False
+    assert result["site_metrics"] is None
+    assert result["serials_count"] is None
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_returns_site_snapshot_when_metrics_fail(
+    hass, config_entry, monkeypatch
+) -> None:
+    """Site device diagnostics should not fail when metrics capture fails."""
+
+    class RaisingCoordinator(DummyCoordinator):
+        def collect_site_metrics(self):
+            raise RuntimeError("boom")
+
+    coord = RaisingCoordinator()
+    monkeypatch.setattr(
+        diagnostics,
+        "get_runtime_data",
+        lambda _entry: SimpleNamespace(coordinator=coord),
+    )
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={(DOMAIN, f"site:{RANDOM_SITE_ID}")},
+        manufacturer="Enphase",
+    )
+
+    result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
+    assert result["device_kind"] == "site"
+    assert result["metrics_available"] is False
+    assert result["site_metrics"] is None
+    assert result["serials_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_device_diagnostics_handles_missing_serial(hass, config_entry) -> None:
+    """If a non-site device has no serial identifier, report the error."""
+    coord = DummyCoordinator()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=config_entry.entry_id,
+        identifiers={("other_domain", "site-without-enphase-identifier")},
         manufacturer="Enphase",
     )
 
@@ -1564,6 +1642,35 @@ async def test_config_entry_diagnostics_ac_battery_capture_errors_are_swallowed(
 
 
 @pytest.mark.asyncio
+async def test_config_entry_diagnostics_skips_optional_type_prefetch(
+    hass, config_entry
+) -> None:
+    coord = DummyCoordinator()
+    coord._selected_type_keys = {"envoy", "encharge"}  # noqa: SLF001
+    coord.inventory_view = SimpleNamespace(
+        has_type_for_entities=lambda type_key: False,
+        iter_type_keys=lambda: ["envoy", "encharge"],
+        type_bucket=lambda type_key: None,
+    )
+    coord._ac_battery_devices_payload = None  # noqa: SLF001
+    coord._ac_battery_telemetry_payloads = None  # noqa: SLF001
+    coord._ac_battery_events_payloads = None  # noqa: SLF001
+    coord._heatpump_runtime_state = None  # noqa: SLF001
+    coord._heatpump_daily_consumption = None  # noqa: SLF001
+    coord._show_livestream_payload = None  # noqa: SLF001
+    coord._heatpump_events_payloads = []  # noqa: SLF001
+    coord._heatpump_power_snapshot = None  # noqa: SLF001
+    coord.async_ensure_ac_battery_diagnostics = AsyncMock()
+    coord.async_ensure_heatpump_runtime_diagnostics = AsyncMock()
+    config_entry.runtime_data = EnphaseRuntimeData(coordinator=coord)
+
+    await diagnostics.async_get_config_entry_diagnostics(hass, config_entry)
+
+    coord.async_ensure_ac_battery_diagnostics.assert_not_awaited()
+    coord.async_ensure_heatpump_runtime_diagnostics.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_device_diagnostics_heatpump_runtime_errors_are_swallowed(
     hass, config_entry
 ) -> None:
@@ -1595,6 +1702,7 @@ async def test_device_diagnostics_heatpump_runtime_errors_are_swallowed(
 
     result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
 
+    coord.async_ensure_heatpump_runtime_diagnostics.assert_not_awaited()
     assert "heatpump_runtime" not in result
 
 
@@ -1627,6 +1735,7 @@ async def test_device_diagnostics_ac_battery_capture_errors_are_swallowed(
 
     result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
 
+    coord.async_ensure_ac_battery_diagnostics.assert_not_awaited()
     assert result["type_key"] == "ac_battery"
     assert result["ac_battery_status_summary"]["aggregate_status"] == "warning"
 
@@ -1827,8 +1936,8 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
     )
 
     result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
-    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
-    coord.async_ensure_battery_status_diagnostics.assert_awaited_once()
+    coord.async_ensure_system_dashboard_diagnostics.assert_not_awaited()
+    coord.async_ensure_battery_status_diagnostics.assert_not_awaited()
     assert result["system_dashboard_details"]["connectivity"]["rssi"] == -61
     assert result["system_dashboard_details"]["software"]["app_version"] == "1.2.3"
     assert result["system_dashboard_details"]["operation_mode"]["mode"] == "backup"
@@ -1849,7 +1958,7 @@ async def test_device_diagnostics_encharge_includes_system_dashboard_details(
 
 
 @pytest.mark.asyncio
-async def test_device_diagnostics_encharge_ignores_battery_status_prefetch_failure(
+async def test_device_diagnostics_encharge_does_not_prefetch_battery_status(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
@@ -1880,13 +1989,14 @@ async def test_device_diagnostics_encharge_ignores_battery_status_prefetch_failu
 
     result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
 
-    coord.async_ensure_battery_status_diagnostics.assert_awaited_once()
+    coord.async_ensure_system_dashboard_diagnostics.assert_not_awaited()
+    coord.async_ensure_battery_status_diagnostics.assert_not_awaited()
     assert "battery_status_payload" not in result
     assert "battery_status_summary" not in result
 
 
 @pytest.mark.asyncio
-async def test_device_diagnostics_ignores_dashboard_prefetch_failure(
+async def test_device_diagnostics_does_not_prefetch_dashboard(
     hass, config_entry
 ) -> None:
     coord = DummyCoordinator()
@@ -1914,7 +2024,7 @@ async def test_device_diagnostics_ignores_dashboard_prefetch_failure(
 
     result = await diagnostics.async_get_device_diagnostics(hass, config_entry, device)
 
-    coord.async_ensure_system_dashboard_diagnostics.assert_awaited_once()
+    coord.async_ensure_system_dashboard_diagnostics.assert_not_awaited()
     assert result["type_key"] == "envoy"
 
 

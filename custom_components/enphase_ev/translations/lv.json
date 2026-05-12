@@ -478,7 +478,8 @@
           "forget_password": "Aizmirst saglabāto paroli",
           "type_heatpump": "Siltumsūknis",
           "type_ac_battery": "AC baterija",
-          "battery_schedules_enabled": "Iespējot akumulatora plānotāju"
+          "battery_schedules_enabled": "Iespējot akumulatora plānotāju",
+          "degraded_service_repair_issues": "Iespējot degradētu pakalpojumu labojumus"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -496,7 +497,8 @@
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
           "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
           "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas.",
-          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus"
+          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus",
+          "degraded_service_repair_issues": "Izveido Repairs problēmas, kad izvēles Enphase pakalpojumi darbojas pasliktināti."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Aizmirst saglabāto paroli",
           "type_heatpump": "Siltumsūknis",
           "type_ac_battery": "AC baterija",
-          "battery_schedules_enabled": "Iespējot akumulatora plānotāju"
+          "battery_schedules_enabled": "Iespējot akumulatora plānotāju",
+          "degraded_service_repair_issues": "Iespējot degradētu pakalpojumu labojumus"
         },
         "data_description": {
           "type_envoy": "Ietver vārtejas savienojamības un skaitītāju diagnostiku.",
@@ -536,7 +539,8 @@
           "forget_password": "Noņem saglabāto paroli. Automātiska atjaunošana vairs netiks mēģināta.",
           "type_heatpump": "Ietver siltumsūkņa statusa, diagnostikas un patēriņa sensorus.",
           "type_ac_battery": "Ietver AC baterijas sensorus un miega režīma vadīklas, kad tās ir pieejamas.",
-          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus"
+          "battery_schedules_enabled": "Pārvaldīt IQ akumulatora grafikus",
+          "degraded_service_repair_issues": "Izveido Repairs problēmas, kad izvēles Enphase pakalpojumi darbojas pasliktināti."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Nederīga mākoņa atbilde",
           "dns_error": "DNS kļūda",
           "network_error": "Tīkla kļūda"
+        }
+      },
+      "site_service_status": {
+        "name": "Pakalpojuma statuss",
+        "state": {
+          "ok": "Labi",
+          "unknown": "Nezināms",
+          "degraded": "Pasliktināts"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Pasliktināti pakalpojumi"
+          },
+          "degraded_endpoint_families": {
+            "name": "Pasliktinātas galapunktu grupas"
+          },
+          "degraded_service_count": {
+            "name": "Pasliktināto pakalpojumu skaits"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Pasliktināto galapunktu grupu skaits"
+          },
+          "metrics_available": {
+            "name": "Metrikas pieejamas"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Gaida Enphase Energy akumulatora profila atjauninājumu",
       "description": "Akumulatora profila maiņa vietnei {site_id} gaida ilgāk nekā {pending_timeout_minutes} minūtes. Mākoņserviss, iespējams, joprojām apstrādā pieprasījumu."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS īslaicīgi apturēts",
+      "description": "Heat Pump/HEMS aptauja vietnei {site_id} ir apturēta līdz {backoff_until} pēc {failure_count} autentifikācijai līdzīgām kļūdām ({reason}). Wallbox, akumulators, vārteja un citi dati var turpināties. Atspējojiet Heat Pump ierīču grupu vai izmantojiet Clear HEMS Auth Backoff pēc Enphase atjaunošanās."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Notīrīt HEMS auth backoff",
+      "description": "Notīra īslaicīgo HEMS/Heat Pump autentifikācijas pauzi bez paroles pieteikšanās.",
+      "fields": {
+        "device_id": {
+          "name": "Vietnes ierīces",
+          "description": "Izvēlieties Enphase vietnes ierīci, kurai notīrīt HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "Vietnes ID",
+          "description": "Neobligāts vietnes identifikators; tiek noteikts automātiski, izvēloties ierīci."
         }
       }
     }

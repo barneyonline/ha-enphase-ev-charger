@@ -100,6 +100,12 @@ jobs:
             git -C "${PUBLISH_DIR}" -c user.name="github-actions" -c user.email="github-actions@github.com" \
               commit -m "Update service status"
             git -C "${PUBLISH_DIR}" push origin "${BRANCH}"
+            for path in status_badge.json status.svg; do
+              purge_url="https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@${BRANCH}/${path}"
+              if ! curl -fsS "${purge_url}" >/dev/null; then
+                echo "Warning: failed to purge jsDelivr cache for ${path}"
+              fi
+            done
           fi
 
       - name: Publish wiki page

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import json
+import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -16,6 +20,38 @@ from custom_components.enphase_ev.const import (
 from custom_components.enphase_ev.session_history import SessionCacheView
 
 from tests.components.enphase_ev.random_ids import RANDOM_SERIAL
+
+
+def test_config_flow_import_keeps_heavy_modules_lazy() -> None:
+    script = """
+import importlib
+import json
+import sys
+
+importlib.import_module("custom_components.enphase_ev.config_flow")
+print(json.dumps({
+    name: name in sys.modules
+    for name in (
+        "custom_components.enphase_ev.config_flow",
+        "custom_components.enphase_ev.services",
+        "homeassistant.components.recorder",
+        "homeassistant.components.recorder.statistics",
+    )
+}))
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    modules = json.loads(result.stdout)
+
+    assert modules["custom_components.enphase_ev.config_flow"] is True
+    assert modules["custom_components.enphase_ev.services"] is False
+    assert modules["homeassistant.components.recorder"] is False
+    assert modules["homeassistant.components.recorder.statistics"] is False
 
 
 def _prepare_refresh_target(
@@ -84,6 +120,116 @@ def _prepare_refresh_target(
     )  # noqa: SLF001
     coord._sync_site_energy_issue = MagicMock()  # noqa: SLF001
     coord._sync_battery_profile_pending_issue = MagicMock()  # noqa: SLF001
+
+
+def test_topology_refresh_reuses_summary_caches_for_unchanged_sources(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1"])
+    runtime = coord.inventory_runtime
+    runtime._build_gateway_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={"gateway": "summary"}
+    )
+    runtime._build_microinverter_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={"micro": "summary"}
+    )
+    runtime._build_heatpump_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={"heatpump": "summary"}
+    )
+    runtime._build_heatpump_type_summaries = MagicMock(  # type: ignore[method-assign]
+        return_value={"HPWH": {"member_count": 1}}
+    )
+    runtime.gateway_iq_energy_router_records = MagicMock(  # type: ignore[method-assign]
+        return_value=[]
+    )
+    runtime._gateway_iq_energy_router_summary_records = MagicMock(  # type: ignore[method-assign]
+        return_value=[]
+    )
+
+    assert runtime._refresh_cached_topology() is True  # noqa: SLF001
+    assert runtime._refresh_cached_topology() is False  # noqa: SLF001
+
+    runtime._build_gateway_inventory_summary.assert_called_once()
+    runtime._build_microinverter_inventory_summary.assert_called_once()
+    runtime._build_heatpump_inventory_summary.assert_called_once()
+    runtime._build_heatpump_type_summaries.assert_called_once()
+    runtime._gateway_iq_energy_router_summary_records.assert_called_once()
+
+    coord._hems_devices_payload = {"changed": True}  # noqa: SLF001
+
+    assert runtime._refresh_cached_topology() is False  # noqa: SLF001
+
+    runtime._build_gateway_inventory_summary.assert_called_once()
+    runtime._build_microinverter_inventory_summary.assert_called_once()
+    assert runtime._build_heatpump_inventory_summary.call_count == 2
+    assert runtime._build_heatpump_type_summaries.call_count == 2
+    assert runtime._gateway_iq_energy_router_summary_records.call_count == 2
+
+
+def test_session_history_apply_updates_skips_unchanged_publish(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=["EV1", "EV2"])
+    sessions = [{"session_id": "cached", "energy_kwh": 1.25}]
+    coord.data = {
+        "EV1": {
+            "display_name": "Garage EV",
+            "energy_today_sessions": sessions,
+            "energy_today_sessions_kwh": 1.25,
+        },
+        "EV2": {"display_name": "Driveway EV"},
+    }
+    publish = MagicMock()
+    coord.session_history._publish_callback = publish  # noqa: SLF001
+
+    coord.session_history._apply_updates({"EV1": list(sessions)})  # noqa: SLF001
+
+    publish.assert_not_called()
+
+    fresh_sessions = [{"session_id": "fresh", "energy_kwh": 2.0}]
+
+    coord.session_history._apply_updates({"EV1": fresh_sessions})  # noqa: SLF001
+
+    publish.assert_called_once()
+    merged = publish.call_args.args[0]
+    assert merged["EV1"]["energy_today_sessions"] == fresh_sessions
+    assert merged["EV1"]["energy_today_sessions_kwh"] == 2.0
+    assert merged["EV2"] is coord.data["EV2"]
+
+
+def test_coordinator_summary_wrappers_cache_empty_summaries(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.inventory_runtime._gateway_inventory_summary_marker = MagicMock(  # type: ignore[method-assign]
+        return_value=("gateway",)
+    )
+    coord.inventory_runtime._microinverter_inventory_summary_marker = MagicMock(  # type: ignore[method-assign]
+        return_value=("micro",)
+    )
+    coord.inventory_runtime._heatpump_inventory_summary_marker = MagicMock(  # type: ignore[method-assign]
+        return_value=("heatpump",)
+    )
+    coord.inventory_runtime._build_gateway_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={}
+    )
+    coord.inventory_runtime._build_microinverter_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={}
+    )
+    coord.inventory_runtime._build_heatpump_inventory_summary = MagicMock(  # type: ignore[method-assign]
+        return_value={}
+    )
+
+    assert coord.gateway_inventory_summary() == {}
+    assert coord.gateway_inventory_summary() == {}
+    assert coord.microinverter_inventory_summary() == {}
+    assert coord.microinverter_inventory_summary() == {}
+    assert coord.heatpump_inventory_summary() == {}
+    assert coord.heatpump_inventory_summary() == {}
+
+    coord.inventory_runtime._build_gateway_inventory_summary.assert_called_once()
+    coord.inventory_runtime._build_microinverter_inventory_summary.assert_called_once()
+    coord.inventory_runtime._build_heatpump_inventory_summary.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -255,3 +401,111 @@ async def test_session_history_refresh_classifies_inline_vs_background_paths(
             coord._schedule_session_enrichment.call_args.kwargs["max_cache_age"]  # type: ignore[attr-defined]  # noqa: SLF001
             == 120.0
         )
+
+
+@pytest.mark.asyncio
+async def test_immediate_session_history_buckets_refresh_concurrently(
+    coordinator_factory,
+    monkeypatch,
+) -> None:
+    coord = coordinator_factory(serials=[RANDOM_SERIAL, "EV2"])
+    await coord.hass.config.async_set_time_zone("UTC")
+    now_local = datetime(2026, 4, 27, 12, 0, 0, tzinfo=timezone.utc)
+    previous_day_epoch = int(
+        datetime(2026, 4, 26, 12, 0, tzinfo=timezone.utc).timestamp()
+    )
+    monkeypatch.setattr(dt_util, "now", lambda: now_local)
+    coord._has_successful_refresh = True  # noqa: SLF001
+    coord._scheduler_available = True  # noqa: SLF001
+    coord.client.status = AsyncMock(
+        return_value={
+            "evChargerData": [
+                {
+                    "sn": RANDOM_SERIAL,
+                    "name": "Garage EV",
+                    "charging": True,
+                    "pluggedIn": True,
+                    "charge_mode": "IMMEDIATE",
+                    "connectors": [{}],
+                    "session_d": {},
+                    "sch_d": {},
+                },
+                {
+                    "sn": "EV2",
+                    "name": "Driveway EV",
+                    "charging": False,
+                    "pluggedIn": False,
+                    "charge_mode": "IMMEDIATE",
+                    "connectors": [{}],
+                    "session_d": {"plg_out_at": previous_day_epoch},
+                    "sch_d": {},
+                },
+            ],
+            "ts": int(now_local.timestamp()),
+        }
+    )
+    coord.summary = SimpleNamespace(
+        prepare_refresh=lambda **_kwargs: False,
+        async_fetch=AsyncMock(
+            return_value=[
+                {"serialNumber": RANDOM_SERIAL, "displayName": "Garage EV"},
+                {"serialNumber": "EV2", "displayName": "Driveway EV"},
+            ]
+        ),
+        invalidate=lambda: None,
+    )
+    coord.evse_timeseries = SimpleNamespace(
+        refresh_due=MagicMock(return_value=False),
+        async_refresh=AsyncMock(),
+        merge_charger_payloads=MagicMock(),
+        diagnostics=lambda: {},
+    )
+    coord._async_run_post_status_refresh_pipeline = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_run_post_session_refresh_pipeline = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value=None
+    )
+    coord._async_resolve_green_battery_settings = AsyncMock(  # type: ignore[assignment]  # noqa: SLF001
+        return_value={}
+    )
+    coord._async_resolve_auth_settings = AsyncMock(return_value={})  # noqa: SLF001
+    coord._async_resolve_charger_config = AsyncMock(return_value={})  # noqa: SLF001
+    coord._schedule_session_enrichment = MagicMock()  # type: ignore[assignment]  # noqa: SLF001
+    coord._prune_runtime_caches = MagicMock()  # type: ignore[assignment]  # noqa: SLF001
+
+    def _cache_view(sn: str, _day_key: str, _now_mono: float) -> SessionCacheView:
+        return SessionCacheView(
+            sessions=[{"session_id": f"cached-{sn}", "energy_kwh": 1.0}],
+            cache_age=1300.0 if sn == "EV2" else 950.0,
+            needs_refresh=True,
+            blocked=False,
+            state="valid",
+            has_valid_cache=True,
+            last_error=None,
+        )
+
+    coord.session_history.get_cache_view = MagicMock(side_effect=_cache_view)  # type: ignore[assignment]
+    started: list[str] = []
+    both_started = asyncio.Event()
+
+    async def _enrich(serials, _day_local, **_kwargs):  # noqa: ANN001
+        serial = serials[0]
+        started.append(serial)
+        if len(started) == 2:
+            both_started.set()
+        await asyncio.wait_for(both_started.wait(), timeout=1)
+        return {serial: [{"session_id": f"fresh-{serial}", "energy_kwh": 2.0}]}
+
+    coord._async_enrich_sessions = AsyncMock(side_effect=_enrich)  # type: ignore[assignment]  # noqa: SLF001
+
+    data = await coord._async_update_data()  # noqa: SLF001
+
+    assert set(started) == {RANDOM_SERIAL, "EV2"}
+    assert data[RANDOM_SERIAL]["energy_today_sessions"] == [
+        {"session_id": f"fresh-{RANDOM_SERIAL}", "energy_kwh": 2.0}
+    ]
+    assert data["EV2"]["energy_today_sessions"] == [
+        {"session_id": "fresh-EV2", "energy_kwh": 2.0}
+    ]
+    coord._schedule_session_enrichment.assert_not_called()  # type: ignore[attr-defined]  # noqa: SLF001

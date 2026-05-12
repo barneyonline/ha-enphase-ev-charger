@@ -69,6 +69,7 @@ async def test_system_health_info_reports_state(
         "tariff_failures": 1,
         "tariff_backoff_active": True,
         "tariff_backoff_ends_utc": "2026-04-26T01:00:00+00:00",
+        "degraded_endpoint_families": ["tariff"],
         "degraded_services": ["tariff"],
     }
 
@@ -104,6 +105,7 @@ async def test_system_health_info_reports_state(
     assert info["tariff_failures"] == 1
     assert info["tariff_backoff_active"] is True
     assert info["tariff_backoff_ends_utc"] == "2026-04-26T01:00:00+00:00"
+    assert info["degraded_endpoint_families"] == ["tariff"]
     assert info["degraded_services"] == ["tariff"]
 
 

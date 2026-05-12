@@ -41,7 +41,9 @@ async def test_charge_mode_select(hass, monkeypatch):
     coord.data = {RANDOM_SERIAL: {"charge_mode": "SCHEDULED_CHARGING"}}
 
     class StubClient:
-        async def set_charge_mode(self, sn: str, mode: str):
+        async def set_charge_mode(
+            self, sn: str, mode: str, *, previous_mode: str | None = None
+        ):
             return {"status": "accepted", "mode": mode}
 
     coord.client = StubClient()
@@ -59,6 +61,45 @@ async def test_charge_mode_select(hass, monkeypatch):
     await sel.async_select_option("Manual")
     # cache should update immediately
     assert coord._charge_mode_cache[RANDOM_SERIAL][0] == "MANUAL_CHARGING"
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_ignores_current_option(hass, monkeypatch) -> None:
+    from custom_components.enphase_ev.const import (
+        CONF_COOKIE,
+        CONF_EAUTH,
+        CONF_SCAN_INTERVAL,
+        CONF_SERIALS,
+        CONF_SITE_ID,
+    )
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    cfg = {
+        CONF_SITE_ID: RANDOM_SITE_ID,
+        CONF_SERIALS: [RANDOM_SERIAL],
+        CONF_EAUTH: "EAUTH",
+        CONF_COOKIE: "COOKIE",
+        CONF_SCAN_INTERVAL: 30,
+    }
+    from custom_components.enphase_ev import coordinator as coord_mod
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    coord = EnphaseCoordinator(hass, cfg)
+    coord.data = {RANDOM_SERIAL: {"charge_mode": "MANUAL_CHARGING"}}
+    coord.async_request_refresh = AsyncMock()
+
+    class StubClient:
+        set_charge_mode = AsyncMock()
+
+    coord.client = StubClient()
+
+    await ChargeModeSelect(coord, RANDOM_SERIAL).async_select_option("Manual")
+
+    coord.client.set_charge_mode.assert_not_awaited()
+    coord.async_request_refresh.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -114,23 +155,21 @@ async def test_charge_mode_select_scheduled_requires_enabled_schedule(
     coord = EnphaseCoordinator(hass, cfg)
     coord.data = {RANDOM_SERIAL: {"charge_mode": "MANUAL_CHARGING"}}
 
-    error_message = json.dumps(
-        {
-            "error": {
-                "displayMessage": "No Schedules enabled for Scheduled Charging",
-                "errorMessageCode": "iqevc_sch_10031",
-            }
-        }
-    )
-
     class StubClient:
-        async def set_charge_mode(self, sn: str, mode: str):
-            raise aiohttp.ClientResponseError(
+        async def set_charge_mode(
+            self, sn: str, mode: str, *, previous_mode: str | None = None
+        ):
+            err = aiohttp.ClientResponseError(
                 request_info=SimpleNamespace(real_url="https://example.test"),
                 history=(),
                 status=400,
-                message=error_message,
+                message="HTTP error from Enphase endpoint (status=400)",
             )
+            err.enphase_scheduler_error = {
+                "code": "iqevc_sch_10031",
+                "display": "No Schedules enabled for Scheduled Charging",
+            }
+            raise err
 
     coord.client = StubClient()
 
@@ -186,7 +225,9 @@ async def test_charge_mode_select_reraises_unknown_scheduler_error(
     )
 
     class StubClient:
-        async def set_charge_mode(self, sn: str, mode: str):
+        async def set_charge_mode(
+            self, sn: str, mode: str, *, previous_mode: str | None = None
+        ):
             raise aiohttp.ClientResponseError(
                 request_info=SimpleNamespace(real_url="https://example.test"),
                 history=(),
@@ -249,6 +290,20 @@ def test_select_helper_fallbacks() -> None:
     coord.inventory_view.has_type_for_entities = lambda _type_key: False
     coord.battery_user_is_owner = True
     assert select_mod._retain_system_profile(coord) is False
+
+
+def test_explicit_charge_mode_handles_bad_data() -> None:
+    from custom_components.enphase_ev.select import _explicit_charge_mode
+
+    class BadDataCoordinator:
+        @property
+        def data(self):
+            raise RuntimeError
+
+        def _cached_charge_mode_preference(self, _sn):
+            return None
+
+    assert _explicit_charge_mode(BadDataCoordinator(), RANDOM_SERIAL) is None
 
 
 def test_ac_battery_target_state_of_charge_select_state_and_options(
@@ -416,7 +471,7 @@ async def test_charge_mode_select_sets_smart_mode_for_single_evse_profile_contex
     await sel.async_select_option("Smart")
 
     coord.client.set_charge_mode.assert_awaited_once_with(
-        RANDOM_SERIAL, "SMART_CHARGING"
+        RANDOM_SERIAL, "SMART_CHARGING", previous_mode=None
     )
 
 
@@ -439,7 +494,7 @@ async def test_charge_mode_select_maps_legacy_green_alias_to_smart_mode(
     await sel.async_select_option("Green")
 
     coord.client.set_charge_mode.assert_awaited_once_with(
-        RANDOM_SERIAL, "SMART_CHARGING"
+        RANDOM_SERIAL, "SMART_CHARGING", previous_mode=None
     )
 
 
@@ -465,7 +520,7 @@ async def test_charge_mode_select_maps_localized_green_alias_to_smart_mode(
     await sel.async_select_option("Grün")
 
     coord.client.set_charge_mode.assert_awaited_once_with(
-        RANDOM_SERIAL, "SMART_CHARGING"
+        RANDOM_SERIAL, "SMART_CHARGING", previous_mode=None
     )
 
 
@@ -489,7 +544,7 @@ async def test_charge_mode_select_keeps_green_for_other_evse_on_ai_site(
     await sel.async_select_option("Green")
 
     coord.client.set_charge_mode.assert_awaited_once_with(
-        other_serial, "GREEN_CHARGING"
+        other_serial, "GREEN_CHARGING", previous_mode=None
     )
 
 
@@ -543,6 +598,24 @@ def test_charge_mode_select_helper_branches(coordinator_factory):
 
     coord._resolve_charge_mode_pref = lambda _sn: "EXPERIMENTAL"  # noqa: SLF001
     assert sel.current_option is None
+
+
+@pytest.mark.asyncio
+async def test_charge_mode_select_passes_previous_mode_to_client(
+    coordinator_factory,
+):
+    from custom_components.enphase_ev.select import ChargeModeSelect
+
+    coord = coordinator_factory()
+    coord.data[RANDOM_SERIAL]["charge_mode_pref"] = "GREEN_CHARGING"
+    coord.client.set_charge_mode = AsyncMock(return_value={"status": "accepted"})
+    coord.async_request_refresh = AsyncMock()
+
+    await ChargeModeSelect(coord, RANDOM_SERIAL).async_select_option("Manual")
+
+    coord.client.set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL, "MANUAL_CHARGING", previous_mode="GREEN_CHARGING"
+    )
 
 
 @pytest.mark.asyncio

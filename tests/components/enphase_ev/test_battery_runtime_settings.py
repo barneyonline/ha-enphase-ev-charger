@@ -3472,15 +3472,27 @@ def test_schedule_family_settings_payload_cfg_guard_paths(
     )
     runtime = coord.battery_runtime
 
+    disabled_without_window = runtime._schedule_family_settings_payload(  # noqa: SLF001
+        "cfg",
+        start_minutes=None,
+        end_minutes=120,
+        enabled=False,
+    )
+    assert disabled_without_window["chargeFromGrid"] is True
+    assert disabled_without_window["chargeFromGridScheduleEnabled"] is False
+    assert "chargeBeginTime" not in disabled_without_window
+    assert "chargeEndTime" not in disabled_without_window
+    assert disabled_without_window["cfgControl"]["forceScheduleOpted"] is False
     assert (
         runtime._schedule_family_settings_payload(  # noqa: SLF001
             "cfg",
             start_minutes=None,
             end_minutes=120,
-            enabled=False,
+            enabled=True,
         )
         is None
     )
+
     with pytest.raises(ServiceValidationError, match="must be different"):
         runtime._schedule_family_settings_payload(  # noqa: SLF001
             "cfg",
@@ -3513,6 +3525,41 @@ def test_schedule_family_settings_payload_cfg_guard_paths(
             enabled=False,
         )
         is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_last_cfg_schedule_disables_schedule_without_window(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_charge_from_grid = False  # noqa: SLF001
+    coord._battery_charge_begin_time = None  # noqa: SLF001
+    coord._battery_charge_end_time = None  # noqa: SLF001
+    coord.battery_state._battery_charge_begin_time = None  # noqa: SLF001
+    coord.battery_state._battery_charge_end_time = None  # noqa: SLF001
+    coord._battery_accepted_itc_disclaimer = "accepted-at"  # noqa: SLF001
+    runtime = coord.battery_runtime
+    coord.client.delete_battery_schedule = AsyncMock(return_value={})
+    coord.client.set_battery_settings = AsyncMock(return_value={})
+
+    await runtime.async_delete_battery_schedule(
+        "sched-cfg",
+        schedule_type="cfg",
+        enabled=False,
+    )
+
+    coord.client.delete_battery_schedule.assert_awaited_once_with(
+        "sched-cfg",
+        schedule_type="cfg",
+    )
+    coord.client.set_battery_settings.assert_awaited_once_with(
+        {
+            "chargeFromGrid": False,
+            "chargeFromGridScheduleEnabled": False,
+            "acceptedItcDisclaimer": "accepted-at",
+        },
+        schedule_type="cfg",
     )
 
 

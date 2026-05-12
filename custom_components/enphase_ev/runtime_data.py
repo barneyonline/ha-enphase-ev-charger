@@ -27,7 +27,7 @@ class EnphaseRuntimeData:
     evse_firmware_details: EvseFirmwareDetailsManager | None = None
     battery_schedule_editor: BatteryScheduleEditorManager | None = None
     evse_schedule_editor: EvseScheduleEditorManager | None = None
-    skip_reload_once: bool = False
+    reload_suppression_count: int = 0
 
 
 type EnphaseConfigEntry = ConfigEntry[EnphaseRuntimeData]

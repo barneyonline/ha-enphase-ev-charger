@@ -43,6 +43,7 @@ class ManualAuthRefreshResult:
     success: bool
     reason: str | None = None
     retry_after_seconds: int | None = None
+    performed_refresh: bool = False
 
 
 class AuthRefreshRuntime:
@@ -119,9 +120,6 @@ class AuthRefreshRuntime:
                 success=False, reason="stored_credentials_unavailable"
             )
 
-        if self.auth_refresh_recent_success_active():
-            return ManualAuthRefreshResult(success=True)
-
         retry_after = self.manual_refresh_retry_after_seconds()
         if retry_after is not None:
             return ManualAuthRefreshResult(
@@ -130,14 +128,14 @@ class AuthRefreshRuntime:
                 retry_after_seconds=retry_after,
             )
 
+        if self._recent_manual_success_reusable():
+            return self._reuse_recent_manual_success()
+
         task = getattr(coord, "_auth_refresh_task", None)
         if task is not None and not task.done():
             return await self._await_manual_refresh_task(task)
 
         async with coord._refresh_lock:
-            if self.auth_refresh_recent_success_active():
-                return ManualAuthRefreshResult(success=True)
-
             retry_after = self.manual_refresh_retry_after_seconds()
             if retry_after is not None:
                 return ManualAuthRefreshResult(
@@ -145,6 +143,9 @@ class AuthRefreshRuntime:
                     reason="manual_retry_cooldown_active",
                     retry_after_seconds=retry_after,
                 )
+
+            if self._recent_manual_success_reusable():
+                return self._reuse_recent_manual_success()
 
             task = getattr(coord, "_auth_refresh_task", None)
             if task is None or task.done():
@@ -156,6 +157,28 @@ class AuthRefreshRuntime:
                 task.add_done_callback(self.clear_auth_refresh_task)
 
         return await self._await_manual_refresh_task(task)
+
+    def _recent_manual_success_reusable(self) -> bool:
+        """Return True when recent success can satisfy a manual retry safely."""
+
+        coord = self.coordinator
+        if not self.auth_refresh_recent_success_active():
+            return False
+        return not (
+            coord._auth_block_active()
+            or coord._auth_refresh_suspended_active()
+            or coord._hems_auth_circuit_active()
+        )
+
+    def _reuse_recent_manual_success(self) -> ManualAuthRefreshResult:
+        """Apply manual-success cleanup when a recent refresh is still valid."""
+
+        coord = self.coordinator
+        coord._auth_refresh_manual_retry_until = None
+        coord._clear_auth_block(persist=True)
+        coord._clear_auth_refresh_suspension(persist=True)
+        coord._clear_hems_auth_circuit(persist=True, reset_failure_count=True)
+        return ManualAuthRefreshResult(success=True, performed_refresh=False)
 
     def manual_refresh_retry_active(self) -> bool:
         """Return True while a failed manual retry is cooling down."""
@@ -184,7 +207,7 @@ class AuthRefreshRuntime:
         result = await asyncio.shield(task)
         if result:
             coord._auth_refresh_manual_retry_until = None
-            return ManualAuthRefreshResult(success=True)
+            return ManualAuthRefreshResult(success=True, performed_refresh=True)
         else:
             coord._auth_refresh_manual_retry_until = (
                 time.monotonic() + AUTH_REFRESH_MANUAL_RETRY_COOLDOWN_S
@@ -275,21 +298,25 @@ class AuthRefreshRuntime:
 
         coord = self.coordinator
         session = async_get_clientsession(coord.hass)
+        coord._auth_refresh_last_attempt_utc = dt_util.utcnow()
         try:
             tokens, _ = await async_authenticate(
                 session, coord._email, coord._stored_password
             )
         except EnlightenAuthInvalidCredentials:
+            coord._auth_refresh_last_failure_reason = "invalid_credentials"
             self.note_auth_refresh_rejected(
                 "Stored Enlighten credentials were rejected; reauthenticate via the integration options"
             )
             return False
         except EnlightenAuthMFARequired:
+            coord._auth_refresh_last_failure_reason = "mfa_required"
             self.note_auth_refresh_rejected(
                 "Enphase account requires multi-factor authentication; complete MFA in the browser and reauthenticate"
             )
             return False
         except EnlightenAuthTooManySessions:
+            coord._auth_refresh_last_failure_reason = "too_many_active_sessions"
             self.note_login_wall_block(reason="too_many_active_sessions")
             _LOGGER.warning(
                 "Enphase rejected stored-credential reauthentication because too many account sessions are active; automatic retries are paused for %s seconds",
@@ -297,11 +324,13 @@ class AuthRefreshRuntime:
             )
             return False
         except EnlightenAuthUnavailable:
+            coord._auth_refresh_last_failure_reason = "auth_service_unavailable"
             _LOGGER.debug(
                 "Auth service unavailable while refreshing tokens; will retry later"
             )
             return False
         except Exception as err:  # noqa: BLE001
+            coord._auth_refresh_last_failure_reason = err.__class__.__name__
             _LOGGER.debug(
                 "Unexpected error refreshing Enlighten auth: %s",
                 redact_text(err),
@@ -314,7 +343,10 @@ class AuthRefreshRuntime:
         coord._clear_auth_refresh_rejection_state()
         coord._auth_refresh_suspended_until_utc = None
         coord._auth_refresh_last_success_mono = time.monotonic()
+        coord._auth_refresh_last_success_utc = dt_util.utcnow()
+        coord._auth_refresh_last_failure_reason = None
         coord._clear_auth_block(persist=False)
+        coord._clear_hems_auth_circuit(persist=False, reset_failure_count=True)
         coord._tokens = tokens
         coord.client.update_credentials(
             eauth=tokens.access_token,

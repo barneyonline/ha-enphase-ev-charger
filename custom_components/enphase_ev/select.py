@@ -85,6 +85,22 @@ def _smart_charging_context(coord: EnphaseCoordinator, sn: str | None = None) ->
     return False
 
 
+def _explicit_charge_mode(coord: EnphaseCoordinator, sn: str) -> str | None:
+    try:
+        data = (coord.data or {}).get(sn, {})
+    except Exception:
+        data = {}
+    for key in ("charge_mode_pref", "charge_mode"):
+        normalizer = getattr(coord, "_normalize_charge_mode_preference", None)
+        raw = data.get(key) if isinstance(data, dict) else None
+        value = normalizer(raw) if callable(normalizer) else raw
+        if value is not None:
+            return str(value)
+    cached = getattr(coord, "_cached_charge_mode_preference", None)
+    value = cached(sn) if callable(cached) else None
+    return str(value) if value is not None else None
+
+
 def _solar_mode(coord: EnphaseCoordinator, sn: str | None = None) -> tuple[str, str]:
     if _smart_charging_context(coord, sn):
         # The Enphase UI can present the same solar option as Smart Charging
@@ -176,6 +192,17 @@ def _parse_scheduler_error(message: str) -> tuple[str | None, str | None]:
     code = error.get("errorMessageCode")
     display = error.get("displayMessage") or error.get("additionalInfo")
     return (str(code) if code else None, str(display) if display else None)
+
+
+def _scheduler_error_context(
+    err: aiohttp.ClientResponseError,
+) -> tuple[str | None, str | None]:
+    context = getattr(err, "enphase_scheduler_error", None)
+    if isinstance(context, dict):
+        code = context.get("code")
+        display = context.get("display")
+        return (str(code) if code else None, str(display) if display else None)
+    return _parse_scheduler_error(err.message)
 
 
 async def async_setup_entry(
@@ -689,8 +716,13 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 translation_domain=DOMAIN,
                 translation_key="charge_mode_invalid_option",
             )
+        previous_mode = _explicit_charge_mode(self._coord, self._sn)
+        if previous_mode == mode:
+            return
         try:
-            await self._coord.client.set_charge_mode(self._sn, mode)
+            await self._coord.client.set_charge_mode(
+                self._sn, mode, previous_mode=previous_mode
+            )
             self._coord.mark_scheduler_available()
         except SchedulerUnavailable as err:
             self._coord.note_scheduler_unavailable(err)
@@ -703,7 +735,7 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                 ),
             )
         except aiohttp.ClientResponseError as err:
-            code, display = _parse_scheduler_error(err.message)
+            code, display = _scheduler_error_context(err)
             if err.status == 400 and (
                 code == "iqevc_sch_10031"
                 or (display and "No Schedules enabled" in display)

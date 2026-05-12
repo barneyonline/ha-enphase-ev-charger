@@ -478,7 +478,8 @@
           "forget_password": "Gespeichertes Passwort löschen",
           "type_heatpump": "Wärmepumpe",
           "type_ac_battery": "AC-Batterie",
-          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner"
+          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner",
+          "degraded_service_repair_issues": "Reparaturen für beeinträchtigte Dienste aktivieren"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -496,7 +497,8 @@
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
           "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
           "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar.",
-          "battery_schedules_enabled": "IQ-Batteriepläne verwalten"
+          "battery_schedules_enabled": "IQ-Batteriepläne verwalten",
+          "degraded_service_repair_issues": "Erstellt Repairs-Probleme, wenn optionale Enphase-Dienste beeinträchtigt sind."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Gespeichertes Passwort löschen",
           "type_heatpump": "Wärmepumpe",
           "type_ac_battery": "AC-Batterie",
-          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner"
+          "battery_schedules_enabled": "Aktivieren Sie den Batterieplaner",
+          "degraded_service_repair_issues": "Reparaturen für beeinträchtigte Dienste aktivieren"
         },
         "data_description": {
           "type_envoy": "Enthält Gateway-Konnektivitäts- und Zählerdiagnosen.",
@@ -536,7 +539,8 @@
           "forget_password": "Entfernt das gespeicherte Passwort. Automatische Aktualisierung wird nicht mehr versucht.",
           "type_heatpump": "Enthält Sensoren für Wärmepumpenstatus, Diagnose und Verbrauch.",
           "type_ac_battery": "Enthält AC-Batterie-Sensoren und Steuerelemente für den Schlafmodus, wenn verfügbar.",
-          "battery_schedules_enabled": "IQ-Batteriepläne verwalten"
+          "battery_schedules_enabled": "IQ-Batteriepläne verwalten",
+          "degraded_service_repair_issues": "Erstellt Repairs-Probleme, wenn optionale Enphase-Dienste beeinträchtigt sind."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Ungültige Cloud-Antwort",
           "dns_error": "DNS-Fehler",
           "network_error": "Netzwerkfehler"
+        }
+      },
+      "site_service_status": {
+        "name": "Dienststatus",
+        "state": {
+          "ok": "In Ordnung",
+          "unknown": "Unbekannt",
+          "degraded": "Beeinträchtigt"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Beeinträchtigte Dienste"
+          },
+          "degraded_endpoint_families": {
+            "name": "Beeinträchtigte Endpunktfamilien"
+          },
+          "degraded_service_count": {
+            "name": "Anzahl beeinträchtigter Dienste"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Anzahl beeinträchtigter Endpunktfamilien"
+          },
+          "metrics_available": {
+            "name": "Metriken verfügbar"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Aktualisierung des Enphase Energy-Batterieprofils ausstehend",
       "description": "Eine Änderung des Batterieprofils für Standort {site_id} ist seit mehr als {pending_timeout_minutes} Minuten ausstehend. Die Cloud verarbeitet die Anfrage möglicherweise noch."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS vorübergehend pausiert",
+      "description": "Heat Pump/HEMS-Abfragen für Standort {site_id} sind bis {backoff_until} nach {failure_count} auth-ähnlichen Fehlern pausiert ({reason}). Wallbox, Batterie, Gateway und andere Daten können weiterlaufen. Deaktiviere die Heat Pump-Gerätegruppe oder nutze Clear HEMS Auth Backoff, nachdem Enphase wieder erreichbar ist."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Gerät",
           "description": "Optionales Enphase-Gerät zur Auswahl des Standorts für Abrechnungs- oder Tarifstruktur-Updates."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "HEMS-Auth-Backoff löschen",
+      "description": "Löscht die temporäre HEMS/Heat Pump-Auth-Pause ohne Passwort-Login.",
+      "fields": {
+        "device_id": {
+          "name": "Standortgeräte",
+          "description": "Wähle ein Enphase-Standortgerät, dessen HEMS-Auth-Backoff gelöscht werden soll."
+        },
+        "site_id": {
+          "name": "Standort-ID",
+          "description": "Optionale Standortkennung; wird automatisch erkannt, wenn ein Standortgerät gewählt ist."
         }
       }
     }

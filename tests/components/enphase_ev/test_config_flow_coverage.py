@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -70,6 +69,7 @@ from custom_components.enphase_ev.const import (
     MIN_SLOW_POLL_INTERVAL,
     OPT_API_TIMEOUT,
     OPT_BATTERY_SCHEDULES_ENABLED,
+    OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_NOMINAL_VOLTAGE,
@@ -619,7 +619,7 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
             AsyncMock(return_value=chargers),
-        ),
+        ) as mock_chargers,
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
             AsyncMock(
@@ -648,7 +648,8 @@ async def test_user_step_single_site_shortcuts_to_devices(hass) -> None:
     flow = hass.config_entries.flow._progress[result["flow_id"]]
     assert flow._selected_site_id == "12345"
     assert flow._chargers_loaded is True
-    assert flow._chargers == [("EV123", "Driveway")]
+    assert flow._chargers == [("EV123", None)]
+    mock_chargers.assert_not_awaited()
     hass.config_entries.flow.async_abort(result["flow_id"])
 
 
@@ -1060,7 +1061,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
         )
         result = await hass.config_entries.flow.async_configure(
             devices["flow_id"],
-            {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: 55},
+            {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: 60},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -1068,7 +1069,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
     assert result["data"][CONF_SITE_ONLY] is True
     assert result["data"][CONF_INCLUDE_INVERTERS] is False
     assert result["data"][CONF_SELECTED_TYPE_KEYS] == []
-    assert result["data"][CONF_SCAN_INTERVAL] == 55
+    assert result["data"][CONF_SCAN_INTERVAL] == 60
     assert result["title"] == "Site: 12345"
 
 
@@ -1543,33 +1544,27 @@ async def test_ensure_available_type_keys_skips_when_already_loaded(hass) -> Non
 
 
 @pytest.mark.asyncio
-async def test_ensure_device_selection_data_fetches_discovery_concurrently(
+async def test_ensure_device_selection_data_reuses_inventory_charger_serials(
     hass,
 ) -> None:
     flow = _make_flow(hass)
     flow._auth_tokens = TOKENS
     flow._selected_site_id = "12345"
-    chargers_started = asyncio.Event()
-    inventory_started = asyncio.Event()
-
-    async def _fetch_chargers(*_args, **_kwargs):
-        chargers_started.set()
-        await inventory_started.wait()
-        return []
-
-    async def _fetch_inventory(*_args, **_kwargs):
-        inventory_started.set()
-        await chargers_started.wait()
-        return {"result": []}
 
     with (
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_chargers",
-            _fetch_chargers,
-        ),
+            AsyncMock(side_effect=AssertionError("should not fetch chargers")),
+        ) as mock_chargers,
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
-            _fetch_inventory,
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {"type": "iqevse", "devices": [{"serial_number": "EV1"}]}
+                    ]
+                }
+            ),
         ),
         patch(
             "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
@@ -1584,10 +1579,49 @@ async def test_ensure_device_selection_data_fetches_discovery_concurrently(
             AsyncMock(return_value=None),
         ),
     ):
-        await asyncio.wait_for(flow._ensure_device_selection_data(), timeout=1)
+        await flow._ensure_device_selection_data()
 
     assert flow._chargers_loaded is True
+    assert flow._chargers == [("EV1", None)]
     assert flow._type_keys_loaded is True
+    mock_chargers.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ensure_device_selection_data_falls_back_to_charger_api(
+    hass,
+) -> None:
+    flow = _make_flow(hass)
+    flow._auth_tokens = TOKENS
+    flow._selected_site_id = "12345"
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[ChargerInfo(serial="EV2", name="Garage")]),
+        ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(return_value={"result": []}),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_hems_devices",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_battery_site_settings",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_inverters_inventory",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        await flow._ensure_device_selection_data()
+
+    assert flow._chargers_loaded is True
+    assert flow._chargers == [("EV2", "Garage")]
+    mock_chargers.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -2298,6 +2332,14 @@ def test_options_flow_schema_bounds_runtime_options(hass) -> None:
     handler.hass = hass
 
     schema = handler._build_schema()
+    api_timeout_selector = next(
+        value
+        for marker, value in schema.schema.items()
+        if isinstance(marker, VolOptional) and marker.schema == OPT_API_TIMEOUT
+    )
+
+    assert api_timeout_selector.selector_type == "number"
+    assert api_timeout_selector.config["mode"] == "box"
 
     assert (
         schema(
@@ -2536,6 +2578,73 @@ async def test_options_flow_discover_iqevse_serials_returns_empty_when_inventory
 
 
 @pytest.mark.asyncio
+async def test_options_flow_discover_iqevse_serials_prefers_inventory(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+        },
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(side_effect=AssertionError("should not fetch chargers")),
+        ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(
+                return_value={
+                    "result": [
+                        {"type": "iqevse", "devices": [{"serial_number": "EV-INV"}]}
+                    ]
+                }
+            ),
+        ),
+    ):
+        assert await handler._discover_iqevse_serials() == ["EV-INV"]
+
+    mock_chargers.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_discover_iqevse_serials_falls_back_when_inventory_fails(
+    hass,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_EAUTH: "token-abc",
+            CONF_COOKIE: "jar=1",
+        },
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    with (
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_chargers",
+            AsyncMock(return_value=[ChargerInfo(serial="EV-FALLBACK", name="Garage")]),
+        ) as mock_chargers,
+        patch(
+            "custom_components.enphase_ev.config_flow.async_fetch_devices_inventory",
+            AsyncMock(side_effect=RuntimeError("inventory failed")),
+        ) as mock_inventory,
+    ):
+        assert await handler._discover_iqevse_serials() == ["EV-FALLBACK"]
+
+    mock_inventory.assert_awaited_once()
+    mock_chargers.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_options_flow_forget_password(hass) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -2642,6 +2751,7 @@ async def test_options_flow_show_form_with_defaults(hass) -> None:
     validated = result["data_schema"]({})
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is True
     assert validated[OPT_BATTERY_SCHEDULES_ENABLED] is True
+    assert validated[OPT_DEGRADED_SERVICE_REPAIR_ISSUES] is True
 
 
 @pytest.mark.asyncio
@@ -2661,6 +2771,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
             OPT_SESSION_HISTORY_INTERVAL: 30,
             OPT_SCHEDULE_SYNC_ENABLED: False,
             OPT_BATTERY_SCHEDULES_ENABLED: True,
+            OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False,
             CONF_SITE_ONLY: True,
         },
     )
@@ -2685,6 +2796,7 @@ async def test_options_flow_show_form_uses_existing_options(hass) -> None:
     assert validated[OPT_SESSION_HISTORY_INTERVAL] == 30
     assert validated[OPT_SCHEDULE_SYNC_ENABLED] is False
     assert validated[OPT_BATTERY_SCHEDULES_ENABLED] is True
+    assert validated[OPT_DEGRADED_SERVICE_REPAIR_ISSUES] is False
     assert CONF_SCAN_INTERVAL not in validated
     assert CONF_SITE_ONLY not in validated
 
@@ -2787,19 +2899,59 @@ async def test_options_flow_normalizes_poll_intervals_on_save(hass) -> None:
             OPT_FAST_POLL_INTERVAL: 45,
             OPT_SLOW_POLL_INTERVAL: MIN_SLOW_POLL_INTERVAL,
             OPT_FAST_WHILE_STREAMING: True,
-            OPT_API_TIMEOUT: 15,
+            OPT_API_TIMEOUT: 15.0,
             OPT_NOMINAL_VOLTAGE: 230,
             OPT_SESSION_HISTORY_INTERVAL: 10,
             OPT_SCHEDULE_SYNC_ENABLED: False,
             OPT_BATTERY_SCHEDULES_ENABLED: False,
+            OPT_DEGRADED_SERVICE_REPAIR_ISSUES: False,
             "reauth": False,
             "forget_password": False,
         }
     )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][OPT_API_TIMEOUT] == 15
     assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
-    assert result["data"][OPT_SLOW_POLL_INTERVAL] == 45
+    assert result["data"][OPT_SLOW_POLL_INTERVAL] == 60
+    assert result["data"][OPT_DEGRADED_SERVICE_REPAIR_ISSUES] is False
+
+
+@pytest.mark.asyncio
+async def test_options_flow_rejects_non_integral_api_timeout_float(hass) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_SITE_ID: "12345",
+            CONF_SELECTED_TYPE_KEYS: ["envoy", "microinverter"],
+        },
+        options={},
+    )
+    entry.add_to_hass(hass)
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+
+    result = await handler.async_step_settings(
+        {
+            CONF_TYPE_ENVOY: True,
+            CONF_TYPE_ENCHARGE: False,
+            CONF_TYPE_AC_BATTERY: False,
+            CONF_TYPE_IQEVSE: False,
+            CONF_TYPE_HEATPUMP: False,
+            CONF_TYPE_MICROINVERTER: True,
+            OPT_FAST_POLL_INTERVAL: 45,
+            OPT_SLOW_POLL_INTERVAL: MIN_SLOW_POLL_INTERVAL,
+            OPT_FAST_WHILE_STREAMING: True,
+            OPT_API_TIMEOUT: 15.5,
+            OPT_NOMINAL_VOLTAGE: 230,
+            OPT_SESSION_HISTORY_INTERVAL: 10,
+            OPT_SCHEDULE_SYNC_ENABLED: False,
+            OPT_BATTERY_SCHEDULES_ENABLED: False,
+        }
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {OPT_API_TIMEOUT: "unknown"}
 
 
 @pytest.mark.asyncio
@@ -2883,7 +3035,7 @@ async def test_options_flow_enabling_iqevse_discovers_serials(hass) -> None:
     assert entry.data[CONF_SERIALS] == ["EV-DISCOVERED"]
     assert entry.data[CONF_SITE_ONLY] is False
     assert entry.data[CONF_SELECTED_TYPE_KEYS] == ["envoy", "encharge", "iqevse"]
-    mock_inventory.assert_not_awaited()
+    mock_inventory.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -3531,7 +3683,7 @@ async def test_options_flow_migrate_mapping_includes_external_compatible_sensors
     selector_config = next(iter(schema.schema.values())).config
     options = selector_config["options"]
     assert [option["value"] for option in options] == [
-        "",
+        skip_option_value(),
         envoy_entity,
         template_entity,
     ]
@@ -3585,6 +3737,76 @@ async def test_options_flow_migrate_mapping_handles_user_input_paths(
     )
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "migrate_envoy_confirm"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_migrate_confirm_preview_excludes_skipped_suggestions(
+    hass, monkeypatch
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, entry_id="enphase-entry", data={CONF_SITE_ID: "12345"}
+    )
+    entry.add_to_hass(hass)
+    envoy = MockConfigEntry(domain="enphase_envoy", entry_id="envoy-a", title="Envoy A")
+    _patch_entry_lookup(monkeypatch, hass, envoy)
+    attrs = {
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+    }
+    prod_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-prod",
+        object_id="envoy_lifetime_production",
+        state="5.0",
+        attrs=attrs,
+    )
+    cons_entity = _add_registry_sensor(
+        hass,
+        entry=envoy,
+        platform="enphase_envoy",
+        unique_id="envoy-a-cons",
+        object_id="envoy_lifetime_consumption",
+        state="4.0",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "solar_production"),
+        object_id="site_solar_production",
+        state="5.1",
+        attrs=attrs,
+    )
+    _add_registry_sensor(
+        hass,
+        entry=entry,
+        platform=DOMAIN,
+        unique_id=migration_target_unique_id("12345", "consumption"),
+        object_id="site_consumption",
+        state="4.2",
+        attrs=attrs,
+    )
+    handler = OptionsFlowHandler(entry)
+    handler.hass = hass
+    handler._selected_migration_source_id = "envoy-a"
+
+    result = await handler.async_step_migrate_envoy_mapping(
+        {
+            "solar_production": prod_entity,
+            "consumption": skip_option_value(),
+        }
+    )
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "migrate_envoy_confirm"
+    assert handler._migration_selection == {"solar_production": prod_entity}
+    mapping_preview = result["description_placeholders"]["mapping_preview"]
+    assert prod_entity in mapping_preview
+    assert cons_entity not in mapping_preview
 
 
 @pytest.mark.asyncio

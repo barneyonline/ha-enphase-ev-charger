@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from contextlib import asynccontextmanager
 import datetime
@@ -160,6 +161,25 @@ def test_safe_response_error_message_handles_header_failures() -> None:
     assert "status=502" in message
     assert "reason=bad gateway" in message
     assert "content_type" not in message
+
+
+def test_scheduler_error_code_ignores_unexpected_payload_shapes() -> None:
+    assert api._scheduler_error_context_from_text(None) == (None, None)  # noqa: SLF001
+    assert api._scheduler_error_context_from_text(
+        json.dumps(["bad"])
+    ) == (  # noqa: SLF001
+        None,
+        None,
+    )
+    assert api._scheduler_error_context_from_text(
+        json.dumps({"error": "bad"})
+    ) == (  # noqa: SLF001
+        None,
+        None,
+    )
+
+    err = _make_cre(400, json.dumps({"error": "bad"}))
+    assert api._scheduler_error_code(err) is None  # noqa: SLF001
 
 
 def _make_optional_payload_error(endpoint: str) -> api.InvalidPayloadError:
@@ -1536,7 +1556,7 @@ async def test_evse_feature_flags_login_wall_raises_unauthorized() -> None:
 
 
 @pytest.mark.asyncio
-async def test_optional_heat_pump_events_login_wall_soft_fails() -> None:
+async def test_optional_heat_pump_events_login_wall_raises_auth_failure() -> None:
     session = _FakeSession(
         [
             _FakeResponse(
@@ -1553,7 +1573,8 @@ async def test_optional_heat_pump_events_login_wall_soft_fails() -> None:
     session._responses[0].headers["Content-Type"] = "application/json; charset=utf-8"
     client = api.EnphaseEVClient(session, "SITE", None, None)
 
-    assert await client.heat_pump_events_json("device-1") is None
+    with pytest.raises(api.EnphaseLoginWallUnauthorized):
+        await client.heat_pump_events_json("device-1")
 
 
 @pytest.mark.asyncio
@@ -1641,6 +1662,51 @@ async def test_json_reauth_retry_rebuilds_callable_headers() -> None:
         "enlighten_manager_token_production=NEW-BEAR; XSRF-TOKEN=new-xsrf"
     )
     assert second_headers["X-CSRF-Token"] == "new-xsrf"
+
+
+@pytest.mark.asyncio
+async def test_json_hems_401_does_not_attempt_password_refresh() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    reauth = AsyncMock(return_value=True)
+    client.set_reauth_callback(reauth)
+
+    with pytest.raises(api.Unauthorized):
+        await client._json(
+            "GET",
+            "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+        )
+
+    reauth.assert_not_awaited()
+    assert len(session.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_json_hems_reauth_disabled_does_not_affect_other_endpoints() -> None:
+    session = _FakeSession(
+        [
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=401, json_body={}),
+            _FakeResponse(status=200, json_body={"other": True}),
+        ]
+    )
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+    reauth = AsyncMock(return_value=True)
+    client.set_reauth_callback(reauth)
+
+    with pytest.raises(api.Unauthorized):
+        await client._json(
+            "GET",
+            "https://hems-integration.enphaseenergy.com/api/v1/hems/SITE/hems-devices",
+        )
+    payload = await client._json("GET", "https://example.test/other")
+
+    assert payload == {"other": True}
+    assert reauth.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -1817,6 +1883,34 @@ async def test_json_raises_response_error_with_structured_body_summary() -> None
     assert "body_sha256=" not in err.value.message
     assert "secret cloud failure" not in err.value.message
     assert "SITE" not in err.value.message
+    assert not hasattr(err.value, "enphase_response_body")
+
+
+@pytest.mark.asyncio
+async def test_json_attaches_scheduler_error_context_without_raw_body() -> None:
+    body = json.dumps(
+        {
+            "error": {
+                "displayMessage": "No Schedules enabled for Scheduled Charging",
+                "errorMessageCode": "iqevc_sch_10031",
+            }
+        }
+    )
+    session = _FakeSession([_FakeResponse(status=400, json_body={}, text_body=body)])
+    client = api.EnphaseEVClient(session, "SITE", None, None)
+
+    with pytest.raises(aiohttp.ClientResponseError) as err:
+        await client._json(
+            "PUT",
+            "https://example.test/service/evse_scheduler/api/v1/iqevc/"
+            "charging-mode/SITE/SN/preference",
+        )
+
+    assert err.value.enphase_scheduler_error == {
+        "code": "iqevc_sch_10031",
+        "display": "No Schedules enabled for Scheduled Charging",
+    }
+    assert not hasattr(err.value, "enphase_response_body")
 
 
 @pytest.mark.asyncio
@@ -3628,10 +3722,210 @@ async def test_charge_mode_returns_none_when_no_enabled() -> None:
 async def test_set_charge_mode_passes_payload() -> None:
     client = _make_client()
     client._json = AsyncMock(return_value={"status": "ok"})
-    out = await client.set_charge_mode("SN", "GREEN_CHARGING")
+    out = await client.set_charge_mode(
+        "SN", "GREEN_CHARGING", previous_mode="MANUAL_CHARGING"
+    )
     assert out == {"status": "ok"}
     args, kwargs = client._json.await_args
     assert kwargs["json"] == {"mode": "GREEN_CHARGING"}
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_skips_write_when_already_active() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        return_value={
+            "data": {
+                "modes": {
+                    "manualCharging": {
+                        "enabled": True,
+                        "chargingMode": "MANUAL_CHARGING",
+                    }
+                }
+            }
+        }
+    )
+
+    out = await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert out == {"status": "already_set", "mode": "MANUAL_CHARGING"}
+    assert client._json.await_args.args[0] == "GET"
+    assert client._json.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_accepts_verified_preference_after_400() -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "modes": {
+                        "greenCharging": {
+                            "enabled": True,
+                            "chargingMode": "GREEN_CHARGING",
+                        }
+                    }
+                }
+            },
+            _make_cre(400, "HTTP error from Enphase endpoint (status=400)"),
+            {
+                "data": {
+                    "modes": {
+                        "manualCharging": {
+                            "enabled": True,
+                            "chargingMode": "MANUAL_CHARGING",
+                        }
+                    }
+                }
+            },
+        ]
+    )
+
+    out = await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert out == {
+        "status": "accepted",
+        "mode": "MANUAL_CHARGING",
+        "verified_after_error": True,
+    }
+    assert client._json.await_args_list[0].args[0] == "GET"
+    assert client._json.await_args_list[1].args[0] == "PUT"
+    assert client._json.await_args_list[2].args[0] == "GET"
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_retries_verified_preference_after_400(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "modes": {
+                        "greenCharging": {
+                            "enabled": True,
+                            "chargingMode": "GREEN_CHARGING",
+                        }
+                    }
+                }
+            },
+            _make_cre(400, "HTTP error from Enphase endpoint (status=400)"),
+            {
+                "data": {
+                    "modes": {
+                        "greenCharging": {
+                            "enabled": True,
+                            "chargingMode": "GREEN_CHARGING",
+                        }
+                    }
+                }
+            },
+            {
+                "data": {
+                    "modes": {
+                        "manualCharging": {
+                            "enabled": True,
+                            "chargingMode": "MANUAL_CHARGING",
+                        }
+                    }
+                }
+            },
+        ]
+    )
+    sleep = AsyncMock()
+    monkeypatch.setattr(api.asyncio, "sleep", sleep)
+
+    out = await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert out["verified_after_error"] is True
+    sleep.assert_awaited_once_with(2)
+    assert client._json.await_count == 4
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_does_not_verify_schedule_required_error() -> None:
+    client = _make_client()
+    err = _make_cre(400, "HTTP error from Enphase endpoint (status=400)")
+    err.enphase_scheduler_error = {
+        "code": "iqevc_sch_10031",
+        "display": "No Schedules enabled for Scheduled Charging",
+    }
+    client._json = AsyncMock(
+        side_effect=[
+            {
+                "data": {
+                    "modes": {
+                        "manualCharging": {
+                            "enabled": True,
+                            "chargingMode": "MANUAL_CHARGING",
+                        }
+                    }
+                }
+            },
+            err,
+        ]
+    )
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.set_charge_mode("SN", "SCHEDULED_CHARGING")
+
+    assert client._json.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_preserves_scheduler_unavailable_error() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(503, "Scheduler MS unavailable"))
+
+    with pytest.raises(api.SchedulerUnavailable):
+        await client.set_charge_mode(
+            "SN", "MANUAL_CHARGING", previous_mode="GREEN_CHARGING"
+        )
+
+    assert client._json.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_reraises_when_400_readback_never_matches(
+    monkeypatch,
+) -> None:
+    client = _make_client()
+    err = _make_cre(400, "HTTP error from Enphase endpoint (status=400)")
+    green_payload = {
+        "data": {
+            "modes": {
+                "greenCharging": {
+                    "enabled": True,
+                    "chargingMode": "GREEN_CHARGING",
+                }
+            }
+        }
+    }
+    client._json = AsyncMock(side_effect=[green_payload, err, *([green_payload] * 6)])
+    sleep = AsyncMock()
+    monkeypatch.setattr(api.asyncio, "sleep", sleep)
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.set_charge_mode("SN", "MANUAL_CHARGING")
+
+    assert client._json.await_count == 8
+    assert sleep.await_count == 5
+
+
+@pytest.mark.asyncio
+async def test_set_charge_mode_reraises_when_400_readback_fails() -> None:
+    client = _make_client()
+    err = _make_cre(400, "HTTP error from Enphase endpoint (status=400)")
+    client._json = AsyncMock(side_effect=[err, aiohttp.ClientError("down")])
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.set_charge_mode(
+            "SN", "MANUAL_CHARGING", previous_mode="GREEN_CHARGING"
+        )
+
+    assert client._json.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -3863,6 +4157,45 @@ async def test_site_tariff_passes_include_site_details() -> None:
 
 
 @pytest.mark.asyncio
+async def test_site_tariff_rates_passes_rate_type_and_date() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"data": {"buyback": []}})
+
+    out = await client.site_tariff_rates(
+        rate_type="buyback",
+        request_date=datetime.date(2026, 5, 1),
+    )
+
+    assert out == {"data": {"buyback": []}}
+    args, kwargs = client._json.await_args
+    assert args[0] == "GET"
+    assert "/service/tariff/tariff-ms/systems/SITE/tariffs" in args[1]
+    assert kwargs["params"] == {
+        "rateType": "BUYBACK",
+        "date": "2026-05-01",
+        "includeUtility": "",
+    }
+    assert (
+        kwargs["headers"]["Accept"] == "application/json, text/javascript, */*; q=0.01"
+    )
+
+    await client.site_tariff_rates(
+        rate_type="purchase",
+        request_date=datetime.datetime(2026, 5, 2, 12, 0),
+    )
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"]["date"] == "2026-05-02"
+
+    await client.site_tariff_rates(rate_type="buyback", request_date="2026-05-03")
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"]["date"] == "2026-05-03"
+
+    await client.site_tariff_rates(rate_type="buyback")
+    _args, kwargs = client._json.await_args
+    assert kwargs["params"]["date"] == datetime.date.today().isoformat()
+
+
+@pytest.mark.asyncio
 async def test_site_tariff_bundle_fetches_billing_and_tariff() -> None:
     client = _make_client()
     client.site_tariff_billing_details = AsyncMock(
@@ -3878,6 +4211,30 @@ async def test_site_tariff_bundle_fetches_billing_and_tariff() -> None:
     )
     client.site_tariff_billing_details.assert_awaited_once_with()
     client.site_tariff.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_site_tariff_bundle_cancels_sibling_and_unwraps_single_failure() -> None:
+    client = _make_client()
+    err = RuntimeError("tariff billing failed")
+    tariff_cancelled = asyncio.Event()
+    client.site_tariff_billing_details = AsyncMock(side_effect=err)
+
+    async def _site_tariff() -> dict:
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            tariff_cancelled.set()
+            raise
+        return {"purchase": {"typeId": "flat"}}
+
+    client.site_tariff = AsyncMock(side_effect=_site_tariff)
+
+    with pytest.raises(RuntimeError) as exc:
+        await client.site_tariff_bundle()
+
+    assert exc.value is err
+    assert tariff_cancelled.is_set()
 
 
 @pytest.mark.asyncio
@@ -4799,6 +5156,86 @@ def test_battery_config_write_payload_helpers_cover_merge_and_base_fallbacks() -
     ) == {
         "dtgControl": {"enabled": True, "startTime": "00:00"},
         "devices": {"iqEvse": {"enabled": True}},
+    }
+    assert (  # noqa: SLF001
+        client._battery_config_attempt_json_body(None, "battery_settings", attempt)
+        is None
+    )
+    lean_attempt = api._BatteryConfigWriteAttempt(  # noqa: SLF001
+        attempt_id="lean",
+        auth_mode=api._BATTERY_CONFIG_VARIANT_PRIMARY,
+    )
+    assert (  # noqa: SLF001
+        client._battery_config_attempt_json_body(None, "battery_settings", lean_attempt)
+        is None
+    )
+
+
+def test_battery_config_write_payload_helpers_preserve_inputs() -> None:
+    client = _make_client()
+    read_payload = {
+        "data": {
+            "dtgControl": {
+                "enabled": False,
+                "startTime": "00:00",
+                "schedule": {"weekday": True},
+            },
+            "devices": {"iqEvse": {"enabled": True}},
+        }
+    }
+    client._remember_battery_config_write_base(  # noqa: SLF001
+        "battery_settings", read_payload
+    )
+    write_payload = {
+        "dtgControl": {"schedule": {"weekday": False}},
+        "devices": {"iqEvse": {"enabled": False}},
+    }
+
+    merged = client._battery_config_merged_write_payload(  # noqa: SLF001
+        "battery_settings", write_payload
+    )
+
+    write_payload["dtgControl"]["schedule"]["weekday"] = "mutated"
+    assert merged == {
+        "dtgControl": {
+            "enabled": False,
+            "startTime": "00:00",
+            "schedule": {"weekday": False},
+        },
+        "devices": {"iqEvse": {"enabled": False}},
+    }
+    assert client._battery_config_write_bases["battery_settings"] == {  # noqa: SLF001
+        "dtgControl": {
+            "enabled": False,
+            "startTime": "00:00",
+            "schedule": {"weekday": True},
+        },
+        "devices": {"iqEvse": {"enabled": True}},
+    }
+
+    attempt = api._BatteryConfigWriteAttempt(  # noqa: SLF001
+        attempt_id="lean",
+        auth_mode=api._BATTERY_CONFIG_VARIANT_PRIMARY,
+        strip_devices=True,
+        disclaimer_bool_true=True,
+    )
+    request_payload = {
+        "acceptedItcDisclaimer": "true",
+        "devices": {"iqEvse": {"enabled": False}},
+        "dtgControl": {"enabled": True},
+    }
+    adjusted = client._battery_config_attempt_json_body(  # noqa: SLF001
+        request_payload, "battery_settings", attempt
+    )
+
+    assert adjusted == {
+        "acceptedItcDisclaimer": True,
+        "dtgControl": {"enabled": True},
+    }
+    assert request_payload == {
+        "acceptedItcDisclaimer": "true",
+        "devices": {"iqEvse": {"enabled": False}},
+        "dtgControl": {"enabled": True},
     }
 
 
@@ -6549,6 +6986,15 @@ async def test_hems_consumption_lifetime_uses_systems_json_headers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hems_consumption_lifetime_unauthorized_reraises() -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=api.Unauthorized())
+
+    with pytest.raises(api.Unauthorized):
+        await client.hems_consumption_lifetime()
+
+
+@pytest.mark.asyncio
 async def test_hems_heatpump_state_normalization_and_headers() -> None:
     client = _make_client()
     cookie_token = _make_token({"user_id": "user-123"})
@@ -6650,7 +7096,7 @@ def test_hems_heatpump_state_normalizers_cover_edge_cases() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("side_effect", [api.Unauthorized(), _make_cre(404)])
+@pytest.mark.parametrize("side_effect", [_make_cre(404)])
 async def test_hems_heatpump_state_optional_failures_return_none(
     monkeypatch, side_effect
 ) -> None:
@@ -6658,6 +7104,20 @@ async def test_hems_heatpump_state_optional_failures_return_none(
     monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
 
     assert await client.hems_heatpump_state("HP-1") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "side_effect", [api.Unauthorized(), _make_cre(401), _make_cre(403)]
+)
+async def test_hems_heatpump_state_auth_failures_reraise(
+    monkeypatch, side_effect
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.hems_heatpump_state("HP-1")
 
 
 @pytest.mark.asyncio
@@ -6937,14 +7397,22 @@ async def test_hems_energy_consumption_optional_and_reraise_variants() -> None:
     client = _make_client()
     client._json = AsyncMock(side_effect=api.Unauthorized())
 
-    assert (
+    with pytest.raises(api.Unauthorized):
         await client.hems_energy_consumption(
             start_at="2026-03-20T00:00:00+01:00",
             end_at="2026-03-21T00:00:00+01:00",
             timezone="Europe/Berlin",
         )
-        is None
-    )
+
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(403))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_energy_consumption(
+            start_at="2026-03-20T00:00:00+01:00",
+            end_at="2026-03-21T00:00:00+01:00",
+            timezone="Europe/Berlin",
+        )
 
     client = _make_client()
     invalid_json = api.InvalidPayloadError(
@@ -7012,6 +7480,37 @@ async def test_pv_system_today_normalization_and_headers() -> None:
     headers = kwargs["headers"]()
     assert headers["Accept"] == "application/json, text/javascript, */*; q=0.01"
     assert "/web/SITE/today/graph/hours" in headers["Referer"]
+    assert kwargs["allow_reauth"] is True
+
+
+@pytest.mark.asyncio
+async def test_pv_system_today_can_disable_reauth() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"stats": []})
+
+    assert await client.pv_system_today(allow_reauth=False) == {"stats": []}
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["allow_reauth"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        api.Unauthorized(),
+        _make_cre(401, "Unauthorized"),
+        _make_cre(403, "Forbidden"),
+    ],
+)
+async def test_pv_system_today_auth_errors_reraise_when_reauth_disabled(
+    error,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.pv_system_today(allow_reauth=False)
 
 
 @pytest.mark.asyncio
@@ -7121,6 +7620,55 @@ async def test_system_dashboard_summary_sets_hems_support_hint() -> None:
     assert kwargs["headers"]["Authorization"] == "Bearer BEAR"
     assert kwargs["headers"]["e-auth-token"] == "EAUTH"
     assert kwargs["headers"]["X-CSRF-Token"] == "xsrf"
+    assert kwargs["allow_reauth"] is True
+
+
+@pytest.mark.asyncio
+async def test_system_dashboard_summary_can_disable_reauth() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"is_hems": True})
+
+    assert await client.system_dashboard_summary(allow_reauth=False) == {
+        "is_hems": True
+    }
+
+    _args, kwargs = client._json.await_args
+    assert kwargs["allow_reauth"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        api.Unauthorized(),
+        api.EnphaseLoginWallUnauthorized(
+            endpoint="/service/system_dashboard/api_internal/cs/sites/SITE/summary",
+            request_label="GET /service/system_dashboard/api_internal/cs/sites/SITE/summary",
+            status=200,
+            content_type="text/html",
+        ),
+        _make_cre(401, "Unauthorized"),
+        _make_cre(403, "Forbidden"),
+    ],
+)
+async def test_system_dashboard_summary_auth_errors_reraise_when_reauth_disabled(
+    error,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.system_dashboard_summary(allow_reauth=False)
+
+
+@pytest.mark.asyncio
+async def test_system_dashboard_summary_optional_404_still_soft_fails_without_reauth() -> (
+    None
+):
+    client = _make_client()
+    client._json = AsyncMock(side_effect=_make_cre(404, "Not found"))
+
+    assert await client.system_dashboard_summary(allow_reauth=False) is None
 
 
 @pytest.mark.asyncio
@@ -7165,15 +7713,27 @@ async def test_hems_devices_returns_none_when_payload_not_dict() -> None:
 
 
 @pytest.mark.asyncio
-async def test_hems_devices_returns_none_on_unauthorized() -> None:
+async def test_hems_devices_raises_on_unauthorized() -> None:
     client = _make_client()
     client._json = AsyncMock(side_effect=api.Unauthorized("nope"))
 
-    assert await client.hems_devices() is None
+    with pytest.raises(api.Unauthorized):
+        await client.hems_devices()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 403, 404])
+@pytest.mark.parametrize("status", [401, 403])
+async def test_hems_devices_auth_errors_reraise(monkeypatch, status) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_devices()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [404])
 async def test_hems_devices_optional_errors_return_none(monkeypatch, status) -> None:
     client = _make_client()
     err = _make_cre(status, "Unavailable")
@@ -7242,7 +7802,42 @@ async def test_show_livestream_returns_capability_payload() -> None:
         "GET",
         f"{api.BASE_URL}/app-api/SITE/show_livestream",
         headers=client._system_dashboard_headers(),
+        allow_reauth=True,
     )
+
+
+@pytest.mark.asyncio
+async def test_show_livestream_can_disable_reauth() -> None:
+    client = _make_client()
+    client._json = AsyncMock(return_value={"live_status": True})
+
+    assert await client.show_livestream(allow_reauth=False) == {"live_status": True}
+
+    client._json.assert_awaited_once_with(
+        "GET",
+        f"{api.BASE_URL}/app-api/SITE/show_livestream",
+        headers=client._system_dashboard_headers(),
+        allow_reauth=False,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "error",
+    [
+        api.Unauthorized(),
+        _make_cre(401, "Unauthorized"),
+        _make_cre(403, "Forbidden"),
+    ],
+)
+async def test_show_livestream_auth_errors_reraise_when_reauth_disabled(
+    error,
+) -> None:
+    client = _make_client()
+    client._json = AsyncMock(side_effect=error)
+
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await client.show_livestream(allow_reauth=False)
 
 
 @pytest.mark.asyncio
@@ -7358,7 +7953,6 @@ async def test_events_json_returns_none_for_blank_device_uid(method_name) -> Non
 @pytest.mark.parametrize(
     "side_effect_factory",
     [
-        lambda endpoint: api.Unauthorized(),
         _make_optional_payload_error,
         lambda _endpoint: _make_cre(404, "Unavailable"),
     ],
@@ -7375,6 +7969,27 @@ async def test_events_json_returns_none_for_optional_failures(
 
     method = getattr(client, method_name)
     assert await method(uid) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("method_name", "uid", "side_effect"),
+    [
+        ("heat_pump_events_json", "HP-1", api.Unauthorized()),
+        ("iq_er_events_json", "HP-SG", api.Unauthorized()),
+        ("heat_pump_events_json", "HP-1", _make_cre(401)),
+        ("iq_er_events_json", "HP-SG", _make_cre(403)),
+    ],
+)
+async def test_events_json_auth_failures_reraise(
+    monkeypatch, method_name, uid, side_effect
+) -> None:
+    client = _make_client()
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=side_effect))
+
+    method = getattr(client, method_name)
+    with pytest.raises((api.Unauthorized, aiohttp.ClientResponseError)):
+        await method(uid)
 
 
 @pytest.mark.asyncio
@@ -7795,7 +8410,20 @@ async def test_lifetime_energy_normalization_accepts_alias_fields() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 403, 404])
+@pytest.mark.parametrize("status", [401, 403])
+async def test_hems_consumption_lifetime_auth_errors_reraise(
+    monkeypatch, status
+) -> None:
+    client = _make_client()
+    err = _make_cre(status, "Unavailable")
+    monkeypatch.setattr(client, "_json", AsyncMock(side_effect=err))
+
+    with pytest.raises(aiohttp.ClientResponseError):
+        await client.hems_consumption_lifetime()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [404])
 async def test_hems_consumption_lifetime_optional_errors_return_none(
     monkeypatch, status
 ) -> None:

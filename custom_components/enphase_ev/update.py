@@ -261,7 +261,6 @@ class FirmwareUpdateEntity(CoordinatorEntity[EnphaseCoordinator], UpdateEntity):
 
         raw_latest = _text(entry.get("version"))
         normalized_latest = normalize_version_token(raw_latest)
-
         self._raw_latest_version = raw_latest
         self._attr_latest_version = _latest_version_for_state(
             latest=normalized_latest,

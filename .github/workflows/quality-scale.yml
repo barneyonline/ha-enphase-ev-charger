@@ -19,7 +19,6 @@ on:
   push:
     branches:
       - main
-      - "release/**"
     paths:
       - "custom_components/enphase_ev/**"
       - "tests/components/enphase_ev/**"

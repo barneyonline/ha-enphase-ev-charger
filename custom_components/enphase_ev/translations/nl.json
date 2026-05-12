@@ -478,7 +478,8 @@
           "forget_password": "Opgeslagen wachtwoord vergeten",
           "type_heatpump": "Warmtepomp",
           "type_ac_battery": "AC-batterij",
-          "battery_schedules_enabled": "Schakel Batterijplanner in"
+          "battery_schedules_enabled": "Schakel Batterijplanner in",
+          "degraded_service_repair_issues": "Reparaties voor verminderde diensten inschakelen"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -496,7 +497,8 @@
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
           "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
           "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar.",
-          "battery_schedules_enabled": "Beheer IQ-batterijschema's"
+          "battery_schedules_enabled": "Beheer IQ-batterijschema's",
+          "degraded_service_repair_issues": "Maakt Repairs-problemen aan wanneer optionele Enphase-diensten verminderd werken."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Opgeslagen wachtwoord vergeten",
           "type_heatpump": "Warmtepomp",
           "type_ac_battery": "AC-batterij",
-          "battery_schedules_enabled": "Schakel Batterijplanner in"
+          "battery_schedules_enabled": "Schakel Batterijplanner in",
+          "degraded_service_repair_issues": "Reparaties voor verminderde diensten inschakelen"
         },
         "data_description": {
           "type_envoy": "Bevat gateway-connectiviteit en meterdiagnostiek.",
@@ -536,7 +539,8 @@
           "forget_password": "Verwijdert het opgeslagen wachtwoord. Automatisch vernieuwen wordt niet langer geprobeerd.",
           "type_heatpump": "Bevat sensoren voor warmtepompstatus, diagnostiek en verbruik.",
           "type_ac_battery": "Bevat AC-batterijsensoren en slaapmodusbediening wanneer beschikbaar.",
-          "battery_schedules_enabled": "Beheer IQ-batterijschema's"
+          "battery_schedules_enabled": "Beheer IQ-batterijschema's",
+          "degraded_service_repair_issues": "Maakt Repairs-problemen aan wanneer optionele Enphase-diensten verminderd werken."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Ongeldig cloudantwoord",
           "dns_error": "DNS-fout",
           "network_error": "Netwerkfout"
+        }
+      },
+      "site_service_status": {
+        "name": "Servicestatus",
+        "state": {
+          "ok": "In orde",
+          "unknown": "Onbekend",
+          "degraded": "Verminderd"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Verminderde services"
+          },
+          "degraded_endpoint_families": {
+            "name": "Verminderde endpointfamilies"
+          },
+          "degraded_service_count": {
+            "name": "Aantal verminderde services"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Aantal verminderde endpointfamilies"
+          },
+          "metrics_available": {
+            "name": "Metrieken beschikbaar"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Update van Enphase Energy-batterijprofiel in behandeling",
       "description": "Een wijziging van het batterijprofiel voor locatie {site_id} staat al langer dan {pending_timeout_minutes} minuten in behandeling. De cloud verwerkt de aanvraag mogelijk nog."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS tijdelijk gepauzeerd",
+      "description": "Heat Pump/HEMS-polling voor site {site_id} is gepauzeerd tot {backoff_until} na {failure_count} auth-achtige fouten ({reason}). Wallbox, batterij, gateway en andere gegevens kunnen doorgaan. Schakel de Heat Pump-apparaatgroep uit of gebruik Clear HEMS Auth Backoff nadat Enphase is hersteld."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "HEMS auth backoff wissen",
+      "description": "Wist de tijdelijke HEMS/Heat Pump-authenticatiepauze zonder wachtwoordlogin.",
+      "fields": {
+        "device_id": {
+          "name": "Site-apparaten",
+          "description": "Selecteer een Enphase site-apparaat waarvoor HEMS auth backoff moet worden gewist."
+        },
+        "site_id": {
+          "name": "Site-ID",
+          "description": "Optionele site-id; automatisch gedetecteerd wanneer een apparaat is geselecteerd."
         }
       }
     }

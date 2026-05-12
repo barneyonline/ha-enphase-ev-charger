@@ -69,6 +69,10 @@ def test_evse_runtime_helper_paths(coordinator_factory) -> None:
     assert runtime.pick_start_amps("EV1", requested=None, fallback=16) == 24
     assert runtime.normalize_charge_mode_preference("scheduled") == "SCHEDULED_CHARGING"
     assert runtime.normalize_charge_mode_preference("smart") == "SMART_CHARGING"
+    assert runtime.normalize_effective_charge_mode(0) == "MANUAL_CHARGING"
+    assert runtime.normalize_effective_charge_mode(1) == "GREEN_CHARGING"
+    assert runtime.normalize_effective_charge_mode("1") == "GREEN_CHARGING"
+    assert runtime.normalize_effective_charge_mode(False) is None
     assert runtime.normalize_effective_charge_mode("idle") == "IDLE"
     assert runtime.resolve_charge_mode_pref("EV1") == "SCHEDULED_CHARGING"
     prefs = runtime.charge_mode_start_preferences("EV1")

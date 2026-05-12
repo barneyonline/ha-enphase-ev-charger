@@ -478,7 +478,8 @@
           "forget_password": "Glem gemt adgangskode",
           "type_heatpump": "Varmepumpe",
           "type_ac_battery": "AC-batteri",
-          "battery_schedules_enabled": "Aktiver Battery Scheduler"
+          "battery_schedules_enabled": "Aktiver Battery Scheduler",
+          "degraded_service_repair_issues": "Aktivér reparationer for forringede tjenester"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -496,7 +497,8 @@
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
           "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
           "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige.",
-          "battery_schedules_enabled": "Administrer IQ batteri tidsplaner"
+          "battery_schedules_enabled": "Administrer IQ batteri tidsplaner",
+          "degraded_service_repair_issues": "Opretter Repairs-problemer, når valgfrie Enphase-tjenester er forringede."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Glem gemt adgangskode",
           "type_heatpump": "Varmepumpe",
           "type_ac_battery": "AC-batteri",
-          "battery_schedules_enabled": "Aktiver Battery Scheduler"
+          "battery_schedules_enabled": "Aktiver Battery Scheduler",
+          "degraded_service_repair_issues": "Aktivér reparationer for forringede tjenester"
         },
         "data_description": {
           "type_envoy": "Inkluderer gateway-forbindelse og målerdiagnostik.",
@@ -536,7 +539,8 @@
           "forget_password": "Fjerner den gemte adgangskode. Automatisk opdatering forsøges ikke længere.",
           "type_heatpump": "Inkluderer sensorer for varmepumpens status, diagnostik og forbrug.",
           "type_ac_battery": "Omfatter AC-batterisensorer og styring af dvaletilstand, når de er tilgængelige.",
-          "battery_schedules_enabled": "Administrer IQ batteri tidsplaner"
+          "battery_schedules_enabled": "Administrer IQ batteri tidsplaner",
+          "degraded_service_repair_issues": "Opretter Repairs-problemer, når valgfrie Enphase-tjenester er forringede."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Ugyldigt cloudsvar",
           "dns_error": "DNS-fejl",
           "network_error": "Netværksfejl"
+        }
+      },
+      "site_service_status": {
+        "name": "Tjenestestatus",
+        "state": {
+          "ok": "I orden",
+          "unknown": "Ukendt",
+          "degraded": "Forringet"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Forringede tjenester"
+          },
+          "degraded_endpoint_families": {
+            "name": "Forringede endpointfamilier"
+          },
+          "degraded_service_count": {
+            "name": "Antal forringede tjenester"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Antal forringede endpointfamilier"
+          },
+          "metrics_available": {
+            "name": "Metrikker tilgængelige"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Opdatering af Enphase Energy-batteriprofil afventer",
       "description": "En ændring af batteriprofilen for anlæg {site_id} har været afventende i mere end {pending_timeout_minutes} minutter. Cloudtjenesten behandler muligvis stadig anmodningen."
+    },
+    "hems_auth_degraded": {
+      "title": "Enphase Energy HEMS er midlertidigt sat på pause",
+      "description": "Heat Pump/HEMS-polling for site {site_id} er sat på pause indtil {backoff_until} efter {failure_count} godkendelseslignende fejl ({reason}). Wallbox, batteri, gateway og andre data kan fortsætte. Deaktivér Heat Pump-gruppen, eller brug Clear HEMS Auth Backoff efter Enphase er klar igen."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Ryd HEMS auth backoff",
+      "description": "Rydder den midlertidige HEMS/Heat Pump-godkendelsespause uden adgangskode-login.",
+      "fields": {
+        "device_id": {
+          "name": "Site-enheder",
+          "description": "Vælg en Enphase site-enhed hvor HEMS auth backoff skal ryddes."
+        },
+        "site_id": {
+          "name": "Site-id",
+          "description": "Valgfrit site-id; registreres automatisk når en site-enhed vælges."
         }
       }
     }

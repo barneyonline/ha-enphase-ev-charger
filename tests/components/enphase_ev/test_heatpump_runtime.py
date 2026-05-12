@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -122,6 +123,117 @@ async def test_heatpump_runtime_preflight_without_refresh_kw(
 
 
 @pytest.mark.asyncio
+async def test_heatpump_runtime_preflight_disables_reauth_when_supported(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.heatpump_runtime
+    calls: list[dict[str, object]] = []
+    coord.client._hems_site_supported = None  # noqa: SLF001
+
+    async def system_dashboard_summary(*, allow_reauth=True):
+        calls.append({"allow_reauth": allow_reauth})
+        return {"is_hems": True}
+
+    coord.client.system_dashboard_summary = system_dashboard_summary  # type: ignore[method-assign]
+
+    await runtime._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
+
+    assert calls == [{"allow_reauth": False}]
+    assert coord.client.hems_site_supported is True
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_preflight_auth_failure_opens_hems_circuit(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.heatpump_runtime
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(  # type: ignore[method-assign]
+        side_effect=api.Unauthorized()
+    )
+
+    await runtime._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
+
+    coord.client.system_dashboard_summary.assert_awaited_once_with(
+        refresh_data=True,
+        allow_reauth=False,
+    )
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert coord._hems_auth_last_endpoint == "hems_support_preflight"  # noqa: SLF001
+    assert runtime._hems_support_preflight_cache_until is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_state_stops_after_preflight_auth_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    _seed_heatpump_auth_test_topology(coord)
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(  # type: ignore[method-assign]
+        side_effect=api.Unauthorized()
+    )
+    coord.client.hems_heatpump_state = AsyncMock(side_effect=AssertionError("unused"))
+
+    await runtime._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+
+    coord.client.hems_heatpump_state.assert_not_awaited()
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert coord.heatpump_runtime_state_last_error == "HEMS auth backoff active"
+
+
+@pytest.mark.asyncio
+async def test_heatpump_power_stops_after_preflight_auth_failure(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    _seed_heatpump_auth_test_topology(coord)
+    coord.client._hems_site_supported = None  # noqa: SLF001
+    coord.client.system_dashboard_summary = AsyncMock(  # type: ignore[method-assign]
+        side_effect=api.Unauthorized()
+    )
+    coord.client.pv_system_today = AsyncMock(side_effect=AssertionError("unused"))
+    coord.client.hems_energy_consumption = AsyncMock(
+        side_effect=AssertionError("unused")
+    )
+
+    await runtime._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    coord.client.pv_system_today.assert_not_awaited()
+    coord.client.hems_energy_consumption.assert_not_awaited()
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert coord.heatpump_power_last_error == "HEMS auth backoff active"
+    assert (
+        coord._heatpump_power_snapshot["outcome"] == "hems_auth_backoff"
+    )  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_heatpump_diagnostics_clears_livestream_when_circuit_active_without_fetcher(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    _seed_heatpump_auth_test_topology(coord)
+    coord._hems_auth_backoff_until = time.monotonic() + 60  # noqa: SLF001
+    coord.client.show_livestream = None  # type: ignore[method-assign]
+    coord.client.heat_pump_events_json = None  # type: ignore[method-assign]
+    coord.client.iq_er_events_json = None  # type: ignore[method-assign]
+    runtime._show_livestream_payload = {"old": True}  # noqa: SLF001
+    runtime._async_refresh_heatpump_runtime_state = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+    runtime._async_refresh_heatpump_daily_consumption = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+    runtime._async_refresh_heatpump_power = AsyncMock()  # type: ignore[method-assign]  # noqa: SLF001
+
+    await runtime.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    assert runtime._show_livestream_payload is None  # noqa: SLF001
+
+
+@pytest.mark.asyncio
 async def test_heatpump_runtime_fetcher_falls_back_when_uninspectable(
     coordinator_factory,
 ) -> None:
@@ -181,7 +293,7 @@ async def test_heatpump_runtime_preflight_uses_fast_poll_cache_floor(
 
     await runtime._async_refresh_hems_support_preflight()  # noqa: SLF001
 
-    coord.client.system_dashboard_summary.assert_awaited_once_with()
+    coord.client.system_dashboard_summary.assert_awaited_once_with(allow_reauth=False)
     assert runtime.hems_support_preflight_cache_ttl_s() == pytest.approx(30.0)
     assert runtime._hems_support_preflight_cache_until is not None  # noqa: SLF001
     assert (
@@ -1398,6 +1510,7 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
 
     diagnostics = coord.heatpump_runtime_diagnostics()
     assert diagnostics["show_livestream_payload"] == {"live": True}
+    coord.client.show_livestream.assert_awaited_with(allow_reauth=False)
     assert diagnostics["events_payloads"][0]["payload"] == {"value": "scalar"}
     assert diagnostics["events_payloads"][1]["payload"] == ["list-payload"]
     assert diagnostics["event_summary"] == {
@@ -1496,13 +1609,14 @@ async def test_heatpump_runtime_diagnostics_and_refresh_edge_branches(
 
 
 def test_heatpump_runtime_recommended_parent_matching(coordinator_factory) -> None:
-    runtime = coordinator_factory().heatpump_runtime
+    coord = coordinator_factory()
+    runtime = coord.heatpump_runtime
 
     class BadString:
         def __str__(self) -> str:
             raise RuntimeError("boom")
 
-    runtime._type_device_buckets = {  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
         "heatpump": {
             "devices": [
                 {"device_uid": "PARENT-1", "statusText": "Recommended"},
@@ -1520,7 +1634,7 @@ def test_heatpump_runtime_recommended_parent_matching(coordinator_factory) -> No
         runtime._heatpump_power_candidate_is_recommended("CHILD-1") is True
     )  # noqa: SLF001
 
-    runtime._type_device_buckets = {  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
         "heatpump": {
             "devices": [
                 {"device_uid": "CHILD-1", "parent": "PARENT-1"},
@@ -1566,13 +1680,14 @@ def test_heatpump_runtime_recommended_parent_matching(coordinator_factory) -> No
 
 
 def test_heatpump_runtime_type_helpers_cover_guard_paths(coordinator_factory) -> None:
-    runtime = coordinator_factory().heatpump_runtime
+    coord = coordinator_factory()
+    runtime = coord.heatpump_runtime
 
     class BadCount:
         def __int__(self) -> int:
             raise RuntimeError("boom")
 
-    runtime._type_device_buckets = {  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
         "heatpump": {"count": BadCount(), "devices": "bad"},
         "envoy": {"count": 1, "devices": [{"serial": "ENV-1"}, "bad"]},
     }
@@ -1585,6 +1700,153 @@ def test_heatpump_runtime_type_helpers_cover_guard_paths(coordinator_factory) ->
     assert runtime._type_bucket_members("envoy") == [
         {"serial": "ENV-1"}
     ]  # noqa: SLF001
+
+
+def test_heatpump_runtime_type_helpers_use_coordinator_buckets(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.heatpump_runtime
+    runtime._type_device_buckets = {}  # noqa: SLF001
+    coord._type_device_buckets = {  # noqa: SLF001
+        "heatpump": {
+            "count": 1,
+            "devices": [{"device_uid": "HP-1", "device_type": "HEAT_PUMP"}],
+        }
+    }
+
+    assert (
+        runtime._type_device_buckets_map() == coord._type_device_buckets
+    )  # noqa: SLF001
+    assert runtime.has_type("heatpump") is True
+    assert runtime._type_bucket_members("heatpump") == [  # noqa: SLF001
+        {"device_uid": "HP-1", "device_type": "HEAT_PUMP"}
+    ]
+
+
+def test_heatpump_runtime_type_bucket_map_falls_back_to_local_buckets() -> None:
+    runtime = HeatpumpRuntime.__new__(HeatpumpRuntime)
+    runtime.coordinator = SimpleNamespace(_type_device_buckets=None)
+    runtime._type_device_buckets = {  # noqa: SLF001
+        "heatpump": {"count": 1, "devices": []}
+    }
+
+    assert runtime._type_device_buckets_map() == {  # noqa: SLF001
+        "heatpump": {"count": 1, "devices": []}
+    }
+
+
+def _seed_heatpump_auth_test_topology(coord) -> None:
+    coord._devices_inventory_payload = {"curr_date_site": "2026-04-05"}  # noqa: SLF001
+    coord._battery_timezone = "UTC"  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [
+                    {
+                        "device_type": "HEAT_PUMP",
+                        "device_uid": "HP-1",
+                        "name": "Heat Pump",
+                    }
+                ],
+            }
+        },
+        ["heatpump"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_skips_hems_polling_during_auth_circuit(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    _seed_heatpump_auth_test_topology(coord)
+    coord._hems_auth_backoff_until = time.monotonic() + 60  # noqa: SLF001
+    coord._hems_auth_backoff_ends_utc = datetime.now(
+        timezone.utc
+    ) + timedelta(  # noqa: SLF001
+        minutes=1
+    )
+    coord.client.system_dashboard_summary = AsyncMock(side_effect=AssertionError)
+    coord.client.hems_heatpump_state = AsyncMock(side_effect=AssertionError)
+    coord.client.pv_system_today = AsyncMock(side_effect=AssertionError)
+    coord.client.hems_energy_consumption = AsyncMock(side_effect=AssertionError)
+    coord.client.heat_pump_events_json = AsyncMock(side_effect=AssertionError)
+
+    await runtime._async_refresh_hems_support_preflight(force=True)  # noqa: SLF001
+    await runtime.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    coord.client.system_dashboard_summary.assert_not_awaited()
+    coord.client.hems_heatpump_state.assert_not_awaited()
+    coord.client.pv_system_today.assert_not_awaited()
+    coord.client.hems_energy_consumption.assert_not_awaited()
+    coord.client.heat_pump_events_json.assert_not_awaited()
+    assert coord.heatpump_runtime_state_last_error == "HEMS auth backoff active"
+    assert coord.heatpump_daily_consumption_last_error == "HEMS auth backoff active"
+    assert coord.heatpump_power_last_error == "HEMS auth backoff active"
+    assert (
+        coord._heatpump_power_snapshot["outcome"] == "hems_auth_backoff"
+    )  # noqa: SLF001
+    assert (
+        runtime._heatpump_events_payloads[0]["error"] == "HEMS auth backoff active"
+    )  # noqa: SLF001
+    assert runtime.heatpump_daily_consumption_refresh_due(force=True) is False
+    assert runtime.heatpump_power_refresh_due(force=True) is False
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_isolates_hems_auth_failures(
+    coordinator_factory,
+    monkeypatch,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    _seed_heatpump_auth_test_topology(coord)
+    coord.client.hems_heatpump_state = AsyncMock(side_effect=api.Unauthorized())
+
+    await runtime._async_refresh_heatpump_runtime_state(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_runtime_state_last_error == "HEMS auth backoff active"
+
+    coord._clear_hems_auth_circuit(reset_failure_count=True)  # noqa: SLF001
+    coord.client.pv_system_today = AsyncMock(return_value=_site_today_payload(100.0))
+    coord.client.hems_energy_consumption = AsyncMock(side_effect=api.Unauthorized())
+    await runtime._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+    assert runtime.heatpump_daily_split_last_error == "HEMS auth backoff active"
+
+    coord._clear_hems_auth_circuit(reset_failure_count=True)  # noqa: SLF001
+    calls = iter([False, True])
+    monkeypatch.setattr(
+        coord,
+        "_skip_hems_polling_due_to_auth_circuit",
+        lambda *, endpoint: next(calls),
+    )
+    coord.client.pv_system_today = AsyncMock(return_value=_site_today_payload(100.0))
+    coord.client.hems_energy_consumption = AsyncMock(side_effect=AssertionError)
+    await runtime._async_refresh_heatpump_daily_consumption(force=True)  # noqa: SLF001
+    assert runtime.heatpump_daily_split_last_error == "HEMS auth backoff active"
+
+
+@pytest.mark.asyncio
+async def test_heatpump_runtime_event_auth_failure_marks_payload_error(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    _seed_heatpump_auth_test_topology(coord)
+    coord.client.hems_heatpump_state = AsyncMock(return_value=None)
+    coord.client.pv_system_today = AsyncMock(return_value=None)
+    coord.client.hems_energy_consumption = AsyncMock(return_value=None)
+    coord.client.heat_pump_events_json = AsyncMock(side_effect=api.Unauthorized())
+
+    await runtime.async_ensure_heatpump_runtime_diagnostics(force=True)
+
+    assert (
+        runtime._heatpump_events_payloads[0]["error"] == "HEMS auth backoff active"
+    )  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -2090,6 +2352,9 @@ async def test_refresh_heatpump_runtime_state_covers_cache_and_error_paths(
         force=True
     )  # noqa: SLF001
     assert coord.heatpump_runtime_state == {}
+    assert coord._heatpump_runtime_state_cache_until == (  # noqa: SLF001
+        mono_now + heatpump_runtime_mod.HEATPUMP_RUNTIME_STATE_CACHE_TTL
+    )
     assert (
         coord.heatpump_runtime_state_last_error
         == "HEMS runtime endpoint unavailable for this site"
@@ -2189,7 +2454,7 @@ async def test_refresh_heatpump_daily_consumption_tracks_site_day(
     )
 
     coord.client.hems_energy_consumption.assert_awaited_once()
-    coord.client.pv_system_today.assert_awaited_once()
+    coord.client.pv_system_today.assert_awaited_once_with(allow_reauth=False)
     kwargs = coord.client.hems_energy_consumption.await_args.kwargs
     assert kwargs["timezone"] == "Europe/Berlin"
     assert kwargs["step"] == "P1D"
@@ -2209,6 +2474,39 @@ async def test_refresh_heatpump_daily_consumption_tracks_site_day(
         coord.heatpump_daily_consumption["sampled_at_utc"]
         == "2026-03-20T08:00:00+00:00"
     )
+
+
+@pytest.mark.asyncio
+async def test_heatpump_daily_consumption_auth_failure_opens_hems_circuit(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    coord._devices_inventory_payload = {"curr_date_site": "2026-03-20"}  # noqa: SLF001
+    coord._battery_timezone = "Europe/Berlin"  # noqa: SLF001
+    coord.inventory_runtime._set_type_device_buckets(  # noqa: SLF001
+        {
+            "heatpump": {
+                "type_key": "heatpump",
+                "count": 1,
+                "devices": [{"device_type": "HEAT_PUMP", "device_uid": "HP-1"}],
+            }
+        },
+        ["heatpump"],
+    )
+    coord.client.pv_system_today = AsyncMock(side_effect=api.Unauthorized())
+    coord.client.hems_energy_consumption = AsyncMock(
+        side_effect=AssertionError("unused")
+    )
+
+    await coord.heatpump_runtime._async_refresh_heatpump_daily_consumption(  # noqa: SLF001
+        force=True
+    )
+
+    coord.client.pv_system_today.assert_awaited_once_with(allow_reauth=False)
+    coord.client.hems_energy_consumption.assert_not_awaited()
+    assert coord._hems_auth_circuit_active() is True  # noqa: SLF001
+    assert coord.heatpump_daily_consumption_last_error == "HEMS auth backoff active"
+    assert coord._heatpump_daily_consumption_cache_until is None  # noqa: SLF001
 
 
 def test_heatpump_daily_window_handles_dst_transition_day(

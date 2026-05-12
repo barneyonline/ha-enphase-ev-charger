@@ -478,7 +478,8 @@
           "forget_password": "Uită parola salvată",
           "type_heatpump": "Pompă de căldură",
           "type_ac_battery": "Baterie AC",
-          "battery_schedules_enabled": "Activați planificatorul bateriei"
+          "battery_schedules_enabled": "Activați planificatorul bateriei",
+          "degraded_service_repair_issues": "Activează reparațiile pentru servicii degradate"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -496,7 +497,8 @@
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
           "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură.",
           "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile.",
-          "battery_schedules_enabled": "Gestionați programele bateriei IQ"
+          "battery_schedules_enabled": "Gestionați programele bateriei IQ",
+          "degraded_service_repair_issues": "Creează probleme în Repairs când serviciile opționale Enphase sunt degradate."
         }
       },
       "settings": {
@@ -518,7 +520,8 @@
           "forget_password": "Uită parola salvată",
           "type_heatpump": "Pompă de căldură",
           "type_ac_battery": "Baterie AC",
-          "battery_schedules_enabled": "Activați planificatorul bateriei"
+          "battery_schedules_enabled": "Activați planificatorul bateriei",
+          "degraded_service_repair_issues": "Activează reparațiile pentru servicii degradate"
         },
         "data_description": {
           "type_envoy": "Include conectivitatea gateway-ului și diagnosticul contoarelor.",
@@ -536,7 +539,8 @@
           "forget_password": "Elimină parola stocată. Reîmprospătarea automată nu va mai fi încercată.",
           "type_heatpump": "Include senzori pentru starea, diagnosticarea și consumul pompei de căldură.",
           "type_ac_battery": "Include senzori pentru bateria AC și controale pentru modul de repaus atunci când sunt disponibile.",
-          "battery_schedules_enabled": "Gestionați programele bateriei IQ"
+          "battery_schedules_enabled": "Gestionați programele bateriei IQ",
+          "degraded_service_repair_issues": "Creează probleme în Repairs când serviciile opționale Enphase sunt degradate."
         }
       },
       "migrate_envoy_source": {
@@ -858,6 +862,31 @@
           "invalid_payload": "Răspuns cloud nevalid",
           "dns_error": "Eroare DNS",
           "network_error": "Eroare de rețea"
+        }
+      },
+      "site_service_status": {
+        "name": "Starea serviciului",
+        "state": {
+          "ok": "Funcțional",
+          "unknown": "Necunoscut",
+          "degraded": "Degradat"
+        },
+        "state_attributes": {
+          "degraded_services": {
+            "name": "Servicii degradate"
+          },
+          "degraded_endpoint_families": {
+            "name": "Familii de endpointuri degradate"
+          },
+          "degraded_service_count": {
+            "name": "Număr servicii degradate"
+          },
+          "degraded_endpoint_family_count": {
+            "name": "Număr familii de endpointuri degradate"
+          },
+          "metrics_available": {
+            "name": "Metrici disponibile"
+          }
         }
       },
       "cloud_backoff_ends": {
@@ -2181,6 +2210,10 @@
     "battery_profile_pending": {
       "title": "Actualizarea profilului bateriei Enphase Energy este în așteptare",
       "description": "O modificare a profilului bateriei pentru site-ul {site_id} este în așteptare de mai mult de {pending_timeout_minutes} minute. Serviciul cloud poate încă procesa solicitarea."
+    },
+    "hems_auth_degraded": {
+      "title": "HEMS Enphase Energy este pauzat temporar",
+      "description": "Interogarea Heat Pump/HEMS pentru site-ul {site_id} este pauzată până la {backoff_until} după {failure_count} erori de tip autentificare ({reason}). Wallbox, bateria, gateway-ul și alte date pot continua. Dezactivează grupul Heat Pump sau folosește Clear HEMS Auth Backoff după revenirea Enphase."
     }
   },
   "system_health": {
@@ -2685,6 +2718,20 @@
         "device_id": {
           "name": "Enphase-enhed",
           "description": "Valgfri Enphase-enhed til at vælge stedet for fakturerings- eller tarifstrukturændringer."
+        }
+      }
+    },
+    "clear_hems_auth_backoff": {
+      "name": "Șterge HEMS auth backoff",
+      "description": "Șterge pauza temporară de autentificare HEMS/Heat Pump fără autentificare cu parolă.",
+      "fields": {
+        "device_id": {
+          "name": "Dispozitive site",
+          "description": "Selectează un dispozitiv de site Enphase pentru care se șterge HEMS auth backoff."
+        },
+        "site_id": {
+          "name": "ID site",
+          "description": "Identificator opțional de site; detectat automat când este selectat un dispozitiv."
         }
       }
     }

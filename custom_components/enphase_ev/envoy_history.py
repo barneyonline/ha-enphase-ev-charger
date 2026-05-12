@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 import re
 from typing import Any
 
-from homeassistant.components.recorder import statistics as recorder_statistics
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import UnitOfEnergy
 from homeassistant.core import HomeAssistant, State
@@ -14,6 +13,25 @@ from homeassistant.helpers import entity_registry as er
 from .const import CONF_SITE_ID, DOMAIN
 from .runtime_data import EnphaseConfigEntry
 
+_recorder_statistics_module: Any | None = None
+
+
+def _load_recorder_statistics() -> Any:
+    global _recorder_statistics_module
+
+    if _recorder_statistics_module is None:
+        from homeassistant.components.recorder import statistics
+
+        _recorder_statistics_module = statistics
+    return _recorder_statistics_module
+
+
+class _RecorderStatisticsProxy:
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_load_recorder_statistics(), name)
+
+
+recorder_statistics: Any = _RecorderStatisticsProxy()
 ENVOY_DOMAIN = "enphase_envoy"
 MIGRATION_FLOWS: tuple[str, ...] = (
     "solar_production",
@@ -33,7 +51,7 @@ FLOW_LABELS: dict[str, str] = {
 }
 ALLOWED_STATE_CLASSES = {"total", "total_increasing"}
 LOW_VALUE_TOLERANCE_KWH = 0.01
-_OPTION_SKIP = ""
+_OPTION_SKIP = "__skip__"
 _EXCLUDED_OBJECT_ID_TERMS = ("daily", "today", "current", "power")
 _PHASE_OBJECT_ID_PATTERN = re.compile(r"(^|_)(l[123]|phase_[a-z0-9]+)$")
 _UNIT_TO_KWH: dict[str, float] = {
@@ -214,11 +232,16 @@ def _statistics_unit(metadata: dict[str, Any]) -> object:
     )
 
 
+def _recorder_statistics() -> Any:
+    return recorder_statistics
+
+
 async def _statistics_metadata_by_id(
     hass: HomeAssistant, statistic_ids: set[str]
 ) -> dict[str, dict[str, Any]]:
     if not statistic_ids:
         return {}
+    recorder_statistics = _recorder_statistics()
     try:
         rows = await recorder_statistics.async_list_statistic_ids(
             hass,
@@ -240,6 +263,7 @@ async def _last_statistic_value_kwh(
     factor = _unit_to_kwh_factor(unit)
     if factor is None:
         return None
+    recorder_statistics = _recorder_statistics()
     try:
         result = await hass.async_add_executor_job(
             recorder_statistics.get_last_statistics,
