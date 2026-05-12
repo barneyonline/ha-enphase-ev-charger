@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone as _tz
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
     from .coordinator import EnphaseCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+CURRENT_POWER_CACHE_TTL_S = 60.0
 
 
 @dataclass(slots=True)
@@ -39,10 +41,12 @@ class CurrentPowerRuntime:
 
     def __init__(self, coordinator: EnphaseCoordinator) -> None:
         self.coordinator = coordinator
+        self._cache_until_mono: float | None = None
 
     def clear(self) -> None:
         """Reset cached current power consumption samples."""
 
+        self._cache_until_mono = None
         CurrentPowerSample().apply_to(self.coordinator)
 
     def _cached_state_present(self) -> bool:
@@ -63,6 +67,9 @@ class CurrentPowerRuntime:
 
         fetcher = getattr(self.coordinator.client, "latest_power", None)
         if callable(fetcher):
+            cache_until = self._cache_until_mono
+            if cache_until is not None and time.monotonic() < cache_until:
+                return False
             return True
         return self._cached_state_present()
 
@@ -73,6 +80,10 @@ class CurrentPowerRuntime:
         fetcher = getattr(coord.client, "latest_power", None)
         if not callable(fetcher):
             self.clear()
+            return
+        now = time.monotonic()
+        cache_until = self._cache_until_mono
+        if cache_until is not None and now < cache_until:
             return
 
         try:
@@ -137,3 +148,4 @@ class CurrentPowerRuntime:
             reported_precision=precision,
             source="app-api:get_latest_power",
         ).apply_to(coord)
+        self._cache_until_mono = now + CURRENT_POWER_CACHE_TTL_S

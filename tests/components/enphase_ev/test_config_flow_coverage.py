@@ -1061,7 +1061,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
         )
         result = await hass.config_entries.flow.async_configure(
             devices["flow_id"],
-            {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: 55},
+            {CONF_TYPE_MICROINVERTER: False, CONF_SCAN_INTERVAL: 60},
         )
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -1069,7 +1069,7 @@ async def test_devices_step_allows_site_only_entry(hass) -> None:
     assert result["data"][CONF_SITE_ONLY] is True
     assert result["data"][CONF_INCLUDE_INVERTERS] is False
     assert result["data"][CONF_SELECTED_TYPE_KEYS] == []
-    assert result["data"][CONF_SCAN_INTERVAL] == 55
+    assert result["data"][CONF_SCAN_INTERVAL] == 60
     assert result["title"] == "Site: 12345"
 
 
@@ -2913,7 +2913,7 @@ async def test_options_flow_normalizes_poll_intervals_on_save(hass) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"][OPT_API_TIMEOUT] == 15
     assert result["data"][OPT_FAST_POLL_INTERVAL] == 45
-    assert result["data"][OPT_SLOW_POLL_INTERVAL] == 45
+    assert result["data"][OPT_SLOW_POLL_INTERVAL] == 60
     assert result["data"][OPT_DEGRADED_SERVICE_REPAIR_ISSUES] is False
 
 
