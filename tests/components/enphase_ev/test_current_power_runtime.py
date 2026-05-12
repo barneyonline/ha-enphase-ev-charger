@@ -17,6 +17,7 @@ async def test_clear_resets_fields(coordinator_factory) -> None:
     coord._current_power_consumption_reported_units = "W"
     coord._current_power_consumption_reported_precision = 0
     coord._current_power_consumption_source = "x"
+    coord.current_power_runtime._cache_until_mono = 123.0  # noqa: SLF001
 
     coord.current_power_runtime.clear()
 
@@ -25,6 +26,7 @@ async def test_clear_resets_fields(coordinator_factory) -> None:
     assert coord._current_power_consumption_reported_units is None
     assert coord._current_power_consumption_reported_precision is None
     assert coord._current_power_consumption_source is None
+    assert coord.current_power_runtime._cache_until_mono is None  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -45,6 +47,27 @@ def test_refresh_due_requests_cleanup_when_fetcher_missing_with_cached_state(
     coord.client = SimpleNamespace()
     coord._current_power_consumption_w = 100.0
 
+    assert coord.current_power_runtime.refresh_due() is True
+
+
+def test_refresh_due_respects_success_cache_ttl(
+    coordinator_factory,
+    monkeypatch,
+) -> None:
+    coord = coordinator_factory()
+    coord.client = SimpleNamespace(latest_power=AsyncMock())
+    coord.current_power_runtime._cache_until_mono = 160.0  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.current_power_runtime.time.monotonic",
+        lambda: 120.0,
+    )
+    assert coord.current_power_runtime.refresh_due() is False
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.current_power_runtime.time.monotonic",
+        lambda: 160.0,
+    )
     assert coord.current_power_runtime.refresh_due() is True
 
 
@@ -89,6 +112,7 @@ async def test_async_refresh_non_finite_cleared(coordinator_factory) -> None:
 @pytest.mark.asyncio
 async def test_async_refresh_success_ms_timestamp_and_units(
     coordinator_factory,
+    monkeypatch,
 ) -> None:
     coord = coordinator_factory()
     coord.client = SimpleNamespace(
@@ -101,6 +125,10 @@ async def test_async_refresh_success_ms_timestamp_and_units(
             }
         )
     )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.current_power_runtime.time.monotonic",
+        lambda: 100.0,
+    )
 
     await coord.current_power_runtime.async_refresh()
 
@@ -109,6 +137,32 @@ async def test_async_refresh_success_ms_timestamp_and_units(
     assert coord._current_power_consumption_reported_precision == 0
     assert coord._current_power_consumption_source == "app-api:get_latest_power"
     assert coord._current_power_consumption_sample_utc is not None
+    assert coord.current_power_runtime._cache_until_mono == 160.0  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_refresh_skips_fetch_inside_success_cache_ttl(
+    coordinator_factory,
+    monkeypatch,
+) -> None:
+    coord = coordinator_factory()
+    fetcher = AsyncMock(return_value={"value": 42.5})
+    coord.client = SimpleNamespace(latest_power=fetcher)
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.current_power_runtime.time.monotonic",
+        lambda: 100.0,
+    )
+    await coord.current_power_runtime.async_refresh()
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.current_power_runtime.time.monotonic",
+        lambda: 120.0,
+    )
+    await coord.current_power_runtime.async_refresh()
+
+    assert fetcher.await_count == 1
+    assert coord._current_power_consumption_w == 42.5
 
 
 @pytest.mark.asyncio

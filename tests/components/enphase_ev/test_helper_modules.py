@@ -50,8 +50,8 @@ def test_runtime_helpers_cover_parsing_dates_and_redaction(monkeypatch) -> None:
     assert runtime_helpers.coerce_int("bad", default=9) == 9
     assert runtime_helpers.coerce_optional_int(" 5 ") == 5
     assert runtime_helpers.coerce_optional_int(BadStr()) is None
-    assert normalize_poll_intervals("1", "2") == (15, 30)
-    assert normalize_poll_intervals("45", "30") == (45, 45)
+    assert normalize_poll_intervals("1", "2") == (30, 60)
+    assert normalize_poll_intervals("45", "30") == (45, 60)
     assert normalize_poll_intervals("9999", "9999") == (
         MAX_POLL_INTERVAL,
         MAX_POLL_INTERVAL,
