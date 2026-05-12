@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### 🔄 Other changes
+- Added Home Assistant brand assets, including dark-theme icon and logo variants.
+
 ## v3.0.8 - 2026-05-10
 
 ### 🚧 Breaking changes
