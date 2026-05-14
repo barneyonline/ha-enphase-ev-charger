@@ -4,8 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## v3.0.9 - 2026-05-14
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
+### 🐛 Bug fixes
+- Preserved authentication refresh rejection streaks when stored-credential refresh attempts are rejected, keeping repeated temporary blocks on the intended suspension path. (#679)
+- Ensured site-only entries notify Home Assistant listeners after successful refreshes even when their coordinator payload remains empty, keeping site energy and battery/gateway entities from going stale. (#681)
+
+### 🔧 Improvements
+- Raised the minimum user-configurable polling cadence to 30 seconds for fast polling and 60 seconds for slow polling, and cached current-power samples for 60 seconds to reduce cloud request volume. (#676)
+- Simplified heat-pump power derivation to use HEMS daily-consumption deltas instead of the separate HEMS power timeseries flow, reducing endpoint fan-out and diagnostics noise. (#679)
+
 ### 🔄 Other changes
 - Added Home Assistant brand assets, including dark-theme icon and logo variants.
+- Documented the observed cloud request budget, minimum refresh cadence guidance, and HEMS auth diagnostics in the API reference.
+- Bumped the integration manifest version to `3.0.9`.
 
 ## v3.0.8 - 2026-05-10
 
