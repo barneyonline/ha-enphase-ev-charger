@@ -790,7 +790,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         super_kwargs = {
             "name": DOMAIN,
             "update_interval": timedelta(seconds=self._configured_slow_poll_interval),
-            "always_update": False,
+            "always_update": self.site_only or not self.serials,
         }
         if config_entry is not None:
             super_kwargs["config_entry"] = config_entry
