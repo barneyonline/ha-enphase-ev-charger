@@ -1179,6 +1179,43 @@ def test_publish_internal_state_update_copies_current_data(coordinator_factory) 
     coord.async_set_updated_data.assert_called_once_with(dict(coord.data))
 
 
+def test_site_only_coordinator_notifies_listeners_for_equal_payloads(
+    hass,
+    monkeypatch,
+) -> None:
+    from custom_components.enphase_ev import coordinator as coord_mod
+    from custom_components.enphase_ev.coordinator import EnphaseCoordinator
+
+    monkeypatch.setattr(
+        coord_mod, "async_get_clientsession", lambda *args, **kwargs: object()
+    )
+    monkeypatch.setattr(
+        coord_mod,
+        "async_call_later",
+        lambda *_args, **_kwargs: (lambda: None),
+    )
+    coord = EnphaseCoordinator(
+        hass,
+        {
+            CONF_SITE_ID: RANDOM_SITE_ID,
+            CONF_SERIALS: [],
+            CONF_EAUTH: "EAUTH",
+            CONF_COOKIE: "COOKIE",
+            CONF_SCAN_INTERVAL: 15,
+            CONF_SITE_ONLY: True,
+            CONF_INCLUDE_INVERTERS: True,
+        },
+    )
+    calls: list[dict | None] = []
+    unsub = coord.async_add_listener(lambda: calls.append(coord.data))
+
+    coord.async_set_updated_data({})
+    coord.async_set_updated_data({})
+    unsub()
+
+    assert calls == [{}, {}]
+
+
 def test_end_topology_refresh_batch_flushes_pending_refresh(
     coordinator_factory,
 ) -> None:
