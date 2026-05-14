@@ -8,7 +8,7 @@ _This reference consolidates observed Enlighten mobile/web APIs across EV chargi
 - **Base URL:** `https://enlighten.enphaseenergy.com`
 - **Auth:** The current implementation is cookie-first. Login establishes an Enlighten session cookie jar, then the client best-effort fetches an access token from Entrez and adds endpoint-specific headers on top. Many read endpoints work with cookies plus `e-auth-token`; scheduler, HEMS, and timeseries families prefer or require `Authorization: Bearer <jwt>`. BatteryConfig is now the main exception: it follows the homeowner web app request shape instead of the bearer/e-auth/cookie overlay used elsewhere.
 - **Privacy:** Example identifiers, account details, LAN metadata, and credentials in this document use placeholders. Raw browser-export request headers often contain JWTs, cookies, email addresses, user IDs, LAN IPs, MAC addresses, and serial numbers; those values must be redacted before captures are shared or committed. When this spec lists "observed values", it intentionally preserves non-sensitive enum/flag values so newly seen behavior is not lost.
-- **Evidence date:** Implementation statements reflect `origin/main` at `beffcf8d`, synced locally on 2026-04-29. New browser/mobile captures should record the capture date, client surface, and endpoint family near the affected section.
+- **Evidence date:** Implementation statements reflect `origin/main` at `0c71ed03`, synced locally on 2026-05-12. New browser/mobile captures should record the capture date, client surface, and endpoint family near the affected section.
 - **Payload examples:** Examples should be minimal shape excerpts. Prefer fields that drive parsing, auth, controls, or diagnostics, and omit long arrays or app-shell metadata unless those details affect implementation.
 - **Path Variables:**
   - `<site_id>` - numeric site identifier
@@ -6202,6 +6202,7 @@ There is no single universal header set; the implementation varies headers by en
 - HTTP 401 — credentials expired or invalid.
 - HTTP 400/404/409/422 during control operations — validation failure or charger not ready/not plugged.
 - Rate limiting presents as HTTP 429.
+- Observed, non-official request budget: sustained cloud polling around or above roughly **600 requests/hour** (about **10 requests/minute**) appears to increase the risk of throttling, stale optional-service responses, or auth/session degradation. Treat this as a conservative operating ceiling, not an Enphase-published quota.
 
 ### 8.1 Cloud status codes (from the official v4 control API)
 Enphase’s public “EV Charger Control” reference (https://developer-v4.enphase.com/docs.html) documents the same backend actions behind a `/api/v4/systems/{system_id}/ev_charger/{serial_no}/…` surface. The status codes it lists match the JSON payloads observed on the cloud endpoints documented here. The most relevant responses are:
@@ -6221,11 +6222,29 @@ Enphase’s public “EV Charger Control” reference (https://developer-v4.enph
 
 When these conditions occur against the `/service/evse_controller/...` paths, the response often uses an analogous JSON envelope with `"status": "error"` and the same `message`/`details`.
 
-### 8.2 Implementation Diagnostics
+### 8.2 Runtime Request Budget and Minimum Refresh Cadence
+Observed behavior from issue `#528` and the request-volume follow-up `#667` indicates that optional endpoint families should be paced conservatively. The integration should optimize for stable, low-volume polling rather than app-like live refresh.
+
+Current implementation policy:
+- Keep ordinary slow coordinator polling at **60 seconds or slower** by default.
+- Keep temporary fast polling at **30 seconds or slower**, and reserve it for user actions or short-lived state transitions.
+- Do not poll low-volatility inventory/topology endpoints on every coordinator refresh. Current minimum cache windows include site-device inventory and system-dashboard detail fan-out at **600 seconds**, HEMS device inventory at **60 seconds**, heat-pump runtime state at **60 seconds**, and Storm Alert at **300 seconds**.
+- Derive heat-pump power from HEMS energy deltas on a slower cadence; current heat-pump power/daily energy refreshes use the HEMS daily-consumption cache window of **300 seconds**.
+- Endpoint failures must use stale data, endpoint-family cooldowns, or optional-service degradation before increasing polling pressure.
+- Optional HEMS/Heat Pump auth failures must not trigger global stored-password refresh. They are isolated behind the HEMS auth circuit and backoff so wallbox, battery, gateway, and other non-HEMS data can continue.
+- Temporary Enphase auth blocks should be treated as retryable update failures until the retry window expires, not as immediate Home Assistant reauth unless the user explicitly starts reauth.
+
+Minimum refresh guidance for new code:
+- Avoid adding any recurring cloud endpoint faster than **60 seconds** unless it is clearly tied to a user action, an active charging state, or a documented backend polling interval.
+- Avoid adding any optional diagnostic, inventory, or derived-energy endpoint faster than **300 seconds** unless freshness is required for an entity's primary state.
+- Account for fan-out endpoints as multiple effective requests. System-dashboard device details, HEMS discovery, and per-device energy endpoints can multiply request volume quickly even when the coordinator refresh interval looks safe.
+- Prefer diagnostics counters and endpoint-family `request_count` data over raw assumptions when tuning cadence on real sites.
+
+### 8.3 Implementation Diagnostics
 The integration exposes diagnostics and system-health data for endpoint behavior rather than raw API payloads.
 
 Implementation notes:
-- Diagnostics include multi-site health, endpoint-family cooldown/backoff state, payload health for EVSE summary/status, site-energy per-flow metadata, tariff health, heat-pump runtime diagnostics, and firmware catalog status.
+- Diagnostics include multi-site health, endpoint-family cooldown/backoff state and request counts, payload health for EVSE summary/status, site-energy per-flow metadata, tariff health, HEMS auth circuit state, heat-pump runtime diagnostics, and firmware catalog status.
 - Sensitive identifiers, tokens, cookies, LAN addresses, emails, and raw payload snippets are redacted or summarized before inclusion.
 
 ---
