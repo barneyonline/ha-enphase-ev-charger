@@ -1,11 +1,11 @@
 # Service Status History
 
-- Current status: **Fully Operational**
-- Last updated: `2026-05-15 06:55 UTC`
-- Failed checks in latest run: `1`
-- Latest failed checks: battery_config
-- Retained hourly samples: `433`
-- Incident windows in last 30 days: `12`
+- Current status: **Down**
+- Last updated: `2026-05-15 09:48 UTC`
+- Failed checks in latest run: `3`
+- Latest failed checks: battery_config, battery_runtime, microinverters
+- Retained hourly samples: `432`
+- Incident windows in last 30 days: `13`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
 
@@ -16,11 +16,12 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-04-15T06:55:50, 0ms
-    Window end :vert, window-end, 2026-05-15T06:55:50, 0ms
+    Window start :vert, window-start, 2026-04-15T09:48:18, 0ms
+    Window end :vert, window-end, 2026-05-15T09:48:18, 0ms
     section Down
     Down 1 (2026-04-18 2234 UTC) :crit, down-1, 2026-04-18T22:34:13, 60m
     Down 2 (2026-05-08 0529 UTC) :crit, down-2, 2026-05-08T05:29:47, 60m
+    Down 3 (2026-05-15 0948 UTC) :crit, down-3, 2026-05-15T09:48:18, 60m
     section Degraded
     Degraded 1 (2026-04-21 1213 UTC) :active, degraded-1, 2026-04-21T12:13:11, 60m
     Degraded 2 (2026-05-01 1700 UTC) :active, degraded-2, 2026-05-01T17:00:22, 60m
@@ -50,6 +51,7 @@ gantt
 | Down | 2026-05-08 05:29 UTC | Unknown after last seen 2026-05-08 05:29 UTC | Observed 0m | battery_config, evse_runtime |
 | Degraded | 2026-05-08 07:07 UTC | Unknown after last seen 2026-05-08 07:07 UTC | Observed 0m | battery_config, evse_scheduler |
 | Degraded | 2026-05-08 08:55 UTC | 2026-05-08 10:23 UTC | 1h 28m | battery_config, evse_scheduler |
+| Down | 2026-05-15 09:48 UTC | Ongoing (last seen 2026-05-15 09:48 UTC) | Observed at latest check | battery_config, battery_runtime, microinverters |
 
 ## Raw Artifacts
 
