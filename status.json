@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-05-15T09:48:18.406754Z",
+  "checked_at": "2026-05-15T11:55:42.660169Z",
   "checks": [
     {
       "affects": true,
@@ -182,7 +182,7 @@
       ],
       "group": "degraded",
       "name": "battery_runtime",
-      "ok": false
+      "ok": true
     },
     {
       "affects": false,
@@ -195,7 +195,7 @@
       ],
       "group": "degraded",
       "name": "microinverters",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -334,7 +334,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=7d534be8-83a8-424f-8795-18c96cb19cad&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=5c22483f-94dd-4acf-839d-93f714bca2b0&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -404,7 +404,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=7d534be8-83a8-424f-8795-18c96cb19cad&start_date=2026-05-15&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=5c22483f-94dd-4acf-839d-93f714bca2b0&start_date=2026-05-15&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -418,7 +418,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=7d534be8-83a8-424f-8795-18c96cb19cad&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=5c22483f-94dd-4acf-839d-93f714bca2b0&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -622,12 +622,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "grid_control_check",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/grid_control_check.json"
     },
     {
@@ -636,12 +636,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_backup_history",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/battery_backup_history.json"
     },
     {
@@ -650,12 +650,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "battery_status",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/pv/settings/{site_id}/battery_status.json"
     },
     {
@@ -664,12 +664,12 @@
       "category": "battery_runtime",
       "check_group": "battery_runtime",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "dry_contacts",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/pv/settings/{site_id}/dry_contacts"
     },
     {
@@ -678,12 +678,12 @@
       "category": "microinverters",
       "check_group": "microinverters",
       "check_mode": "all",
-      "error": "HTTP 503",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "inverters_inventory",
-      "ok": false,
-      "status": 503,
+      "ok": true,
+      "status": 200,
       "url": "/app-api/{site_id}/inverters.json?limit=1000&offset=0&search="
     },
     {
@@ -729,16 +729,16 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Down",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 3,
+    "checks_failed": 1,
     "checks_failed_affecting": 0,
-    "checks_failed_broad_outage": 3,
-    "checks_failed_non_affecting": 3,
-    "checks_ok": 14,
+    "checks_failed_broad_outage": 1,
+    "checks_failed_non_affecting": 1,
+    "checks_ok": 16,
     "checks_total": 17,
-    "endpoints_failed": 6,
-    "endpoints_ok": 31,
+    "endpoints_failed": 1,
+    "endpoints_ok": 36,
     "endpoints_total": 37
   }
 }
