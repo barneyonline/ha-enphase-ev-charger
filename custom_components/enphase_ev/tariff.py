@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 TARIFF_ENDPOINT_FAMILY = "tariff"
 TARIFF_DATED_RATES_ENDPOINT_FAMILY = "tariff_dated_rates"
+TARIFF_SUCCESS_TTL_S = 900.0
 TARIFF_BRANCH_KEYS = frozenset({"purchase", "buyback"})
 TARIFF_TYPE_IDS = frozenset({"flat", "tou", "tiered"})
 TARIFF_TYPE_KINDS = frozenset(
