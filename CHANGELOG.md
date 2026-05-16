@@ -4,8 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## v3.0.10 - 2026-05-17
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
 ### 🐛 Bug fixes
-- Derived Heat Pump power from the site-today heat-pump daily energy total instead of HEMS split energy, avoiding false `0 W` readings when the HEMS split remains flat. (#680)
+- Reused the last successful EV charger status payload during transient network or DNS failures so charger entities can keep reporting recent state while diagnostics still track the outage. (#685)
+- Derived Heat Pump power from the site-today heat-pump daily energy total instead of HEMS split energy, avoiding false `0 W` readings when the HEMS split remains flat. (#684)
+
+### 🔧 Improvements
+- Throttled tariff refreshes after a successful read to reduce repeated Enphase cloud requests during steady polling. (#686)
+
+### 🔄 Other changes
+- Updated the API reference to document site-today heat-pump power derivation.
+- Bumped the integration manifest version to `3.0.10`.
 
 ## v3.0.9 - 2026-05-14
 
