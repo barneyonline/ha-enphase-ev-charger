@@ -8,6 +8,7 @@ import aiohttp
 import pytest
 from homeassistant.exceptions import ServiceValidationError
 
+from custom_components.enphase_ev import coordinator as coord_mod
 from custom_components.enphase_ev import sensor as sensor_mod
 from custom_components.enphase_ev.api import OptionalEndpointUnavailable
 from custom_components.enphase_ev.const import DOMAIN
@@ -23,6 +24,7 @@ from custom_components.enphase_ev.sensor import (
 from custom_components.enphase_ev.tariff import (
     TARIFF_DATED_RATES_ENDPOINT_FAMILY,
     TARIFF_ENDPOINT_FAMILY,
+    TARIFF_SUCCESS_TTL_S,
     TariffBillingUpdate,
     TariffRateLocator,
     TariffRateSnapshot,
@@ -2489,6 +2491,62 @@ def test_tariff_runtime_refresh_due_uses_endpoint_family_gate(
 
     assert TariffRuntime(coord).refresh_due() is True
     coord._endpoint_family_should_run.assert_called_once_with("tariff")  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_tariff_runtime_success_throttles_followup_refreshes(
+    coordinator_factory,
+    monkeypatch,
+) -> None:
+    coord = coordinator_factory()
+    now = datetime(2026, 5, 17, 8, 45, tzinfo=timezone.utc)
+    monkeypatch.setattr(coord_mod.time, "monotonic", lambda: 1_000.0)
+    monkeypatch.setattr(coord_mod.dt_util, "utcnow", lambda: now)
+    coord.client.site_tariff_bundle = AsyncMock(
+        return_value=(
+            {
+                "anyBillPeriodStartDate": "2025-08-18",
+                "billingFrequency": "MONTH",
+                "billingIntervalValue": 1,
+            },
+            {
+                "currency": "$",
+                "purchase": {
+                    "typeKind": "single",
+                    "typeId": "flat",
+                    "seasons": [
+                        {
+                            "id": "default",
+                            "startMonth": "1",
+                            "endMonth": "12",
+                            "days": [
+                                {
+                                    "id": "week",
+                                    "days": [1, 2, 3, 4, 5, 6, 7],
+                                    "periods": [{"rate": "0.03"}],
+                                }
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+    )
+
+    await TariffRuntime(coord).async_refresh()
+
+    health = coord._endpoint_family_state(TARIFF_ENDPOINT_FAMILY)  # noqa: SLF001
+    assert health.next_retry_mono == pytest.approx(1_000.0 + TARIFF_SUCCESS_TTL_S)
+    assert health.next_retry_utc == now + coord_mod.timedelta(
+        seconds=TARIFF_SUCCESS_TTL_S
+    )
+    assert TariffRuntime(coord).refresh_due() is False
+
+    await TariffRuntime(coord).async_refresh()
+    coord.client.site_tariff_bundle.assert_awaited_once()
+
+    await TariffRuntime(coord).async_refresh(force=True)
+    assert coord.client.site_tariff_bundle.await_count == 2
 
 
 @pytest.mark.asyncio

@@ -163,7 +163,7 @@ from .refresh_plan import (
     build_site_only_followup_plan,
 )
 from .refresh_runner import RefreshRunner
-from .tariff import TariffRuntime
+from .tariff import TARIFF_SUCCESS_TTL_S, TariffRuntime
 from .service_validation import raise_translated_service_validation
 from .state_models import (
     BatteryControlCapability,
@@ -971,7 +971,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 support_state_on_success=True,
             ),
             "tariff": EndpointFamilyPolicy(
-                success_ttl_s=None,
+                success_ttl_s=TARIFF_SUCCESS_TTL_S,
                 stale_after_s=86400.0,
                 failure_backoff_schedule_s=(60.0, 60.0, 60.0, 60.0),
                 max_backoff_s=60.0,
