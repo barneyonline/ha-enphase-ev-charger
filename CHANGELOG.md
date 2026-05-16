@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 🐛 Bug fixes
+- Derived Heat Pump power from the site-today heat-pump daily energy total instead of HEMS split energy, avoiding false `0 W` readings when the HEMS split remains flat. (#680)
+
 ## v3.0.9 - 2026-05-14
 
 ### 🚧 Breaking changes

@@ -177,7 +177,7 @@ The integration currently implements these feature groups:
 - Auth and discovery: cookie login, MFA/resend handling, Entrez token bootstrap, site discovery, runtime auth refresh, and manual site-id fallback.
 - EV charging: status, summary, firmware details, feature flags, daily/lifetime EVSE energy, start/stop controls, charge-level configuration, and scheduler preference writes.
 - Site energy and inventory: latest power, today snapshot, lifetime energy, battery backup/grid eligibility, device inventory, microinverter inventory, live-stream capability flags, tariff reads/writes, dry contacts, and system dashboard summary/tree/details.
-- HEMS: inventory, heat-pump runtime state, HEMS daily energy split metadata, HEMS lifetime merge, and heat-pump power derivation from split deltas.
+- HEMS: inventory, heat-pump runtime state, HEMS daily energy split metadata, HEMS lifetime merge, and heat-pump power derivation from site-today heat-pump deltas.
 - Battery and BatteryConfig: site settings, profile/details, battery settings writes, ITC disclaimer acceptance, DTG/RBD/CFG controls, dry-contact parsing, schedules, validation/XSRF bootstrap, and AC Battery HTML runtime/control paths.
 - Firmware catalog and diagnostics: repository-managed runtime firmware catalog, endpoint health/backoff summaries, payload health, tariff health, heat-pump diagnostics, and redacted system-health output.
 
@@ -190,7 +190,7 @@ The implementation is intentionally tolerant of common Enphase wrapper and namin
 - Time values may be ISO strings, epoch seconds, or epoch milliseconds depending on endpoint family.
 - EVSE runtime payloads merge status, summary, firmware, feature flags, and EVSE timeseries by charger serial.
 - Site energy payloads preserve missing-vs-zero flow semantics and may derive grid/battery flows when direct arrays are absent.
-- HEMS inventory accepts router/gateway/heat-pump buckets across direct and nested shapes, skips retired members, and treats HEMS split energy as metadata unless today/lifetime site energy needs a fallback.
+- HEMS inventory accepts router/gateway/heat-pump buckets across direct and nested shapes, skips retired members, and treats HEMS split energy as metadata for daily heat-pump totals and derived heat-pump power.
 - BatteryConfig writes use endpoint-specific compatibility planning rather than a single universal header/body shape.
 
 ---
@@ -1000,7 +1000,7 @@ Observed structure:
 - `stats[0]` contains 96 quarter-hour buckets (`interval_length=900`) plus a `totals` object using the same metric names.
 - The payload co-locates energy-flow arrays, battery state, connection details, and internal logging strings in one response.
 - `heatpump` can be populated even when `production` and `evse` are all zero for the same day.
-- The integration treats this `heatpump` daily total as the authoritative displayed heat-pump energy. The HEMS `energy-consumption` endpoint is optional split metadata for source attribution and power derivation.
+- The integration treats this `heatpump` daily total as the authoritative displayed heat-pump energy and the source for derived heat-pump power. The HEMS `energy-consumption` endpoint is optional split metadata for diagnostics and source attribution.
 - `siteStatus="normal"` coexisted with `statusDetails.statusSeverity="warning"` in the observed capture.
 - `batteryConfig` mirrors several BatteryConfig-service concepts (`usage`, backup percentage, grid-mode settings, storm state) but adds internal class/ID fields and gateway-serial keyed maps.
 
@@ -4199,7 +4199,7 @@ Returns heat-pump consumption series as fixed-interval power buckets.
 Runtime status: not implemented. This endpoint was observed during API research but
 proved unreliable for heat-pump power in Home Assistant, so the integration does not
 call it and does not expose helper code for it. Current heat-pump power sensors derive
-watts from deltas in HEMS daily split energy (`/energy-consumption`) instead.
+watts from deltas in the site-today `heatpump` daily energy total instead.
 
 Example response shape (anonymized):
 ```json
