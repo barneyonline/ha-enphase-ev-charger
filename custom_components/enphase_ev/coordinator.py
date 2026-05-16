@@ -495,6 +495,8 @@ class RefreshPipelineContext:
     first_refresh_followups_task: asyncio.Task[None] | None = None
     auth_refresh_rejected_count_at_start: int = 0
     status_used_stale: bool = False
+    status_stale_network_failure: bool = False
+    status_stale_dns_failure: bool = False
     fast_poll: bool = False
 
 
@@ -2529,6 +2531,13 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
     def _status_stale_window_s(self) -> float:
         return self.diagnostics.status_stale_window_s()
 
+    def _status_payload_reusable(self, *, first_refresh: bool) -> bool:
+        return (
+            not first_refresh
+            and isinstance(self._status_payload_cache, dict)
+            and self._payload_endpoint_reusable("status", self._status_stale_window_s())
+        )
+
     def payload_health_diagnostics(self) -> dict[str, object]:
         return self.diagnostics.payload_health_diagnostics()
 
@@ -2748,14 +2757,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         self._http_errors = 0
         self._payload_errors = 0
         self.diagnostics.clear_rate_limited_issue()
-        self.diagnostics.clear_network_issue()
-        self._network_errors = 0
+        if not getattr(context, "status_stale_network_failure", False):
+            self.diagnostics.clear_network_issue()
+            self._network_errors = 0
         self.diagnostics.clear_cloud_issue()
         self._backoff_until = None
         self._clear_backoff_timer()
         self._last_error = None
-        self.diagnostics.clear_dns_issue()
-        self._dns_failures = 0
+        if not getattr(context, "status_stale_dns_failure", False):
+            self.diagnostics.clear_dns_issue()
+            self._dns_failures = 0
         if not context.status_used_stale:
             self.last_success_utc = dt_util.utcnow()
             self.payload_using_stale = False
@@ -2996,12 +3007,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             raise ConfigEntryAuthFailed from err
         except OptionalEndpointUnavailable as err:
             reason = (str(err) or "EVSE status endpoint unavailable").strip()
-            can_reuse_status = (
-                not first_refresh
-                and isinstance(self._status_payload_cache, dict)
-                and self._payload_endpoint_reusable(
-                    "status", self._status_stale_window_s()
-                )
+            can_reuse_status = self._status_payload_reusable(
+                first_refresh=first_refresh
             )
             _LOGGER.debug(
                 "EVSE status endpoint unavailable for site %s: %s",
@@ -3038,12 +3045,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         except InvalidPayloadError as err:
             reason = (err.summary or str(err) or "Invalid JSON response").strip()
             signature = err.signature_dict()
-            can_reuse_status = (
-                not first_refresh
-                and isinstance(self._status_payload_cache, dict)
-                and self._payload_endpoint_reusable(
-                    "status", self._status_stale_window_s()
-                )
+            can_reuse_status = self._status_payload_reusable(
+                first_refresh=first_refresh
             )
             self._last_error = reason
             self.last_failure_endpoint = err.endpoint
@@ -3157,6 +3160,9 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             msg = redact_text(err, site_ids=(self.site_id,))
             if not msg:
                 msg = err.__class__.__name__
+            can_reuse_status = self._status_payload_reusable(
+                first_refresh=first_refresh
+            )
             self._last_error = msg
             self._network_errors += 1
             self._payload_errors = 0
@@ -3172,19 +3178,6 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             )
             if dns_failure:
                 self._dns_failures += 1
-            else:
-                self._dns_failures = 0
-                self.diagnostics.clear_dns_issue()
-            backoff_multiplier = 2 ** min(self._network_errors - 1, 3)
-            jitter = random.uniform(1.0, 2.5)
-            slow_floor = self._slow_interval_floor()
-            backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
-            self._backoff_until = time.monotonic() + backoff
-            self._schedule_backoff_timer(backoff)
-            if self._network_errors >= 3:
-                self.diagnostics.report_network_issue()
-            if dns_failure and self._dns_failures >= 2:
-                self.diagnostics.report_dns_issue()
             now_utc = dt_util.utcnow()
             self.last_failure_utc = now_utc
             self.last_failure_status = None
@@ -3192,12 +3185,44 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             self.last_failure_response = None
             self.last_failure_source = "network"
             self.last_failure_endpoint = None
-            self.payload_using_stale = False
-            self.payload_failure_kind = None
-            raise UpdateFailed(
-                f"Error communicating with API: {msg}",
-                retry_after=backoff,
-            )
+            if can_reuse_status:
+                self.payload_using_stale = True
+                self.payload_failure_kind = None
+                self._note_payload_endpoint_failure(
+                    "status",
+                    error=msg,
+                    signature=None,
+                    using_stale=True,
+                )
+                phase_timings["status_s"] = round(time.monotonic() - status_start, 3)
+                data = dict(self._status_payload_cache)
+                context.status_used_stale = True
+                context.status_stale_network_failure = True
+                context.status_stale_dns_failure = bool(
+                    dns_failure
+                    or self._dns_failures
+                    or getattr(self, "_dns_issue_reported", False)
+                )
+                if dns_failure and self._dns_failures >= 2:
+                    self.diagnostics.report_dns_issue()
+                status_refresh_succeeded = True
+            else:
+                backoff_multiplier = 2 ** min(self._network_errors - 1, 3)
+                jitter = random.uniform(1.0, 2.5)
+                slow_floor = self._slow_interval_floor()
+                backoff = max(slow_floor, slow_floor * backoff_multiplier * jitter)
+                self._backoff_until = time.monotonic() + backoff
+                self._schedule_backoff_timer(backoff)
+                if self._network_errors >= 3:
+                    self.diagnostics.report_network_issue()
+                if dns_failure and self._dns_failures >= 2:
+                    self.diagnostics.report_dns_issue()
+                self.payload_using_stale = False
+                self.payload_failure_kind = None
+                raise UpdateFailed(
+                    f"Error communicating with API: {msg}",
+                    retry_after=backoff,
+                )
         finally:
             if not status_refresh_succeeded:
                 await self._async_cancel_first_refresh_followups(context)
