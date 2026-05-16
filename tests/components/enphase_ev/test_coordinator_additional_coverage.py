@@ -1794,7 +1794,7 @@ async def test_async_update_data_network_dns_issue(
 
 
 @pytest.mark.asyncio
-async def test_async_update_data_network_error_clears_dns(
+async def test_async_update_data_network_error_keeps_existing_dns_issue(
     coordinator_factory, mock_issue_registry, monkeypatch
 ):
     coord = coordinator_factory()
@@ -1802,11 +1802,13 @@ async def test_async_update_data_network_error_clears_dns(
     coord._schedule_backoff_timer = MagicMock()
     coord._network_errors = 3
     coord._dns_issue_reported = True
+    coord._dns_failures = 2
 
     with pytest.raises(UpdateFailed):
         await coord._async_update_data()
 
-    assert coord._dns_issue_reported is False
+    assert coord._dns_issue_reported is True
+    assert coord._dns_failures == 2
 
 
 def test_sync_desired_charging_schedules_auto_resume(coordinator_factory, monkeypatch):

@@ -210,6 +210,7 @@ async def test_latency_ms_set_on_success_and_failure(hass, monkeypatch):
             raise asyncio.TimeoutError()
 
     coord.client = BadClient()
+    coord._status_payload_cache = None  # noqa: SLF001
     with pytest.raises(UpdateFailed):
         await coord._async_update_data()
     # latency should still be set in finally

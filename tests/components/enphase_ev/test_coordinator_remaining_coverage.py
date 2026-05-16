@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -24,6 +25,9 @@ from custom_components.enphase_ev.coordinator import (
 from custom_components.enphase_ev.const import (
     CONF_COOKIE,
     DEFAULT_SLOW_POLL_INTERVAL,
+    DOMAIN,
+    ISSUE_DNS_RESOLUTION,
+    ISSUE_NETWORK_UNREACHABLE,
     OPT_FAST_POLL_INTERVAL,
     OPT_FAST_WHILE_STREAMING,
     OPT_SLOW_POLL_INTERVAL,
@@ -666,6 +670,128 @@ async def test_async_update_data_invalid_payload_reuses_cached_status_within_sta
         issue[1] == ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.created
     )
     assert any(issue[1] == ISSUE_CLOUD_ERRORS for issue in mock_issue_registry.deleted)
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_network_error_reuses_cached_status_within_stale_window(
+    coordinator_factory,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteLastErrorCodeSensor
+
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    coord.data = {RANDOM_SERIAL: {"sn": RANDOM_SERIAL, "name": "Cached Charger"}}
+    coord._status_payload_cache = {
+        "evChargerData": [{"sn": RANDOM_SERIAL, "connectors": [{}]}],
+        "ts": "1700000123",
+    }
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord.client.status = AsyncMock(side_effect=asyncio.TimeoutError())
+    coord._schedule_backoff_timer = MagicMock()
+
+    result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in result
+    assert coord.payload_using_stale is True
+    assert coord.payload_failure_kind is None
+    assert coord.last_failure_source == "network"
+    assert EnphaseSiteLastErrorCodeSensor(coord).native_value == "network_error"
+    assert coord._network_errors == 1
+    assert coord._backoff_until is None
+    coord._schedule_backoff_timer.assert_not_called()
+    assert "total_s" in coord.phase_timings
+    assert coord._payload_health["status"]["using_stale"] is True  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_dns_error_reuses_stale_status_and_reports_dns_issue(
+    coordinator_factory,
+    mock_issue_registry,
+) -> None:
+    from custom_components.enphase_ev.sensor import EnphaseSiteLastErrorCodeSensor
+
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    coord.data = {RANDOM_SERIAL: {"sn": RANDOM_SERIAL, "name": "Cached Charger"}}
+    coord._status_payload_cache = {
+        "evChargerData": [{"sn": RANDOM_SERIAL, "connectors": [{}]}],
+        "ts": "1700000123",
+    }
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord.client.status = AsyncMock(
+        side_effect=aiohttp.ClientError("Temporary failure in name resolution")
+    )
+    coord._schedule_backoff_timer = MagicMock()
+
+    first_result = await coord._async_update_data()
+    second_result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in first_result
+    assert RANDOM_SERIAL in second_result
+    assert coord.payload_using_stale is True
+    assert coord.last_failure_source == "network"
+    assert EnphaseSiteLastErrorCodeSensor(coord).native_value == "dns_error"
+    assert coord._network_errors == 2
+    assert coord._dns_failures == 2
+    assert coord._backoff_until is None
+    coord._schedule_backoff_timer.assert_not_called()
+    assert any(
+        issue[1] == ISSUE_DNS_RESOLUTION for issue in mock_issue_registry.created
+    )
+    assert not any(
+        issue[1] == ISSUE_NETWORK_UNREACHABLE for issue in mock_issue_registry.created
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_update_data_stale_timeout_keeps_existing_dns_issue(
+    coordinator_factory,
+    mock_issue_registry,
+) -> None:
+    coord = coordinator_factory()
+    coord._has_successful_refresh = True
+    coord.data = {RANDOM_SERIAL: {"sn": RANDOM_SERIAL, "name": "Cached Charger"}}
+    coord._status_payload_cache = {
+        "evChargerData": [{"sn": RANDOM_SERIAL, "connectors": [{}]}],
+        "ts": "1700000123",
+    }
+    coord._mark_payload_endpoint_success(
+        "status",
+        success_mono=coord_mod.time.monotonic(),
+        success_utc=datetime.now(timezone.utc),
+    )
+    coord.client.status = AsyncMock(
+        side_effect=[
+            aiohttp.ClientError("Temporary failure in name resolution"),
+            aiohttp.ClientError("Temporary failure in name resolution"),
+            asyncio.TimeoutError(),
+        ]
+    )
+    coord._schedule_backoff_timer = MagicMock()
+
+    await coord._async_update_data()
+    await coord._async_update_data()
+    timeout_result = await coord._async_update_data()
+
+    assert RANDOM_SERIAL in timeout_result
+    assert coord.payload_using_stale is True
+    assert coord.last_failure_source == "network"
+    assert coord._network_errors == 3
+    assert coord._dns_failures == 2
+    assert coord._dns_issue_reported is True
+    assert coord._backoff_until is None
+    assert (DOMAIN, ISSUE_DNS_RESOLUTION) not in mock_issue_registry.deleted
+    assert not any(
+        issue[1] == ISSUE_NETWORK_UNREACHABLE for issue in mock_issue_registry.created
+    )
 
 
 @pytest.mark.asyncio
