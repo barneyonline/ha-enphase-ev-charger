@@ -277,11 +277,7 @@ def test_switch_pending_helper_edge_paths() -> None:
     switch_mod._write_state_if_available(entity)
     entity.async_write_ha_state.assert_called_once()
 
-    coord = SimpleNamespace()
-    switch_mod._set_evse_toggle_pending(
-        coord, "_green_battery_pending", RANDOM_SERIAL, True
-    )
-    assert coord._green_battery_pending[RANDOM_SERIAL][0] is True  # noqa: SLF001
+    coord = SimpleNamespace(_green_battery_pending={})
 
     assert (
         switch_mod._effective_evse_toggle_state(
@@ -1506,20 +1502,32 @@ async def test_green_battery_switch_turn_on_off(coordinator_factory) -> None:
         {"green_battery_supported": True, "green_battery_enabled": False}
     )
     coord._green_battery_cache.clear()
+    coord.evse_runtime.async_set_green_battery_setting = AsyncMock(
+        wraps=coord.evse_runtime.async_set_green_battery_setting
+    )
     sw = GreenBatterySwitch(coord, RANDOM_SERIAL)
 
     await sw.async_turn_on()
+    coord.evse_runtime.async_set_green_battery_setting.assert_awaited_once_with(
+        RANDOM_SERIAL, enabled=True
+    )
     coord.client.set_green_battery_setting.assert_awaited_once_with(
         RANDOM_SERIAL, enabled=True
     )
     assert coord._green_battery_cache[RANDOM_SERIAL][0] is True
+    assert coord._green_battery_pending[RANDOM_SERIAL][0] is True
 
     await sw.async_turn_off()
+    assert coord.evse_runtime.async_set_green_battery_setting.await_count == 2
+    coord.evse_runtime.async_set_green_battery_setting.assert_awaited_with(
+        RANDOM_SERIAL, enabled=False
+    )
     assert coord.client.set_green_battery_setting.await_count == 2
     coord.client.set_green_battery_setting.assert_awaited_with(
         RANDOM_SERIAL, enabled=False
     )
     assert coord._green_battery_cache[RANDOM_SERIAL][0] is False
+    assert coord._green_battery_pending[RANDOM_SERIAL][0] is False
     assert coord.async_request_refresh.await_count == 2
 
 
@@ -1594,20 +1602,32 @@ def test_app_auth_switch_is_on_prefers_short_pending_override(
 async def test_app_auth_switch_turn_on_off(coordinator_factory) -> None:
     coord = coordinator_factory({"app_auth_supported": True, "app_auth_enabled": False})
     coord._auth_settings_cache.clear()
+    coord.evse_runtime.async_set_app_authentication = AsyncMock(
+        wraps=coord.evse_runtime.async_set_app_authentication
+    )
     sw = AppAuthenticationSwitch(coord, RANDOM_SERIAL)
 
     await sw.async_turn_on()
+    coord.evse_runtime.async_set_app_authentication.assert_awaited_once_with(
+        RANDOM_SERIAL, enabled=True
+    )
     coord.client.set_app_authentication.assert_awaited_once_with(
         RANDOM_SERIAL, enabled=True
     )
     assert coord._auth_settings_cache[RANDOM_SERIAL][0] is True
+    assert coord._app_auth_pending[RANDOM_SERIAL][0] is True
 
     await sw.async_turn_off()
+    assert coord.evse_runtime.async_set_app_authentication.await_count == 2
+    coord.evse_runtime.async_set_app_authentication.assert_awaited_with(
+        RANDOM_SERIAL, enabled=False
+    )
     assert coord.client.set_app_authentication.await_count == 2
     coord.client.set_app_authentication.assert_awaited_with(
         RANDOM_SERIAL, enabled=False
     )
     assert coord._auth_settings_cache[RANDOM_SERIAL][0] is False
+    assert coord._app_auth_pending[RANDOM_SERIAL][0] is False
     assert coord.async_request_refresh.await_count == 2
 
 

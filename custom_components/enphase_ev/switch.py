@@ -48,7 +48,6 @@ from .service_validation import raise_translated_service_validation
 PARALLEL_UPDATES = 0
 _LOGGER = logging.getLogger(__name__)
 _AUTO_SUFFIX_RE = re.compile(r"^\d+$")
-_EVSE_TOGGLE_PENDING_HOLD_S = 15.0
 
 
 def _write_state_if_available(entity: SwitchEntity) -> None:
@@ -57,23 +56,6 @@ def _write_state_if_available(entity: SwitchEntity) -> None:
     if getattr(entity, "hass", None) is None or not getattr(entity, "entity_id", None):
         return
     entity.async_write_ha_state()
-
-
-def _set_evse_toggle_pending(
-    coord: EnphaseCoordinator, attr_name: str, serial: str, enabled: bool
-) -> None:
-    """Record a short-lived optimistic EVSE toggle target."""
-
-    # EVSE control endpoints can acknowledge before the status endpoint reflects
-    # the new value, so switches expose the requested target briefly.
-    pending = getattr(coord, attr_name, None)
-    if not isinstance(pending, dict):
-        pending = {}
-        setattr(coord, attr_name, pending)
-    pending[str(serial)] = (
-        bool(enabled),
-        time.monotonic() + _EVSE_TOGGLE_PENDING_HOLD_S,
-    )
 
 
 def _effective_evse_toggle_state(
@@ -1031,18 +1013,16 @@ class GreenBatterySwitch(EnphaseBaseEntity, SwitchEntity):
         return bool(effective)
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self._coord.client.set_green_battery_setting(self._sn, enabled=True)
-        self._coord.set_green_battery_cache(self._sn, True)
-        _set_evse_toggle_pending(self._coord, "_green_battery_pending", self._sn, True)
+        await self._coord.evse_runtime.async_set_green_battery_setting(
+            self._sn, enabled=True
+        )
         _write_state_if_available(self)
-        await self._coord.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self._coord.client.set_green_battery_setting(self._sn, enabled=False)
-        self._coord.set_green_battery_cache(self._sn, False)
-        _set_evse_toggle_pending(self._coord, "_green_battery_pending", self._sn, False)
+        await self._coord.evse_runtime.async_set_green_battery_setting(
+            self._sn, enabled=False
+        )
         _write_state_if_available(self)
-        await self._coord.async_request_refresh()
 
 
 class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
@@ -1073,10 +1053,10 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         try:
-            await self._coord.client.set_app_authentication(self._sn, enabled=True)
-            self._coord.mark_auth_settings_available()
-        except AuthSettingsUnavailable as err:
-            self._coord.note_auth_settings_unavailable(err)
+            await self._coord.evse_runtime.async_set_app_authentication(
+                self._sn, enabled=True
+            )
+        except AuthSettingsUnavailable:
             raise_translated_service_validation(
                 translation_domain=DOMAIN,
                 translation_key="exceptions.auth_settings_service_unavailable",
@@ -1085,17 +1065,14 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
                     "service is down."
                 ),
             )
-        self._coord.set_app_auth_cache(self._sn, True)
-        _set_evse_toggle_pending(self._coord, "_app_auth_pending", self._sn, True)
         _write_state_if_available(self)
-        await self._coord.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         try:
-            await self._coord.client.set_app_authentication(self._sn, enabled=False)
-            self._coord.mark_auth_settings_available()
-        except AuthSettingsUnavailable as err:
-            self._coord.note_auth_settings_unavailable(err)
+            await self._coord.evse_runtime.async_set_app_authentication(
+                self._sn, enabled=False
+            )
+        except AuthSettingsUnavailable:
             raise_translated_service_validation(
                 translation_domain=DOMAIN,
                 translation_key="exceptions.auth_settings_service_unavailable",
@@ -1104,10 +1081,7 @@ class AppAuthenticationSwitch(EnphaseBaseEntity, SwitchEntity):
                     "service is down."
                 ),
             )
-        self._coord.set_app_auth_cache(self._sn, False)
-        _set_evse_toggle_pending(self._coord, "_app_auth_pending", self._sn, False)
         _write_state_if_available(self)
-        await self._coord.async_request_refresh()
 
 
 class StormGuardEvseSwitch(EnphaseBaseEntity, SwitchEntity):

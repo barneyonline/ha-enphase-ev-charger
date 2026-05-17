@@ -720,12 +720,10 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
         if previous_mode == mode:
             return
         try:
-            await self._coord.client.set_charge_mode(
+            await self._coord.evse_runtime.async_set_charge_mode(
                 self._sn, mode, previous_mode=previous_mode
             )
-            self._coord.mark_scheduler_available()
-        except SchedulerUnavailable as err:
-            self._coord.note_scheduler_unavailable(err)
+        except SchedulerUnavailable:
             raise_translated_service_validation(
                 translation_domain=DOMAIN,
                 translation_key="exceptions.scheduler_service_unavailable",
@@ -748,9 +746,6 @@ class ChargeModeSelect(EnphaseBaseEntity, SelectEntity):
                     translation_key="exceptions.schedule_required",
                 )
             raise
-        # Update cache immediately to reflect in UI while the scheduler catches up.
-        self._coord.set_charge_mode_cache(self._sn, mode)
-        await self._coord.async_request_refresh()
 
 
 class AcBatteryTargetStateOfChargeSelect(CoordinatorEntity, SelectEntity):

@@ -67,6 +67,14 @@ from .runtime_helpers import (
     inventory_type_available as _type_available,
     inventory_type_device_info as _type_device_info,
 )
+from .sensor_registry import (
+    AC_BATTERY_ENTITY_UNIQUE_SUFFIXES as AC_BATTERY_ENTITY_UNIQUE_SUFFIXES,
+    AC_BATTERY_RETIRED_UNIQUE_SUFFIXES as AC_BATTERY_RETIRED_UNIQUE_SUFFIXES,
+    BATTERY_ENTITY_UNIQUE_SUFFIXES as BATTERY_ENTITY_UNIQUE_SUFFIXES,
+    BATTERY_RETIRED_UNIQUE_SUFFIXES as BATTERY_RETIRED_UNIQUE_SUFFIXES,
+    HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES as HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES,
+    EnphaseSensorRegistrySetup,
+)
 from .tariff import (
     current_tariff_rate_sensor_spec,
     next_billing_date,
@@ -91,45 +99,7 @@ CLOUD_ERROR_CODE_STATES: tuple[str, ...] = (
     "network_error",
 )
 SITE_SERVICE_STATUS_STATES: tuple[str, ...] = ("ok", "degraded", "unknown")
-BATTERY_ENTITY_UNIQUE_SUFFIXES: tuple[str, ...] = (
-    "_charge_level",
-    "_status",
-    "_health",
-    "_cycle_count",
-)
-BATTERY_RETIRED_UNIQUE_SUFFIXES: tuple[str, ...] = (
-    "_last_reported",
-    "_last_reported_at",
-)
-AC_BATTERY_ENTITY_UNIQUE_SUFFIXES: tuple[str, ...] = (
-    "_charge_level",
-    "_status",
-    "_power",
-    "_operating_mode",
-    "_cycle_count",
-    "_last_reported",
-)
-AC_BATTERY_RETIRED_UNIQUE_SUFFIXES: tuple[str, ...] = ("_last_reported_at",)
 CURRENT_POWER_CACHE_TTL_MULTIPLIER = 2
-HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES: tuple[str, ...] = (
-    "_connector_reason",
-    "_session_miles",
-    "_plg_in_at",
-    "_plg_out_at",
-    "_schedule_type",
-    "_schedule_start",
-    "_schedule_end",
-    "_session_kwh",
-    "_charging_level",
-    "_session_duration",
-    "_phase_mode",
-    "_max_current",
-    "_min_amp",
-    "_max_amp",
-    "_connection",
-    "_reporting_interval",
-    "_ip_address",
-)
 SITE_LIFETIME_FLOW_BUCKET_LENGTH_KEYS: dict[str, tuple[str, ...]] = {
     "grid_import": ("import", "grid_home", "grid_battery"),
     "grid_export": ("solar_grid",),
@@ -303,331 +273,37 @@ async def async_setup_entry(
 ):
     coord: EnphaseCoordinator = get_runtime_data(entry).coordinator
     ent_reg = er.async_get(hass)
-    known_site_entity_keys: set[str] = set()
+    registry_setup = EnphaseSensorRegistrySetup(
+        ent_reg,
+        config_entry_id=entry.entry_id,
+        site_id=str(coord.site_id),
+    )
+    known_site_entity_keys = registry_setup.known_site_entity_keys
+    known_type_keys = registry_setup.known_type_keys
+    known_gateway_iq_router_keys = registry_setup.known_gateway_iq_router_keys
+    _gateway_iq_router_entity_key = registry_setup.gateway_iq_router_entity_key
+    _async_prune_removed_gateway_iq_router_entities = (
+        registry_setup.prune_removed_gateway_iq_router_entities
+    )
+    _async_remove_site_sensor_entity = registry_setup.remove_site_sensor_entity
+    _async_remove_type_sensor_entity = registry_setup.remove_type_sensor_entity
+    _site_sensor_entity_registered = registry_setup.site_sensor_entity_registered
+    _async_remove_site_sensor_entities_with_prefix = (
+        registry_setup.remove_site_sensor_entities_with_prefix
+    )
+    _async_prune_dry_contact_type_inventory_entities = (
+        registry_setup.prune_dry_contact_type_inventory_entities
+    )
+    _async_prune_blocked_type_inventory_entities = (
+        registry_setup.prune_blocked_type_inventory_entities
+    )
     known_serials: set[str] = set()
     known_storm_guard_serials: set[str] = set()
-    known_battery_serials: set[str] = set()
-    known_ac_battery_serials: set[str] = set()
-    known_inverter_serials: set[str] = set()
-    known_type_keys: set[str] = set()
-    known_gateway_iq_router_keys: set[str] = set()
-    battery_registry_pruned = False
-    ac_battery_registry_pruned = False
-    inverter_registry_pruned = False
     last_type_key_set: set[str] | None = None
     last_battery_serial_set: set[str] | None = None
     last_ac_battery_serial_set: set[str] | None = None
     last_charger_serial_set: set[str] | None = None
     last_inverter_serial_set: set[str] | None = None
-
-    def _site_sensor_unique_id(key: str) -> str:
-        return f"{DOMAIN}_site_{coord.site_id}_{key}"
-
-    def _type_sensor_unique_id(type_key: str) -> str:
-        return f"{DOMAIN}_site_{coord.site_id}_type_{type_key}_inventory"
-
-    def _gateway_iq_router_entity_key(router_key: str) -> str:
-        return f"gateway_iq_energy_router_{router_key}"
-
-    def _gateway_iq_router_key_from_unique_id(unique_id: object) -> str | None:
-        key = _gateway_clean_text(unique_id)
-        if not key:
-            return None
-        prefix = f"{DOMAIN}_site_{coord.site_id}_gateway_iq_energy_router_"
-        if not key.startswith(prefix):
-            return None
-        router_key = key[len(prefix) :]
-        return router_key or None
-
-    @callback
-    def _async_prune_removed_gateway_iq_router_entities(
-        current_router_keys: set[str],
-    ) -> None:
-        entities = getattr(ent_reg, "entities", None)
-        if not isinstance(entities, dict):
-            return
-        for reg_entry in list(entities.values()):
-            entry_domain = getattr(reg_entry, "domain", None)
-            if entry_domain is None:
-                entry_domain = reg_entry.entity_id.partition(".")[0]
-            if entry_domain != "sensor":
-                continue
-            entry_platform = getattr(reg_entry, "platform", None)
-            if entry_platform is not None and entry_platform != DOMAIN:
-                continue
-            entry_config_id = getattr(reg_entry, "config_entry_id", None)
-            if entry_config_id is not None and entry_config_id != entry.entry_id:
-                continue
-            router_key = _gateway_iq_router_key_from_unique_id(
-                getattr(reg_entry, "unique_id", None)
-            )
-            if not router_key or router_key in current_router_keys:
-                continue
-            ent_reg.async_remove(reg_entry.entity_id)
-            known_gateway_iq_router_keys.discard(router_key)
-            known_site_entity_keys.discard(_gateway_iq_router_entity_key(router_key))
-
-    @callback
-    def _async_remove_site_sensor_entity(key: str) -> None:
-        get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
-        if not callable(get_entity_id):
-            return
-        entity_id = get_entity_id("sensor", DOMAIN, _site_sensor_unique_id(key))
-        if entity_id is None:
-            return
-        ent_reg.async_remove(entity_id)
-        known_site_entity_keys.discard(key)
-        router_prefix = "gateway_iq_energy_router_"
-        if key.startswith(router_prefix):
-            known_gateway_iq_router_keys.discard(key[len(router_prefix) :])
-
-    @callback
-    def _async_remove_type_sensor_entity(type_key: str) -> None:
-        get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
-        if not callable(get_entity_id):
-            return
-        entity_id = get_entity_id(
-            "sensor",
-            DOMAIN,
-            _type_sensor_unique_id(type_key),
-        )
-        if entity_id is None:
-            return
-        ent_reg.async_remove(entity_id)
-        known_type_keys.discard(type_key)
-
-    def _site_sensor_entity_registered(key: str) -> bool:
-        get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
-        if not callable(get_entity_id):
-            return False
-        return get_entity_id("sensor", DOMAIN, _site_sensor_unique_id(key)) is not None
-
-    def _entity_registry_values():
-        entities = getattr(ent_reg, "entities", None)
-        values = getattr(entities, "values", None)
-        if callable(values):
-            return values()
-        return ()
-
-    @callback
-    def _async_remove_site_sensor_entities_with_prefix(
-        prefix: str,
-    ) -> None:
-        unique_prefix = _site_sensor_unique_id(prefix)
-        for reg_entry in list(_entity_registry_values()):
-            entry_domain = getattr(reg_entry, "domain", None)
-            if entry_domain is None:
-                entry_domain = reg_entry.entity_id.partition(".")[0]
-            if entry_domain != "sensor":
-                continue
-            entry_platform = getattr(reg_entry, "platform", None)
-            if entry_platform is not None and entry_platform != DOMAIN:
-                continue
-            entry_config_id = getattr(reg_entry, "config_entry_id", None)
-            if entry_config_id is not None and entry_config_id != entry.entry_id:
-                continue
-            unique_id = _gateway_clean_text(getattr(reg_entry, "unique_id", None))
-            if not unique_id or not unique_id.startswith(unique_prefix):
-                continue
-            key = unique_id[len(f"{DOMAIN}_site_{coord.site_id}_") :]
-            ent_reg.async_remove(reg_entry.entity_id)
-            known_site_entity_keys.discard(key)
-
-    @callback
-    def _async_prune_dry_contact_type_inventory_entities() -> None:
-        entities = getattr(ent_reg, "entities", None)
-        if not isinstance(entities, dict):
-            return
-        unique_prefix = f"{DOMAIN}_site_{coord.site_id}_type_"
-        unique_suffix = "_inventory"
-        for reg_entry in list(entities.values()):
-            entry_domain = getattr(reg_entry, "domain", None)
-            if entry_domain is None:
-                entry_domain = reg_entry.entity_id.partition(".")[0]
-            if entry_domain != "sensor":
-                continue
-            entry_platform = getattr(reg_entry, "platform", None)
-            if entry_platform is not None and entry_platform != DOMAIN:
-                continue
-            entry_config_id = getattr(reg_entry, "config_entry_id", None)
-            if entry_config_id is not None and entry_config_id != entry.entry_id:
-                continue
-            unique_id = _gateway_clean_text(getattr(reg_entry, "unique_id", None))
-            type_key = None
-            if unique_id and unique_id.startswith(unique_prefix):
-                if not unique_id.endswith(unique_suffix):
-                    continue
-                type_key = unique_id[len(unique_prefix) : -len(unique_suffix)]
-            else:
-                entity_slug = reg_entry.entity_id.partition(".")[2]
-                if "drycontactloads" not in entity_slug or not entity_slug.endswith(
-                    "_inventory"
-                ):
-                    continue
-                type_key = "drycontactloads"
-            if not _is_dry_contact_type_key(type_key):
-                continue
-            ent_reg.async_remove(reg_entry.entity_id)
-            known_type_keys.discard(type_key)
-
-    @callback
-    def _async_prune_blocked_type_inventory_entities(
-        blocked_type_keys: set[str],
-    ) -> None:
-        entities = getattr(ent_reg, "entities", None)
-        if not isinstance(entities, dict) or not blocked_type_keys:
-            return
-        unique_prefix = f"{DOMAIN}_site_{coord.site_id}_type_"
-        unique_suffix = "_inventory"
-        for reg_entry in list(entities.values()):
-            entry_domain = getattr(reg_entry, "domain", None)
-            if entry_domain is None:
-                entry_domain = reg_entry.entity_id.partition(".")[0]
-            if entry_domain != "sensor":
-                continue
-            entry_platform = getattr(reg_entry, "platform", None)
-            if entry_platform is not None and entry_platform != DOMAIN:
-                continue
-            entry_config_id = getattr(reg_entry, "config_entry_id", None)
-            if entry_config_id is not None and entry_config_id != entry.entry_id:
-                continue
-            unique_id = _gateway_clean_text(getattr(reg_entry, "unique_id", None))
-            if not unique_id or not unique_id.startswith(unique_prefix):
-                continue
-            if not unique_id.endswith(unique_suffix):
-                continue
-            type_key = unique_id[len(unique_prefix) : -len(unique_suffix)]
-            if type_key not in blocked_type_keys:
-                continue
-            ent_reg.async_remove(reg_entry.entity_id)
-            known_type_keys.discard(type_key)
-
-    def _battery_sensor_unique_id(serial: str, suffix: str) -> str:
-        return f"{DOMAIN}_site_{coord.site_id}_battery_{serial}{suffix}"
-
-    def _battery_sensor_unique_ids(serial: str) -> tuple[str, ...]:
-        return tuple(
-            _battery_sensor_unique_id(serial, suffix)
-            for suffix in BATTERY_ENTITY_UNIQUE_SUFFIXES
-        )
-
-    def _battery_retired_sensor_unique_ids(serial: str) -> tuple[str, ...]:
-        return tuple(
-            _battery_sensor_unique_id(serial, suffix)
-            for suffix in BATTERY_RETIRED_UNIQUE_SUFFIXES
-        )
-
-    def _ac_battery_sensor_unique_id(serial: str, suffix: str) -> str:
-        return f"{DOMAIN}_site_{coord.site_id}_ac_battery_{serial}{suffix}"
-
-    def _ac_battery_sensor_unique_ids(serial: str) -> tuple[str, ...]:
-        return tuple(
-            _ac_battery_sensor_unique_id(serial, suffix)
-            for suffix in AC_BATTERY_ENTITY_UNIQUE_SUFFIXES
-        )
-
-    def _ac_battery_retired_sensor_unique_ids(serial: str) -> tuple[str, ...]:
-        return tuple(
-            _ac_battery_sensor_unique_id(serial, suffix)
-            for suffix in AC_BATTERY_RETIRED_UNIQUE_SUFFIXES
-        )
-
-    def _battery_serial_from_unique_id(unique_id: str) -> str | None:
-        unique_prefix = f"{DOMAIN}_site_{coord.site_id}_battery_"
-        if not unique_id.startswith(unique_prefix):
-            return None
-        if unique_id in {
-            f"{DOMAIN}_site_{coord.site_id}_battery_overall_status",
-            f"{DOMAIN}_site_{coord.site_id}_battery_last_reported",
-        }:
-            return None
-        for suffix in (
-            *BATTERY_ENTITY_UNIQUE_SUFFIXES,
-            *BATTERY_RETIRED_UNIQUE_SUFFIXES,
-        ):
-            if not unique_id.endswith(suffix):
-                continue
-            serial = unique_id[len(unique_prefix) : -len(suffix)]
-            if serial:
-                return serial
-            return None
-        return None
-
-    def _ac_battery_serial_from_unique_id(unique_id: str) -> str | None:
-        unique_prefix = f"{DOMAIN}_site_{coord.site_id}_ac_battery_"
-        if not unique_id.startswith(unique_prefix):
-            return None
-        if unique_id in {
-            f"{DOMAIN}_site_{coord.site_id}_ac_battery_overall_status",
-            f"{DOMAIN}_site_{coord.site_id}_ac_battery_last_reported",
-            f"{DOMAIN}_site_{coord.site_id}_ac_battery_power",
-        }:
-            return None
-        for suffix in (
-            *AC_BATTERY_ENTITY_UNIQUE_SUFFIXES,
-            *AC_BATTERY_RETIRED_UNIQUE_SUFFIXES,
-        ):
-            if not unique_id.endswith(suffix):
-                continue
-            serial = unique_id[len(unique_prefix) : -len(suffix)]
-            if serial:
-                return serial
-            return None
-        return None
-
-    def _inverter_lifetime_sensor_unique_id(serial: str) -> str:
-        return f"{DOMAIN}_inverter_{serial}_lifetime_energy"
-
-    def _legacy_gateway_connected_devices_unique_id() -> str:
-        return f"{DOMAIN}_site_{coord.site_id}_gateway_connected_devices"
-
-    def _legacy_microinverter_inventory_unique_id() -> str:
-        return f"{DOMAIN}_site_{coord.site_id}_type_microinverter_inventory"
-
-    @callback
-    def _async_prune_historical_charger_sensor_entities() -> None:
-        entities = getattr(ent_reg, "entities", None)
-        if not isinstance(entities, dict):
-            return
-        unique_prefix = f"{DOMAIN}_"
-        for reg_entry in list(entities.values()):
-            entry_domain = getattr(reg_entry, "domain", None)
-            if entry_domain is None:
-                entry_domain = reg_entry.entity_id.partition(".")[0]
-            if entry_domain != "sensor":
-                continue
-            entry_platform = getattr(reg_entry, "platform", None)
-            if entry_platform is not None and entry_platform != DOMAIN:
-                continue
-            entry_config_id = getattr(reg_entry, "config_entry_id", None)
-            if entry_config_id is not None and entry_config_id != entry.entry_id:
-                continue
-            unique_id = getattr(reg_entry, "unique_id", None)
-            if not isinstance(unique_id, str) or not unique_id.startswith(
-                unique_prefix
-            ):
-                continue
-            if not unique_id.endswith(HISTORICAL_CHARGER_SENSOR_UNIQUE_SUFFIXES):
-                continue
-            ent_reg.async_remove(reg_entry.entity_id)
-
-    @callback
-    def _async_prune_removed_site_entities() -> None:
-        get_entity_id = getattr(ent_reg, "async_get_entity_id", None)
-        if not callable(get_entity_id):
-            return
-        for unique_id in (
-            _legacy_gateway_connected_devices_unique_id(),
-            _legacy_microinverter_inventory_unique_id(),
-        ):
-            entity_id = get_entity_id(
-                "sensor",
-                DOMAIN,
-                unique_id,
-            )
-            if entity_id is not None:
-                ent_reg.async_remove(entity_id)
-        _async_remove_site_sensor_entity("battery_inactive_microinverters")
 
     @callback
     def _async_sync_site_entities() -> None:
@@ -1156,7 +832,6 @@ async def async_setup_entry(
 
     @callback
     def _async_sync_batteries() -> None:
-        nonlocal battery_registry_pruned
         site_has_battery = _site_has_battery(coord)
         if not site_has_battery or not _type_available(coord, "encharge"):
             current_serials: list[str] = []
@@ -1169,50 +844,14 @@ async def async_setup_entry(
             )
         current_set = set(current_serials)
 
-        if not battery_registry_pruned:
-            for reg_entry in list(ent_reg.entities.values()):
-                entry_domain = getattr(reg_entry, "domain", None)
-                if entry_domain is None:
-                    entry_domain = reg_entry.entity_id.partition(".")[0]
-                if entry_domain != "sensor":
-                    continue
-                entry_platform = getattr(reg_entry, "platform", None)
-                if entry_platform is not None and entry_platform != DOMAIN:
-                    continue
-                entry_config_id = getattr(reg_entry, "config_entry_id", None)
-                if entry_config_id is not None and entry_config_id != entry.entry_id:
-                    continue
-                unique_id = reg_entry.unique_id or ""
-                serial = _battery_serial_from_unique_id(unique_id)
-                if serial is None:
-                    continue
-                if any(
-                    unique_id.endswith(suffix)
-                    for suffix in BATTERY_RETIRED_UNIQUE_SUFFIXES
-                ):
-                    ent_reg.async_remove(reg_entry.entity_id)
-                    known_battery_serials.discard(serial)
-                    continue
-                if serial in current_set:
-                    continue
-                ent_reg.async_remove(reg_entry.entity_id)
-                known_battery_serials.discard(serial)
-            battery_registry_pruned = True
+        registry_setup.prune_battery_registry_once(current_set)
+        registry_setup.remove_missing_battery_entities(current_set)
 
-        removed_serials = known_battery_serials - current_set
-        for serial in removed_serials:
-            for unique_id in (
-                *_battery_sensor_unique_ids(serial),
-                *_battery_retired_sensor_unique_ids(serial),
-            ):
-                entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
-                if entity_id is not None:
-                    ent_reg.async_remove(entity_id)
-            known_battery_serials.discard(serial)
-
-        known_battery_serials.intersection_update(current_set)
-
-        serials = [sn for sn in current_serials if sn not in known_battery_serials]
+        serials = [
+            sn
+            for sn in current_serials
+            if sn not in registry_setup.known_battery_serials
+        ]
         if serials:
             entities: list[SensorEntity] = []
             for sn in serials:
@@ -1225,11 +864,10 @@ async def async_setup_entry(
                     ]
                 )
             async_add_entities(entities, update_before_add=False)
-            known_battery_serials.update(serials)
+            registry_setup.known_battery_serials.update(serials)
 
     @callback
     def _async_sync_ac_batteries() -> None:
-        nonlocal ac_battery_registry_pruned
         if not ac_battery_entities_available(coord):
             current_serials: list[str] = []
         else:
@@ -1241,50 +879,14 @@ async def async_setup_entry(
             )
         current_set = set(current_serials)
 
-        if not ac_battery_registry_pruned:
-            for reg_entry in list(ent_reg.entities.values()):
-                entry_domain = getattr(reg_entry, "domain", None)
-                if entry_domain is None:
-                    entry_domain = reg_entry.entity_id.partition(".")[0]
-                if entry_domain != "sensor":
-                    continue
-                entry_platform = getattr(reg_entry, "platform", None)
-                if entry_platform is not None and entry_platform != DOMAIN:
-                    continue
-                entry_config_id = getattr(reg_entry, "config_entry_id", None)
-                if entry_config_id is not None and entry_config_id != entry.entry_id:
-                    continue
-                unique_id = reg_entry.unique_id or ""
-                serial = _ac_battery_serial_from_unique_id(unique_id)
-                if serial is None:
-                    continue
-                if any(
-                    unique_id.endswith(suffix)
-                    for suffix in AC_BATTERY_RETIRED_UNIQUE_SUFFIXES
-                ):
-                    ent_reg.async_remove(reg_entry.entity_id)
-                    known_ac_battery_serials.discard(serial)
-                    continue
-                if serial in current_set:
-                    continue
-                ent_reg.async_remove(reg_entry.entity_id)
-                known_ac_battery_serials.discard(serial)
-            ac_battery_registry_pruned = True
+        registry_setup.prune_ac_battery_registry_once(current_set)
+        registry_setup.remove_missing_ac_battery_entities(current_set)
 
-        removed_serials = known_ac_battery_serials - current_set
-        for serial in removed_serials:
-            for unique_id in (
-                *_ac_battery_sensor_unique_ids(serial),
-                *_ac_battery_retired_sensor_unique_ids(serial),
-            ):
-                entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, unique_id)
-                if entity_id is not None:
-                    ent_reg.async_remove(entity_id)
-            known_ac_battery_serials.discard(serial)
-
-        known_ac_battery_serials.intersection_update(current_set)
-
-        serials = [sn for sn in current_serials if sn not in known_ac_battery_serials]
+        serials = [
+            sn
+            for sn in current_serials
+            if sn not in registry_setup.known_ac_battery_serials
+        ]
         if serials:
             entities: list[SensorEntity] = []
             for sn in serials:
@@ -1299,62 +901,29 @@ async def async_setup_entry(
                     ]
                 )
             async_add_entities(entities, update_before_add=False)
-            known_ac_battery_serials.update(serials)
+            registry_setup.known_ac_battery_serials.update(serials)
 
     @callback
     def _async_sync_inverters() -> None:
-        nonlocal inverter_registry_pruned
         current_serials = [
             sn for sn in getattr(coord, "iter_inverter_serials", lambda: [])() if sn
         ]
         current_set = set(current_serials)
 
-        if not inverter_registry_pruned:
-            unique_prefix = f"{DOMAIN}_inverter_"
-            unique_suffix = "_lifetime_energy"
-            for reg_entry in list(ent_reg.entities.values()):
-                entry_domain = getattr(reg_entry, "domain", None)
-                if entry_domain is None:
-                    entry_domain = reg_entry.entity_id.partition(".")[0]
-                if entry_domain != "sensor":
-                    continue
-                entry_platform = getattr(reg_entry, "platform", None)
-                if entry_platform is not None and entry_platform != DOMAIN:
-                    continue
-                entry_config_id = getattr(reg_entry, "config_entry_id", None)
-                if entry_config_id is not None and entry_config_id != entry.entry_id:
-                    continue
-                unique_id = reg_entry.unique_id or ""
-                if not (
-                    unique_id.startswith(unique_prefix)
-                    and unique_id.endswith(unique_suffix)
-                ):
-                    continue
-                serial = unique_id[len(unique_prefix) : -len(unique_suffix)]
-                if not serial or serial in current_set:
-                    continue
-                ent_reg.async_remove(reg_entry.entity_id)
-                known_inverter_serials.discard(serial)
-            inverter_registry_pruned = True
+        registry_setup.prune_inverter_registry_once(current_set)
+        registry_setup.remove_missing_inverter_entities(current_set)
 
-        removed_serials = known_inverter_serials - current_set
-        for serial in removed_serials:
-            entity_id = ent_reg.async_get_entity_id(
-                "sensor", DOMAIN, _inverter_lifetime_sensor_unique_id(serial)
-            )
-            if entity_id is not None:
-                ent_reg.async_remove(entity_id)
-            known_inverter_serials.discard(serial)
-
-        known_inverter_serials.intersection_update(current_set)
-
-        serials = [sn for sn in current_serials if sn not in known_inverter_serials]
+        serials = [
+            sn
+            for sn in current_serials
+            if sn not in registry_setup.known_inverter_serials
+        ]
         if serials:
             entities = [
                 EnphaseInverterLifetimeEnergySensor(coord, sn) for sn in serials
             ]
             async_add_entities(entities, update_before_add=False)
-            known_inverter_serials.update(serials)
+            registry_setup.known_inverter_serials.update(serials)
 
     @callback
     def _async_sync_topology() -> None:
@@ -1404,8 +973,8 @@ async def async_setup_entry(
     add_coordinator_listener = getattr(coord, "async_add_listener", None)
     if has_topology_listener and callable(add_coordinator_listener):
         entry.async_on_unload(add_coordinator_listener(_async_sync_topology))
-    _async_prune_historical_charger_sensor_entities()
-    _async_prune_removed_site_entities()
+    registry_setup.prune_historical_charger_sensor_entities()
+    registry_setup.prune_removed_site_entities()
     _async_sync_topology()
 
 

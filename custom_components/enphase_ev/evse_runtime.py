@@ -46,6 +46,7 @@ AUTH_SETTINGS_CACHE_TTL = 300.0
 CHARGE_MODE_CACHE_TTL = 300.0
 CHARGER_CONFIG_CACHE_TTL = 3600.0
 CHARGER_CONFIG_FAILURE_BACKOFF_S = 900.0
+EVSE_TOGGLE_PENDING_HOLD_S = 15.0
 EVSE_LOOKUP_CONCURRENCY = 5
 CHARGE_MODE_PREFERENCE_MAP: dict[str, str] = {
     "MANUAL": "MANUAL_CHARGING",
@@ -1411,6 +1412,65 @@ class EvseRuntime:
             False,
             now,
         )
+
+    def _set_evse_toggle_pending(self, attr_name: str, sn: str, enabled: bool) -> None:
+        pending = getattr(self.coordinator, attr_name, None)
+        if not isinstance(pending, dict):
+            pending = {}
+            setattr(self.coordinator, attr_name, pending)
+        pending[str(sn)] = (
+            bool(enabled),
+            time.monotonic() + EVSE_TOGGLE_PENDING_HOLD_S,
+        )
+
+    async def async_set_charge_mode(
+        self,
+        sn: str,
+        mode: str,
+        *,
+        previous_mode: str | None = None,
+    ) -> None:
+        sn_str = str(sn)
+        try:
+            await self.coordinator.client.set_charge_mode(
+                sn_str,
+                mode,
+                previous_mode=previous_mode,
+            )
+        except SchedulerUnavailable as err:
+            self.coordinator.note_scheduler_unavailable(err)
+            raise
+        self.coordinator.mark_scheduler_available()
+        self.set_charge_mode_cache(sn_str, mode)
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_green_battery_setting(self, sn: str, *, enabled: bool) -> None:
+        sn_str = str(sn)
+        try:
+            await self.coordinator.client.set_green_battery_setting(
+                sn_str, enabled=enabled
+            )
+        except SchedulerUnavailable as err:
+            self.coordinator.note_scheduler_unavailable(err)
+            raise
+        self.coordinator.mark_scheduler_available()
+        self.set_green_battery_cache(sn_str, enabled)
+        self._set_evse_toggle_pending("_green_battery_pending", sn_str, enabled)
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_app_authentication(self, sn: str, *, enabled: bool) -> None:
+        sn_str = str(sn)
+        try:
+            await self.coordinator.client.set_app_authentication(
+                sn_str, enabled=enabled
+            )
+        except AuthSettingsUnavailable as err:
+            self.coordinator.note_auth_settings_unavailable(err)
+            raise
+        self.coordinator.mark_auth_settings_available()
+        self.set_app_auth_cache(sn_str, enabled)
+        self._set_evse_toggle_pending("_app_auth_pending", sn_str, enabled)
+        await self.coordinator.async_request_refresh()
 
     async def async_resolve_green_battery_settings(
         self, serials: Iterable[str]
