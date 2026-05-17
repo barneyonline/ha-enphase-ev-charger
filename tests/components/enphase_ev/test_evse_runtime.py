@@ -11,6 +11,7 @@ import pytest
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.util import dt as dt_util
 
+from custom_components.enphase_ev.api import SchedulerUnavailable
 from custom_components.enphase_ev.evse_runtime import (
     EVSE_LOOKUP_CONCURRENCY,
     FAST_TOGGLE_POLL_HOLD_S,
@@ -82,6 +83,38 @@ def test_evse_runtime_helper_paths(coordinator_factory) -> None:
         strict=False,
         enforce_mode="SCHEDULED_CHARGING",
     )
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_green_battery_write_rebuilds_pending_dict(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = coord.evse_runtime
+    coord._green_battery_pending = None  # noqa: SLF001
+    coord.client.set_green_battery_setting = AsyncMock(return_value={"status": "ok"})
+    coord.async_request_refresh = AsyncMock()
+
+    await runtime.async_set_green_battery_setting("EV1", enabled=True)
+
+    assert coord._green_battery_pending["EV1"][0] is True  # noqa: SLF001
+    coord.client.set_green_battery_setting.assert_awaited_once_with("EV1", enabled=True)
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_evse_runtime_green_battery_write_marks_scheduler_unavailable(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord.client.set_green_battery_setting = AsyncMock(
+        side_effect=SchedulerUnavailable("down")
+    )
+
+    with pytest.raises(SchedulerUnavailable):
+        await coord.evse_runtime.async_set_green_battery_setting("EV1", enabled=True)
+
+    assert coord.scheduler_available is False
 
 
 def test_evse_runtime_battery_profile_charge_mode_preference_paths(

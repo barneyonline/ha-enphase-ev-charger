@@ -47,6 +47,9 @@ async def test_charge_mode_select(hass, monkeypatch):
             return {"status": "accepted", "mode": mode}
 
     coord.client = StubClient()
+    coord.evse_runtime.async_set_charge_mode = AsyncMock(
+        wraps=coord.evse_runtime.async_set_charge_mode
+    )
 
     # Avoid exercising Debouncer / hass loop; stub refresh
     async def _noop():
@@ -59,6 +62,11 @@ async def test_charge_mode_select(hass, monkeypatch):
     assert sel.current_option == "Scheduled"
 
     await sel.async_select_option("Manual")
+    coord.evse_runtime.async_set_charge_mode.assert_awaited_once_with(
+        RANDOM_SERIAL,
+        "MANUAL_CHARGING",
+        previous_mode="SCHEDULED_CHARGING",
+    )
     # cache should update immediately
     assert coord._charge_mode_cache[RANDOM_SERIAL][0] == "MANUAL_CHARGING"
 
