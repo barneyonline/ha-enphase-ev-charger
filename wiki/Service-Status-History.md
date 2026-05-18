@@ -1,11 +1,11 @@
 # Service Status History
 
 - Current status: **Fully Operational**
-- Last updated: `2026-05-18 22:01 UTC`
+- Last updated: `2026-05-18 23:35 UTC`
 - Failed checks in latest run: `1`
 - Latest failed checks: battery_config
-- Retained hourly samples: `417`
-- Incident windows in last 30 days: `13`
+- Retained hourly samples: `416`
+- Incident windows in last 30 days: `12`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
 
@@ -16,12 +16,11 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-04-18T22:01:39, 0ms
-    Window end :vert, window-end, 2026-05-18T22:01:39, 0ms
+    Window start :vert, window-start, 2026-04-18T23:35:29, 0ms
+    Window end :vert, window-end, 2026-05-18T23:35:29, 0ms
     section Down
-    Down 1 (2026-04-18 2234 UTC) :crit, down-1, 2026-04-18T22:34:13, 60m
-    Down 2 (2026-05-08 0529 UTC) :crit, down-2, 2026-05-08T05:29:47, 60m
-    Down 3 (2026-05-15 0948 UTC) :crit, down-3, 2026-05-15T09:48:18, 60m
+    Down 1 (2026-05-08 0529 UTC) :crit, down-1, 2026-05-08T05:29:47, 60m
+    Down 2 (2026-05-15 0948 UTC) :crit, down-2, 2026-05-15T09:48:18, 60m
     section Degraded
     Degraded 1 (2026-04-21 1213 UTC) :active, degraded-1, 2026-04-21T12:13:11, 60m
     Degraded 2 (2026-05-01 1700 UTC) :active, degraded-2, 2026-05-01T17:00:22, 60m
@@ -39,7 +38,6 @@ gantt
 
 | Status | Started (UTC) | Ended (UTC) | Duration | Failed checks |
 | --- | --- | --- | --- | --- |
-| Down | 2026-04-18 22:34 UTC | 2026-04-18 23:33 UTC | 59m | battery_config, evse_runtime, evse_scheduler |
 | Degraded | 2026-04-21 12:13 UTC | Unknown after last seen 2026-04-21 12:13 UTC | Observed 0m | battery_config, battery_runtime, discovery, evse_scheduler, inventory, microinverters, site_energy, site_live |
 | Degraded | 2026-05-01 17:00 UTC | Unknown after last seen 2026-05-01 17:00 UTC | Observed 0m | battery_config, evse_scheduler, site_live |
 | Degraded | 2026-05-07 13:15 UTC | Unknown after last seen 2026-05-07 13:15 UTC | Observed 0m | battery_config, evse_scheduler |
