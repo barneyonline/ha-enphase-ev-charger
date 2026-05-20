@@ -1000,7 +1000,7 @@ Observed structure:
 - `stats[0]` contains 96 quarter-hour buckets (`interval_length=900`) plus a `totals` object using the same metric names.
 - The payload co-locates energy-flow arrays, battery state, connection details, and internal logging strings in one response.
 - `heatpump` can be populated even when `production` and `evse` are all zero for the same day.
-- The integration treats this `heatpump` daily total as the authoritative displayed heat-pump energy and the source for derived heat-pump power. The HEMS `energy-consumption` endpoint is optional split metadata for diagnostics and source attribution.
+- The integration treats this `heatpump` daily total as the authoritative displayed heat-pump energy and the source for derived heat-pump power. Running and idle power may be smoothed over longer same-day monotonic energy windows when enough history is available, with raw delta values retained in diagnostics. The HEMS `energy-consumption` endpoint is optional split metadata for diagnostics and source attribution.
 - `siteStatus="normal"` coexisted with `statusDetails.statusSeverity="warning"` in the observed capture.
 - `batteryConfig` mirrors several BatteryConfig-service concepts (`usage`, backup percentage, grid-mode settings, storm state) but adds internal class/ID fields and gateway-serial keyed maps.
 
