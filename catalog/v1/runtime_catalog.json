@@ -19,18 +19,18 @@
           "version": "8.3.5427"
         },
         "AL": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sq-al": "https://enphase.com/sq-al/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sq-al&field_alternative_language=sq-al"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "AT": {
           "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
@@ -76,32 +76,32 @@
           "version": "8.3.5427"
         },
         "BE": {
-          "countries_text": null,
+          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "29811",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2025-11-20",
+          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+          "title": "IQ Gateway software release notes (8.3.5286)",
           "urls_by_locale": {
-            "fr-be": "https://enphase.com/fr-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-be&field_alternative_language=fr-be"
+            "nl-be": "https://enphase.com/nl-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nl-be&field_alternative_language=nl-be"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5286"
         },
         "BG": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "bg-bg": "https://enphase.com/bg-bg/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=bg-bg&field_alternative_language=bg-bg"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "BM": {
           "countries_text": null,
@@ -176,18 +176,18 @@
           "version": "8.3.5427"
         },
         "CH": {
-          "countries_text": null,
+          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "29811",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2025-11-20",
+          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+          "title": "IQ Gateway software release notes (8.3.5286)",
           "urls_by_locale": {
-            "de-ch": "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-ch&field_alternative_language=de-ch"
+            "fr-ch": "https://enphase.com/fr-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-ch&field_alternative_language=fr-ch"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5286"
         },
         "CL": {
           "countries_text": null,
@@ -235,60 +235,60 @@
           "version": "8.3.5427"
         },
         "CY": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "el-cy": "https://enphase.com/el-cy/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-cy&field_alternative_language=el-cy"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "CZ": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "cz-cz": "https://enphase.com/cz-cz/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=cz-cz&field_alternative_language=cz-cz"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "DE": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "de-de": "https://enphase.com/de-de/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-de&field_alternative_language=de-de"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "DK": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "da-dk": "https://enphase.com/da-dk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=da-dk&field_alternative_language=da-dk"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "DO": {
           "countries_text": null,
@@ -306,46 +306,46 @@
           "version": "8.3.5427"
         },
         "EE": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "et-ee": "https://enphase.com/et-ee/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=et-ee&field_alternative_language=et-ee"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "ES": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "es-es": "https://enphase.com/es-es/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=es-es&field_alternative_language=es-es"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "FI": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "en-fi": "https://enphase.com/en-fi/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-fi&field_alternative_language=en-fi"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "FJ": {
           "countries_text": null,
@@ -363,74 +363,74 @@
           "version": "8.3.5427"
         },
         "FR": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "fr-fr": "https://enphase.com/fr-fr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-fr&field_alternative_language=fr-fr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "GB": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "en-gb": "https://enphase.com/en-gb/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-gb&field_alternative_language=en-gb"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "GR": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "el-gr": "https://enphase.com/el-gr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-gr&field_alternative_language=el-gr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "HR": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "hr-hr": "https://enphase.com/hr-hr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=hr-hr&field_alternative_language=hr-hr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "HU": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "hu-hu": "https://enphase.com/hu-hu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=hu-hu&field_alternative_language=hu-hu"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "IE": {
           "countries_text": null,
@@ -461,18 +461,18 @@
           "version": "8.3.5058"
         },
         "IT": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "it-it": "https://enphase.com/it-it/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=it-it&field_alternative_language=it-it"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "JM": {
           "countries_text": null,
@@ -520,60 +520,60 @@
           "version": "8.3.5427"
         },
         "LT": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "lt-lt": "https://enphase.com/lt-lt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=lt-lt&field_alternative_language=lt-lt"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "LU": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "fr-lu": "https://enphase.com/fr-lu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-lu&field_alternative_language=fr-lu"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "LV": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "lv-lv": "https://enphase.com/lv-lv/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=lv-lv&field_alternative_language=lv-lv"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "MT": {
-          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "29811",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2025-11-20",
-          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
-          "title": "IQ Gateway software release notes (8.3.5286)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "en-mt": "https://enphase.com/en-mt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-mt&field_alternative_language=en-mt"
           },
-          "version": "8.3.5286"
+          "version": "8.3.5263"
         },
         "MU": {
           "countries_text": null,
@@ -650,32 +650,32 @@
           "version": "8.3.5427"
         },
         "NL": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "nl-nl": "https://enphase.com/nl-nl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nl-nl&field_alternative_language=nl-nl"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "NO": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "nb-no": "https://enphase.com/nb-no/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nb-no&field_alternative_language=nb-no"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "NZ": {
           "countries_text": null,
@@ -722,18 +722,18 @@
           "version": "8.3.5427"
         },
         "PL": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "pl-pl": "https://enphase.com/pl-pl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=pl-pl&field_alternative_language=pl-pl"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "PR": {
           "countries_text": null,
@@ -750,74 +750,74 @@
           "version": "8.3.5427"
         },
         "PT": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "pt-pt": "https://enphase.com/pt-pt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=pt-pt&field_alternative_language=pt-pt"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "RO": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "ro-ro": "https://enphase.com/ro-ro/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=ro-ro&field_alternative_language=ro-ro"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "SE": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sv-se": "https://enphase.com/sv-se/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sv-se&field_alternative_language=sv-se"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "SI": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sl-si": "https://enphase.com/sl-si/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sl-si&field_alternative_language=sl-si"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "SK": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sk-sk": "https://enphase.com/sk-sk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sk-sk&field_alternative_language=sk-sk"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "SX": {
           "countries_text": null,
@@ -865,18 +865,18 @@
           "version": "8.3.5427"
         },
         "TR": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "tr-tr": "https://enphase.com/tr-tr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=tr-tr&field_alternative_language=tr-tr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "US": {
           "countries_text": null,
@@ -939,46 +939,46 @@
       },
       "latest_by_locale": {
         "bg-bg": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "bg-bg": "https://enphase.com/bg-bg/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=bg-bg&field_alternative_language=bg-bg"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "cz-cz": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "cz-cz": "https://enphase.com/cz-cz/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=cz-cz&field_alternative_language=cz-cz"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "da-dk": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "da-dk": "https://enphase.com/da-dk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=da-dk&field_alternative_language=da-dk"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "de-at": {
           "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
@@ -995,60 +995,61 @@
           "version": "8.3.5286"
         },
         "de-ch": {
-          "countries_text": null,
+          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "29811",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2025-11-20",
+          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+          "title": "IQ Gateway software release notes (8.3.5286)",
           "urls_by_locale": {
-            "de-ch": "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-ch&field_alternative_language=de-ch"
+            "de-ch": "https://enphase.com/fr-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-ch&field_alternative_language=fr-ch",
+            "fr-ch": "https://enphase.com/fr-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-ch&field_alternative_language=fr-ch"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5286"
         },
         "de-de": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "de-de": "https://enphase.com/de-de/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-de&field_alternative_language=de-de"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "el-cy": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "el-cy": "https://enphase.com/el-cy/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-cy&field_alternative_language=el-cy"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "el-gr": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "el-gr": "https://enphase.com/el-gr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-gr&field_alternative_language=el-gr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "en": {
           "countries_text": null,
@@ -1108,32 +1109,32 @@
           "version": "8.3.5427"
         },
         "en-fi": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "en-fi": "https://enphase.com/en-fi/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-fi&field_alternative_language=en-fi"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "en-gb": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "en-gb": "https://enphase.com/en-gb/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-gb&field_alternative_language=en-gb"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "en-ie": {
           "countries_text": null,
@@ -1179,18 +1180,18 @@
           "version": "8.3.5427"
         },
         "en-mt": {
-          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "29811",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2025-11-20",
-          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
-          "title": "IQ Gateway software release notes (8.3.5286)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "en-mt": "https://enphase.com/en-mt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-mt&field_alternative_language=en-mt"
           },
-          "version": "8.3.5286"
+          "version": "8.3.5263"
         },
         "en-my": {
           "countries_text": null,
@@ -1266,18 +1267,18 @@
           "version": "8.3.5427"
         },
         "es-es": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "es-es": "https://enphase.com/es-es/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=es-es&field_alternative_language=es-es"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "es-lac": {
           "countries_text": null,
@@ -1323,47 +1324,47 @@
           "version": "8.3.5427"
         },
         "et-ee": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "et-ee": "https://enphase.com/et-ee/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=et-ee&field_alternative_language=et-ee"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "fr-be": {
-          "countries_text": null,
+          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "29811",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2025-11-20",
+          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+          "title": "IQ Gateway software release notes (8.3.5286)",
           "urls_by_locale": {
-            "fr-be": "https://enphase.com/fr-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-be&field_alternative_language=fr-be"
+            "fr-be": "https://enphase.com/nl-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nl-be&field_alternative_language=nl-be",
+            "nl-be": "https://enphase.com/nl-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nl-be&field_alternative_language=nl-be"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5286"
         },
         "fr-ch": {
-          "countries_text": null,
+          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "29811",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2025-11-20",
+          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+          "title": "IQ Gateway software release notes (8.3.5286)",
           "urls_by_locale": {
-            "de-ch": "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-ch&field_alternative_language=de-ch",
-            "fr-ch": "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-ch&field_alternative_language=de-ch"
+            "fr-ch": "https://enphase.com/fr-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-ch&field_alternative_language=fr-ch"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5286"
         },
         "fr-fot": {
           "countries_text": null,
@@ -1381,32 +1382,32 @@
           "version": "8.3.5427"
         },
         "fr-fr": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "fr-fr": "https://enphase.com/fr-fr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-fr&field_alternative_language=fr-fr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "fr-lu": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "fr-lu": "https://enphase.com/fr-lu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-lu&field_alternative_language=fr-lu"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "fr-nc": {
           "countries_text": null,
@@ -1424,61 +1425,60 @@
           "version": "8.3.5427"
         },
         "hr-hr": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "hr-hr": "https://enphase.com/hr-hr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=hr-hr&field_alternative_language=hr-hr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "hu-hu": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "hu-hu": "https://enphase.com/hu-hu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=hu-hu&field_alternative_language=hu-hu"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "it-ch": {
-          "countries_text": null,
+          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "29811",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2025-11-20",
+          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+          "title": "IQ Gateway software release notes (8.3.5286)",
           "urls_by_locale": {
-            "de-ch": "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-ch&field_alternative_language=de-ch",
-            "it-ch": "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-ch&field_alternative_language=de-ch"
+            "it-ch": "https://enphase.com/it-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=it-ch&field_alternative_language=it-ch"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5286"
         },
         "it-it": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "it-it": "https://enphase.com/it-it/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=it-it&field_alternative_language=it-it"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "ja-jp": {
           "countries_text": null,
@@ -1496,89 +1496,88 @@
           "version": "8.3.5427"
         },
         "lt-lt": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "lt-lt": "https://enphase.com/lt-lt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=lt-lt&field_alternative_language=lt-lt"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "lv-lv": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "lv-lv": "https://enphase.com/lv-lv/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=lv-lv&field_alternative_language=lv-lv"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "nb-no": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "nb-no": "https://enphase.com/nb-no/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nb-no&field_alternative_language=nb-no"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "nl-be": {
-          "countries_text": null,
+          "countries_text": "Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "29811",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2025-11-20",
+          "summary": ".tablenoborder tbody tr td{ padding:10px; } IQ Gateway software version 8.3.5286 introduces the PowerMatch technology, designed to maximize battery efficiency in typical operation. This delivers more usable energy, longer battery life, and greater long-term savings. Countries: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, P...",
+          "title": "IQ Gateway software release notes (8.3.5286)",
           "urls_by_locale": {
-            "fr-be": "https://enphase.com/fr-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-be&field_alternative_language=fr-be",
-            "nl-be": "https://enphase.com/fr-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-be&field_alternative_language=fr-be"
+            "nl-be": "https://enphase.com/nl-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nl-be&field_alternative_language=nl-be"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5286"
         },
         "nl-nl": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "nl-nl": "https://enphase.com/nl-nl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nl-nl&field_alternative_language=nl-nl"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "pl-pl": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "pl-pl": "https://enphase.com/pl-pl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=pl-pl&field_alternative_language=pl-pl"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "pt-br": {
           "countries_text": null,
@@ -1595,88 +1594,88 @@
           "version": "8.3.5289"
         },
         "pt-pt": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "pt-pt": "https://enphase.com/pt-pt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=pt-pt&field_alternative_language=pt-pt"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "ro-ro": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "ro-ro": "https://enphase.com/ro-ro/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=ro-ro&field_alternative_language=ro-ro"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "sk-sk": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sk-sk": "https://enphase.com/sk-sk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sk-sk&field_alternative_language=sk-sk"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "sl-si": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sl-si": "https://enphase.com/sl-si/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sl-si&field_alternative_language=sl-si"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "sq-al": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sq-al": "https://enphase.com/sq-al/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sq-al&field_alternative_language=sq-al"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "sv-se": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "sv-se": "https://enphase.com/sv-se/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sv-se&field_alternative_language=sv-se"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "th-th": {
           "countries_text": null,
@@ -1694,33 +1693,33 @@
           "version": "8.3.5427"
         },
         "tr-cy": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "el-cy": "https://enphase.com/el-cy/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-cy&field_alternative_language=el-cy",
             "tr-cy": "https://enphase.com/el-cy/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-cy&field_alternative_language=el-cy"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "tr-tr": {
-          "countries_text": null,
+          "countries_text": "Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, Spain, Portugal, Croatia, Slovenia, Albania, Belgium, Bulgaria, Cyprus, Czech Republic, Denmark, Estonia, Finland, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Malta, Norway, Romania, Slovakia, Sweden, Turkey, and the United Kingdom. #",
           "document_topic_id": 217,
-          "media_id": "33130",
+          "media_id": "33812",
           "product_media_name_id": null,
           "product_type": "141",
-          "release_date": "2026-04-24",
-          "summary": "The 8.3.5289 release of IQ Gateway software adds several security improvements. Supported regions: Albania, Austria, Belgium, Bulgaria, Croatia, Cyprus, Czech Republic, Denmark, Estonia, Finland, France, Germany, Greece, Hungary, Ireland, Italy, Latvia, Lithuania, Luxembourg, Malta, the Netherlands, Norway, Poland, Portugal, Romania, Slovakia, Slovenia, Spain, Sweden, Switzerland, Turkey, and the United Kingdom. # Feature classification Feature Description 1 Product security Security improvem...",
-          "title": "IQ Gateway software release notes (8.3.5289)",
+          "release_date": "2026-05-11",
+          "summary": "IQ Gateway software version 8.3.5263 is the software release for IQ Gateways complying with the European Union Radio Equipment Directive (RED 2014/53/EU) standard. This software version also extends backward compatibility for IQ8 Series Microinverters on existing IQ7 Series systems in grid-forming (with backup) Solar Plus Batteries systems using the IQ Battery 5P or IQ Battery 5P with FlexPhase. Supported countries: Germany, Austria, Switzerland, Luxembourg, France, the Netherlands, Poland, S...",
+          "title": "IQ Gateway software release notes (8.3.5263)",
           "urls_by_locale": {
             "tr-tr": "https://enphase.com/tr-tr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=tr-tr&field_alternative_language=tr-tr"
           },
-          "version": "8.3.5289"
+          "version": "8.3.5263"
         },
         "vi-vn": {
           "countries_text": null,
@@ -1755,14 +1754,14 @@
       "product_media_name_id": null
     }
   },
-  "generated_at": "2026-05-11T06:50:09.217735Z",
+  "generated_at": "2026-05-21T07:01:43.153833Z",
   "schema_version": 1,
   "source": {
     "apps_url": "https://enphase.com/installers/resources/documentation/communication",
     "crawl": {
       "envoy": {
         "bootstrap_error_targets": [],
-        "count": 165,
+        "count": 195,
         "crawl_error_targets": [],
         "empty_release_targets": [
           "https://enphase.com/en-lac/|en-lac",
@@ -1837,7 +1836,7 @@
           "https://enphase.com/bg-bg/|bg-bg": {
             "apps_url": "https://enphase.com/bg-bg/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/bg-bg/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=bg-bg&field_alternative_language=bg-bg&page=0"
@@ -1850,7 +1849,7 @@
           "https://enphase.com/cz-cz/|cz-cz": {
             "apps_url": "https://enphase.com/cz-cz/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/cz-cz/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=cz-cz&field_alternative_language=cz-cz&page=0"
@@ -1863,7 +1862,7 @@
           "https://enphase.com/da-dk/|da-dk": {
             "apps_url": "https://enphase.com/da-dk/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 4,
+            "count": 5,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/da-dk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=da-dk&field_alternative_language=da-dk&page=0"
@@ -1889,7 +1888,7 @@
           "https://enphase.com/de-ch/|de-ch": {
             "apps_url": "https://enphase.com/de-ch/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/de-ch/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-ch&field_alternative_language=de-ch&page=0"
@@ -1902,7 +1901,7 @@
           "https://enphase.com/de-de/|de-de": {
             "apps_url": "https://enphase.com/de-de/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/de-de/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=de-de&field_alternative_language=de-de&page=0"
@@ -1915,7 +1914,7 @@
           "https://enphase.com/el-cy/|el-cy": {
             "apps_url": "https://enphase.com/el-cy/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/el-cy/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-cy&field_alternative_language=el-cy&page=0"
@@ -1928,7 +1927,7 @@
           "https://enphase.com/el-gr/|el-gr": {
             "apps_url": "https://enphase.com/el-gr/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/el-gr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=el-gr&field_alternative_language=el-gr&page=0"
@@ -1954,7 +1953,7 @@
           "https://enphase.com/en-fi/|en-fi": {
             "apps_url": "https://enphase.com/en-fi/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/en-fi/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-fi&field_alternative_language=en-fi&page=0"
@@ -1967,7 +1966,7 @@
           "https://enphase.com/en-gb/|en-gb": {
             "apps_url": "https://enphase.com/en-gb/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/en-gb/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-gb&field_alternative_language=en-gb&page=0"
@@ -2019,7 +2018,7 @@
           "https://enphase.com/en-mt/|en-mt": {
             "apps_url": "https://enphase.com/en-mt/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 1,
+            "count": 2,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/en-mt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=en-mt&field_alternative_language=en-mt&page=0"
@@ -2097,7 +2096,7 @@
           "https://enphase.com/es-es/|es-es": {
             "apps_url": "https://enphase.com/es-es/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/es-es/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=es-es&field_alternative_language=es-es&page=0"
@@ -2136,7 +2135,7 @@
           "https://enphase.com/et-ee/|et-ee": {
             "apps_url": "https://enphase.com/et-ee/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/et-ee/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=et-ee&field_alternative_language=et-ee&page=0"
@@ -2149,7 +2148,7 @@
           "https://enphase.com/fr-be/|fr-be": {
             "apps_url": "https://enphase.com/fr-be/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/fr-be/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-be&field_alternative_language=fr-be&page=0"
@@ -2188,7 +2187,7 @@
           "https://enphase.com/fr-fr/|fr-fr": {
             "apps_url": "https://enphase.com/fr-fr/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/fr-fr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-fr&field_alternative_language=fr-fr&page=0"
@@ -2201,7 +2200,7 @@
           "https://enphase.com/fr-lu/|fr-lu": {
             "apps_url": "https://enphase.com/fr-lu/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/fr-lu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=fr-lu&field_alternative_language=fr-lu&page=0"
@@ -2227,7 +2226,7 @@
           "https://enphase.com/hr-hr/|hr-hr": {
             "apps_url": "https://enphase.com/hr-hr/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/hr-hr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=hr-hr&field_alternative_language=hr-hr&page=0"
@@ -2240,7 +2239,7 @@
           "https://enphase.com/hu-hu/|hu-hu": {
             "apps_url": "https://enphase.com/hu-hu/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/hu-hu/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=hu-hu&field_alternative_language=hu-hu&page=0"
@@ -2266,7 +2265,7 @@
           "https://enphase.com/it-it/|it-it": {
             "apps_url": "https://enphase.com/it-it/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 4,
+            "count": 5,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/it-it/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=it-it&field_alternative_language=it-it&page=0"
@@ -2292,7 +2291,7 @@
           "https://enphase.com/lt-lt/|lt-lt": {
             "apps_url": "https://enphase.com/lt-lt/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/lt-lt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=lt-lt&field_alternative_language=lt-lt&page=0"
@@ -2305,7 +2304,7 @@
           "https://enphase.com/lv-lv/|lv-lv": {
             "apps_url": "https://enphase.com/lv-lv/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/lv-lv/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=lv-lv&field_alternative_language=lv-lv&page=0"
@@ -2318,7 +2317,7 @@
           "https://enphase.com/nb-no/|nb-no": {
             "apps_url": "https://enphase.com/nb-no/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/nb-no/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nb-no&field_alternative_language=nb-no&page=0"
@@ -2344,7 +2343,7 @@
           "https://enphase.com/nl-nl/|nl-nl": {
             "apps_url": "https://enphase.com/nl-nl/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/nl-nl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=nl-nl&field_alternative_language=nl-nl&page=0"
@@ -2357,7 +2356,7 @@
           "https://enphase.com/pl-pl/|pl-pl": {
             "apps_url": "https://enphase.com/pl-pl/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/pl-pl/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=pl-pl&field_alternative_language=pl-pl&page=0"
@@ -2383,7 +2382,7 @@
           "https://enphase.com/pt-pt/|pt-pt": {
             "apps_url": "https://enphase.com/pt-pt/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/pt-pt/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=pt-pt&field_alternative_language=pt-pt&page=0"
@@ -2396,7 +2395,7 @@
           "https://enphase.com/ro-ro/|ro-ro": {
             "apps_url": "https://enphase.com/ro-ro/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/ro-ro/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=ro-ro&field_alternative_language=ro-ro&page=0"
@@ -2409,7 +2408,7 @@
           "https://enphase.com/sk-sk/|sk-sk": {
             "apps_url": "https://enphase.com/sk-sk/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/sk-sk/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sk-sk&field_alternative_language=sk-sk&page=0"
@@ -2422,7 +2421,7 @@
           "https://enphase.com/sl-si/|sl-si": {
             "apps_url": "https://enphase.com/sl-si/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/sl-si/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sl-si&field_alternative_language=sl-si&page=0"
@@ -2435,7 +2434,7 @@
           "https://enphase.com/sq-al/|sq-al": {
             "apps_url": "https://enphase.com/sq-al/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/sq-al/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sq-al&field_alternative_language=sq-al&page=0"
@@ -2448,7 +2447,7 @@
           "https://enphase.com/sv-se/|sv-se": {
             "apps_url": "https://enphase.com/sv-se/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 4,
+            "count": 5,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/sv-se/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=sv-se&field_alternative_language=sv-se&page=0"
@@ -2487,7 +2486,7 @@
           "https://enphase.com/tr-tr/|tr-tr": {
             "apps_url": "https://enphase.com/tr-tr/installers/resources/documentation/communication",
             "bootstrap_error": null,
-            "count": 3,
+            "count": 4,
             "crawl_error": null,
             "pages": [
               "https://enphase.com/tr-tr/installers/resources/documentation/communication?product_type=141&f%5B0%5D=document%3A217&search_api_language=tr-tr&field_alternative_language=tr-tr&page=0"
