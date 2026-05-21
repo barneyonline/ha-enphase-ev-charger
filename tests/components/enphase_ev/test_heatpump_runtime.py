@@ -90,6 +90,7 @@ def _heatpump_daily_snapshot(
     timezone_name: str = "UTC",
     device_uid: str | None = "HP-1",
     daily_energy_wh: float | None = None,
+    site_interval_seconds: float | None = None,
 ) -> dict[str, object]:
     if daily_energy_wh is None:
         daily_energy_wh = energy_wh
@@ -109,6 +110,7 @@ def _heatpump_daily_snapshot(
         "endpoint_timestamp": timestamp,
         "sampled_at_utc": parsed.isoformat() if parsed is not None else None,
         "sample_timestamp_source": "last_report_date",
+        "site_interval_seconds": site_interval_seconds,
         "split_endpoint_type": "hems-device-details",
         "split_endpoint_timestamp": timestamp,
         "day_key": day_key,
@@ -270,6 +272,43 @@ async def test_heatpump_power_continues_when_hems_site_is_unsupported(
     assert (
         coord._heatpump_power_snapshot["outcome"] == "selected_sample"
     )  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_heatpump_power_holds_stale_running_repeated_site_sample(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory(serials=[])
+    runtime = coord.heatpump_runtime
+    _seed_heatpump_auth_test_topology(coord)
+    coord.client.hems_heatpump_state = AsyncMock(
+        return_value={"device_uid": "HP-1", "heatpump_status": "RUNNING"}
+    )
+    coord.client.pv_system_today = AsyncMock(
+        return_value=_site_today_payload(100.0, timestamp="2026-04-05T00:05:00Z")
+    )
+    coord.client.hems_energy_consumption = AsyncMock(return_value=None)
+    _seed_previous_heatpump_daily_snapshot(
+        coord,
+        energy_wh=100.0,
+        daily_energy_wh=100.0,
+        timestamp="2026-04-05T00:05:00Z",
+        day_key="2026-04-05",
+        timezone_name="UTC",
+    )
+    now = time.monotonic()
+    runtime._heatpump_power_w = 512.0  # noqa: SLF001
+    runtime._heatpump_power_last_success_mono = now - 120.0  # noqa: SLF001
+    runtime._heatpump_power_last_success_utc = datetime(  # noqa: SLF001
+        2026, 4, 5, 0, 4, tzinfo=timezone.utc
+    )
+
+    await runtime._async_refresh_heatpump_power(force=True)  # noqa: SLF001
+
+    assert coord.heatpump_power_w == pytest.approx(512.0)
+    assert coord.heatpump_power_using_stale is True
+    assert coord.heatpump_power_last_error == "repeated_sample"
+    assert coord._heatpump_power_snapshot["using_stale"] is True  # noqa: SLF001
 
 
 @pytest.mark.asyncio
@@ -657,7 +696,7 @@ def test_heatpump_power_summary_rejects_unsmoothed_idle_high_delta(
     assert summary["rejected"] is True
 
 
-def test_heatpump_power_summary_does_not_smooth_non_idle_zero(
+def test_heatpump_power_summary_smooths_running_zero_from_history(
     coordinator_factory,
 ) -> None:
     runtime = coordinator_factory(serials=[]).heatpump_runtime
@@ -681,12 +720,125 @@ def test_heatpump_power_summary_does_not_smooth_non_idle_zero(
         _heatpump_daily_snapshot(
             energy_wh=105.0,
             timestamp="2026-04-02T00:20:00Z",
+            site_interval_seconds=900.0,
+        ),
+        runtime_snapshot={"heatpump_status": "RUNNING"},
+    )
+
+    assert summary is not None
+    assert summary["raw_value_w"] == pytest.approx(0.0)
+    assert summary["raw_validation"] == "accepted_zero_delta"
+    assert summary["accepted_value_w"] == pytest.approx(15.0)
+    assert summary["power_window_seconds"] == pytest.approx(1200.0)
+    assert summary["power_validation"] == "smoothed_active_delta"
+    assert summary["smoothed"] is True
+
+
+def test_heatpump_power_summary_smooths_running_spike_from_history(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        },
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 200.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 15, tzinfo=timezone.utc),
+        },
+    ]
+    runtime._heatpump_daily_consumption_previous = (  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=200.0,
+            timestamp="2026-04-02T00:15:00Z",
+        )
+    )
+
+    summary = runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=250.0,
+            timestamp="2026-04-02T00:20:00Z",
+            site_interval_seconds=900.0,
+        ),
+        runtime_snapshot={"heatpump_status": "RUNNING"},
+    )
+
+    assert summary is not None
+    assert summary["raw_value_w"] == pytest.approx(600.0)
+    assert summary["raw_window_seconds"] == pytest.approx(300.0)
+    assert summary["raw_delta_wh"] == pytest.approx(50.0)
+    assert summary["accepted_value_w"] == pytest.approx(450.0)
+    assert summary["power_window_seconds"] == pytest.approx(1200.0)
+    assert summary["power_delta_wh"] == pytest.approx(150.0)
+    assert summary["power_validation"] == "smoothed_active_delta"
+    assert summary["smoothed"] is True
+
+
+def test_heatpump_power_summary_keeps_running_raw_without_history(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_daily_consumption_previous = (  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=200.0,
+            timestamp="2026-04-02T00:15:00Z",
+        )
+    )
+
+    summary = runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=250.0,
+            timestamp="2026-04-02T00:20:00Z",
+        ),
+        runtime_snapshot={"heatpump_status": "RUNNING"},
+    )
+
+    assert summary is not None
+    assert summary["raw_value_w"] == pytest.approx(600.0)
+    assert summary["accepted_value_w"] == pytest.approx(600.0)
+    assert summary["power_validation"] == "accepted_delta"
+    assert summary["smoothed"] is False
+
+
+def test_heatpump_power_summary_keeps_running_zero_after_full_site_interval(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    runtime._heatpump_power_sample_history = [  # noqa: SLF001
+        {
+            "device_uid": "HP-1",
+            "day_key": "2026-04-02",
+            "timezone": "UTC",
+            "energy_wh": 100.0,
+            "sample_utc": datetime(2026, 4, 2, 0, 0, tzinfo=timezone.utc),
+        }
+    ]
+    runtime._heatpump_daily_consumption_previous = (
+        _heatpump_daily_snapshot(  # noqa: SLF001
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:05:00Z",
+        )
+    )
+
+    summary = runtime._heatpump_power_summary_from_daily_snapshot(  # noqa: SLF001
+        _heatpump_daily_snapshot(
+            energy_wh=105.0,
+            timestamp="2026-04-02T00:20:00Z",
+            site_interval_seconds=900.0,
         ),
         runtime_snapshot={"heatpump_status": "RUNNING"},
     )
 
     assert summary is not None
     assert summary["accepted_value_w"] == pytest.approx(0.0)
+    assert summary["raw_validation"] == "accepted_zero_delta"
     assert summary["power_validation"] == "accepted_zero_delta"
     assert summary["smoothed"] is False
 
@@ -871,6 +1023,34 @@ def test_heatpump_power_history_helpers_cover_guard_paths(
     ]
 
 
+def test_heatpump_mark_power_stale_can_extend_seeded_stale_window(
+    coordinator_factory,
+) -> None:
+    runtime = coordinator_factory(serials=[]).heatpump_runtime
+    now = time.monotonic()
+    runtime._heatpump_power_w = 512.0  # noqa: SLF001
+    runtime._heatpump_power_last_success_mono = now - 120.0  # noqa: SLF001
+    runtime._heatpump_power_last_success_utc = datetime(  # noqa: SLF001
+        2026, 4, 2, 0, 0, tzinfo=timezone.utc
+    )
+    power_snapshot: dict[str, object] = {}
+
+    assert (
+        runtime._heatpump_mark_power_stale(  # noqa: SLF001
+            now=now,
+            error="seeded_waiting_for_delta",
+            power_snapshot=power_snapshot,
+            stale_after_s=30 * 60.0,
+        )
+        is True
+    )
+
+    assert runtime.heatpump_power_w == pytest.approx(512.0)
+    assert runtime.heatpump_power_using_stale is True
+    assert runtime.heatpump_power_last_error == "seeded_waiting_for_delta"
+    assert power_snapshot["using_stale"] is True
+
+
 @pytest.mark.asyncio
 async def test_refresh_heatpump_power_records_rejected_idle_high_delta_history(
     coordinator_factory,
@@ -965,6 +1145,16 @@ def test_heatpump_idle_smoothing_rejects_invalid_history(
             current_sample_utc=current_sample_utc,
             raw_value_w=25.0,
             raw_validation="accepted_idle_delta",
+        )
+        is None
+    )
+    assert (
+        runtime._heatpump_active_smoothed_power(  # noqa: SLF001
+            snapshot,
+            current_energy_wh=105.0,
+            current_sample_utc=current_sample_utc,
+            raw_validation="repeated_sample",
+            raw_window_s=300.0,
         )
         is None
     )
@@ -3103,10 +3293,16 @@ def test_heatpump_runtime_refresh_due_skips_when_type_missing_and_no_state(
         is None
     )
 
+    assert runtime._site_today_heatpump_numeric_total({"a": {"b": 2}}) is None
     assert runtime._site_today_heatpump_numeric_total(
-        {"a": {"b": 2}}
+        {"consumed_wh": 500, "produced_wh": 200}
     ) == pytest.approx(  # noqa: SLF001
-        2.0
+        500.0
+    )
+    assert runtime._site_today_heatpump_numeric_total(
+        {"value": [1, {"total": 2}]}
+    ) == pytest.approx(  # noqa: SLF001
+        3.0
     )
     assert (
         runtime._site_today_heatpump_numeric_total({"a": "bad"}) is None
@@ -3114,7 +3310,7 @@ def test_heatpump_runtime_refresh_due_skips_when_type_missing_and_no_state(
     assert runtime._site_today_heatpump_numeric_total(
         [1, {"a": 2}]
     ) == pytest.approx(  # noqa: SLF001
-        3.0
+        1.0
     )
     assert (
         runtime._site_today_heatpump_numeric_total([None, "bad"]) is None

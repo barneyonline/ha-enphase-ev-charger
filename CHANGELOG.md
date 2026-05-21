@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 🐛 Bug fixes
+- Smoothed running Heat Pump power over longer same-day energy windows to reduce short-window spikes from lumpy site-today energy updates, while keeping raw power diagnostics available. (#680)
+
 ## v3.0.10 - 2026-05-17
 
 ### 🚧 Breaking changes
