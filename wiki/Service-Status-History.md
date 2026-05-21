@@ -1,11 +1,11 @@
 # Service Status History
 
 - Current status: **Fully Operational**
-- Last updated: `2026-05-21 08:31 UTC`
+- Last updated: `2026-05-21 12:13 UTC`
 - Failed checks in latest run: `1`
 - Latest failed checks: battery_config
-- Retained hourly samples: `398`
-- Incident windows in last 30 days: `13`
+- Retained hourly samples: `396`
+- Incident windows in last 30 days: `12`
 
 This page is generated from hourly synthetic checks against Enphase cloud endpoints. It may miss incidents that begin and recover between checks.
 
@@ -16,30 +16,28 @@ gantt
     title Enphase Service Status Incident Timeline (Last 30 Days)
     dateFormat  YYYY-MM-DDTHH:mm:ss
     axisFormat  %b %d
-    Window start :vert, window-start, 2026-04-21T08:31:23, 0ms
-    Window end :vert, window-end, 2026-05-21T08:31:23, 0ms
+    Window start :vert, window-start, 2026-04-21T12:13:31, 0ms
+    Window end :vert, window-end, 2026-05-21T12:13:31, 0ms
     section Down
     Down 1 (2026-05-08 0529 UTC) :crit, down-1, 2026-05-08T05:29:47, 60m
     Down 2 (2026-05-15 0948 UTC) :crit, down-2, 2026-05-15T09:48:18, 60m
     Down 3 (2026-05-20 2251 UTC) :crit, down-3, 2026-05-20T22:51:14, 75m
     section Degraded
-    Degraded 1 (2026-04-21 1213 UTC) :active, degraded-1, 2026-04-21T12:13:11, 60m
-    Degraded 2 (2026-05-01 1700 UTC) :active, degraded-2, 2026-05-01T17:00:22, 60m
-    Degraded 3 (2026-05-07 1315 UTC) :active, degraded-3, 2026-05-07T13:15:25, 60m
-    Degraded 4 (2026-05-07 1541 UTC) :active, degraded-4, 2026-05-07T15:41:58, 60m
-    Degraded 5 (2026-05-07 1746 UTC) :active, degraded-5, 2026-05-07T17:46:51, 60m
-    Degraded 6 (2026-05-07 1942 UTC) :active, degraded-6, 2026-05-07T19:42:10, 249m
-    Degraded 7 (2026-05-08 0212 UTC) :active, degraded-7, 2026-05-08T02:12:39, 60m
-    Degraded 8 (2026-05-08 0441 UTC) :active, degraded-8, 2026-05-08T04:41:46, 60m
-    Degraded 9 (2026-05-08 0707 UTC) :active, degraded-9, 2026-05-08T07:07:30, 60m
-    Degraded 10 (2026-05-08 0855 UTC) :active, degraded-10, 2026-05-08T08:55:20, 88m
+    Degraded 1 (2026-05-01 1700 UTC) :active, degraded-1, 2026-05-01T17:00:22, 60m
+    Degraded 2 (2026-05-07 1315 UTC) :active, degraded-2, 2026-05-07T13:15:25, 60m
+    Degraded 3 (2026-05-07 1541 UTC) :active, degraded-3, 2026-05-07T15:41:58, 60m
+    Degraded 4 (2026-05-07 1746 UTC) :active, degraded-4, 2026-05-07T17:46:51, 60m
+    Degraded 5 (2026-05-07 1942 UTC) :active, degraded-5, 2026-05-07T19:42:10, 249m
+    Degraded 6 (2026-05-08 0212 UTC) :active, degraded-6, 2026-05-08T02:12:39, 60m
+    Degraded 7 (2026-05-08 0441 UTC) :active, degraded-7, 2026-05-08T04:41:46, 60m
+    Degraded 8 (2026-05-08 0707 UTC) :active, degraded-8, 2026-05-08T07:07:30, 60m
+    Degraded 9 (2026-05-08 0855 UTC) :active, degraded-9, 2026-05-08T08:55:20, 88m
 ```
 
 ## Incident Summary
 
 | Status | Started (UTC) | Ended (UTC) | Duration | Failed checks |
 | --- | --- | --- | --- | --- |
-| Degraded | 2026-04-21 12:13 UTC | Unknown after last seen 2026-04-21 12:13 UTC | Observed 0m | battery_config, battery_runtime, discovery, evse_scheduler, inventory, microinverters, site_energy, site_live |
 | Degraded | 2026-05-01 17:00 UTC | Unknown after last seen 2026-05-01 17:00 UTC | Observed 0m | battery_config, evse_scheduler, site_live |
 | Degraded | 2026-05-07 13:15 UTC | Unknown after last seen 2026-05-07 13:15 UTC | Observed 0m | battery_config, evse_scheduler |
 | Degraded | 2026-05-07 15:41 UTC | Unknown after last seen 2026-05-07 15:41 UTC | Observed 0m | battery_config, evse_scheduler, site_live |
