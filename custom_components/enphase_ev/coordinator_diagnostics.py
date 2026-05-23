@@ -28,7 +28,10 @@ from .const import (
     ISSUE_SITE_ENERGY_UNAVAILABLE,
     OPT_DEGRADED_SERVICE_REPAIR_ISSUES,
 )
-from .coordinator_refresh_metrics import refresh_performance_summary
+from .coordinator_refresh_metrics import (
+    refresh_performance_history_summary,
+    refresh_performance_summary,
+)
 from .log_redaction import redact_text
 from .tariff import TARIFF_ENDPOINT_FAMILY
 
@@ -381,6 +384,9 @@ class CoordinatorDiagnostics:
                     coord, "_last_steady_refresh_cloud_calls", None
                 ),
                 fast_cloud_calls=getattr(coord, "_last_fast_refresh_cloud_calls", None),
+            ),
+            "refresh_performance_history": refresh_performance_history_summary(
+                getattr(coord, "_refresh_performance_history", [])
             ),
             "bootstrap_phase_timings": coord.bootstrap_phase_timings,
             "warmup_phase_timings": coord.warmup_phase_timings,
