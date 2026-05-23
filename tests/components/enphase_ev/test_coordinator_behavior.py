@@ -36,6 +36,9 @@ from custom_components.enphase_ev.evse_runtime import (
     ChargeModeResolution,
 )
 from custom_components.enphase_ev.coordinator_refresh_metrics import (
+    REFRESH_PERFORMANCE_HISTORY_LIMIT,
+    record_refresh_performance_sample,
+    refresh_performance_history_summary,
     refresh_performance_summary,
 )
 from custom_components.enphase_ev.session_history import (
@@ -1991,6 +1994,7 @@ def test_collect_site_metrics_and_placeholders(hass, monkeypatch):
         "steady_cloud_calls": 3,
         "fast_cloud_calls": 7,
     }
+    assert metrics["refresh_performance_history"]["sample_count"] == 0
     assert metrics["hems_devices_data_stale"] is True
     assert metrics["hems_devices_last_success_utc"] == now.isoformat()
     assert metrics["hems_devices_last_success_age_s"] >= 0
@@ -2018,13 +2022,89 @@ def test_refresh_pipeline_records_cloud_call_counts(hass, monkeypatch) -> None:
     coord._finish_refresh_pipeline(context)  # noqa: SLF001
     assert coord._last_refresh_cloud_calls == 4  # noqa: SLF001
     assert coord._last_steady_refresh_cloud_calls == 4  # noqa: SLF001
+    assert coord._refresh_performance_history[-1]["cloud_calls"] == 4  # noqa: SLF001
+    assert coord._refresh_performance_history[-1]["fast_poll"] is False  # noqa: SLF001
 
     context = coord._start_refresh_pipeline()  # noqa: SLF001
     context.fast_poll = True
+    context.phase_timings["status_s"] = 0.2
     client.request_count = 6
     coord._finish_refresh_pipeline(context)  # noqa: SLF001
     assert coord._last_refresh_cloud_calls == 6  # noqa: SLF001
     assert coord._last_fast_refresh_cloud_calls == 6  # noqa: SLF001
+    assert coord._refresh_performance_history[-1]["cloud_calls"] == 6  # noqa: SLF001
+    assert coord._refresh_performance_history[-1]["fast_poll"] is True  # noqa: SLF001
+
+
+def test_refresh_performance_history_summary_reports_percentiles() -> None:
+    history = []
+    for index in range(1, REFRESH_PERFORMANCE_HISTORY_LIMIT + 3):
+        history = record_refresh_performance_sample(
+            history,
+            {"status_s": index / 10, "total_s": index / 5},
+            cloud_calls=index,
+            fast_poll=index % 2 == 0,
+            first_refresh=index == 1,
+            payload_using_stale=index == 3,
+            manual_bypass=index == 4,
+        )
+
+    summary = refresh_performance_history_summary(history)
+
+    assert len(history) == REFRESH_PERFORMANCE_HISTORY_LIMIT
+    assert summary["sample_count"] == REFRESH_PERFORMANCE_HISTORY_LIMIT
+    assert summary["fast_poll_count"] == 25
+    assert summary["steady_poll_count"] == 25
+    assert summary["first_refresh_count"] == 0
+    assert summary["payload_using_stale_count"] == 1
+    assert summary["manual_bypass_count"] == 1
+    assert summary["total_s"]["p50_s"] == 5.4
+    assert summary["total_s"]["p95_s"] == 10.0
+    assert summary["stages"]["status_s"] == {
+        "count": REFRESH_PERFORMANCE_HISTORY_LIMIT,
+        "p50_s": 2.7,
+        "p95_s": 5.0,
+        "max_s": 5.2,
+    }
+    assert summary["cloud_calls"] == {
+        "count": REFRESH_PERFORMANCE_HISTORY_LIMIT,
+        "p50": 27.0,
+        "p95": 50.0,
+        "max": 52.0,
+    }
+
+
+def test_refresh_performance_history_handles_defensive_paths() -> None:
+    class BrokenStarted:
+        def isoformat(self) -> str:
+            raise ValueError("bad timestamp")
+
+        def __str__(self) -> str:
+            return "broken-started"
+
+    existing = [{"total_s": 1.0}]
+
+    assert record_refresh_performance_sample(existing, {}, max_samples=1) == existing
+
+    history = record_refresh_performance_sample(
+        [{"not": "a timing"}],
+        {"status_s": 0.1},
+        refresh_started_utc=BrokenStarted(),  # type: ignore[arg-type]
+        max_samples=2,
+    )
+    assert history[-1]["started_utc"] == "broken-started"
+
+    summary = refresh_performance_history_summary(
+        [
+            {"total_s": "bad", "cloud_calls": "bad", "phase_timings": []},
+            {"total_s": 0.5, "cloud_calls": 2, "phase_timings": {"status_s": 0.1}},
+        ]
+    )
+
+    assert summary["sample_count"] == 2
+    assert summary["total_s"]["count"] == 1
+    assert summary["cloud_calls"]["count"] == 1
+    assert summary["stages"]["status_s"]["count"] == 1
 
 
 def test_collect_site_metrics_skips_negative_hems_age(hass, monkeypatch):

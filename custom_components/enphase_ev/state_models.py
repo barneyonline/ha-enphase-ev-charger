@@ -153,6 +153,7 @@ class RefreshHealthState:
     _phase_timings: dict[str, float] = field(default_factory=dict)
     _bootstrap_phase_timings: dict[str, float] = field(default_factory=dict)
     _warmup_phase_timings: dict[str, float] = field(default_factory=dict)
+    _refresh_performance_history: list[dict[str, object]] = field(default_factory=list)
     _has_successful_refresh: bool = False
     _session_history_cache_shim: dict[tuple[str, str], tuple[float, list[dict]]] = (
         field(default_factory=dict)

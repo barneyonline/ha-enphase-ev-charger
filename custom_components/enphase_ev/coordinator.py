@@ -154,6 +154,7 @@ from .session_history import (
     SESSION_HISTORY_FAILURE_BACKOFF_S,
     SessionHistoryManager,
 )
+from .coordinator_refresh_metrics import record_refresh_performance_sample
 from .summary import SummaryStore
 from . import system_dashboard_helpers as sd_helpers
 from .refresh_plan import (
@@ -2902,6 +2903,20 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
                 self._last_fast_refresh_cloud_calls = request_count
             else:
                 self._last_steady_refresh_cloud_calls = request_count
+        else:
+            request_count = None
+        self._refresh_performance_history = record_refresh_performance_sample(
+            getattr(self, "_refresh_performance_history", []),
+            phase_timings,
+            refresh_started_utc=context.refresh_started_utc,
+            latency_ms=self.latency_ms,
+            cloud_calls=request_count,
+            fast_poll=context.fast_poll,
+            first_refresh=context.first_refresh,
+            payload_using_stale=getattr(context, "status_used_stale", False)
+            or bool(getattr(self, "payload_using_stale", False)),
+            manual_bypass=self.endpoint_manual_bypass_active(),
+        )
         if context.first_refresh:
             self._bootstrap_phase_timings = phase_timings.copy()
         self._refresh_cached_topology()
