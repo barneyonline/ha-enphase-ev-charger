@@ -10,6 +10,7 @@ from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.enphase_ev import coordinator as coord_mod
 from custom_components.enphase_ev import sensor as sensor_mod
+from custom_components.enphase_ev import tariff as tariff_mod
 from custom_components.enphase_ev.api import OptionalEndpointUnavailable
 from custom_components.enphase_ev.const import DOMAIN
 from custom_components.enphase_ev.runtime_data import EnphaseRuntimeData
@@ -2680,8 +2681,14 @@ def test_tariff_runtime_diagnostics(coordinator_factory) -> None:
 
 def test_tariff_sensors_expose_state_attributes_and_gateway_device(
     coordinator_factory,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        tariff_mod.dt_util,
+        "now",
+        lambda time_zone=None: datetime(2026, 4, 26, tzinfo=time_zone or timezone.utc),
+    )
+
     coord = coordinator_factory()
     coord.tariff_last_refresh_utc = datetime(2026, 4, 26, tzinfo=timezone.utc)
     coord.tariff_billing = parse_tariff_billing(
@@ -2709,10 +2716,6 @@ def test_tariff_sensors_expose_state_attributes_and_gateway_device(
             },
         },
         "purchase",
-    )
-    monkeypatch.setattr(
-        "custom_components.enphase_ev.tariff.dt_util.now",
-        lambda: datetime(2026, 4, 26, tzinfo=timezone.utc),
     )
 
     billing_sensor = EnphaseTariffBillingSensor(coord)
