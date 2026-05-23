@@ -399,6 +399,31 @@ class BatteryRuntime:
         state._battery_backend_not_pending_observed_at = None
         self._sync_battery_profile_pending_issue()
 
+    def confirm_battery_pending(self) -> None:
+        state = self.battery_state
+        pending_profile = getattr(state, "_battery_pending_profile", None)
+        if pending_profile and (
+            getattr(state, "_battery_profile", None) == pending_profile
+            or getattr(state, "_battery_live_profile", None) == pending_profile
+        ):
+            pending_reserve = getattr(state, "_battery_pending_reserve", None)
+            pending_sub_type = self._normalize_battery_sub_type(
+                getattr(state, "_battery_pending_sub_type", None)
+            )
+            state._battery_profile = pending_profile
+            if pending_reserve is not None:
+                normalized_reserve = self.normalize_battery_reserve_for_profile(
+                    pending_profile,
+                    pending_reserve,
+                )
+                state._battery_backup_percentage = normalized_reserve
+                self.remember_battery_reserve(pending_profile, normalized_reserve)
+            if pending_profile in {"cost_savings", "ai_optimisation"}:
+                state._battery_operation_mode_sub_type = pending_sub_type
+            else:
+                state._battery_operation_mode_sub_type = None
+        self.clear_battery_pending()
+
     def clear_battery_settings_write_pending(self) -> None:
         self.battery_state._battery_settings_last_write_mono = None
 
@@ -648,7 +673,7 @@ class BatteryRuntime:
             state._battery_backend_not_pending_observed_at = None
             return
         if self.effective_profile_matches_pending():
-            self.clear_battery_pending()
+            self.confirm_battery_pending()
             return
         now = dt_util.utcnow()
         first_observed = getattr(
@@ -1903,7 +1928,7 @@ class BatteryRuntime:
                     profile=normalized_profile,
                     battery_backup_percentage=normalized_reserve,
                     operation_mode_sub_type=normalized_sub_type,
-                    devices=coord.battery_profile_devices_payload(),
+                    devices=None,
                 )
             except aiohttp.ClientResponseError as err:
                 if err.status == HTTPStatus.FORBIDDEN:
@@ -2365,7 +2390,7 @@ class BatteryRuntime:
         self.sync_backend_battery_profile_pending(data.get("isBatteryChangePending"))
 
         if self.effective_profile_matches_pending():
-            self.clear_battery_pending()
+            self.confirm_battery_pending()
 
     def parse_battery_status_payload(self, payload: object) -> None:
         state = self.battery_state
@@ -2555,7 +2580,7 @@ class BatteryRuntime:
         self._sync_ac_battery_from_battery_status(snapshots)
         self._refresh_cached_topology()
         if self.effective_profile_matches_pending():
-            self.clear_battery_pending()
+            self.confirm_battery_pending()
 
     def _sync_ac_battery_from_battery_status(
         self, snapshots: dict[str, dict[str, object]]
@@ -2936,7 +2961,7 @@ class BatteryRuntime:
         self.sync_backend_battery_profile_pending(data.get("isBatteryChangePending"))
 
         if self.effective_profile_matches_pending():
-            self.clear_battery_pending()
+            self.confirm_battery_pending()
 
     def parse_battery_schedules_payload(self, payload: object) -> None:
         state = self.battery_state

@@ -3621,6 +3621,33 @@ class EnphaseEVClient:
                     if err.status == HTTPStatus.UNAUTHORIZED:
                         raise
                     last_error = err
+                    retry_profile_without_devices = (
+                        write_intent == "profile_update"
+                        and err.status == HTTPStatus.BAD_REQUEST
+                        and isinstance(attempt_json_body, dict)
+                        and "devices" in attempt_json_body
+                        and index < len(attempts) - 1
+                    )
+                    if retry_profile_without_devices:
+                        next_attempt = attempts[index + 1]
+                        next_json_body = self._battery_config_attempt_json_body(
+                            json_body,
+                            family,
+                            next_attempt,
+                        )
+                        next_has_devices = (
+                            isinstance(next_json_body, dict)
+                            and "devices" in next_json_body
+                        )
+                        _LOGGER.debug(
+                            "Retrying BatteryConfig profile write for %s after "
+                            "HTTP 400 with devices (next_attempt=%s, "
+                            "next_devices=%s)",
+                            _request_label(method, url),
+                            next_attempt.attempt_id,
+                            "kept" if next_has_devices else "stripped",
+                        )
+                        continue
                     if err.status != HTTPStatus.FORBIDDEN:
                         raise
                     if index == len(attempts) - 1:

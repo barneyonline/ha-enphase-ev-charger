@@ -6182,6 +6182,36 @@ async def test_set_battery_profile_retries_without_devices_then_without_source()
 
 
 @pytest.mark.asyncio
+async def test_set_battery_profile_retries_without_devices_after_400() -> None:
+    client = _make_client()
+    client._acquire_xsrf_token = AsyncMock(return_value="xsrf-token")  # noqa: SLF001
+    client._json = AsyncMock(
+        side_effect=[
+            _make_cre(400, "Bad Request"),
+            {"message": "success"},
+        ]
+    )
+
+    out = await client.set_battery_profile(
+        profile="backup_only",
+        battery_backup_percentage=100,
+        devices=[{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
+    )
+
+    assert out == {"message": "success"}
+    first_call, second_call = client._json.await_args_list
+    assert first_call.kwargs["json"] == {
+        "profile": "backup_only",
+        "batteryBackupPercentage": 100,
+        "devices": [{"uuid": "abc", "deviceType": "iqEvse", "enable": False}],
+    }
+    assert second_call.kwargs["json"] == {
+        "profile": "backup_only",
+        "batteryBackupPercentage": 100,
+    }
+
+
+@pytest.mark.asyncio
 async def test_set_battery_settings_retries_disclaimer_as_boolean_true_after_403() -> (
     None
 ):

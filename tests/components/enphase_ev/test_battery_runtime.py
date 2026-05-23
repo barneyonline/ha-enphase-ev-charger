@@ -1109,6 +1109,7 @@ def test_battery_runtime_parse_profile_payload_branches_and_helpers(
     payload = coord._battery_profile_devices_payload()  # noqa: SLF001
     assert payload is not None
     assert len(payload) == 3
+    assert payload[0]["deviceType"] == "iqEvse"
     assert payload[0].get("chargeMode") is None
     assert payload[1]["chargeMode"] == "MANUAL"
     assert payload[2]["chargeMode"] == "SCHEDULED"
