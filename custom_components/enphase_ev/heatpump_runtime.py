@@ -58,6 +58,21 @@ _HEATPUMP_POWER_DEFAULT_WINDOW_S = 300.0
 _HEATPUMP_POWER_MIN_DELTA_WH = 0.5
 _HEATPUMP_IDLE_SMOOTHING_MIN_WINDOW_S = 15 * 60.0
 _HEATPUMP_IDLE_SMOOTHING_MAX_WINDOW_S = 30 * 60.0
+_HEATPUMP_ACTIVE_SMOOTHING_MIN_WINDOW_S = 15 * 60.0
+_HEATPUMP_ACTIVE_SMOOTHING_MAX_WINDOW_S = 30 * 60.0
+_HEATPUMP_POWER_SEEDED_STALE_AFTER_S = 30 * 60.0
+_HEATPUMP_POWER_HOLD_STALE_ERRORS = {"seeded_waiting_for_delta", "repeated_sample"}
+_SITE_TODAY_HEATPUMP_TOTAL_KEYS = (
+    "consumed_wh",
+    "consumption_wh",
+    "energy_wh",
+    "total_wh",
+    "wh",
+    "consumed",
+    "consumption",
+    "value",
+    "total",
+)
 
 
 class HeatpumpRuntime:
@@ -226,10 +241,11 @@ class HeatpumpRuntime:
         now: float,
         error: str,
         power_snapshot: dict[str, object] | None = None,
+        stale_after_s: float = HEATPUMP_POWER_STALE_AFTER_S,
     ) -> bool:
         if self._heatpump_power_w is not None and self._heatpump_snapshot_is_fresh(
             self._heatpump_power_last_success_mono,
-            HEATPUMP_POWER_STALE_AFTER_S,
+            stale_after_s,
             now,
         ):
             self._heatpump_power_using_stale = True
@@ -1076,15 +1092,13 @@ class HeatpumpRuntime:
         if value is None:
             return None
         if isinstance(value, dict):
-            total = 0.0
-            found = False
-            for nested in value.values():
-                nested_total = cls._site_today_heatpump_numeric_total(nested)
-                if nested_total is None:
+            for key in _SITE_TODAY_HEATPUMP_TOTAL_KEYS:
+                if key not in value:
                     continue
-                total += nested_total
-                found = True
-            return total if found else None
+                nested_total = cls._site_today_heatpump_numeric_total(value.get(key))
+                if nested_total is not None:
+                    return nested_total
+            return None
         if isinstance(value, list):
             total = 0.0
             found = False
@@ -1184,29 +1198,17 @@ class HeatpumpRuntime:
         )
         history[:] = retained
 
-    def _heatpump_idle_smoothed_power(
+    def _heatpump_smoothed_power_from_history(
         self,
         snapshot: dict[str, object],
         *,
         current_energy_wh: float,
         current_sample_utc: datetime,
-        raw_value_w: float | None,
-        raw_validation: str,
+        min_window_s: float,
+        max_window_s: float,
+        validation: str,
+        max_power_w: float | None = None,
     ) -> dict[str, object] | None:
-        if raw_value_w is None:
-            return None
-        if (
-            raw_value_w > _HEATPUMP_IDLE_POWER_MAX_W
-            and raw_validation != _HEATPUMP_IDLE_HIGH_DELTA_PENDING
-        ):
-            return None
-        if raw_validation not in {
-            "accepted_idle_zero",
-            "accepted_idle_repeated_sample",
-            "accepted_idle_delta",
-            _HEATPUMP_IDLE_HIGH_DELTA_PENDING,
-        }:
-            return None
         device_uid = coerce_optional_text(snapshot.get("split_device_uid"))
         day_key = coerce_optional_text(snapshot.get("day_key"))
         timezone_name = coerce_optional_text(snapshot.get("timezone"))
@@ -1217,11 +1219,7 @@ class HeatpumpRuntime:
             if sample_utc is None:
                 continue
             age_s = (current_sample_utc - sample_utc).total_seconds()
-            if not (
-                _HEATPUMP_IDLE_SMOOTHING_MIN_WINDOW_S
-                <= age_s
-                <= _HEATPUMP_IDLE_SMOOTHING_MAX_WINDOW_S
-            ):
+            if not (min_window_s <= age_s <= max_window_s):
                 continue
             if coerce_optional_text(entry.get("device_uid")) != device_uid:
                 continue
@@ -1262,15 +1260,79 @@ class HeatpumpRuntime:
             if delta_wh <= _HEATPUMP_POWER_MIN_DELTA_WH:
                 continue
             value_w = (delta_wh * 3600.0) / window_s
-            if value_w > _HEATPUMP_IDLE_POWER_MAX_W:
+            if max_power_w is not None and value_w > max_power_w:
                 continue
             return {
                 "accepted_value_w": value_w,
                 "window_seconds": window_s,
+                "delta_wh": delta_wh,
                 "series_start_utc": start_utc,
-                "validation": "smoothed_idle_delta",
+                "validation": validation,
             }
         return None
+
+    def _heatpump_idle_smoothed_power(
+        self,
+        snapshot: dict[str, object],
+        *,
+        current_energy_wh: float,
+        current_sample_utc: datetime,
+        raw_value_w: float | None,
+        raw_validation: str,
+    ) -> dict[str, object] | None:
+        if raw_value_w is None:
+            return None
+        if (
+            raw_value_w > _HEATPUMP_IDLE_POWER_MAX_W
+            and raw_validation != _HEATPUMP_IDLE_HIGH_DELTA_PENDING
+        ):
+            return None
+        if raw_validation not in {
+            "accepted_idle_zero",
+            "accepted_idle_repeated_sample",
+            "accepted_idle_delta",
+            _HEATPUMP_IDLE_HIGH_DELTA_PENDING,
+        }:
+            return None
+        return self._heatpump_smoothed_power_from_history(
+            snapshot,
+            current_energy_wh=current_energy_wh,
+            current_sample_utc=current_sample_utc,
+            min_window_s=_HEATPUMP_IDLE_SMOOTHING_MIN_WINDOW_S,
+            max_window_s=_HEATPUMP_IDLE_SMOOTHING_MAX_WINDOW_S,
+            max_power_w=_HEATPUMP_IDLE_POWER_MAX_W,
+            validation="smoothed_idle_delta",
+        )
+
+    def _heatpump_active_smoothed_power(
+        self,
+        snapshot: dict[str, object],
+        *,
+        current_energy_wh: float,
+        current_sample_utc: datetime,
+        raw_validation: str,
+        raw_window_s: float | None,
+    ) -> dict[str, object] | None:
+        if raw_validation not in {"accepted_delta", "accepted_zero_delta"}:
+            return None
+        if raw_validation == "accepted_zero_delta":
+            site_interval_s = coerce_optional_float(
+                snapshot.get("site_interval_seconds")
+            )
+            if (
+                site_interval_s is None
+                or raw_window_s is None
+                or raw_window_s >= site_interval_s
+            ):
+                return None
+        return self._heatpump_smoothed_power_from_history(
+            snapshot,
+            current_energy_wh=current_energy_wh,
+            current_sample_utc=current_sample_utc,
+            min_window_s=_HEATPUMP_ACTIVE_SMOOTHING_MIN_WINDOW_S,
+            max_window_s=_HEATPUMP_ACTIVE_SMOOTHING_MAX_WINDOW_S,
+            validation="smoothed_active_delta",
+        )
 
     def _heatpump_power_summary_from_daily_snapshot(
         self,
@@ -1322,6 +1384,7 @@ class HeatpumpRuntime:
         rejected = False
         validation = "accepted_delta"
         window_s = None
+        delta_wh = None
         series_start_utc = None
         idle_high_delta_pending = False
         power_source = "site_today_heatpump_delta"
@@ -1384,8 +1447,10 @@ class HeatpumpRuntime:
 
         raw_value = accepted_value
         raw_window_s = window_s
+        raw_delta_wh = delta_wh
         raw_validation = validation
         display_window_s = window_s
+        display_delta_wh = delta_wh
         display_validation = validation
         smoothed = False
         if (
@@ -1408,6 +1473,9 @@ class HeatpumpRuntime:
                 display_window_s = coerce_optional_float(
                     smoothed_summary.get("window_seconds")
                 )
+                display_delta_wh = coerce_optional_float(
+                    smoothed_summary.get("delta_wh")
+                )
                 smoothed_start = smoothed_summary.get("series_start_utc")
                 if isinstance(smoothed_start, datetime):
                     series_start_utc = smoothed_start
@@ -1419,6 +1487,35 @@ class HeatpumpRuntime:
                 rejected = True
                 validation = "rejected_idle_high_delta"
                 display_validation = validation
+        elif (
+            not is_idle
+            and not rejected
+            and current_energy_wh is not None
+            and current_sample_utc is not None
+        ):
+            smoothed_summary = self._heatpump_active_smoothed_power(
+                snapshot,
+                current_energy_wh=current_energy_wh,
+                current_sample_utc=current_sample_utc,
+                raw_validation=raw_validation,
+                raw_window_s=raw_window_s,
+            )
+            if smoothed_summary is not None:
+                accepted_value = coerce_optional_float(
+                    smoothed_summary.get("accepted_value_w")
+                )
+                display_window_s = coerce_optional_float(
+                    smoothed_summary.get("window_seconds")
+                )
+                display_delta_wh = coerce_optional_float(
+                    smoothed_summary.get("delta_wh")
+                )
+                smoothed_start = smoothed_summary.get("series_start_utc")
+                if isinstance(smoothed_start, datetime):
+                    series_start_utc = smoothed_start
+                display_validation = str(smoothed_summary["validation"])
+                validation = display_validation
+                smoothed = True
 
         summary: dict[str, object] = {
             "requested_device_ref": (
@@ -1466,6 +1563,12 @@ class HeatpumpRuntime:
             ),
             "power_window_seconds": (
                 round(display_window_s, 3) if display_window_s is not None else None
+            ),
+            "raw_delta_wh": (
+                round(raw_delta_wh, 3) if raw_delta_wh is not None else None
+            ),
+            "power_delta_wh": (
+                round(display_delta_wh, 3) if display_delta_wh is not None else None
             ),
             "daily_energy_wh": snapshot.get("daily_energy_wh"),
             "split_daily_energy_wh": snapshot.get("split_daily_energy_wh"),
@@ -2013,7 +2116,7 @@ class HeatpumpRuntime:
             )
             power_snapshot["last_error"] = error
             power_snapshot["outcome"] = "rejected_value"
-            if error == "rejected_idle_high_delta":
+            if error in {"rejected_idle_high_delta", "seeded_waiting_for_delta"}:
                 self._record_heatpump_power_history_sample(
                     getattr(self, "_heatpump_daily_consumption", None)
                 )
@@ -2021,6 +2124,11 @@ class HeatpumpRuntime:
                 now=now,
                 error=error,
                 power_snapshot=power_snapshot,
+                stale_after_s=(
+                    _HEATPUMP_POWER_SEEDED_STALE_AFTER_S
+                    if error in _HEATPUMP_POWER_HOLD_STALE_ERRORS
+                    else HEATPUMP_POWER_STALE_AFTER_S
+                ),
             )
             self._heatpump_power_backoff_until = getattr(
                 self, "_heatpump_daily_consumption_backoff_until", None
