@@ -4,8 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## v3.0.11 - 2026-05-23
+
+### 🚧 Breaking changes
+- None
+
+### ✨ New features
+- None
+
 ### 🐛 Bug fixes
-- Smoothed running Heat Pump power over longer same-day energy windows to reduce short-window spikes from lumpy site-today energy updates, while keeping raw power diagnostics available. (#680)
+- Smoothed running Heat Pump power over longer same-day energy windows to reduce short-window spikes from lumpy site-today energy updates, while keeping raw power diagnostics available. (#690)
+- Fixed IQ Battery profile confirmation so pending reserve and profile subtype changes are only promoted after live or configured profile state confirms the target, and retried system profile writes without EVSE devices when needed. (#692)
+
+### 🔧 Improvements
+- Added rolling coordinator refresh telemetry to diagnostics, including total refresh duration, phase timings, cloud-call counts, polling state, stale payload use, manual endpoint bypass state, and p50/p95/max summaries. (#691)
+
+### 🔄 Other changes
+- Refactored EVSE power derivation, EVSE runtime writes, and sensor registry setup into focused helper modules while preserving existing behavior. (#688)
+- Bumped the integration manifest version to `3.0.11`.
 
 ## v3.0.10 - 2026-05-17
 
