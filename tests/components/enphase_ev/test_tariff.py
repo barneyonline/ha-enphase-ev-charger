@@ -2690,6 +2690,11 @@ def test_tariff_sensors_expose_state_attributes_and_gateway_device(
     )
 
     coord = coordinator_factory()
+    monkeypatch.setattr(
+        sensor_mod,
+        "next_billing_date",
+        lambda snapshot: next_billing_date(snapshot, today=date(2026, 4, 26)),
+    )
     coord.tariff_last_refresh_utc = datetime(2026, 4, 26, tzinfo=timezone.utc)
     coord.tariff_billing = parse_tariff_billing(
         {

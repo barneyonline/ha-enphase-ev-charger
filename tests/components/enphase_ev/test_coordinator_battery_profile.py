@@ -137,6 +137,7 @@ async def test_set_system_profile_uses_remembered_reserve(coordinator_factory) -
     kwargs = coord.client.set_battery_profile.await_args.kwargs
     assert kwargs["profile"] == "cost_savings"
     assert kwargs["battery_backup_percentage"] == 35
+    assert kwargs["devices"] is None
     assert coord.battery_pending_profile == "cost_savings"
     assert coord.battery_pending_backup_percentage == 35
     assert coord._battery_pending_require_exact_settings is False  # noqa: SLF001
@@ -1492,6 +1493,65 @@ def test_live_profile_blocks_pending_match_until_controller_updates(
 
     coord._battery_live_profile = "self-consumption"  # noqa: SLF001
     assert coord._effective_profile_matches_pending() is True  # noqa: SLF001
+
+
+def test_live_profile_wins_over_stale_configured_profile(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+
+    assert coord.battery_effective_profile == "self-consumption"
+    assert coord.battery_selected_profile == "self-consumption"
+    assert coord.battery_effective_profile_display == "Self-Consumption"
+    assert "self-consumption" in coord.battery_profile_option_keys
+
+
+def test_live_profile_confirmation_promotes_pending_profile(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    coord._battery_backup_percentage = 100  # noqa: SLF001
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_require_exact_settings = False  # noqa: SLF001
+
+    coord.battery_runtime.confirm_battery_pending()
+
+    assert coord.battery_profile_pending is False
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_effective_profile == "self-consumption"
+    assert coord.battery_effective_backup_percentage == 20
+    assert coord.battery_selected_profile == "self-consumption"
+    assert coord.battery_selected_backup_percentage == 20
+
+
+@pytest.mark.asyncio
+async def test_cancel_pending_profile_change_does_not_promote_live_match(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    coord._battery_backup_percentage = 100  # noqa: SLF001
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_pending_reserve = 20  # noqa: SLF001
+    coord._battery_pending_requested_at = datetime.now(timezone.utc)  # noqa: SLF001
+    coord.client.cancel_battery_profile_update = AsyncMock(
+        return_value={"message": "success"}
+    )
+    coord.async_request_refresh = AsyncMock()
+    coord.kick_fast = MagicMock()
+
+    await coord.async_cancel_pending_profile_change()
+
+    coord.client.cancel_battery_profile_update.assert_awaited_once()
+    assert coord.battery_profile_pending is False
+    assert coord.battery_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
 
 
 def test_collect_site_metrics_includes_live_battery_profile(
