@@ -2680,6 +2680,7 @@ def test_tariff_runtime_diagnostics(coordinator_factory) -> None:
 
 def test_tariff_sensors_expose_state_attributes_and_gateway_device(
     coordinator_factory,
+    monkeypatch,
 ) -> None:
     coord = coordinator_factory()
     coord.tariff_last_refresh_utc = datetime(2026, 4, 26, tzinfo=timezone.utc)
@@ -2708,6 +2709,10 @@ def test_tariff_sensors_expose_state_attributes_and_gateway_device(
             },
         },
         "purchase",
+    )
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.tariff.dt_util.now",
+        lambda: datetime(2026, 4, 26, tzinfo=timezone.utc),
     )
 
     billing_sensor = EnphaseTariffBillingSensor(coord)

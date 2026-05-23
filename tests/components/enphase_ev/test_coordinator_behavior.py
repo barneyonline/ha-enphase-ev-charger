@@ -2074,6 +2074,39 @@ def test_refresh_performance_history_summary_reports_percentiles() -> None:
     }
 
 
+def test_refresh_performance_history_handles_defensive_paths() -> None:
+    class BrokenStarted:
+        def isoformat(self) -> str:
+            raise ValueError("bad timestamp")
+
+        def __str__(self) -> str:
+            return "broken-started"
+
+    existing = [{"total_s": 1.0}]
+
+    assert record_refresh_performance_sample(existing, {}, max_samples=1) == existing
+
+    history = record_refresh_performance_sample(
+        [{"not": "a timing"}],
+        {"status_s": 0.1},
+        refresh_started_utc=BrokenStarted(),  # type: ignore[arg-type]
+        max_samples=2,
+    )
+    assert history[-1]["started_utc"] == "broken-started"
+
+    summary = refresh_performance_history_summary(
+        [
+            {"total_s": "bad", "cloud_calls": "bad", "phase_timings": []},
+            {"total_s": 0.5, "cloud_calls": 2, "phase_timings": {"status_s": 0.1}},
+        ]
+    )
+
+    assert summary["sample_count"] == 2
+    assert summary["total_s"]["count"] == 1
+    assert summary["cloud_calls"]["count"] == 1
+    assert summary["stages"]["status_s"]["count"] == 1
+
+
 def test_collect_site_metrics_skips_negative_hems_age(hass, monkeypatch):
     coord = _make_coordinator(hass, monkeypatch)
     coord._hems_devices_last_success_mono = time.monotonic() + 5  # noqa: SLF001
