@@ -39,6 +39,7 @@ from .const import (
     BATTERY_BACKUP_HISTORY_FAILURE_CACHE_TTL,
     BATTERY_MIN_SOC_FALLBACK,
     BATTERY_PROFILE_DEFAULT_RESERVE,
+    BATTERY_PROFILE_PENDING_TIMEOUT_S,
     BATTERY_PROFILE_WRITE_DEBOUNCE_S,
     BATTERY_SETTINGS_CACHE_TTL,
     BATTERY_SETTINGS_WRITE_DEBOUNCE_S,
@@ -388,16 +389,146 @@ class BatteryRuntime:
             return func(sub_type)
         return None
 
-    def clear_battery_pending(self) -> None:
+    def clear_battery_pending(self, *, clear_optimistic: bool = True) -> None:
         state = self.battery_state
         state._battery_pending_profile = None
         state._battery_pending_reserve = None
         state._battery_pending_sub_type = None
         state._battery_pending_requested_at = None
+        state._battery_pending_requested_mono = None
         state._battery_pending_require_exact_settings = True
+        state._battery_pending_authoritative_confirmation_required = False
         state._battery_backend_profile_update_pending = None
         state._battery_backend_not_pending_observed_at = None
+        if clear_optimistic:
+            self.clear_battery_optimistic_profile()
         self._sync_battery_profile_pending_issue()
+
+    def clear_battery_optimistic_profile(self) -> None:
+        state = self.battery_state
+        state._battery_optimistic_profile = None
+        state._battery_optimistic_reserve = None
+        state._battery_optimistic_sub_type = None
+        state._battery_optimistic_until_mono = None
+
+    def set_battery_optimistic_profile(
+        self, profile: str, reserve: int | None, sub_type: str | None
+    ) -> None:
+        state = self.battery_state
+        normalized_profile = self.normalize_battery_profile_key(profile)
+        if not normalized_profile:
+            self.clear_battery_optimistic_profile()
+            return
+        state._battery_optimistic_profile = normalized_profile
+        state._battery_optimistic_reserve = reserve
+        state._battery_optimistic_sub_type = self._normalize_pending_sub_type(
+            self.coordinator,
+            normalized_profile,
+            sub_type,
+        )
+        state._battery_optimistic_until_mono = (
+            time.monotonic() + BATTERY_PROFILE_PENDING_TIMEOUT_S
+        )
+
+    def optimistic_battery_profile(self) -> str | None:
+        state = self.battery_state
+        profile = getattr(state, "_battery_optimistic_profile", None)
+        until = getattr(state, "_battery_optimistic_until_mono", None)
+        if profile is None or until is None:
+            return None
+        try:
+            expired = time.monotonic() >= float(until)
+        except Exception:  # noqa: BLE001
+            expired = True
+        if expired:
+            self.clear_battery_optimistic_profile()
+            return None
+        return profile
+
+    def optimistic_battery_reserve(self) -> int | None:
+        if self.optimistic_battery_profile() is None:
+            return None
+        return self._coerce_optional_int(
+            getattr(self.battery_state, "_battery_optimistic_reserve", None)
+        )
+
+    def optimistic_battery_sub_type(self) -> str | None:
+        if self.optimistic_battery_profile() is None:
+            return None
+        return self._normalize_battery_sub_type(
+            getattr(self.battery_state, "_battery_optimistic_sub_type", None)
+        )
+
+    def _read_profile_is_stale_after_write(self, profile: str | None) -> bool:
+        optimistic_profile = self.optimistic_battery_profile()
+        return (
+            optimistic_profile is not None
+            and profile is not None
+            and profile != optimistic_profile
+        )
+
+    def _note_authoritative_profile_read(self, profile: str | None) -> None:
+        state = self.battery_state
+        if profile is not None:
+            state._battery_profile_authoritative_seen = True
+            state._battery_profile_authoritative_seen_mono = time.monotonic()
+        optimistic_profile = self.optimistic_battery_profile()
+        if (
+            optimistic_profile is not None
+            and profile == optimistic_profile
+            and getattr(state, "_battery_pending_profile", None) is None
+        ):
+            self.clear_battery_optimistic_profile()
+
+    def _profile_authoritative_read_is_fresh(self) -> bool:
+        state = self.battery_state
+        last_seen = getattr(state, "_battery_profile_authoritative_seen_mono", None)
+        if last_seen is None:
+            return False
+        try:
+            age = time.monotonic() - float(last_seen)
+        except Exception:  # noqa: BLE001
+            return False
+        return age <= self._battery_profile_refresh_cache_ttl_seconds(
+            BATTERY_SETTINGS_CACHE_TTL
+        )
+
+    def _settings_profile_is_stale_after_authoritative_read(
+        self, profile: str | None
+    ) -> bool:
+        if profile is None:
+            return False
+        state = self.battery_state
+        return (
+            bool(getattr(state, "_battery_profile_authoritative_seen", False))
+            and self._profile_authoritative_read_is_fresh()
+            and getattr(state, "_battery_profile", None) is not None
+            and profile != getattr(state, "_battery_profile", None)
+        )
+
+    def _pending_requires_authoritative_confirmation(self) -> bool:
+        return bool(
+            getattr(
+                self.battery_state,
+                "_battery_pending_authoritative_confirmation_required",
+                False,
+            )
+        )
+
+    def _pending_authoritative_confirmation_received(self) -> bool:
+        if not self._pending_requires_authoritative_confirmation():
+            return True
+        state = self.battery_state
+        pending_requested_mono = getattr(state, "_battery_pending_requested_mono", None)
+        authoritative_seen_mono = getattr(
+            state, "_battery_profile_authoritative_seen_mono", None
+        )
+        if pending_requested_mono is None or authoritative_seen_mono is None:
+            return False
+        try:
+            return float(authoritative_seen_mono) >= float(pending_requested_mono)
+        except Exception:  # noqa: BLE001
+            return False
 
     def confirm_battery_pending(self) -> None:
         state = self.battery_state
@@ -459,9 +590,12 @@ class BatteryRuntime:
             coord, profile, sub_type
         )
         state._battery_pending_requested_at = dt_util.utcnow()
+        state._battery_pending_requested_mono = time.monotonic()
         state._battery_pending_require_exact_settings = bool(require_exact_settings)
+        state._battery_pending_authoritative_confirmation_required = True
         state._battery_backend_profile_update_pending = None
         state._battery_backend_not_pending_observed_at = None
+        self.set_battery_optimistic_profile(profile, reserve, sub_type)
         self._sync_battery_profile_pending_issue()
 
     def _backend_not_pending_clear_grace_seconds(self) -> int:
@@ -672,7 +806,10 @@ class BatteryRuntime:
         if getattr(state, "_battery_pending_profile", None) is None:
             state._battery_backend_not_pending_observed_at = None
             return
-        if self.effective_profile_matches_pending():
+        if (
+            self.effective_profile_matches_pending()
+            and self._pending_authoritative_confirmation_received()
+        ):
             self.confirm_battery_pending()
             return
         now = dt_util.utcnow()
@@ -686,9 +823,11 @@ class BatteryRuntime:
         if pending_age is None:
             return
         if pending_age >= self._backend_not_pending_clear_grace_seconds():
-            # The backend may briefly report no pending task before the updated
-            # settings are reflected, so pending state is cleared only after a
-            # poll-sized grace window.
+            # A locally accepted write still needs a matching profile read before
+            # it is treated as successful; otherwise the pending timeout can
+            # surface the unconfirmed change.
+            if self._pending_requires_authoritative_confirmation():
+                return
             self.clear_battery_pending()
 
     def effective_profile_matches_pending(self) -> bool:
@@ -696,9 +835,9 @@ class BatteryRuntime:
         pending_profile = getattr(state, "_battery_pending_profile", None)
         if not pending_profile:
             return False
-        effective_profile = getattr(state, "_battery_live_profile", None)
+        effective_profile = getattr(state, "_battery_profile", None)
         if effective_profile is None:
-            effective_profile = getattr(state, "_battery_profile", None)
+            effective_profile = getattr(state, "_battery_live_profile", None)
         if effective_profile != pending_profile:
             return False
         if not getattr(state, "_battery_pending_require_exact_settings", True):
@@ -2357,9 +2496,11 @@ class BatteryRuntime:
                             ),
                         }
 
-        if profile is not None:
+        stale_profile_read = self._read_profile_is_stale_after_write(profile)
+        if profile is not None and not stale_profile_read:
             state._battery_profile = profile
-        if reserve is not None:
+            self._note_authoritative_profile_read(profile)
+        if reserve is not None and not stale_profile_read:
             normalized_reserve = self.normalize_battery_reserve_for_profile(
                 profile or state._battery_profile or "self-consumption",
                 reserve,
@@ -2368,9 +2509,12 @@ class BatteryRuntime:
             self.remember_battery_reserve(
                 profile or state._battery_profile, normalized_reserve
             )
-        if subtype is not None:
+        if subtype is not None and not stale_profile_read:
             state._battery_operation_mode_sub_type = subtype
-        elif profile not in {"cost_savings", "ai_optimisation"}:
+        elif not stale_profile_read and profile not in {
+            "cost_savings",
+            "ai_optimisation",
+        }:
             state._battery_operation_mode_sub_type = None
         if supports_mqtt is not None:
             state._battery_supports_mqtt = supports_mqtt
@@ -2389,7 +2533,10 @@ class BatteryRuntime:
             state._battery_profile_evse_device = profile_evse_device
         self.sync_backend_battery_profile_pending(data.get("isBatteryChangePending"))
 
-        if self.effective_profile_matches_pending():
+        if (
+            self.effective_profile_matches_pending()
+            and self._pending_authoritative_confirmation_received()
+        ):
             self.confirm_battery_pending()
 
     def parse_battery_status_payload(self, payload: object) -> None:
@@ -2579,7 +2726,10 @@ class BatteryRuntime:
         }
         self._sync_ac_battery_from_battery_status(snapshots)
         self._refresh_cached_topology()
-        if self.effective_profile_matches_pending():
+        if (
+            self.effective_profile_matches_pending()
+            and self._pending_authoritative_confirmation_received()
+        ):
             self.confirm_battery_pending()
 
     def _sync_ac_battery_from_battery_status(
@@ -2879,7 +3029,23 @@ class BatteryRuntime:
             data.get("previousBatteryBackupPercentage")
         )
         settings_profile = self.normalize_battery_profile_key(data.get("profile"))
-        if settings_profile is not None:
+        profile_write_awaiting_authoritative_read = (
+            self._pending_requires_authoritative_confirmation()
+        )
+        stale_profile_read = (
+            profile_write_awaiting_authoritative_read
+            or self._settings_profile_is_stale_after_authoritative_read(
+                settings_profile
+            )
+        )
+        if (
+            settings_profile is not None
+            and not stale_profile_read
+            and (
+                not getattr(state, "_battery_profile_authoritative_seen", False)
+                or not self._profile_authoritative_read_is_fresh()
+            )
+        ):
             state._battery_profile = settings_profile
         settings_reserve = self._coerce_optional_int(
             data.get("batteryBackupPercentage")
@@ -2902,7 +3068,7 @@ class BatteryRuntime:
             )
         elif clear_missing_reserve_bounds:
             state._battery_backup_percentage_max = None
-        if settings_reserve is not None:
+        if settings_reserve is not None and not stale_profile_read:
             state._battery_backup_percentage = (
                 self.normalize_battery_reserve_for_profile(
                     settings_profile or state._battery_profile or "self-consumption",
@@ -2916,9 +3082,11 @@ class BatteryRuntime:
         settings_subtype = self._normalize_battery_sub_type(
             data.get("operationModeSubType")
         )
-        if settings_subtype is not None:
+        if settings_subtype is not None and not stale_profile_read:
             state._battery_operation_mode_sub_type = settings_subtype
-        elif (settings_profile or state._battery_profile) not in {
+        elif not stale_profile_read and (
+            settings_profile or state._battery_profile
+        ) not in {
             "cost_savings",
             "ai_optimisation",
         }:
@@ -2960,7 +3128,10 @@ class BatteryRuntime:
                     state._battery_use_battery_for_self_consumption = use_battery
         self.sync_backend_battery_profile_pending(data.get("isBatteryChangePending"))
 
-        if self.effective_profile_matches_pending():
+        if (
+            self.effective_profile_matches_pending()
+            and self._pending_authoritative_confirmation_received()
+        ):
             self.confirm_battery_pending()
 
     def parse_battery_schedules_payload(self, payload: object) -> None:
@@ -3798,6 +3969,7 @@ class BatteryRuntime:
         state = self.battery_state
         if not coord.battery_profile_pending:
             self.clear_battery_pending()
+            self.clear_battery_optimistic_profile()
             return
         await self.async_assert_battery_profile_write_allowed()
         async with state._battery_profile_write_lock:
@@ -3812,6 +3984,7 @@ class BatteryRuntime:
                     redact_site_id(coord.site_id),
                 )
         self.clear_battery_pending()
+        self.clear_battery_optimistic_profile()
         state._storm_guard_cache_until = None
         coord.kick_fast(FAST_TOGGLE_POLL_HOLD_S)
         await coord.async_request_refresh()

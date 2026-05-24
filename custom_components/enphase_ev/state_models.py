@@ -353,6 +353,8 @@ class BatteryState:
     _battery_site_status_text: str | None = None
     _battery_site_status_severity: str | None = None
     _battery_profile: str | None = None
+    _battery_profile_authoritative_seen: bool = False
+    _battery_profile_authoritative_seen_mono: float | None = None
     _battery_live_profile: str | None = None
     _battery_live_profile_label: str | None = None
     _battery_live_profile_sample_utc: datetime | None = None
@@ -377,7 +379,13 @@ class BatteryState:
     _battery_pending_reserve: int | None = None
     _battery_pending_sub_type: str | None = None
     _battery_pending_requested_at: datetime | None = None
+    _battery_pending_requested_mono: float | None = None
     _battery_pending_require_exact_settings: bool = True
+    _battery_pending_authoritative_confirmation_required: bool = False
+    _battery_optimistic_profile: str | None = None
+    _battery_optimistic_reserve: int | None = None
+    _battery_optimistic_sub_type: str | None = None
+    _battery_optimistic_until_mono: float | None = None
     _battery_backend_profile_update_pending: bool | None = None
     _battery_backend_not_pending_observed_at: datetime | None = None
     _battery_profile_reserve_memory: dict[str, int] = field(

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### 🐛 Bug fixes
+- Fixed IQ Battery system profile status so successful BatteryConfig profile writes are promoted from the authoritative profile endpoint, stale live/status payloads do not revert the selected profile, and unconfirmed writes remain pending until the cloud confirms or the pending repair timeout is reached.
+
 ## v3.0.11 - 2026-05-23
 
 ### 🚧 Breaking changes

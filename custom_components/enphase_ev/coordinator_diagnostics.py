@@ -204,6 +204,12 @@ class CoordinatorDiagnostics:
             except Exception:
                 return False
 
+        def _safe_attr(name: str, default: object = None) -> object:
+            try:
+                return getattr(coord, name)
+            except Exception:
+                return default
+
         backoff_until = coord._backoff_until or 0.0
         backoff_active = bool(backoff_until and backoff_until > time.monotonic())
         scheduler_backoff_active = coord._scheduler_backoff_active()
@@ -544,7 +550,7 @@ class CoordinatorDiagnostics:
             "battery_profile_selection_available": (
                 coord.battery_profile_selection_available
             ),
-            "battery_reserve_editable": coord.battery_reserve_editable,
+            "battery_reserve_editable": _safe_attr("battery_reserve_editable", False),
             "battery_shutdown_level_available": getattr(
                 coord, "battery_shutdown_level_available", None
             ),
@@ -595,7 +601,7 @@ class CoordinatorDiagnostics:
                 _coordinator_available()
                 and battery_type_available
                 and battery_write_access
-                and coord.battery_reserve_editable
+                and bool(_safe_attr("battery_reserve_editable", False))
             ),
             "battery_shutdown_level_number_available": (
                 _coordinator_available()

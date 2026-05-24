@@ -5222,7 +5222,10 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_effective_profile(self) -> str | None:
-        return self.battery_live_profile or getattr(self, "_battery_profile", None)
+        optimistic_profile = self.battery_runtime.optimistic_battery_profile()
+        if optimistic_profile is not None:
+            return optimistic_profile
+        return getattr(self, "_battery_profile", None) or self.battery_live_profile
 
     @property
     def battery_profile_pending(self) -> bool:
@@ -5234,10 +5237,16 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
 
     @property
     def battery_effective_backup_percentage(self) -> int | None:
+        optimistic_reserve = self.battery_runtime.optimistic_battery_reserve()
+        if optimistic_reserve is not None:
+            return optimistic_reserve
         return getattr(self, "_battery_backup_percentage", None)
 
     @property
     def battery_effective_operation_mode_sub_type(self) -> str | None:
+        optimistic_sub_type = self.battery_runtime.optimistic_battery_sub_type()
+        if optimistic_sub_type is not None:
+            return optimistic_sub_type
         return getattr(self, "_battery_operation_mode_sub_type", None)
 
     @property
@@ -5251,7 +5260,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
         return (
             getattr(self, "_battery_pending_reserve", None)
             if getattr(self, "_battery_pending_reserve", None) is not None
-            else getattr(self, "_battery_backup_percentage", None)
+            else self.battery_effective_backup_percentage
         )
 
     @property
@@ -5260,7 +5269,7 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict]):
             getattr(self, "_battery_pending_sub_type", None)
             if getattr(self, "_battery_pending_profile", None)
             in {"cost_savings", "ai_optimisation"}
-            else getattr(self, "_battery_operation_mode_sub_type", None)
+            else self.battery_effective_operation_mode_sub_type
         )
 
     @property
