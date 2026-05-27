@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-05-27T17:40:52.123655Z",
+  "checked_at": "2026-05-27T20:13:37.527897Z",
   "checks": [
     {
       "affects": true,
@@ -47,7 +47,7 @@
       ],
       "group": "degraded",
       "name": "evse_scheduler",
-      "ok": false
+      "ok": true
     },
     {
       "affects": true,
@@ -286,12 +286,12 @@
       "category": "evse_scheduler",
       "check_group": "evse_scheduler",
       "check_mode": "all",
-      "error": "The read operation timed out",
+      "error": null,
       "group": "degraded",
       "method": "GET",
       "name": "scheduler_charge_mode",
-      "ok": false,
-      "status": null,
+      "ok": true,
+      "status": 200,
       "url": "/service/evse_scheduler/api/v1/iqevc/charging-mode/{site_id}/{serial}/preference"
     },
     {
@@ -334,7 +334,7 @@
       "name": "session_history_criteria",
       "ok": true,
       "status": 200,
-      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=c9263fe2-ccea-414f-8a70-88f6db6c628a&username=2999024"
+      "url": "/service/enho_historical_events_ms/{site_id}/filter_criteria?source=evse&requestId=520ec8bb-f2da-497b-9a12-b0fd93154de5&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -404,7 +404,7 @@
       "name": "evse_timeseries_daily_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=c9263fe2-ccea-414f-8a70-88f6db6c628a&start_date=2026-05-27&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/daily_energy?site_id={site_id}&source=evse&requestId=520ec8bb-f2da-497b-9a12-b0fd93154de5&start_date=2026-05-27&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -418,7 +418,7 @@
       "name": "evse_timeseries_lifetime_energy",
       "ok": true,
       "status": 200,
-      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=c9263fe2-ccea-414f-8a70-88f6db6c628a&username=2999024"
+      "url": "/service/timeseries/evse/timeseries/lifetime_energy?site_id={site_id}&source=evse&requestId=520ec8bb-f2da-497b-9a12-b0fd93154de5&username=2999024"
     },
     {
       "affects_broad_outage": true,
@@ -729,16 +729,16 @@
       "url": "/service/evse_controller/api/v1/{site_id}/ev_chargers/{serial}/ev_charger_config"
     }
   ],
-  "status": "Degraded",
+  "status": "Fully Operational",
   "summary": {
-    "checks_failed": 2,
-    "checks_failed_affecting": 1,
-    "checks_failed_broad_outage": 2,
+    "checks_failed": 1,
+    "checks_failed_affecting": 0,
+    "checks_failed_broad_outage": 1,
     "checks_failed_non_affecting": 1,
-    "checks_ok": 15,
+    "checks_ok": 16,
     "checks_total": 17,
-    "endpoints_failed": 2,
-    "endpoints_ok": 35,
+    "endpoints_failed": 1,
+    "endpoints_ok": 36,
     "endpoints_total": 37
   }
 }
