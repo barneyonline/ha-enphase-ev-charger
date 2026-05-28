@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.enphase_ev.battery_runtime import BatteryRuntime
 from custom_components.enphase_ev.const import (
+    BATTERY_SETTINGS_CACHE_TTL,
     FAST_TOGGLE_POLL_HOLD_S,
     SAVINGS_OPERATION_MODE_SUBTYPE,
 )
@@ -63,6 +64,52 @@ def test_battery_runtime_pending_helpers_and_matching(
     assert coord._battery_backend_profile_update_pending is None  # noqa: SLF001
     assert coord._battery_backend_not_pending_observed_at is None  # noqa: SLF001
     assert mock_issue_registry.created == []
+
+
+def test_battery_runtime_optimistic_profile_guard_branches(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+
+    runtime.set_battery_optimistic_profile("", None, None)
+    assert runtime.optimistic_battery_profile() is None
+
+    coord._battery_profile_authoritative_seen_mono = None  # noqa: SLF001
+    assert runtime._profile_authoritative_read_is_fresh() is False  # noqa: SLF001
+
+    class BadSeen:
+        def __float__(self) -> float:
+            raise ValueError("boom")
+
+    coord._battery_profile_authoritative_seen_mono = BadSeen()  # noqa: SLF001
+    assert runtime._profile_authoritative_read_is_fresh() is False  # noqa: SLF001
+
+    coord._battery_pending_authoritative_confirmation_required = True  # noqa: SLF001
+    coord._battery_pending_requested_mono = BadSeen()  # noqa: SLF001
+    coord._battery_profile_authoritative_seen_mono = time.monotonic()  # noqa: SLF001
+    assert (  # noqa: SLF001
+        runtime._pending_authoritative_confirmation_received() is False
+    )
+    coord._battery_pending_authoritative_confirmation_required = False  # noqa: SLF001
+
+    runtime.set_battery_optimistic_profile("backup_only", 100, None)
+    runtime._note_authoritative_profile_read("backup_only")  # noqa: SLF001
+    assert runtime.optimistic_battery_profile() is None
+
+    coord._battery_optimistic_profile = "backup_only"  # noqa: SLF001
+    coord._battery_optimistic_until_mono = 0.0  # noqa: SLF001
+    assert runtime.optimistic_battery_profile() is None
+    assert coord._battery_optimistic_profile is None  # noqa: SLF001
+
+    class BadUntil:
+        def __float__(self) -> float:
+            raise ValueError("boom")
+
+    coord._battery_optimistic_profile = "backup_only"  # noqa: SLF001
+    coord._battery_optimistic_until_mono = BadUntil()  # noqa: SLF001
+    assert runtime.optimistic_battery_profile() is None
+    assert coord._battery_optimistic_profile is None  # noqa: SLF001
 
 
 def test_backend_pending_flag_does_not_clear_recent_mismatched_request(
@@ -119,6 +166,402 @@ def test_backend_pending_flag_clears_stale_mismatched_request_after_grace(
     assert coord.battery_profile_pending is False
     assert coord._battery_backend_profile_update_pending is None  # noqa: SLF001
     assert coord._battery_backend_not_pending_observed_at is None  # noqa: SLF001
+
+
+def test_stale_profile_reads_do_not_revert_accepted_write_after_grace(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    requested_at = datetime.now(UTC)
+    second_false = requested_at + timedelta(seconds=FAST_TOGGLE_POLL_HOLD_S + 5)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    runtime.set_battery_pending(
+        profile="backup_only",
+        reserve=100,
+        sub_type=None,
+        require_exact_settings=False,
+    )
+    coord._battery_pending_requested_at = requested_at  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = requested_at  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: second_false,
+    )
+
+    runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_selected_profile == "backup_only"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_selected_profile == "backup_only"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "backup_only",
+                "batteryBackupPercentage": 100,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert runtime.optimistic_battery_profile() is None
+    assert coord.battery_profile_pending is False
+    assert coord.battery_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
+
+
+def test_profile_endpoint_wins_over_stale_battery_settings(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "backup_only",
+                "batteryBackupPercentage": 100,
+            }
+        }
+    )
+    runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+            }
+        }
+    )
+
+    assert coord.battery_profile == "backup_only"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
+
+
+def test_stale_profile_endpoint_allows_battery_settings_fallback(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "backup_only",
+                "batteryBackupPercentage": 100,
+            }
+        }
+    )
+    coord._battery_profile_authoritative_seen_mono = (  # noqa: SLF001
+        time.monotonic() - BATTERY_SETTINGS_CACHE_TTL - 1
+    )
+
+    runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+            }
+        }
+    )
+
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_effective_profile == "self-consumption"
+    assert coord.battery_effective_backup_percentage == 20
+
+
+def test_profile_endpoint_confirms_pending_with_stale_live_profile(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+
+    runtime.set_battery_pending(
+        profile="backup_only",
+        reserve=100,
+        sub_type=None,
+        require_exact_settings=False,
+    )
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "backup_only",
+                "batteryBackupPercentage": 100,
+                "isBatteryChangePending": True,
+            }
+        }
+    )
+
+    assert runtime.optimistic_battery_profile() is None
+    assert coord.battery_profile_pending is False
+    assert coord.battery_profile == "backup_only"
+    assert coord.battery_live_profile == "self-consumption"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
+
+
+def test_battery_settings_target_payload_does_not_confirm_pending_profile(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+
+    runtime.set_battery_pending(
+        profile="backup_only",
+        reserve=100,
+        sub_type=None,
+        require_exact_settings=False,
+    )
+
+    runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "profile": "backup_only",
+                "batteryBackupPercentage": 100,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_selected_profile == "backup_only"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
+
+
+def test_backend_not_pending_does_not_promote_unconfirmed_optimistic_profile(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    requested_at = datetime.now(UTC)
+    second_false = requested_at + timedelta(seconds=FAST_TOGGLE_POLL_HOLD_S + 5)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    runtime.set_battery_pending(
+        profile="backup_only",
+        reserve=100,
+        sub_type=None,
+        require_exact_settings=False,
+    )
+    coord._battery_pending_requested_at = requested_at  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = requested_at  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: second_false,
+    )
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_selected_profile == "backup_only"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_effective_backup_percentage == 100
+
+
+def test_backend_not_pending_keeps_local_write_pending_after_optimistic_expiry(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    requested_at = datetime.now(UTC)
+    second_false = requested_at + timedelta(seconds=FAST_TOGGLE_POLL_HOLD_S + 5)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    runtime.set_battery_pending(
+        profile="backup_only",
+        reserve=100,
+        sub_type=None,
+        require_exact_settings=False,
+    )
+    coord._battery_pending_requested_at = requested_at  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = requested_at  # noqa: SLF001
+    coord._battery_optimistic_until_mono = 0.0  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: second_false,
+    )
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert runtime.optimistic_battery_profile() is None
+    assert coord.battery_profile_pending is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_selected_profile == "backup_only"
+    assert coord.battery_effective_profile == "self-consumption"
+    assert coord.battery_selected_backup_percentage == 100
+
+
+def test_profile_match_with_stale_reserve_does_not_clear_local_pending(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    requested_at = datetime.now(UTC)
+    second_false = requested_at + timedelta(seconds=FAST_TOGGLE_POLL_HOLD_S + 5)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    runtime.set_battery_pending(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        require_exact_settings=True,
+    )
+    coord._battery_pending_requested_at = requested_at  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = requested_at  # noqa: SLF001
+    coord._battery_optimistic_until_mono = 0.0  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: second_false,
+    )
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 20,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert runtime.optimistic_battery_profile() is None
+    assert coord.battery_profile_pending is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_effective_backup_percentage == 20
+    assert coord.battery_selected_backup_percentage == 30
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 30,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is False
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_effective_backup_percentage == 30
+
+
+def test_prepopulated_local_target_does_not_confirm_before_profile_read(
+    coordinator_factory, monkeypatch
+) -> None:
+    coord = coordinator_factory()
+    runtime = BatteryRuntime(coord)
+    requested_at = datetime.now(UTC)
+    second_false = requested_at + timedelta(seconds=FAST_TOGGLE_POLL_HOLD_S + 5)
+    coord._battery_profile = "self-consumption"  # noqa: SLF001
+    coord._battery_backup_percentage = 20  # noqa: SLF001
+    coord._battery_polling_interval_s = 45  # noqa: SLF001
+
+    runtime.parse_battery_settings_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 30,
+            }
+        }
+    )
+    runtime.set_battery_pending(
+        profile="self-consumption",
+        reserve=30,
+        sub_type=None,
+        require_exact_settings=True,
+    )
+    coord._battery_pending_requested_at = requested_at  # noqa: SLF001
+    coord._battery_backend_not_pending_observed_at = requested_at  # noqa: SLF001
+
+    monkeypatch.setattr(
+        "custom_components.enphase_ev.battery_runtime.dt_util.utcnow",
+        lambda: second_false,
+    )
+
+    runtime.sync_backend_battery_profile_pending(False)
+
+    assert coord.battery_profile_pending is True
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_effective_backup_percentage == 30
+
+    runtime.parse_battery_profile_payload(
+        {
+            "data": {
+                "profile": "self-consumption",
+                "batteryBackupPercentage": 30,
+                "isBatteryChangePending": False,
+            }
+        }
+    )
+
+    assert coord.battery_profile_pending is False
+    assert coord.battery_profile == "self-consumption"
+    assert coord.battery_effective_backup_percentage == 30
 
 
 def test_backend_pending_true_resets_not_pending_observation(
@@ -1089,6 +1532,7 @@ def test_battery_runtime_parse_profile_payload_branches_and_helpers(
     )
     assert coord.battery_effective_backup_percentage == 100
     assert coord._battery_profile_devices == []  # noqa: SLF001
+    assert coord.battery_profile_devices_payload() is None
 
     coord._battery_profile_devices = [  # noqa: SLF001
         {"chargeMode": "MANUAL", "enable": True},

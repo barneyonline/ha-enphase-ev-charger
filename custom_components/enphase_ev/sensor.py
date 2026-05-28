@@ -8792,7 +8792,10 @@ class EnphaseSystemProfileStatusSensor(_SiteBaseEntity):
     @property
     def native_value(self):
         if self._coord.battery_profile_pending:
-            return "Updating..."
+            return (
+                self._coord.battery_profile_display
+                or self._coord.battery_effective_profile_display
+            )
         return self._coord.battery_effective_profile_display
 
     @property

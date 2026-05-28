@@ -1904,7 +1904,7 @@ def test_system_profile_status_sensor_states():
     coord.battery_profile_display = "AI Optimisation"
     coord.battery_selected_backup_percentage = 25
     coord.battery_selected_operation_mode_sub_type = "prioritize-energy"
-    assert sensor.native_value == "Updating..."
+    assert sensor.native_value == "AI Optimisation"
     attrs = sensor.extra_state_attributes
     assert attrs["pending"] is True
     assert attrs["effective_profile"] == "self-consumption"

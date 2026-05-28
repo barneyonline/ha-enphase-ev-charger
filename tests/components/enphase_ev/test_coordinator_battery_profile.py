@@ -996,6 +996,13 @@ def test_battery_profile_property_helpers_cover_branches(coordinator_factory) ->
     assert coord.battery_effective_backup_percentage == 33
     assert coord.battery_effective_operation_mode_sub_type == "prioritize-energy"
     assert coord.battery_pending_operation_mode_sub_type == "prioritize-energy"
+    coord.battery_runtime.set_battery_optimistic_profile(
+        "ai_optimisation",
+        22,
+        "prioritize-energy",
+    )
+    assert coord.battery_effective_operation_mode_sub_type == "prioritize-energy"
+    coord.battery_runtime.clear_battery_optimistic_profile()
     assert coord.battery_has_encharge is True
     assert coord.battery_show_battery_backup_percentage is True
     assert "cost_savings" in coord.battery_profile_option_keys
@@ -1004,12 +1011,12 @@ def test_battery_profile_property_helpers_cover_branches(coordinator_factory) ->
     assert coord.battery_effective_profile_display == "Self-Consumption"
     coord._battery_live_profile = "backup_only"  # noqa: SLF001
     assert coord.battery_live_profile == "backup_only"
-    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_effective_profile == "self-consumption"
     assert coord.battery_selected_profile == "cost_savings"
     assert "backup_only" in coord.battery_profile_option_keys
     coord._battery_pending_profile = None  # noqa: SLF001
-    assert coord.battery_selected_profile == "backup_only"
-    assert coord.battery_effective_profile_display == "Full Backup"
+    assert coord.battery_selected_profile == "self-consumption"
+    assert coord.battery_effective_profile_display == "Self-Consumption"
     coord._battery_live_profile = None  # noqa: SLF001
     coord._battery_pending_profile = "cost_savings"  # noqa: SLF001
     assert coord.savings_use_battery_after_peak is True
@@ -1435,7 +1442,7 @@ def test_live_battery_mode_profile_normalization(coordinator_factory) -> None:
     assert runtime.normalize_live_battery_mode_profile("Savings") == "cost_savings"
 
 
-def test_battery_status_payload_tracks_live_profile_and_clears_pending(
+def test_battery_status_payload_tracks_live_profile_without_clearing_pending(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -1462,7 +1469,8 @@ def test_battery_status_payload_tracks_live_profile_and_clears_pending(
     assert coord._battery_live_profile == "backup_only"  # noqa: SLF001
     assert coord._battery_live_profile_label == "Full Backup"  # noqa: SLF001
     assert coord._battery_live_profile_sample_utc is not None  # noqa: SLF001
-    assert coord.battery_profile_pending is False
+    assert coord.battery_profile_pending is True
+    assert coord.battery_selected_profile == "backup_only"
 
     coord.battery_runtime.parse_battery_status_payload({"storages": [{"id": "123"}]})
     assert coord._battery_live_profile is None  # noqa: SLF001
@@ -1478,7 +1486,32 @@ def test_battery_status_payload_tracks_live_profile_and_clears_pending(
     assert coord._battery_live_profile_sample_utc is None  # noqa: SLF001
 
 
-def test_live_profile_blocks_pending_match_until_controller_updates(
+def test_battery_status_payload_clears_pending_when_no_profile_endpoint_value(
+    coordinator_factory,
+) -> None:
+    coord = coordinator_factory()
+    coord._battery_pending_profile = "backup_only"  # noqa: SLF001
+    coord._battery_pending_reserve = 100  # noqa: SLF001
+    coord._battery_pending_require_exact_settings = False  # noqa: SLF001
+
+    coord.battery_runtime.parse_battery_status_payload(
+        {
+            "storages": [
+                {
+                    "id": "123",
+                    "battery_mode": "Full Backup",
+                    "current_charge": "75%",
+                }
+            ]
+        }
+    )
+
+    assert coord.battery_profile_pending is False
+    assert coord.battery_profile == "backup_only"
+    assert coord.battery_effective_profile == "backup_only"
+
+
+def test_configured_profile_confirms_pending_with_stale_live_profile(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
@@ -1489,22 +1522,23 @@ def test_live_profile_blocks_pending_match_until_controller_updates(
     coord._battery_pending_reserve = 20  # noqa: SLF001
     coord._battery_pending_require_exact_settings = False  # noqa: SLF001
 
-    assert coord._effective_profile_matches_pending() is False  # noqa: SLF001
-
-    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
     assert coord._effective_profile_matches_pending() is True  # noqa: SLF001
 
+    coord._battery_profile = "backup_only"  # noqa: SLF001
+    coord._battery_live_profile = "self-consumption"  # noqa: SLF001
+    assert coord._effective_profile_matches_pending() is False  # noqa: SLF001
 
-def test_live_profile_wins_over_stale_configured_profile(
+
+def test_configured_profile_wins_over_stale_live_profile(
     coordinator_factory,
 ) -> None:
     coord = coordinator_factory()
     coord._battery_profile = "backup_only"  # noqa: SLF001
     coord._battery_live_profile = "self-consumption"  # noqa: SLF001
 
-    assert coord.battery_effective_profile == "self-consumption"
-    assert coord.battery_selected_profile == "self-consumption"
-    assert coord.battery_effective_profile_display == "Self-Consumption"
+    assert coord.battery_effective_profile == "backup_only"
+    assert coord.battery_selected_profile == "backup_only"
+    assert coord.battery_effective_profile_display == "Full Backup"
     assert "self-consumption" in coord.battery_profile_option_keys
 
 
